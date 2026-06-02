@@ -1,6 +1,7 @@
 package com.zolt.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -132,6 +133,78 @@ final class ZoltCliTest {
         }
     }
 
+    @Test
+    void addAddsCompileDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "com.google.guava:guava:33.4.0-jre");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Added dependency com.google.guava:guava:33.4.0-jre to [dependencies]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("\"com.google.guava:guava\" = \"33.4.0-jre\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void addAddsTestDependencyWithoutDuplicatingExistingEntry() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult first = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "test",
+                "org.junit.jupiter:junit-jupiter:5.11.4");
+        CommandResult second = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "test",
+                "org.junit.jupiter:junit-jupiter:5.11.4");
+
+        assertEquals(0, first.exitCode());
+        assertEquals(0, second.exitCode());
+        assertTrue(first.stdout().contains("Added dependency org.junit.jupiter:junit-jupiter:5.11.4 to [test.dependencies]"));
+        assertTrue(second.stdout().contains("already exists in [test.dependencies]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertEquals(1, occurrences(config, "\"org.junit.jupiter:junit-jupiter\" = \"5.11.4\""));
+    }
+
+    @Test
+    void addRefreshesLockfileByDefault() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString());
+
+            CommandResult result = execute(
+                    "add",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString(),
+                    "com.example:app:1.0.0");
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Added dependency com.example:app:1.0.0 to [dependencies]"));
+            assertTrue(result.stdout().contains("Resolved 1 packages"));
+            assertTrue(result.stdout().contains("Downloaded 2 artifacts"));
+            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        }
+    }
+
     private static CommandResult execute(String... args) {
         CommandLine commandLine = ZoltCli.newCommandLine();
         StringWriter stdout = new StringWriter();
@@ -145,6 +218,41 @@ final class ZoltCliTest {
     }
 
     private record CommandResult(int exitCode, String stdout, String stderr) {
+    }
+
+    private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                main = "com.example.Main"
+
+                [repositories]
+                test = "%s"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """.formatted(repositoryUrl));
+    }
+
+    private static int occurrences(String value, String needle) {
+        int count = 0;
+        int index = value.indexOf(needle);
+        while (index >= 0) {
+            count++;
+            index = value.indexOf(needle, index + needle.length());
+        }
+        return count;
     }
 
     private static final class TestRepository implements AutoCloseable {
