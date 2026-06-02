@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("why");
+        CommandResult result = execute("conflicts");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt why is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt conflicts is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -350,6 +350,52 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Could not read zolt.lock"));
+    }
+
+    @Test
+    void whyPrintsPathFromProjectRootToPackage() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:app"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = ["com.example:lib:1.0.0"]
+
+                [[package]]
+                id = "com.example:lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                dependencies = []
+                """);
+
+        CommandResult result = execute("why", "--cwd", projectDir.toString(), "com.example:lib");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                   \\- com.example:lib:1.0.0
+                """, result.stdout());
+    }
+
+    @Test
+    void whyReportsMissingPackageClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute("why", "--cwd", projectDir.toString(), "com.example:missing");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Package com.example:missing is not present in zolt.lock"));
     }
 
     private static CommandResult execute(String... args) {

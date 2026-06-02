@@ -10,6 +10,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -17,6 +18,8 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.tree.DependencyTreeFormatter;
+import com.zolt.tree.DependencyWhyException;
+import com.zolt.tree.DependencyWhyFormatter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -285,9 +288,32 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "why", description = "Explain why a package is present.")
-    public static final class WhyCommand extends StubCommand {
-        public WhyCommand() {
-            super("why");
+    public static final class WhyCommand implements Runnable {
+        @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Package id to explain.")
+        private String packageId;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        private final CoordinateParser coordinateParser = new CoordinateParser();
+
+        @Override
+        public void run() {
+            try {
+                Coordinate coordinate = coordinateParser.parse(packageId);
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                String output = new DependencyWhyFormatter().format(
+                        config,
+                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")),
+                        new PackageId(coordinate.groupId(), coordinate.artifactId()));
+                spec.commandLine().getOut().print(output);
+            } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 
