@@ -3,6 +3,11 @@ package com.zolt.cli;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.resolve.ResolveException;
+import com.zolt.resolve.ResolveResult;
+import com.zolt.resolve.ResolveService;
+import com.zolt.toml.ZoltConfigException;
+import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -95,9 +100,31 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "resolve", description = "Resolve dependencies, download artifacts, and write zolt.lock.")
-    public static final class ResolveCommand extends StubCommand {
-        public ResolveCommand() {
-            super("resolve");
+    public static final class ResolveCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ResolveResult result = new ResolveService().resolve(
+                        workingDirectory,
+                        new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
+                        cacheRoot);
+                spec.commandLine().getOut().println("Resolved " + result.resolvedCount() + " packages");
+                spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
+                spec.commandLine().getOut().println("Conflicts " + result.conflictCount());
+                spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
+            } catch (ResolveException | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 
