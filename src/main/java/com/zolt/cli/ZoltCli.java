@@ -1,5 +1,6 @@
 package com.zolt.cli;
 
+import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
@@ -318,9 +319,23 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "conflicts", description = "Show version conflicts and selected versions.")
-    public static final class ConflictsCommand extends StubCommand {
-        public ConflictsCommand() {
-            super("conflicts");
+    public static final class ConflictsCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                String output = new DependencyConflictFormatter().format(
+                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
+                spec.commandLine().getOut().print(output);
+            } catch (LockfileReadException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 

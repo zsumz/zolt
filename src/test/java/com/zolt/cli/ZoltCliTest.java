@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("conflicts");
+        CommandResult result = execute("build");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt conflicts is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt build is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -396,6 +396,44 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Package com.example:missing is not present in zolt.lock"));
+    }
+
+    @Test
+    void conflictsPrintsConflictSummaryFromLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[conflict]]
+                id = "org.slf4j:slf4j-api"
+                selected = "2.0.16"
+                requested = ["1.7.36", "2.0.16"]
+                reason = "direct dependency wins"
+                """);
+
+        CommandResult result = execute("conflicts", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("""
+                Dependency conflicts:
+                - org.slf4j:slf4j-api
+                  selected: 2.0.16
+                  requested: 1.7.36, 2.0.16
+                  reason: direct dependency wins
+                """, result.stdout());
+    }
+
+    @Test
+    void conflictsExitsSuccessfullyWhenNoConflictsExist() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute("conflicts", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("No dependency conflicts found.\n", result.stdout());
     }
 
     private static CommandResult execute(String... args) {
