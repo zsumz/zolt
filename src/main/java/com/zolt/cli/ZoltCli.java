@@ -175,9 +175,60 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "remove", description = "Remove a dependency and prune unused transitive packages.")
-    public static final class RemoveCommand extends StubCommand {
-        public RemoveCommand() {
-            super("remove");
+    public static final class RemoveCommand implements Runnable {
+        @Parameters(
+                arity = "1..2",
+                paramLabel = "[test] GROUP:ARTIFACT",
+                description = "Dependency coordinate, optionally prefixed with `test` for test dependencies.")
+        private List<String> arguments;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        private final CoordinateParser coordinateParser = new CoordinateParser();
+        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
+        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
+        private final ResolveService resolveService = new ResolveService();
+
+        @Override
+        public void run() {
+            try {
+                RemoveRequest request = parseRequest(arguments);
+                Path configPath = workingDirectory.resolve("zolt.toml");
+                ProjectConfig config = tomlParser.parse(configPath);
+                Map<String, String> dependencies = dependencies(config, request.section());
+                String section = sectionName(request.section());
+                if (!dependencies.containsKey(request.coordinate())) {
+                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                            + " is not present in [" + section + "]; nothing to remove.");
+                    return;
+                }
+                ProjectConfig updated = tomlWriter.removeDependency(config, request.section(), request.coordinate());
+                tomlWriter.write(configPath, updated);
+                spec.commandLine().getOut().println(
+                        "Removed dependency " + request.coordinate() + " from [" + section + "]");
+                printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+            } catch (RemoveCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
+        }
+
+        private RemoveRequest parseRequest(List<String> values) {
+            if (values.size() == 2 && !"test".equals(values.get(0))) {
+                throw new RemoveCommandException(
+                        "Unexpected dependency section `" + values.get(0) + "`. Use `zolt remove test group:artifact` for test dependencies.");
+            }
+            DependencySection section = values.size() == 2 ? DependencySection.TEST : DependencySection.MAIN;
+            String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
+            Coordinate coordinate = coordinateParser.parse(rawCoordinate);
+            return new RemoveRequest(section, coordinate.groupId() + ":" + coordinate.artifactId());
         }
     }
 
@@ -297,8 +348,25 @@ public final class ZoltCli implements Runnable {
     private record AddRequest(DependencySection section, String coordinate, String version) {
     }
 
+    private record RemoveRequest(DependencySection section, String coordinate) {
+    }
+
+    private static Map<String, String> dependencies(ProjectConfig config, DependencySection section) {
+        return section == DependencySection.TEST ? config.testDependencies() : config.dependencies();
+    }
+
+    private static String sectionName(DependencySection section) {
+        return section == DependencySection.TEST ? "test.dependencies" : "dependencies";
+    }
+
     private static final class AddCommandException extends RuntimeException {
         private AddCommandException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class RemoveCommandException extends RuntimeException {
+        private RemoveCommandException(String message) {
             super(message);
         }
     }
