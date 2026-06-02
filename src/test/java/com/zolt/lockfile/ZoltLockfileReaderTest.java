@@ -1,0 +1,114 @@
+package com.zolt.lockfile;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+final class ZoltLockfileReaderTest {
+    private final ZoltLockfileReader reader = new ZoltLockfileReader();
+
+    @Test
+    void readsCurrentLockfileVersion() throws IOException {
+        ZoltLockfile lockfile = reader.read(golden());
+
+        assertEquals(ZoltLockfile.CURRENT_VERSION, lockfile.version());
+        assertEquals(3, lockfile.packages().size());
+        assertEquals(1, lockfile.conflicts().size());
+    }
+
+    @Test
+    void readsPackageFields() throws IOException {
+        ZoltLockfile lockfile = reader.read(golden());
+        LockPackage guava = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.google.guava", "guava")))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("33.4.0-jre", guava.version());
+        assertEquals("maven-central", guava.source());
+        assertEquals(DependencyScope.COMPILE, guava.scope());
+        assertTrue(guava.direct());
+        assertEquals("jar-checksum", guava.jarSha256().orElseThrow());
+        assertEquals(List.of(
+                "com.google.guava:failureaccess:1.0.2",
+                "org.slf4j:slf4j-api:2.0.16"), guava.dependencies());
+    }
+
+    @Test
+    void readsConflictFields() throws IOException {
+        LockConflict conflict = reader.read(golden()).conflicts().getFirst();
+
+        assertEquals(new PackageId("org.slf4j", "slf4j-api"), conflict.packageId());
+        assertEquals("2.0.16", conflict.selectedVersion());
+        assertEquals(List.of("1.7.36", "2.0.16"), conflict.requestedVersions());
+        assertEquals(ConflictSelectionReason.DIRECT_DEPENDENCY, conflict.reason());
+    }
+
+    @Test
+    void rejectsUnsupportedLockfileVersion() {
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.read("version = 99\n"));
+
+        assertEquals(
+                "Unsupported zolt.lock version 99. Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsCorruptTomlWithActionableError() {
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.read("version =\n"));
+
+        assertTrue(exception.getMessage().contains("Could not parse zolt.lock."));
+        assertTrue(exception.getMessage().contains("Fix the TOML syntax"));
+    }
+
+    @Test
+    void rejectsMissingRequiredPackageField() {
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.read("""
+                        version = 1
+
+                        [[package]]
+                        id = "com.example:demo"
+                        version = "1.0.0"
+                        scope = "compile"
+                        direct = true
+                        dependencies = []
+                        """));
+
+        assertEquals("Missing required string field `source` in zolt.lock.", exception.getMessage());
+    }
+
+    @Test
+    void reconstructsClasspathInputsFromLockfileData() throws IOException {
+        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read(golden()));
+
+        assertEquals(3, packages.size());
+        ResolvedClasspathPackage guava = packages.stream()
+                .filter(candidate -> candidate.resolvedPackage().packageId().equals(new PackageId("com.google.guava", "guava")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(DependencyScope.COMPILE, guava.scope());
+        assertEquals("guava-33.4.0-jre.jar", guava.resolvedPackage().jarPath().getFileName().toString());
+        assertEquals("guava-33.4.0-jre.pom", guava.resolvedPackage().pomPath().getFileName().toString());
+    }
+
+    private static String golden() throws IOException {
+        return new String(
+                ZoltLockfileReaderTest.class.getResourceAsStream("/golden/zolt-lock-writer.golden").readAllBytes(),
+                StandardCharsets.UTF_8);
+    }
+}
