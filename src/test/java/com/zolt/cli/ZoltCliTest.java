@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("tree");
+        CommandResult result = execute("why");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt tree is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt why is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -305,6 +305,51 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains(
                 "Dependency com.example:missing is not present in [dependencies]; nothing to remove."));
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void treePrintsDependencyTreeFromProjectLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:app"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = ["com.example:lib:1.0.0"]
+
+                [[package]]
+                id = "com.example:lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                dependencies = []
+                """);
+
+        CommandResult result = execute("tree", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                   \\- com.example:lib:1.0.0
+                """, result.stdout());
+    }
+
+    @Test
+    void treeReportsMissingLockfileCleanly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute("tree", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.lock"));
     }
 
     private static CommandResult execute(String... args) {

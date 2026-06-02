@@ -1,5 +1,7 @@
 package com.zolt.cli;
 
+import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
 import com.zolt.maven.CoordinateParser;
@@ -14,6 +16,7 @@ import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
+import com.zolt.tree.DependencyTreeFormatter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -259,9 +262,25 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "tree", description = "Display the resolved dependency graph.")
-    public static final class TreeCommand extends StubCommand {
-        public TreeCommand() {
-            super("tree");
+    public static final class TreeCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                String output = new DependencyTreeFormatter().format(
+                        config,
+                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
+                spec.commandLine().getOut().print(output);
+            } catch (LockfileReadException | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 
