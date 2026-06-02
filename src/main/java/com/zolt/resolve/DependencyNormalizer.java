@@ -15,7 +15,12 @@ public final class DependencyNormalizer {
     }
 
     public NormalizedDependency normalize(RawPomDependency dependency) {
-        return new NormalizedDependency(dependency, scopeParser.parse(dependency));
+        return new NormalizedDependency(
+                dependency,
+                scopeParser.parse(dependency),
+                dependency.exclusions().stream()
+                        .map(exclusion -> new DependencyExclusion(exclusion.groupId(), exclusion.artifactId()))
+                        .toList());
     }
 
     public List<NormalizedDependency> normalize(List<RawPomDependency> dependencies) {
