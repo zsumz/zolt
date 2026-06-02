@@ -1,0 +1,20 @@
+# Java / Zolt output
+target/
+build/
+out/
+.gradle/
+.gradle-user/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Native artifacts
+*.exe
+*.dylib
+*.so
+*.dll

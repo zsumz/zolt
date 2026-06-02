@@ -1,0 +1,33 @@
+plugins {
+    id 'application'
+    id 'java'
+}
+
+group = 'com.zolt'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+application {
+    mainClass = 'com.zolt.cli.ZoltCli'
+    applicationName = 'zolt'
+}
+
+dependencies {
+    implementation 'info.picocli:picocli:4.7.6'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
