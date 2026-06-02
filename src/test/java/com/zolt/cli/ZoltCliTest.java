@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("run");
+        CommandResult result = execute("test");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt run is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt test is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -486,6 +486,48 @@ final class ZoltCliTest {
     }
 
     @Test
+    void runBuildsAndRunsConfiguredMainClass() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello " + args[0] + " " + args[1]);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--",
+                "one",
+                "two");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("hello one two"));
+        assertTrue(result.stdout().contains("Ran com.example.Main"));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void runReportsMissingMainClassClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "run",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("No main class is configured"));
+    }
+
+    @Test
     void doctorReportsJdkStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2", currentJavaMajorVersion());
@@ -566,6 +608,30 @@ final class ZoltCliTest {
                 testOutput = "target/test-classes"
                 """);
         Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
+    }
+
+    private static void writeProjectConfigWithoutMain(Path projectDir, String repositoryUrl) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [repositories]
+                test = "%s"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """.formatted(currentJavaMajorVersion(), repositoryUrl));
     }
 
     private static void appendDependencies(StringBuilder config, Map<String, String> dependencies) {

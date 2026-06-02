@@ -3,7 +3,11 @@ package com.zolt.cli;
 import com.zolt.build.BuildException;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildService;
+import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
+import com.zolt.build.RunException;
+import com.zolt.build.RunResult;
+import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
@@ -380,9 +384,41 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "run", description = "Build and run the configured main class.")
-    public static final class RunCommand extends StubCommand {
-        public RunCommand() {
-            super("run");
+    public static final class RunCommand implements Runnable {
+        @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
+        private List<String> arguments = List.of();
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                RunResult result = new RunService().run(workingDirectory, config, cacheRoot, arguments);
+                String output = result.javaRunResult().output();
+                spec.commandLine().getOut().print(output);
+                if (!output.isEmpty() && !output.endsWith("\n")) {
+                    spec.commandLine().getOut().println();
+                }
+                spec.commandLine().getOut().println("Ran " + result.javaRunResult().mainClass());
+            } catch (BuildException
+                    | JavacException
+                    | JavaRunException
+                    | RunException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 
