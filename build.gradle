@@ -33,3 +33,65 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+def nativeOutputDir = layout.buildDirectory.dir('native')
+def nativeBinary = nativeOutputDir.map { it.file('zolt') }
+def nativeImageLog = nativeOutputDir.map { it.file('native-image.log') }
+
+tasks.register('nativeImage') {
+    group = 'distribution'
+    description = 'Build a native zolt binary with GraalVM Native Image.'
+    dependsOn tasks.named('jar')
+
+    inputs.files(tasks.named('jar').flatMap { it.archiveFile })
+    inputs.files(configurations.runtimeClasspath)
+    outputs.file(nativeBinary)
+    outputs.file(nativeImageLog)
+
+    doLast {
+        def outputFile = nativeBinary.get().asFile
+        def logFile = nativeImageLog.get().asFile
+        outputFile.parentFile.mkdirs()
+
+        def execution = providers.exec {
+            executable = providers.gradleProperty('nativeImageExecutable').orElse('native-image').get()
+            args '--no-fallback',
+                    '--native-image-info',
+                    '-cp',
+                    files(tasks.named('jar').get().archiveFile.get().asFile, configurations.runtimeClasspath).asPath,
+                    application.mainClass.get(),
+                    '-o',
+                    outputFile.absolutePath
+        }
+
+        logFile.text = execution.standardOutput.asText.get() + execution.standardError.asText.get()
+        execution.result.get().assertNormalExitValue()
+        logger.lifecycle("Native image log written to ${logFile}")
+        logger.lifecycle("Native binary written to ${outputFile}")
+    }
+}
+
+tasks.register('nativeSmokeTest') {
+    group = 'verification'
+    description = 'Build the native zolt binary and run the initial native smoke tests.'
+    dependsOn tasks.named('nativeImage')
+
+    doLast {
+        def binary = nativeBinary.get().asFile
+        providers.exec {
+            commandLine binary.absolutePath, '--version'
+        }.result.get().assertNormalExitValue()
+
+        def smokeDir = layout.buildDirectory.dir('native-smoke').get().asFile
+        delete smokeDir
+        smokeDir.mkdirs()
+        providers.exec {
+            commandLine binary.absolutePath, 'init', '--cwd', smokeDir.absolutePath, 'hello-native'
+        }.result.get().assertNormalExitValue()
+
+        def config = new File(smokeDir, 'hello-native/zolt.toml')
+        if (!config.isFile()) {
+            throw new GradleException("Native smoke test failed: expected ${config} to exist.")
+        }
+    }
+}
