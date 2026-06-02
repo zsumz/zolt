@@ -553,6 +553,9 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
         assertTrue(result.stdout().contains("Packaged 1 compiled files"));
         assertTrue(result.stdout().contains("Included Main-Class manifest entry"));
+        assertTrue(result.stdout().contains("Run with: java -jar " + jarPath));
+        assertTrue(result.stdout().contains("Thin jar: dependencies are not bundled."));
+        assertTrue(result.stdout().contains("Future: zolt run-package will run thin jars with dependency classpaths."));
         assertTrue(result.stdout().contains("Wrote jar to " + jarPath));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         try (JarFile jar = new JarFile(jarPath.toFile())) {

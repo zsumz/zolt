@@ -14,7 +14,9 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -76,6 +78,40 @@ final class PackageServiceTest {
         }
     }
 
+    @Test
+    void doesNotBundleDependencyJarContents() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path dependencyJar = cacheRoot.resolve("com/example/lib/1.0.0/lib-1.0.0.jar");
+        createJarWithEntry(dependencyJar, "com/example/lib/Lib.class");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/lib/1.0.0/lib-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        PackageResult result = packageService.packageJar(projectDir, config(Optional.of("com.example.Main")), cacheRoot);
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertNotNull(jar.getEntry("com/example/Main.class"));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("com/example/lib/Lib.class")));
+        }
+    }
+
     private static ProjectConfig config(Optional<String> mainClass) {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
@@ -93,6 +129,15 @@ final class PackageServiceTest {
 
     private void writeLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+    }
+
+    private static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
+        Files.createDirectories(jarPath.getParent());
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
+            output.putNextEntry(new JarEntry(entryName));
+            output.write(new byte[] {0});
+            output.closeEntry();
+        }
     }
 
     private static String currentJavaMajorVersion() {
