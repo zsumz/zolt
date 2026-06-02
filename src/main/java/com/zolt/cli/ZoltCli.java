@@ -1,5 +1,10 @@
 package com.zolt.cli;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.BuildResult;
+import com.zolt.build.BuildService;
+import com.zolt.build.JavacException;
+import com.zolt.build.SourceDiscoveryException;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -342,9 +347,35 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "build", description = "Compile main Java sources with the resolved compile classpath.")
-    public static final class BuildCommand extends StubCommand {
-        public BuildCommand() {
-            super("build");
+    public static final class BuildCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                BuildResult result = new BuildService().build(workingDirectory, config, cacheRoot);
+                if (result.resolvedLockfile()) {
+                    spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
+                }
+                spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
+                spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
+            } catch (BuildException
+                    | JavacException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 

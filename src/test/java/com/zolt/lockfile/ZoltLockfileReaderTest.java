@@ -106,6 +106,20 @@ final class ZoltLockfileReaderTest {
         assertEquals("guava-33.4.0-jre.pom", guava.resolvedPackage().pomPath().getFileName().toString());
     }
 
+    @Test
+    void reconstructsClasspathInputsUnderCacheRoot() throws IOException {
+        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read(golden()), java.nio.file.Path.of("cache"));
+
+        ResolvedClasspathPackage guava = packages.stream()
+                .filter(candidate -> candidate.resolvedPackage().packageId().equals(new PackageId("com.google.guava", "guava")))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(
+                java.nio.file.Path.of("cache/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"),
+                guava.resolvedPackage().jarPath());
+    }
+
     private static String golden() throws IOException {
         return new String(
                 ZoltLockfileReaderTest.class.getResourceAsStream("/golden/zolt-lock-writer.golden").readAllBytes(),

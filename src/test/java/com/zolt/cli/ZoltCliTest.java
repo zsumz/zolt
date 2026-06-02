@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("build");
+        CommandResult result = execute("run");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt build is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt run is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -437,6 +437,55 @@ final class ZoltCliTest {
     }
 
     @Test
+    void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
+        assertTrue(result.stdout().contains("Compiled 1 main source files"));
+        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
+        assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void buildReturnsNonZeroOnCompilationFailure() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    missing
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: javac failed with exit code"));
+        assertTrue(result.stderr().contains("Main.java"));
+    }
+
+    @Test
     void doctorReportsJdkStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2", currentJavaMajorVersion());
@@ -527,6 +576,12 @@ final class ZoltCliTest {
                         .append("\" = \"")
                         .append(entry.getValue())
                         .append("\"\n"));
+    }
+
+    private static void writeMainSource(Path projectDir, String content) throws IOException {
+        Path source = projectDir.resolve("src/main/java/com/example/Main.java");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, content);
     }
 
     private static String currentJavaMajorVersion() {

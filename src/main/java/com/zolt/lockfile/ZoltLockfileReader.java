@@ -33,6 +33,10 @@ public final class ZoltLockfileReader {
     }
 
     public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile) {
+        return classpathPackages(lockfile, Path.of(""));
+    }
+
+    public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile, Path cacheRoot) {
         return lockfile.packages().stream()
                 .filter(lockPackage -> lockPackage.jar().isPresent())
                 .map(lockPackage -> new ResolvedClasspathPackage(
@@ -40,8 +44,8 @@ public final class ZoltLockfileReader {
                                 lockPackage.packageId(),
                                 lockPackage.version(),
                                 lockPackage.direct(),
-                                lockPackage.pom().map(Path::of).orElse(Path.of("")),
-                                Path.of(lockPackage.jar().orElseThrow())),
+                                lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
+                                cacheRoot.resolve(lockPackage.jar().orElseThrow())),
                         lockPackage.scope()))
                 .toList();
     }
