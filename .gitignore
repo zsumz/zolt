@@ -1,9 +1,9 @@
 # Java / Zolt output
-target/
-build/
-out/
-.gradle/
-.gradle-user/
+/target/
+/build/
+/out/
+/.gradle/
+/.gradle-user/
 
 # IDE
 .idea/
