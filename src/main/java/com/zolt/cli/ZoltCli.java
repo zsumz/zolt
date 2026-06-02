@@ -3,6 +3,9 @@ package com.zolt.cli;
 import com.zolt.build.BuildException;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildService;
+import com.zolt.build.CleanException;
+import com.zolt.build.CleanResult;
+import com.zolt.build.CleanService;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.RunException;
@@ -437,9 +440,30 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "clean", description = "Remove project build output.")
-    public static final class CleanCommand extends StubCommand {
-        public CleanCommand() {
-            super("clean");
+    public static final class CleanCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                CleanResult result = new CleanService().clean(workingDirectory, config.build());
+                if (result.deletedPaths().isEmpty()) {
+                    spec.commandLine().getOut().println("Nothing to clean");
+                    return;
+                }
+                spec.commandLine().getOut().println("Deleted " + result.deletedCount() + " build output paths");
+                for (Path path : result.deletedPaths()) {
+                    spec.commandLine().getOut().println("Deleted " + path);
+                }
+            } catch (CleanException | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 

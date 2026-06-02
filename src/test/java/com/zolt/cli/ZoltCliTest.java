@@ -67,10 +67,10 @@ final class ZoltCliTest {
 
     @Test
     void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("test");
+        CommandResult result = execute("package");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt test is not implemented yet."));
+        assertTrue(result.stdout().contains("zolt package is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
     }
 
@@ -525,6 +525,34 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("No main class is configured"));
+    }
+
+    @Test
+    void cleanDeletesBuildOutputWithoutDeletingCache() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.createDirectories(projectDir.resolve("target/classes"));
+        Files.writeString(projectDir.resolve("target/classes/Main.class"), "compiled");
+        Files.createDirectories(projectDir.resolve(".zolt/cache"));
+        Files.writeString(projectDir.resolve(".zolt/cache/artifact.jar"), "cached");
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve("target")));
+        assertTrue(Files.exists(projectDir.resolve(".zolt/cache/artifact.jar")));
+    }
+
+    @Test
+    void cleanHandlesMissingTargetCleanly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("Nothing to clean\n", result.stdout());
     }
 
     @Test
