@@ -8,6 +8,10 @@ import com.zolt.build.CleanResult;
 import com.zolt.build.CleanService;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
+import com.zolt.build.ManifestGenerationException;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
+import com.zolt.build.PackageService;
 import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
@@ -464,9 +468,40 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "package", description = "Package compiled classes into a jar.")
-    public static final class PackageCommand extends StubCommand {
-        public PackageCommand() {
-            super("package");
+    public static final class PackageCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                PackageResult result = new PackageService().packageJar(workingDirectory, config, cacheRoot);
+                if (result.buildResult().resolvedLockfile()) {
+                    spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
+                }
+                spec.commandLine().getOut().println("Packaged " + result.entryCount() + " compiled files");
+                if (result.hasMainClass()) {
+                    spec.commandLine().getOut().println("Included Main-Class manifest entry");
+                }
+                spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
+            } catch (BuildException
+                    | JavacException
+                    | ManifestGenerationException
+                    | PackageException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 

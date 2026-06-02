@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -17,6 +18,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -66,12 +69,11 @@ final class ZoltCliTest {
     }
 
     @Test
-    void registeredCommandsPrintActionableStubMessage() {
-        CommandResult result = execute("package");
+    void packageReportsConfigErrorsCleanly() {
+        CommandResult result = execute("package", "--cwd", tempDir.toString());
 
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt package is not implemented yet."));
-        assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
     }
 
     @Test
@@ -525,6 +527,78 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("No main class is configured"));
+    }
+
+    @Test
+    void packageBuildsAndWritesJarWithManifest() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
+        assertTrue(result.stdout().contains("Packaged 1 compiled files"));
+        assertTrue(result.stdout().contains("Included Main-Class manifest entry"));
+        assertTrue(result.stdout().contains("Wrote jar to " + jarPath));
+        assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        try (JarFile jar = new JarFile(jarPath.toFile())) {
+            assertNotNull(jar.getEntry("com/example/Main.class"));
+            assertEquals(
+                    "com.example.Main",
+                    jar.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS));
+        }
+    }
+
+    @Test
+    void packageReturnsNonZeroOnPackagingFailure() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.Main"
+
+                [repositories]
+                central = "https://repo.maven.apache.org/maven2"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "classes"
+                testOutput = "test-classes"
+                """.formatted(currentJavaMajorVersion()));
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+        Files.writeString(projectDir.resolve("target"), "not a directory");
+
+        CommandResult result = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Could not package jar"));
+        assertTrue(result.stderr().contains("Check that target/ is writable"));
     }
 
     @Test
