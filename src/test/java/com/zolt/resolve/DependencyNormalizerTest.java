@@ -47,6 +47,21 @@ final class DependencyNormalizerTest {
     }
 
     @Test
+    void normalizesOptionalFlag() {
+        NormalizedDependency dependency = normalizer.normalize(new RawPomDependency(
+                "com.example",
+                "optional-lib",
+                Optional.of("1.0.0"),
+                Optional.of("compile"),
+                Optional.empty(),
+                Optional.empty(),
+                true,
+                List.of()));
+
+        assertTrue(dependency.optional());
+    }
+
+    @Test
     void exclusionAppliesOnlyThroughDeclaringDependencyEdge() {
         NormalizedDependency edgeWithExclusion = normalizer.normalize(new RawPomDependency(
                 "com.example",

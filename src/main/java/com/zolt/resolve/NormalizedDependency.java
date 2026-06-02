@@ -7,6 +7,7 @@ import java.util.List;
 public record NormalizedDependency(
         RawPomDependency rawDependency,
         DependencyScope scope,
+        boolean optional,
         List<DependencyExclusion> exclusions) {
     public NormalizedDependency {
         exclusions = List.copyOf(exclusions);

@@ -18,6 +18,7 @@ public final class DependencyNormalizer {
         return new NormalizedDependency(
                 dependency,
                 scopeParser.parse(dependency),
+                dependency.optional(),
                 dependency.exclusions().stream()
                         .map(exclusion -> new DependencyExclusion(exclusion.groupId(), exclusion.artifactId()))
                         .toList());
