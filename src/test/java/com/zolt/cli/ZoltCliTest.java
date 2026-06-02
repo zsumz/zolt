@@ -436,6 +436,21 @@ final class ZoltCliTest {
         assertEquals("No dependency conflicts found.\n", result.stdout());
     }
 
+    @Test
+    void doctorReportsJdkStatus() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2", currentJavaMajorVersion());
+
+        CommandResult result = execute("doctor", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("JDK status: ok"));
+        assertTrue(result.stdout().contains("java: "));
+        assertTrue(result.stdout().contains("javac: "));
+        assertTrue(result.stdout().contains("jar: "));
+        assertTrue(result.stdout().contains("version: " + currentJavaMajorVersion()));
+    }
+
     private static CommandResult execute(String... args) {
         CommandLine commandLine = ZoltCli.newCommandLine();
         StringWriter stdout = new StringWriter();
@@ -452,12 +467,28 @@ final class ZoltCliTest {
     }
 
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
-        writeProjectConfig(projectDir, repositoryUrl, Map.of(), Map.of());
+        writeProjectConfig(projectDir, repositoryUrl, currentJavaMajorVersion(), Map.of(), Map.of());
     }
 
     private static void writeProjectConfig(
             Path projectDir,
             String repositoryUrl,
+            Map<String, String> dependencies,
+            Map<String, String> testDependencies) throws IOException {
+        writeProjectConfig(projectDir, repositoryUrl, currentJavaMajorVersion(), dependencies, testDependencies);
+    }
+
+    private static void writeProjectConfig(
+            Path projectDir,
+            String repositoryUrl,
+            String javaVersion) throws IOException {
+        writeProjectConfig(projectDir, repositoryUrl, javaVersion, Map.of(), Map.of());
+    }
+
+    private static void writeProjectConfig(
+            Path projectDir,
+            String repositoryUrl,
+            String javaVersion,
             Map<String, String> dependencies,
             Map<String, String> testDependencies) throws IOException {
         Files.createDirectories(projectDir);
@@ -466,14 +497,14 @@ final class ZoltCliTest {
                 name = "demo"
                 version = "0.1.0"
                 group = "com.example"
-                java = "21"
+                java = "%s"
                 main = "com.example.Main"
 
                 [repositories]
                 test = "%s"
 
                 [dependencies]
-                """.formatted(repositoryUrl));
+                """.formatted(javaVersion, repositoryUrl));
         appendDependencies(config, dependencies);
         config.append("\n[test.dependencies]\n");
         appendDependencies(config, testDependencies);
@@ -496,6 +527,15 @@ final class ZoltCliTest {
                         .append("\" = \"")
                         .append(entry.getValue())
                         .append("\"\n"));
+    }
+
+    private static String currentJavaMajorVersion() {
+        String version = System.getProperty("java.version");
+        String[] parts = version.split("[._+-]", -1);
+        if (parts.length >= 2 && "1".equals(parts[0])) {
+            return parts[1];
+        }
+        return parts[0];
     }
 
     private static int occurrences(String value, String needle) {

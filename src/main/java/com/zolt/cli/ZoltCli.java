@@ -1,6 +1,8 @@
 package com.zolt.cli;
 
 import com.zolt.conflict.DependencyConflictFormatter;
+import com.zolt.doctor.JdkDetector;
+import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
@@ -375,9 +377,26 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "doctor", description = "Inspect local Java/JDK/Zolt project health.")
-    public static final class DoctorCommand extends StubCommand {
-        public DoctorCommand() {
-            super("doctor");
+    public static final class DoctorCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                JdkStatus status = new JdkDetector().detect(config.project().java());
+                printJdkStatus(spec, status);
+                if (!status.ok()) {
+                    throw new CommandLine.ExecutionException(spec.commandLine(), "JDK check failed.");
+                }
+            } catch (ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 
@@ -403,6 +422,18 @@ public final class ZoltCli implements Runnable {
         spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
         spec.commandLine().getOut().println("Conflicts " + result.conflictCount());
         spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
+    }
+
+    private static void printJdkStatus(CommandSpec spec, JdkStatus status) {
+        spec.commandLine().getOut().println("JDK status: " + (status.ok() ? "ok" : "error"));
+        spec.commandLine().getOut().println("JAVA_HOME: " + status.javaHome().map(Path::toString).orElse("not set"));
+        spec.commandLine().getOut().println("java: " + status.java().map(Path::toString).orElse("missing"));
+        spec.commandLine().getOut().println("javac: " + status.javac().map(Path::toString).orElse("missing"));
+        spec.commandLine().getOut().println("jar: " + status.jar().map(Path::toString).orElse("missing"));
+        spec.commandLine().getOut().println("version: " + status.version().orElse("unknown"));
+        for (String problem : status.problems()) {
+            spec.commandLine().getErr().println("error: " + problem);
+        }
     }
 
     private record AddRequest(DependencySection section, String coordinate, String version) {
