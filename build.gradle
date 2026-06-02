@@ -37,6 +37,7 @@ tasks.named('test') {
 def nativeOutputDir = layout.buildDirectory.dir('native')
 def nativeBinary = nativeOutputDir.map { it.file('zolt') }
 def nativeImageLog = nativeOutputDir.map { it.file('native-image.log') }
+def nativeSeriousWarningTerms = ['warning', 'unsupported', 'error']
 
 tasks.register('nativeImage') {
     group = 'distribution'
@@ -93,5 +94,27 @@ tasks.register('nativeSmokeTest') {
         if (!config.isFile()) {
             throw new GradleException("Native smoke test failed: expected ${config} to exist.")
         }
+    }
+}
+
+tasks.register('checkNativeImageWarnings') {
+    group = 'verification'
+    description = 'Fail when the Native Image log contains serious warning terms.'
+    dependsOn tasks.named('nativeImage')
+
+    inputs.file(nativeImageLog)
+
+    doLast {
+        def logFile = nativeImageLog.get().asFile
+        def matches = logFile.readLines().findAll { line ->
+            def lower = line.toLowerCase(Locale.ROOT)
+            nativeSeriousWarningTerms.any { term -> lower.contains(term) }
+        }
+        if (!matches.isEmpty()) {
+            throw new GradleException(
+                    "Native Image warning check failed. Review ${logFile} and fix or explicitly document these lines:\n"
+                            + matches.join('\n'))
+        }
+        logger.lifecycle("No serious Native Image warning terms found in ${logFile}")
     }
 }
