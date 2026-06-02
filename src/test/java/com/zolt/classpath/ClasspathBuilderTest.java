@@ -1,0 +1,94 @@
+package com.zolt.classpath;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolvedPackage;
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+final class ClasspathBuilderTest {
+    private final ClasspathBuilder builder = new ClasspathBuilder();
+
+    @Test
+    void compileDependenciesAreIncludedOnCompileAndRuntimeClasspaths() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "compile-lib", "1.0.0", DependencyScope.COMPILE)));
+
+        Path jar = jar("compile-lib", "1.0.0");
+        assertEquals(List.of(jar), classpaths.compile().entries());
+        assertEquals(List.of(jar), classpaths.runtime().entries());
+    }
+
+    @Test
+    void runtimeDependenciesAreIncludedOnRuntimeClasspathOnly() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "runtime-lib", "1.0.0", DependencyScope.RUNTIME)));
+
+        Path jar = jar("runtime-lib", "1.0.0");
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(jar), classpaths.runtime().entries());
+    }
+
+    @Test
+    void testDependenciesAreIncludedOnlyOnTestClasspath() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "test-lib", "1.0.0", DependencyScope.TEST)));
+
+        Path jar = jar("test-lib", "1.0.0");
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(jar), classpaths.test().entries());
+    }
+
+    @Test
+    void providedDependenciesAreIncludedOnCompileClasspathOnly() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "provided-lib", "1.0.0", DependencyScope.PROVIDED)));
+
+        Path jar = jar("provided-lib", "1.0.0");
+        assertEquals(List.of(jar), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+    }
+
+    @Test
+    void testClasspathIncludesRuntimeNeededForTests() {
+        ClasspathSet classpaths = builder.build(List.of(
+                packageWithScope("com.example", "compile-lib", "1.0.0", DependencyScope.COMPILE),
+                packageWithScope("com.example", "runtime-lib", "1.0.0", DependencyScope.RUNTIME),
+                packageWithScope("com.example", "test-lib", "1.0.0", DependencyScope.TEST)));
+
+        assertEquals(List.of(
+                jar("compile-lib", "1.0.0"),
+                jar("runtime-lib", "1.0.0"),
+                jar("test-lib", "1.0.0")), classpaths.test().entries());
+    }
+
+    @Test
+    void classpathEntriesAreDeterministicAndDeduplicated() {
+        ResolvedClasspathPackage alpha = packageWithScope("com.example", "alpha", "1.0.0", DependencyScope.COMPILE);
+        ResolvedClasspathPackage zeta = packageWithScope("com.example", "zeta", "1.0.0", DependencyScope.COMPILE);
+
+        ClasspathSet classpaths = builder.build(List.of(zeta, alpha, alpha));
+
+        assertEquals(List.of(jar("alpha", "1.0.0"), jar("zeta", "1.0.0")), classpaths.compile().entries());
+    }
+
+    private static ResolvedClasspathPackage packageWithScope(
+            String groupId,
+            String artifactId,
+            String version,
+            DependencyScope scope) {
+        return new ResolvedClasspathPackage(
+                new ResolvedPackage(
+                        new PackageId(groupId, artifactId),
+                        version,
+                        false,
+                        Path.of("cache", artifactId, artifactId + "-" + version + ".pom"),
+                        jar(artifactId, version)),
+                scope);
+    }
+
+    private static Path jar(String artifactId, String version) {
+        return Path.of("cache", artifactId, artifactId + "-" + version + ".jar");
+    }
+}
