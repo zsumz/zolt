@@ -32,7 +32,7 @@ final class ZoltTomlParserTest {
     void parsesTestDependencies() {
         ProjectConfig config = parser.parse(Path.of("examples/junit-basic/zolt.toml"));
 
-        assertEquals("5.11.4", config.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+        assertEquals("1.11.4", config.testDependencies().get("org.junit.platform:junit-platform-console-standalone"));
     }
 
     @Test
