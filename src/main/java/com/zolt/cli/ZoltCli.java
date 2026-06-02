@@ -12,6 +12,9 @@ import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
+import com.zolt.build.TestRunException;
+import com.zolt.build.TestRunResult;
+import com.zolt.build.TestRunService;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -426,9 +429,37 @@ public final class ZoltCli implements Runnable {
     }
 
     @Command(name = "test", description = "Compile and run tests, starting with JUnit support.")
-    public static final class TestCommand extends StubCommand {
-        public TestCommand() {
-            super("test");
+    public static final class TestCommand implements Runnable {
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                TestRunResult result = new TestRunService().runTests(workingDirectory, config, cacheRoot);
+                spec.commandLine().getOut().print(result.output());
+                if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
+                    spec.commandLine().getOut().println();
+                }
+                spec.commandLine().getOut().println("Tests passed");
+            } catch (BuildException
+                    | JavacException
+                    | JavaRunException
+                    | TestRunException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
         }
     }
 

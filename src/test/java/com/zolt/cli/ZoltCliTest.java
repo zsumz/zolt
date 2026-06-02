@@ -556,6 +556,24 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testReportsMissingJUnitConsoleClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+        Path testSource = projectDir.resolve("src/test/java/com/example/MainTest.java");
+        Files.createDirectories(testSource.getParent());
+        Files.writeString(testSource, "package com.example; public final class MainTest {}\n");
+
+        CommandResult result = execute(
+                "test",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("JUnit Platform Console is not present"));
+    }
+
+    @Test
     void doctorReportsJdkStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2", currentJavaMajorVersion());
