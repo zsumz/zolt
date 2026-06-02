@@ -5,11 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
 final class ZoltCliTest {
+    @TempDir
+    private Path tempDir;
+
     @Test
     void versionPrintsZoltVersion() {
         CommandResult result = execute("--version");
@@ -57,6 +63,16 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("zolt resolve is not implemented yet."));
         assertTrue(result.stdout().contains("Next step: follow the matching followUp in followUps/."));
+    }
+
+    @Test
+    void initCreatesProjectAndPrintsNextCommand() {
+        CommandResult result = execute("init", "--cwd", tempDir.toString(), "hello");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Created Zolt project at"));
+        assertTrue(result.stdout().contains("Next: cd hello"));
+        assertTrue(Files.exists(tempDir.resolve("hello/zolt.toml")));
     }
 
     private static CommandResult execute(String... args) {
