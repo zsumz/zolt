@@ -4,6 +4,7 @@
 /out/
 /.gradle/
 /.gradle-user/
+/.zolt/
 
 # IDE
 .idea/
