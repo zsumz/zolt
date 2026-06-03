@@ -105,6 +105,13 @@ final class JdkDetectorTest {
         assertEquals("8", JdkDetector.majorVersion("java version \"1.8.0_402\"").orElseThrow());
     }
 
+    @Test
+    void missingRuntimeJavaHomeIsIgnored() {
+        assertTrue(JdkDetector.runtimeJavaHome(null).isEmpty());
+        assertTrue(JdkDetector.runtimeJavaHome("").isEmpty());
+        assertTrue(JdkDetector.runtimeJavaHome("   ").isEmpty());
+    }
+
     private static JdkDetector detector(
             Map<String, String> environment,
             JdkDetector.ToolVersionReader versionReader) {

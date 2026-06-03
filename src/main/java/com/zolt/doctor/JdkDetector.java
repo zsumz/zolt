@@ -24,7 +24,7 @@ public final class JdkDetector {
                 System::getenv,
                 java.io.File.pathSeparator,
                 System.getProperty("os.name"),
-                Optional.of(Path.of(System.getProperty("java.home"))),
+                runtimeJavaHome(System.getProperty("java.home")),
                 JdkDetector::readJavaVersion);
     }
 
@@ -61,6 +61,10 @@ public final class JdkDetector {
             return Optional.of(parts[1]);
         }
         return Optional.of(parts[0]);
+    }
+
+    static Optional<Path> runtimeJavaHome(String value) {
+        return value == null || value.isBlank() ? Optional.empty() : Optional.of(Path.of(value));
     }
 
     private Optional<Path> findTool(String name, Optional<Path> javaHome) {

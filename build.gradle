@@ -74,13 +74,16 @@ tasks.register('nativeImage') {
 
 tasks.register('nativeSmokeTest') {
     group = 'verification'
-    description = 'Build the native zolt binary and run the initial native smoke tests.'
+    description = 'Build the native zolt binary and run native smoke tests against real project workflows.'
     dependsOn tasks.named('nativeImage')
 
     doLast {
         def binary = nativeBinary.get().asFile
         providers.exec {
             commandLine binary.absolutePath, '--version'
+        }.result.get().assertNormalExitValue()
+        providers.exec {
+            commandLine binary.absolutePath, 'help'
         }.result.get().assertNormalExitValue()
 
         def smokeDir = layout.buildDirectory.dir('native-smoke').get().asFile
@@ -94,6 +97,44 @@ tasks.register('nativeSmokeTest') {
         if (!config.isFile()) {
             throw new GradleException("Native smoke test failed: expected ${config} to exist.")
         }
+
+        def projectDir = config.parentFile
+        def cacheDir = new File(smokeDir, 'cache')
+        providers.exec {
+            commandLine binary.absolutePath,
+                    'resolve',
+                    '--cwd',
+                    projectDir.absolutePath,
+                    '--cache-root',
+                    cacheDir.absolutePath
+        }.result.get().assertNormalExitValue()
+
+        providers.exec {
+            commandLine binary.absolutePath,
+                    'build',
+                    '--cwd',
+                    projectDir.absolutePath,
+                    '--cache-root',
+                    cacheDir.absolutePath
+        }.result.get().assertNormalExitValue()
+
+        def runExecution = providers.exec {
+            commandLine binary.absolutePath,
+                    'run',
+                    '--cwd',
+                    projectDir.absolutePath,
+                    '--cache-root',
+                    cacheDir.absolutePath
+        }
+        def runOutput = runExecution.standardOutput.asText.get() + runExecution.standardError.asText.get()
+        runExecution.result.get().assertNormalExitValue()
+        if (!runOutput.contains('Hello from hello-native!')) {
+            throw new GradleException(
+                    "Native smoke test failed: expected native zolt run output to contain 'Hello from hello-native!'. Output was:\n"
+                            + runOutput)
+        }
+
+        logger.lifecycle("Native smoke project workflow passed for ${projectDir}")
     }
 }
 
