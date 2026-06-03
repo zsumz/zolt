@@ -79,12 +79,8 @@ public final class ResolveService {
                             + ". Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
         }
 
-        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
-        List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
-        DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
-        ResolutionGraph graph = traverser.traverse(directRequests);
-        VersionSelectionResult selection = versionSelector.select(directRequests, graph);
-        ZoltLockfile lockfile = lockfile(context, graph, selection, directRequests);
+        ResolveOutput output = resolveLockfile(config, cacheRoot, offline);
+        ZoltLockfile lockfile = output.lockfile();
         if (locked) {
             verifyLocked(lockfilePath, lockfile);
         } else {
@@ -92,9 +88,19 @@ public final class ResolveService {
         }
         return new ResolveResult(
                 lockfile.packages().size(),
-                context.downloadCount(),
+                output.downloadCount(),
                 lockfile.conflicts().size(),
                 lockfilePath);
+    }
+
+    public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
+        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
+        List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
+        DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
+        ResolutionGraph graph = traverser.traverse(directRequests);
+        VersionSelectionResult selection = versionSelector.select(directRequests, graph);
+        ZoltLockfile lockfile = lockfile(context, graph, selection, directRequests);
+        return new ResolveOutput(lockfile, context.downloadCount());
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {

@@ -64,6 +64,8 @@ import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
+import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspaceResolveService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -472,6 +474,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
         private boolean offline;
 
+        @Option(names = "--workspace", description = "Resolve the discovered workspace and write the root zolt.lock.")
+        private boolean workspace;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -484,6 +489,15 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                if (workspace) {
+                    ResolveResult result = new WorkspaceResolveService().resolve(
+                            workingDirectory,
+                            cacheRoot,
+                            locked,
+                            offline);
+                    printResolveResult(spec, result, !locked);
+                    return;
+                }
                 ResolveResult result = new ResolveService().resolve(
                         workingDirectory,
                         new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
@@ -491,7 +505,7 @@ public final class ZoltCli implements Runnable {
                         locked,
                         offline);
                 printResolveResult(spec, result, !locked);
-            } catch (ArtifactCacheException | ResolveException | ZoltConfigException exception) {
+            } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }

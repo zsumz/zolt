@@ -1124,6 +1124,37 @@ final class ZoltCliTest {
     }
 
     @Test
+    void resolveWorkspaceWritesRootLockfile() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+
+        CommandResult result = execute(
+                "resolve",
+                "--workspace",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Resolved 0 packages"));
+        assertTrue(result.stdout().contains("Wrote " + workspaceDir.resolve("zolt.lock")));
+        assertEquals("version = 1\n\n", Files.readString(workspaceDir.resolve("zolt.lock")));
+        assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
+        assertFalse(Files.exists(coreDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
