@@ -15,7 +15,9 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 public final class RawPomParser {
     public RawPom parse(String xml) {
@@ -55,7 +57,9 @@ public final class RawPomParser {
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            return factory.newDocumentBuilder().parse(inputStream);
+            var builder = factory.newDocumentBuilder();
+            builder.setErrorHandler(new QuietErrorHandler());
+            return builder.parse(inputStream);
         } catch (ParserConfigurationException exception) {
             throw new RawPomParseException("Could not configure secure POM XML parser.", exception);
         } catch (SAXException exception) {
@@ -182,5 +186,22 @@ public final class RawPomParser {
     private static String name(Element element) {
         String localName = element.getLocalName();
         return localName == null ? element.getNodeName() : localName;
+    }
+
+    private static final class QuietErrorHandler implements ErrorHandler {
+        @Override
+        public void warning(SAXParseException exception) throws SAXException {
+            throw exception;
+        }
+
+        @Override
+        public void error(SAXParseException exception) throws SAXException {
+            throw exception;
+        }
+
+        @Override
+        public void fatalError(SAXParseException exception) throws SAXException {
+            throw exception;
+        }
     }
 }

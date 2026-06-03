@@ -6,8 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 final class RawPomParserTest {
@@ -125,6 +128,23 @@ final class RawPomParserTest {
 
         assertTrue(exception.getMessage().contains("Could not parse POM XML."));
         assertTrue(exception.getMessage().contains("Fix malformed XML"));
+    }
+
+    @Test
+    void malformedXmlDoesNotWriteParserNoiseToStderr() {
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try {
+            System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+
+            assertThrows(
+                    RawPomParseException.class,
+                    () -> parser.parse("<project><artifactId>broken</project>"));
+        } finally {
+            System.setErr(originalErr);
+        }
+
+        assertEquals("", captured.toString(StandardCharsets.UTF_8));
     }
 
     @Test

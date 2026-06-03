@@ -70,7 +70,12 @@ public final class TestRunService {
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runnerClasspath),
                 CONSOLE_MAIN_CLASS,
-                List.of("--class-path", joined(runnerClasspath), "--scan-class-path", "--details", "summary"));
+                List.of(
+                        "execute",
+                        "--disable-banner",
+                        "--class-path", joined(runnerClasspath),
+                        "--scan-class-path",
+                        "--details", "summary"));
         return new TestRunResult(compileResult, result.output());
     }
 

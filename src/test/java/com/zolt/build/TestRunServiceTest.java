@@ -40,6 +40,8 @@ final class TestRunServiceTest {
         assertEquals("Tests successful\n", result.output());
         List<String> command = commands.getFirst();
         assertTrue(command.contains("org.junit.platform.console.ConsoleLauncher"));
+        assertTrue(command.contains("execute"));
+        assertTrue(command.contains("--disable-banner"));
         assertTrue(command.contains("--scan-class-path"));
         assertTrue(command.contains("--details"));
         assertTrue(command.stream().anyMatch(value -> value.contains("target/test-classes")));
