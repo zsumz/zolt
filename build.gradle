@@ -39,6 +39,11 @@ def nativeBinary = nativeOutputDir.map { it.file('zolt') }
 def nativeImageLog = nativeOutputDir.map { it.file('native-image.log') }
 def nativeSeriousWarningTerms = ['warning', 'unsupported', 'error']
 
+def javaExecutable = providers.provider {
+    def executable = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('win') ? 'java.exe' : 'java'
+    new File(System.getProperty('java.home'), "bin/${executable}").absolutePath
+}
+
 tasks.register('nativeImage') {
     group = 'distribution'
     description = 'Build a native zolt binary with GraalVM Native Image.'
@@ -158,4 +163,107 @@ tasks.register('checkNativeImageWarnings') {
         }
         logger.lifecycle("No serious Native Image warning terms found in ${logFile}")
     }
+}
+
+tasks.register('selfHostingParityCheck') {
+    group = 'verification'
+    description = 'Compare bootstrap-built and Zolt-built artifacts closely enough to trust self-hosting.'
+    dependsOn tasks.named('jar')
+    dependsOn tasks.named('nativeSmokeTest')
+
+    doLast {
+        def bootstrapJar = tasks.named('jar').get().archiveFile.get().asFile
+        def parityDir = layout.buildDirectory.dir('self-hosting-parity').get().asFile
+        def cacheDir = new File(parityDir, 'cache')
+        parityDir.mkdirs()
+
+        def zoltCommand = { List<String> args ->
+            providers.exec {
+                commandLine([javaExecutable.get(),
+                             '-cp',
+                             sourceSets.main.runtimeClasspath.asPath,
+                             application.mainClass.get()] + args)
+            }.result.get().assertNormalExitValue()
+        }
+
+        zoltCommand([
+                'resolve',
+                '--locked',
+                '--cache-root',
+                cacheDir.absolutePath
+        ])
+        zoltCommand([
+                'resolve',
+                '--locked',
+                '--offline',
+                '--cache-root',
+                cacheDir.absolutePath
+        ])
+        zoltCommand([
+                'build',
+                '--offline',
+                '--cache-root',
+                cacheDir.absolutePath
+        ])
+        zoltCommand([
+                'package',
+                '--cache-root',
+                cacheDir.absolutePath
+        ])
+
+        def zoltJar = file("target/${project.name}-${project.version}.jar")
+        if (!zoltJar.isFile()) {
+            throw new GradleException("Self-hosting parity failed: expected Zolt-built jar at ${zoltJar}. Run zolt package and retry.")
+        }
+
+        def bootstrapEntries = comparableJarEntries(bootstrapJar)
+        def zoltEntries = comparableJarEntries(zoltJar)
+        def missing = bootstrapEntries - zoltEntries
+        def extra = zoltEntries - bootstrapEntries
+        if (!missing.isEmpty() || !extra.isEmpty()) {
+            throw new GradleException(
+                    "Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.\n"
+                            + "Missing from Zolt-built jar:\n"
+                            + formatEntries(missing)
+                            + "\nExtra in Zolt-built jar:\n"
+                            + formatEntries(extra)
+                            + "\nRun ./gradlew selfHostingParityCheck after reviewing source/resource packaging changes.")
+        }
+
+        def jarExecution = providers.exec {
+            commandLine javaExecutable.get(),
+                    '-cp',
+                    files(zoltJar, configurations.runtimeClasspath).asPath,
+                    application.mainClass.get(),
+                    '--version'
+        }
+        def jarOutput = jarExecution.standardOutput.asText.get() + jarExecution.standardError.asText.get()
+        jarExecution.result.get().assertNormalExitValue()
+        if (!jarOutput.contains("zolt ${project.version}")) {
+            throw new GradleException(
+                    "Self-hosting parity failed: Zolt-built jar did not print expected version zolt ${project.version}. Output was:\n"
+                            + jarOutput)
+        }
+
+        logger.lifecycle("Self-hosting parity check passed for ${bootstrapJar} and ${zoltJar}")
+    }
+}
+
+static Set<String> comparableJarEntries(File jarFile) {
+    def entries = new TreeSet<String>()
+    new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+        zip.entries().each { entry ->
+            if (!entry.directory && entry.name != 'META-INF/MANIFEST.MF') {
+                entries.add(entry.name)
+            }
+        }
+    }
+    entries
+}
+
+static String formatEntries(Set<String> entries) {
+    if (entries.isEmpty()) {
+        return '  <none>'
+    }
+    entries.take(50).collect { "  - ${it}" }.join('\n')
 }
