@@ -64,6 +64,7 @@ final class ZoltCliTest {
                 "why",
                 "conflicts",
                 "classpath",
+                "ide",
                 "build",
                 "run",
                 "test",
@@ -759,6 +760,180 @@ final class ZoltCliTest {
     }
 
     @Test
+    void ideModelPrintsDeterministicJsonFromProjectAndLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:app"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/app/1.0.0/app-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "com/example/test-lib/1.0.0/test-lib-1.0.0.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "ide",
+                "model",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "--format", "json");
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        Path appJar = cacheRoot.toAbsolutePath().normalize().resolve("com/example/app/1.0.0/app-1.0.0.jar");
+        Path testJar = cacheRoot.toAbsolutePath().normalize().resolve("com/example/test-lib/1.0.0/test-lib-1.0.0.jar");
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertEquals("""
+                {
+                  "schemaVersion": 1,
+                  "project": {
+                    "name": "demo",
+                    "group": "com.example",
+                    "version": "0.1.0",
+                    "mainClass": "com.example.Main"
+                  },
+                  "java": {
+                    "version": "%s",
+                    "detectedVersion": null,
+                    "javaHome": null
+                  },
+                  "paths": {
+                    "root": "%s",
+                    "config": "%s",
+                    "lockfile": "%s"
+                  },
+                  "sourceRoots": [
+                    {
+                      "id": "main-java",
+                      "kind": "main",
+                      "language": "java",
+                      "path": "%s",
+                      "generated": false
+                    },
+                    {
+                      "id": "test-java-1",
+                      "kind": "test",
+                      "language": "java",
+                      "path": "%s",
+                      "generated": false
+                    }
+                  ],
+                  "resourceRoots": [
+                    {
+                      "id": "main-resources",
+                      "kind": "main",
+                      "path": "%s"
+                    },
+                    {
+                      "id": "test-resources",
+                      "kind": "test",
+                      "path": "%s"
+                    }
+                  ],
+                  "outputs": {
+                    "mainClasses": "%s",
+                    "testClasses": "%s",
+                    "package": "%s"
+                  },
+                  "classpaths": {
+                    "compile": [
+                      "%s"
+                    ],
+                    "runtime": [
+                      "%s",
+                      "%s"
+                    ],
+                    "test": [
+                      "%s",
+                      "%s",
+                      "%s",
+                      "%s"
+                    ]
+                  },
+                  "diagnostics": []
+                }
+                """.formatted(
+                currentJavaMajorVersion(),
+                jsonPath(root),
+                jsonPath(root.resolve("zolt.toml")),
+                jsonPath(root.resolve("zolt.lock")),
+                jsonPath(root.resolve("src/main/java")),
+                jsonPath(root.resolve("src/test/java")),
+                jsonPath(root.resolve("src/main/resources")),
+                jsonPath(root.resolve("src/test/resources")),
+                jsonPath(root.resolve("target/classes")),
+                jsonPath(root.resolve("target/test-classes")),
+                jsonPath(root.resolve("target/demo-0.1.0.jar")),
+                jsonPath(appJar),
+                jsonPath(root.resolve("target/classes")),
+                jsonPath(appJar),
+                jsonPath(root.resolve("target/classes")),
+                jsonPath(root.resolve("target/test-classes")),
+                jsonPath(appJar),
+                jsonPath(testJar)), result.stdout());
+    }
+
+    @Test
+    void ideModelReportsMissingLockfileAsJsonDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "ide",
+                "model",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\"code\": \"LOCKFILE_MISSING\""));
+        assertTrue(result.stdout().contains("\"nextStep\": \"Run zolt resolve.\""));
+        assertTrue(result.stdout().contains("\"compile\": []"));
+        assertTrue(result.stdout().contains("\"runtime\": []"));
+        assertTrue(result.stdout().contains("\"test\": []"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void ideModelReportsUnreadableLockfileAsJsonDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "this is not toml");
+
+        CommandResult result = execute(
+                "ide",
+                "model",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\"code\": \"LOCKFILE_UNREADABLE\""));
+        assertTrue(result.stdout().contains("Could not parse zolt.lock"));
+        assertTrue(result.stdout().contains("\"nextStep\": \"Run zolt resolve.\""));
+        assertTrue(result.stdout().contains("\"compile\": []"));
+        assertTrue(result.stdout().contains("\"runtime\": []"));
+        assertTrue(result.stdout().contains("\"test\": []"));
+    }
+
+    @Test
     void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -1280,6 +1455,10 @@ final class ZoltCliTest {
             index = value.indexOf(needle, index + needle.length());
         }
         return count;
+    }
+
+    private static String jsonPath(Path path) {
+        return path.toString().replace('\\', '/');
     }
 
     private static final class TestRepository implements AutoCloseable {

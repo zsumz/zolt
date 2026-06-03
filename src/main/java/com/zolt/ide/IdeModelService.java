@@ -1,0 +1,192 @@
+package com.zolt.ide;
+
+import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.classpath.ClasspathSet;
+import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.BuildSettings;
+import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectMetadata;
+import com.zolt.resolve.Classpath;
+import com.zolt.toml.ZoltConfigException;
+import com.zolt.toml.ZoltTomlParser;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class IdeModelService {
+    private static final int SCHEMA_VERSION = 1;
+    private static final Path MAIN_RESOURCES = Path.of("src/main/resources");
+    private static final Path TEST_RESOURCES = Path.of("src/test/resources");
+
+    private final ZoltTomlParser tomlParser;
+    private final ZoltLockfileReader lockfileReader;
+    private final ClasspathBuilder classpathBuilder;
+
+    public IdeModelService() {
+        this(new ZoltTomlParser(), new ZoltLockfileReader(), new ClasspathBuilder());
+    }
+
+    IdeModelService(
+            ZoltTomlParser tomlParser,
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder) {
+        this.tomlParser = tomlParser;
+        this.lockfileReader = lockfileReader;
+        this.classpathBuilder = classpathBuilder;
+    }
+
+    public IdeModel export(Path projectDirectory, Path cacheRoot) {
+        Path root = projectDirectory.toAbsolutePath().normalize();
+        Path configPath = root.resolve("zolt.toml").normalize();
+        Path lockfilePath = root.resolve("zolt.lock").normalize();
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        ProjectConfig config = readConfig(configPath, diagnostics);
+        IdeModel.ClasspathInfo classpaths = classpaths(lockfilePath, cacheRoot.toAbsolutePath().normalize(), root, config, diagnostics);
+
+        return new IdeModel(
+                SCHEMA_VERSION,
+                projectInfo(config),
+                javaInfo(config),
+                new IdeModel.PathInfo(root, configPath, lockfilePath),
+                sourceRoots(root, config),
+                resourceRoots(root, config),
+                outputInfo(root, config),
+                classpaths,
+                diagnostics);
+    }
+
+    private ProjectConfig readConfig(Path configPath, List<IdeModel.Diagnostic> diagnostics) {
+        try {
+            return tomlParser.parse(configPath);
+        } catch (ZoltConfigException exception) {
+            String code = exception.getMessage().startsWith("Could not read zolt.toml")
+                    ? "CONFIG_UNREADABLE"
+                    : "CONFIG_INVALID";
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "error",
+                    code,
+                    exception.getMessage(),
+                    configPath,
+                    "Fix zolt.toml and run zolt ide model --format json again."));
+            return null;
+        }
+    }
+
+    private IdeModel.ProjectInfo projectInfo(ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.ProjectInfo(null, null, null, null);
+        }
+        ProjectMetadata project = config.project();
+        return new IdeModel.ProjectInfo(
+                project.name(),
+                project.group(),
+                project.version(),
+                project.main().orElse(null));
+    }
+
+    private IdeModel.JavaInfo javaInfo(ProjectConfig config) {
+        return new IdeModel.JavaInfo(config == null ? null : config.project().java(), null, null);
+    }
+
+    private List<IdeModel.SourceRoot> sourceRoots(Path root, ProjectConfig config) {
+        if (config == null) {
+            return List.of();
+        }
+        BuildSettings settings = config.build();
+        List<IdeModel.SourceRoot> roots = new ArrayList<>();
+        roots.add(new IdeModel.SourceRoot(
+                "main-java",
+                "main",
+                "java",
+                root.resolve(settings.source()).normalize(),
+                false));
+        for (int index = 0; index < settings.testSources().size(); index++) {
+            roots.add(new IdeModel.SourceRoot(
+                    "test-java-" + (index + 1),
+                    "test",
+                    "java",
+                    root.resolve(settings.testSources().get(index)).normalize(),
+                    false));
+        }
+        return roots;
+    }
+
+    private List<IdeModel.ResourceRoot> resourceRoots(Path root, ProjectConfig config) {
+        if (config == null) {
+            return List.of();
+        }
+        return List.of(
+                new IdeModel.ResourceRoot("main-resources", "main", root.resolve(MAIN_RESOURCES).normalize()),
+                new IdeModel.ResourceRoot("test-resources", "test", root.resolve(TEST_RESOURCES).normalize()));
+    }
+
+    private IdeModel.OutputInfo outputInfo(Path root, ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.OutputInfo(null, null, null);
+        }
+        return new IdeModel.OutputInfo(
+                root.resolve(config.build().output()).normalize(),
+                root.resolve(config.build().testOutput()).normalize(),
+                root.resolve("target")
+                        .resolve(config.project().name() + "-" + config.project().version() + ".jar")
+                        .normalize());
+    }
+
+    private IdeModel.ClasspathInfo classpaths(
+            Path lockfilePath,
+            Path cacheRoot,
+            Path root,
+            ProjectConfig config,
+            List<IdeModel.Diagnostic> diagnostics) {
+        if (config == null) {
+            return emptyClasspaths();
+        }
+        if (!Files.exists(lockfilePath)) {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "error",
+                    "LOCKFILE_MISSING",
+                    "Could not find zolt.lock.",
+                    lockfilePath,
+                    "Run zolt resolve."));
+            return emptyClasspaths();
+        }
+        try {
+            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+            ClasspathSet dependencyClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+            Path mainOutput = root.resolve(config.build().output()).normalize();
+            Path testOutput = root.resolve(config.build().testOutput()).normalize();
+            return new IdeModel.ClasspathInfo(
+                    absoluteEntries(dependencyClasspaths.compile()),
+                    withOutputs(List.of(mainOutput), dependencyClasspaths.runtime()),
+                    withOutputs(List.of(mainOutput, testOutput), dependencyClasspaths.test()));
+        } catch (LockfileReadException exception) {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "error",
+                    "LOCKFILE_UNREADABLE",
+                    exception.getMessage(),
+                    lockfilePath,
+                    "Run zolt resolve."));
+            return emptyClasspaths();
+        }
+    }
+
+    private static IdeModel.ClasspathInfo emptyClasspaths() {
+        return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of());
+    }
+
+    private static List<Path> withOutputs(List<Path> outputs, Classpath classpath) {
+        List<Path> entries = new ArrayList<>(outputs);
+        entries.addAll(absoluteEntries(classpath));
+        return entries;
+    }
+
+    private static List<Path> absoluteEntries(Classpath classpath) {
+        return classpath.entries().stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .toList();
+    }
+}

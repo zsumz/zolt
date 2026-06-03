@@ -33,6 +33,8 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.ide.IdeModelJsonWriter;
+import com.zolt.ide.IdeModelService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
@@ -86,6 +88,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.WhyCommand.class,
                 ZoltCli.ConflictsCommand.class,
                 ZoltCli.ClasspathCommand.class,
+                ZoltCli.IdeCommand.class,
                 ZoltCli.BuildCommand.class,
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
@@ -603,6 +606,48 @@ public final class ZoltCli implements Runnable {
             } catch (LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
+        }
+    }
+
+    @Command(
+            name = "ide",
+            mixinStandardHelpOptions = true,
+            description = "Export project models for IDE and tooling integrations.",
+            subcommands = {
+                    IdeCommand.ModelCommand.class
+            })
+    public static final class IdeCommand implements Runnable {
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            spec.commandLine().usage(spec.commandLine().getOut());
+        }
+
+        @Command(name = "model", description = "Export the Zolt project model.")
+        public static final class ModelCommand implements Runnable {
+            enum Format {
+                JSON
+            }
+
+            @Option(names = "--format", required = true, description = "Output format: json.")
+            private Format format;
+
+            @Option(names = "--cwd", hidden = true)
+            private Path workingDirectory = Path.of(".");
+
+            @Option(names = "--cache-root", hidden = true)
+            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+            @Spec
+            private CommandSpec spec;
+
+            @Override
+            public void run() {
+                String output = new IdeModelJsonWriter().write(new IdeModelService().export(workingDirectory, cacheRoot));
+                printAndFlush(spec, output);
             }
         }
     }
