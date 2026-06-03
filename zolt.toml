@@ -20,3 +20,8 @@ source = "src/main/java"
 test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
+
+[native]
+imageName = "zolt"
+output = "target/native"
+args = ["--no-fallback", "--native-image-info"]
