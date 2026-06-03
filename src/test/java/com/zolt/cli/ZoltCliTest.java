@@ -42,7 +42,7 @@ final class ZoltCliTest {
         CommandResult result = execute("help");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("The modern Java build tool."));
+        assertTrue(result.stdout().contains("The modern Java build toolkit."));
         assertTrue(result.stdout().contains("init"));
         assertTrue(result.stdout().contains("resolve"));
         assertTrue(result.stdout().contains("build"));

@@ -63,7 +63,7 @@ import picocli.CommandLine.Spec;
         name = "zolt",
         mixinStandardHelpOptions = true,
         version = "zolt 0.1.0-SNAPSHOT",
-        description = "The modern Java build tool.",
+        description = "The modern Java build toolkit.",
         subcommands = {
                 CommandLine.HelpCommand.class,
                 ZoltCli.InitCommand.class,
