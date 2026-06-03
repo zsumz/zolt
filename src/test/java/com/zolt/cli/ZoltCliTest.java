@@ -1084,6 +1084,46 @@ final class ZoltCliTest {
     }
 
     @Test
+    void ideModelWorkspacePrintsWorkspaceJson() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(apiDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Files.writeString(coreDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "ide",
+                "model",
+                "--workspace",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\"workspace\": {"));
+        assertTrue(result.stdout().contains("\"name\": \"workspace\""));
+        assertTrue(result.stdout().contains("\"members\": ["));
+        assertTrue(result.stdout().contains("\"apps/api\""));
+        assertTrue(result.stdout().contains("\"modules/core\""));
+        assertTrue(result.stdout().contains("\"projects\": ["));
+        assertTrue(result.stdout().contains("\"member\": \"apps/api\""));
+        assertTrue(result.stdout().contains("\"member\": \"modules/core\""));
+        assertTrue(result.stdout().contains("\"edges\": []"));
+        assertTrue(result.stdout().contains("\"diagnostics\": []"));
+    }
+
+    @Test
     void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -1580,6 +1620,16 @@ final class ZoltCliTest {
                         .append("\" = \"")
                         .append(entry.getValue())
                         .append("\"\n"));
+    }
+
+    private static String memberConfig(String name) {
+        return """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                """.formatted(name, currentJavaMajorVersion());
     }
 
     private static void writeMainSource(Path projectDir, String content) throws IOException {

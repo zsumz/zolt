@@ -35,6 +35,8 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
+import com.zolt.ide.WorkspaceIdeModelJsonWriter;
+import com.zolt.ide.WorkspaceIdeModelService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
@@ -641,6 +643,9 @@ public final class ZoltCli implements Runnable {
             @Option(names = "--offline", description = "Use only artifacts already present in the local cache when checking zolt.lock.")
             private boolean offline;
 
+            @Option(names = "--workspace", description = "Export the discovered workspace model.")
+            private boolean workspace;
+
             @Option(names = "--cwd", hidden = true)
             private Path workingDirectory = Path.of(".");
 
@@ -652,6 +657,15 @@ public final class ZoltCli implements Runnable {
 
             @Override
             public void run() {
+                if (workspace) {
+                    String output = new WorkspaceIdeModelJsonWriter().write(new WorkspaceIdeModelService().export(
+                            workingDirectory,
+                            cacheRoot,
+                            checkLock,
+                            offline));
+                    printAndFlush(spec, output);
+                    return;
+                }
                 String output = new IdeModelJsonWriter().write(new IdeModelService().export(
                         workingDirectory,
                         cacheRoot,

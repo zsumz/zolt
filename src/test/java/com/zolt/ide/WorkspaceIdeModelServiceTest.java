@@ -1,0 +1,118 @@
+package com.zolt.ide;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class WorkspaceIdeModelServiceTest {
+    private final WorkspaceIdeModelService service = new WorkspaceIdeModelService();
+
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void exportsWorkspaceAndMemberProjectModels() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        member("apps/api", "api");
+        member("modules/core", "core");
+
+        WorkspaceIdeModel model = service.export(
+                tempDir.resolve("apps/api/src/main/java"),
+                tempDir.resolve("cache"),
+                false,
+                false);
+
+        assertEquals(1, model.schemaVersion());
+        assertEquals("acme-platform", model.workspace().name());
+        assertEquals(tempDir.toAbsolutePath().normalize(), model.workspace().root());
+        assertEquals(tempDir.resolve("zolt-workspace.toml").toAbsolutePath().normalize(), model.workspace().config());
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), model.workspace().lockfile());
+        assertEquals(List.of("apps/api", "modules/core"), model.workspace().members());
+        assertEquals(List.of("apps/api"), model.workspace().defaultMembers());
+        assertEquals(List.of("apps/api", "modules/core"), model.projects().stream()
+                .map(WorkspaceIdeModel.ProjectModel::member)
+                .toList());
+        assertEquals(List.of("api", "core"), model.projects().stream()
+                .map(project -> project.model().project().name())
+                .toList());
+        assertEquals(List.of(), model.edges());
+        assertEquals(List.of(), model.diagnostics());
+    }
+
+    @Test
+    void reportsMissingWorkspaceAsStructuredDiagnostic() throws IOException {
+        Files.createDirectories(tempDir.resolve("standalone"));
+
+        WorkspaceIdeModel model = service.export(tempDir.resolve("standalone"), tempDir.resolve("cache"), false, false);
+
+        assertEquals("WORKSPACE_NOT_FOUND", model.diagnostics().getFirst().code());
+        assertEquals("Could not find zolt-workspace.toml.", model.diagnostics().getFirst().message());
+        assertTrue(model.projects().isEmpty());
+    }
+
+    @Test
+    void reportsInvalidWorkspaceAsStructuredDiagnostic() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["../outside"]
+                """);
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        assertEquals("WORKSPACE_INVALID", model.diagnostics().getFirst().code());
+        assertTrue(model.diagnostics().getFirst().message().contains("Invalid workspace member path"));
+        assertTrue(model.projects().isEmpty());
+    }
+
+    @Test
+    void writerPrintsWorkspaceModelWithNestedProjectModels() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api");
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        String json = new WorkspaceIdeModelJsonWriter().write(model);
+
+        assertTrue(json.contains("\"workspace\": {"));
+        assertTrue(json.contains("\"members\": ["));
+        assertTrue(json.contains("\"apps/api\""));
+        assertTrue(json.contains("\"projects\": ["));
+        assertTrue(json.contains("\"member\": \"apps/api\""));
+        assertTrue(json.contains("\"model\": {"));
+        assertTrue(json.contains("\"name\": \"api\""));
+        assertTrue(json.contains("\"edges\": []"));
+        assertTrue(json.contains("\"diagnostics\": []"));
+    }
+
+    private void workspace(String content) throws IOException {
+        Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
+    }
+
+    private void member(String path, String name) throws IOException {
+        Path member = tempDir.resolve(path);
+        Files.createDirectories(member);
+        Files.writeString(member.resolve("zolt.toml"), """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+                """.formatted(name));
+        Files.writeString(member.resolve("zolt.lock"), "version = 1\n");
+    }
+}
