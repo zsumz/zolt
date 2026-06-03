@@ -205,6 +205,9 @@ public final class ZoltCli implements Runnable {
             if (request.version().equals(existing)) {
                 spec.commandLine().getOut().println("Dependency " + request.coordinate() + ":" + request.version()
                         + " already exists in [" + section + "]");
+            } else if (managedDependencies(original, request.section()).contains(request.coordinate())) {
+                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                        + " from managed version to " + request.version() + " in [" + section + "]");
             } else if (existing != null) {
                 spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
                         + " from " + existing + " to " + request.version() + " in [" + section + "]");
@@ -243,9 +246,8 @@ public final class ZoltCli implements Runnable {
                 RemoveRequest request = parseRequest(arguments);
                 Path configPath = workingDirectory.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
-                Map<String, String> dependencies = dependencies(config, request.section());
                 String section = sectionName(request.section());
-                if (!dependencies.containsKey(request.coordinate())) {
+                if (!hasDependency(config, request.section(), request.coordinate())) {
                     spec.commandLine().getOut().println("Dependency " + request.coordinate()
                             + " is not present in [" + section + "]; nothing to remove.");
                     return;
@@ -777,6 +779,15 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> dependencies(ProjectConfig config, DependencySection section) {
         return section == DependencySection.TEST ? config.testDependencies() : config.dependencies();
+    }
+
+    private static java.util.Set<String> managedDependencies(ProjectConfig config, DependencySection section) {
+        return section == DependencySection.TEST ? config.managedTestDependencies() : config.managedDependencies();
+    }
+
+    private static boolean hasDependency(ProjectConfig config, DependencySection section, String coordinate) {
+        return dependencies(config, section).containsKey(coordinate)
+                || managedDependencies(config, section).contains(coordinate);
     }
 
     private static String sectionName(DependencySection section) {

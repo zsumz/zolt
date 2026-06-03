@@ -62,7 +62,7 @@ public final class ResolveService {
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot));
-        List<DependencyRequest> directRequests = directRequests(config);
+        List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
         DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
         ResolutionGraph graph = traverser.traverse(directRequests);
         VersionSelectionResult selection = versionSelector.select(directRequests, graph);
@@ -76,13 +76,22 @@ public final class ResolveService {
                 lockfilePath);
     }
 
-    private List<DependencyRequest> directRequests(ProjectConfig config) {
+    private List<DependencyRequest> directRequests(ProjectConfig config, Map<PackageId, String> projectManagedVersions) {
         List<DependencyRequest> requests = new ArrayList<>();
         for (Map.Entry<String, String> dependency : config.dependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(new DependencyRequest(
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
+                    DependencyScope.COMPILE,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("dependencies", packageId, projectManagedVersions),
                     DependencyScope.COMPILE,
                     RequestOrigin.DIRECT));
         }
@@ -94,7 +103,32 @@ public final class ResolveService {
                     DependencyScope.TEST,
                     RequestOrigin.DIRECT));
         }
+        for (String dependency : config.managedTestDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("test.dependencies", packageId, projectManagedVersions),
+                    DependencyScope.TEST,
+                    RequestOrigin.DIRECT));
+        }
         return requests;
+    }
+
+    private static String managedVersion(
+            String section,
+            PackageId packageId,
+            Map<PackageId, String> projectManagedVersions) {
+        String version = projectManagedVersions.get(packageId);
+        if (version == null || version.isBlank()) {
+            throw new ResolveException(
+                    "Dependency "
+                            + packageId
+                            + " in ["
+                            + section
+                            + "] uses a platform-managed version, but no declared [platforms] entry manages it. Add a version or add a platform that manages this dependency.");
+        }
+        return version;
     }
 
     private ZoltLockfile lockfile(
@@ -230,6 +264,25 @@ public final class ResolveService {
             return downloadCount;
         }
 
+        Map<PackageId, String> projectManagedVersions() {
+            Map<PackageId, String> versions = new LinkedHashMap<>();
+            config.platforms().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(platform -> {
+                        Coordinate coordinate = coordinateParser.parse(platform.getKey() + ":" + platform.getValue());
+                        EffectiveRawPom pom = effectivePom(coordinate, List.of());
+                        for (RawPomDependency dependency : pom.dependencyManagement()) {
+                            RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
+                            if (managedJarDependency(interpolated) && interpolated.version().isPresent()) {
+                                versions.put(
+                                        new PackageId(interpolated.groupId(), interpolated.artifactId()),
+                                        interpolated.version().orElseThrow());
+                            }
+                        }
+                    });
+            return versions;
+        }
+
         private EffectiveRawPom effectivePom(Coordinate coordinate, List<String> importStack) {
             String key = coordinate.toString();
             EffectiveRawPom cached = metadata.get(key);
@@ -359,6 +412,11 @@ public final class ResolveService {
         private static boolean isImportedBom(RawPomDependency dependency) {
             return dependency.type().filter("pom"::equals).isPresent()
                     && dependency.scope().filter("import"::equals).isPresent();
+        }
+
+        private static boolean managedJarDependency(RawPomDependency dependency) {
+            return dependency.type().orElse("jar").equals("jar")
+                    && dependency.classifier().isEmpty();
         }
     }
 }

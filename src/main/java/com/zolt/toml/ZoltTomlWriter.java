@@ -12,7 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public final class ZoltTomlWriter {
     public ProjectConfig defaultApplicationConfig(String name, String group, String mainClass) {
@@ -37,8 +39,9 @@ public final class ZoltTomlWriter {
         StringBuilder toml = new StringBuilder();
         writeProject(toml, config.project());
         writeStringMap(toml, "repositories", config.repositories());
-        writeStringMap(toml, "dependencies", config.dependencies());
-        writeStringMap(toml, "test.dependencies", config.testDependencies());
+        writeStringMap(toml, "platforms", config.platforms());
+        writeDependencies(toml, "dependencies", config.dependencies(), config.managedDependencies());
+        writeDependencies(toml, "test.dependencies", config.testDependencies(), config.managedTestDependencies());
         writeBuild(toml, config.build());
         writeNative(toml, config.nativeSettings());
         return toml.toString();
@@ -53,15 +56,21 @@ public final class ZoltTomlWriter {
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
+                    config.platforms(),
                     put(config.dependencies(), coordinate, version),
+                    remove(config.managedDependencies(), coordinate),
                     config.testDependencies(),
+                    config.managedTestDependencies(),
                     config.build(),
                     config.nativeSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
+                    config.platforms(),
                     config.dependencies(),
+                    config.managedDependencies(),
                     put(config.testDependencies(), coordinate, version),
+                    remove(config.managedTestDependencies(), coordinate),
                     config.build(),
                     config.nativeSettings());
         };
@@ -72,15 +81,21 @@ public final class ZoltTomlWriter {
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
+                    config.platforms(),
                     remove(config.dependencies(), coordinate),
+                    remove(config.managedDependencies(), coordinate),
                     config.testDependencies(),
+                    config.managedTestDependencies(),
                     config.build(),
                     config.nativeSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
+                    config.platforms(),
                     config.dependencies(),
+                    config.managedDependencies(),
                     remove(config.testDependencies(), coordinate),
+                    remove(config.managedTestDependencies(), coordinate),
                     config.build(),
                     config.nativeSettings());
         };
@@ -128,6 +143,25 @@ public final class ZoltTomlWriter {
         toml.append('\n');
     }
 
+    private static void writeDependencies(
+            StringBuilder toml,
+            String section,
+            Map<String, String> versioned,
+            Set<String> managed) {
+        toml.append('[').append(section).append("]\n");
+        for (String coordinate : sortedCoordinates(versioned, managed)) {
+            toml.append(quote(coordinate)).append(" = ");
+            String version = versioned.get(coordinate);
+            if (version == null) {
+                toml.append("{}");
+            } else {
+                toml.append(quote(version));
+            }
+            toml.append('\n');
+        }
+        toml.append('\n');
+    }
+
     private static void writeAssignment(StringBuilder toml, String key, String value) {
         toml.append(key).append(" = ").append(quote(value)).append('\n');
     }
@@ -155,8 +189,21 @@ public final class ZoltTomlWriter {
         return updated;
     }
 
+    private static Set<String> remove(Set<String> source, String coordinate) {
+        TreeSet<String> updated = new TreeSet<>(source);
+        updated.remove(coordinate);
+        return updated;
+    }
+
     private static Map<String, String> sorted(Map<String, String> values) {
         return new TreeMap<>(values);
+    }
+
+    private static Set<String> sortedCoordinates(Map<String, String> versioned, Set<String> managed) {
+        TreeSet<String> coordinates = new TreeSet<>();
+        coordinates.addAll(versioned.keySet());
+        coordinates.addAll(managed);
+        return coordinates;
     }
 
     private static String quote(String value) {

@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -288,6 +289,105 @@ final class ResolveServiceTest {
         assertTrue(exception.getMessage().contains("com.example:bom-b:1.0.0"));
     }
 
+    @Test
+    void projectPlatformProvidesManagedVersionForDirectDependency() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, platformConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(5, result.downloadCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "app"))
+                        && lockPackage.version().equals("1.0.0")
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "platform"))));
+    }
+
+    @Test
+    void projectPlatformProvidesManagedVersionForDirectTestDependency() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, testPlatformConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "app"))
+                        && lockPackage.version().equals("1.0.0")
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && lockPackage.direct()));
+    }
+
+
+    @Test
+    void unmanagedDirectDependencyFailsClearly() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>other</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, platformConfig(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Dependency com.example:app in [dependencies]"));
+        assertTrue(exception.getMessage().contains("uses a platform-managed version"));
+    }
+
     private ProjectConfig config() {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
@@ -295,6 +395,32 @@ final class ResolveServiceTest {
                 Map.of("com.example:app", "1.0.0"),
                 Map.of(),
                 BuildSettings.defaults());
+    }
+
+    private ProjectConfig platformConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of("com.example:platform", "1.0.0"),
+                Map.of(),
+                Set.of("com.example:app"),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null);
+    }
+
+    private ProjectConfig testPlatformConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of("com.example:platform", "1.0.0"),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of("com.example:app"),
+                BuildSettings.defaults(),
+                null);
     }
 
     private static void createDirectory(Path directory) {

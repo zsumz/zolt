@@ -7,6 +7,7 @@ import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ public final class ZoltTomlParser {
     private static final Set<String> TOP_LEVEL_SECTIONS = Set.of(
             "project",
             "repositories",
+            "platforms",
             "dependencies",
             "test",
             "build",
@@ -65,19 +67,30 @@ public final class ZoltTomlParser {
             repositories = ProjectConfig.defaultRepositories();
         }
 
-        Map<String, String> dependencies = stringMap(optionalTable(result, "dependencies"), "dependencies");
+        Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
+
+        DependencyDeclarations dependencies = dependencyDeclarations(optionalTable(result, "dependencies"), "dependencies");
 
         TomlTable testTable = optionalTable(result, "test");
-        Map<String, String> testDependencies = Map.of();
+        DependencyDeclarations testDependencies = DependencyDeclarations.empty();
         if (testTable != null) {
             validateKeys("test", testTable, Set.of("dependencies"));
-            testDependencies = stringMap(optionalTable(testTable, "dependencies"), "test.dependencies");
+            testDependencies = dependencyDeclarations(optionalTable(testTable, "dependencies"), "test.dependencies");
         }
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
-        return new ProjectConfig(project, repositories, dependencies, testDependencies, build, nativeSettings);
+        return new ProjectConfig(
+                project,
+                repositories,
+                platforms,
+                dependencies.versioned(),
+                dependencies.managed(),
+                testDependencies.versioned(),
+                testDependencies.managed(),
+                build,
+                nativeSettings);
     }
 
     private static BuildSettings parseBuild(TomlTable buildTable) {
@@ -198,6 +211,42 @@ public final class ZoltTomlParser {
         return values;
     }
 
+    private static DependencyDeclarations dependencyDeclarations(TomlTable table, String section) {
+        if (table == null) {
+            return DependencyDeclarations.empty();
+        }
+
+        Map<String, String> versioned = new LinkedHashMap<>();
+        LinkedHashSet<String> managed = new LinkedHashSet<>();
+        for (String key : table.keySet()) {
+            Object rawValue = table.get(List.of(key));
+            if (rawValue instanceof String value) {
+                if (value.isBlank()) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string version or {} for a platform-managed version.");
+                }
+                versioned.put(key, value);
+                continue;
+            }
+            if (rawValue instanceof TomlTable dependencyTable) {
+                validateKeys(section + "." + key, dependencyTable, Set.of("version"));
+                String version = dependencyTable.getString("version");
+                if (version == null) {
+                    managed.add(key);
+                } else if (version.isBlank()) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + ".version in zolt.toml. Use a non-empty string version.");
+                } else {
+                    versioned.put(key, version);
+                }
+                continue;
+            }
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string version or {} for a platform-managed version.");
+        }
+        return new DependencyDeclarations(versioned, Set.copyOf(managed));
+    }
+
     private static List<String> stringListOrDefault(
             TomlTable table,
             String section,
@@ -222,5 +271,13 @@ public final class ZoltTomlParser {
             values.add(value);
         }
         return List.copyOf(values);
+    }
+
+    private record DependencyDeclarations(
+            Map<String, String> versioned,
+            Set<String> managed) {
+        private static DependencyDeclarations empty() {
+            return new DependencyDeclarations(Map.of(), Set.of());
+        }
     }
 }

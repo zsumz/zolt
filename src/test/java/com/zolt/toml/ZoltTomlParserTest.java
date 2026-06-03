@@ -23,8 +23,10 @@ final class ZoltTomlParserTest {
         assertEquals("21", config.project().java());
         assertEquals("com.example.Main", config.project().main().orElseThrow());
         assertEquals("https://repo.maven.apache.org/maven2", config.repositories().get("central"));
+        assertTrue(config.platforms().isEmpty());
         assertEquals("33.4.0-jre", config.dependencies().get("com.google.guava:guava"));
         assertTrue(config.testDependencies().isEmpty());
+        assertTrue(config.managedDependencies().isEmpty());
         assertEquals("src/main/java", config.build().source());
         assertEquals("target/test-classes", config.build().testOutput());
     }
@@ -47,13 +49,43 @@ final class ZoltTomlParserTest {
                 """);
 
         assertEquals(ProjectConfig.MAVEN_CENTRAL, config.repositories().get("central"));
+        assertTrue(config.platforms().isEmpty());
         assertTrue(config.dependencies().isEmpty());
+        assertTrue(config.managedDependencies().isEmpty());
         assertFalse(config.project().main().isPresent());
         assertEquals("src/main/java", config.build().source());
         assertEquals("target/classes", config.build().output());
         assertEquals("", config.nativeSettings().imageName());
         assertEquals("target/native", config.nativeSettings().output());
         assertTrue(config.nativeSettings().args().isEmpty());
+    }
+
+    @Test
+    void parsesPlatformsAndManagedDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "spring"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = "4.0.6"
+
+                [dependencies]
+                "org.springframework.boot:spring-boot-starter-webmvc" = {}
+                "org.slf4j:slf4j-api" = { version = "2.0.17" }
+
+                [test.dependencies]
+                "org.junit.jupiter:junit-jupiter" = {}
+                """);
+
+        assertEquals(
+                "4.0.6",
+                config.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertTrue(config.managedDependencies().contains("org.springframework.boot:spring-boot-starter-webmvc"));
+        assertEquals("2.0.17", config.dependencies().get("org.slf4j:slf4j-api"));
+        assertTrue(config.managedTestDependencies().contains("org.junit.jupiter:junit-jupiter"));
     }
 
     @Test
@@ -199,7 +231,27 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string value.",
+                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version or {} for a platform-managed version.",
+                exception.getMessage());
+    }
+
+    @Test
+    void dependencyInlineTablesRejectUnknownFields() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [dependencies]
+                        "com.google.guava:guava" = { scope = "compile" }
+                        """));
+
+        assertEquals(
+                "Unknown field [dependencies.com.google.guava:guava].scope in zolt.toml. Remove it or check the spelling.",
                 exception.getMessage());
     }
 

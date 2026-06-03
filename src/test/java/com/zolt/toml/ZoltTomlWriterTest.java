@@ -11,6 +11,7 @@ import com.zolt.project.ProjectMetadata;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlWriterTest {
@@ -34,6 +35,8 @@ final class ZoltTomlWriterTest {
                 [repositories]
                 "central" = "https://repo.maven.apache.org/maven2"
 
+                [platforms]
+
                 [dependencies]
 
                 [test.dependencies]
@@ -53,8 +56,11 @@ final class ZoltTomlWriterTest {
 
         assertEquals(original.project(), parsed.project());
         assertEquals(original.repositories(), parsed.repositories());
+        assertEquals(original.platforms(), parsed.platforms());
         assertEquals(original.dependencies(), parsed.dependencies());
+        assertEquals(original.managedDependencies(), parsed.managedDependencies());
         assertEquals(original.testDependencies(), parsed.testDependencies());
+        assertEquals(original.managedTestDependencies(), parsed.managedTestDependencies());
         assertEquals(original.build(), parsed.build());
     }
 
@@ -112,6 +118,28 @@ final class ZoltTomlWriterTest {
         String toml = writer.write(config);
 
         assertTrue(toml.indexOf("\"com.google.guava:guava\"") < toml.indexOf("\"org.slf4j:slf4j-api\""));
+    }
+
+    @Test
+    void writesManagedDependencies() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("spring", "0.1.0", "com.example", "21", Optional.empty()),
+                ProjectConfig.defaultRepositories(),
+                Map.of("org.springframework.boot:spring-boot-dependencies", "4.0.6"),
+                Map.of(),
+                Set.of("org.springframework.boot:spring-boot-starter-webmvc"),
+                Map.of(),
+                Set.of("org.junit.jupiter:junit-jupiter"),
+                BuildSettings.defaults(),
+                NativeSettings.defaults());
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"org.springframework.boot:spring-boot-starter-webmvc\" = {}"));
+        assertEquals(config.platforms(), parsed.platforms());
+        assertEquals(config.managedDependencies(), parsed.managedDependencies());
+        assertEquals(config.managedTestDependencies(), parsed.managedTestDependencies());
     }
 
     private static ProjectConfig configWithNativeSettings() {

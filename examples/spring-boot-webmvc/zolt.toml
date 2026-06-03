@@ -8,8 +8,11 @@ main = "com.example.springboot.DemoApplication"
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
+[platforms]
+"org.springframework.boot:spring-boot-dependencies" = "4.0.6"
+
 [dependencies]
-"org.springframework.boot:spring-boot-starter-webmvc" = "4.0.6"
+"org.springframework.boot:spring-boot-starter-webmvc" = {}
 
 [test.dependencies]
 
