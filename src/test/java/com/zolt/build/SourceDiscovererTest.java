@@ -31,6 +31,43 @@ final class SourceDiscovererTest {
     }
 
     @Test
+    void findsJavaTestsFromMultipleRootsDeterministically() throws IOException {
+        Path unit = source("src/test/java/com/example/MainTest.java");
+        Path integration = source("src/integration-test/java/com/example/MainIT.java");
+        Path fixture = source("src/fixtures/java/com/example/FixtureTest.java");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of(
+                                "src/integration-test/java",
+                                "src/test/java",
+                                "src/fixtures/java")));
+
+        assertEquals(List.of(fixture, integration, unit), result.testSources());
+    }
+
+    @Test
+    void deDuplicatesOverlappingTestRoots() throws IOException {
+        Path test = source("src/test/java/com/example/MainTest.java");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test", "src/test/java")));
+
+        assertEquals(List.of(test), result.testSources());
+    }
+
+    @Test
     void ignoresTargetAndBuildOutputDirectories() throws IOException {
         Path app = source("src/main/java/com/example/App.java");
         source("target/classes/com/example/Generated.java");

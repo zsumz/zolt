@@ -28,6 +28,7 @@ final class ZoltTomlParserTest {
         assertTrue(config.testDependencies().isEmpty());
         assertTrue(config.managedDependencies().isEmpty());
         assertEquals("src/main/java", config.build().source());
+        assertEquals(List.of("src/test/java"), config.build().testSources());
         assertEquals("target/test-classes", config.build().testOutput());
     }
 
@@ -108,6 +109,64 @@ final class ZoltTomlParserTest {
         assertEquals(
                 List.of("--no-fallback", "--native-image-info"),
                 config.nativeSettings().args());
+    }
+
+    @Test
+    void parsesExplicitJavaTestSourceRoots() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.sources]
+                java = ["src/test/java", "src/integration-test/java"]
+                """);
+
+        assertEquals(
+                List.of("src/test/java", "src/integration-test/java"),
+                config.build().testSources());
+    }
+
+    @Test
+    void rejectsMalformedJavaTestSourceRoots() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [test.sources]
+                        java = "src/test/java"
+                        """));
+
+        assertEquals(
+                "Invalid value for [test.sources].java in zolt.toml. Use an array of strings.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnknownTestSourceLanguage() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [test.sources]
+                        groovy = ["src/test/groovy"]
+                        """));
+
+        assertEquals(
+                "Unknown field [test.sources].groovy in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
     }
 
     @Test

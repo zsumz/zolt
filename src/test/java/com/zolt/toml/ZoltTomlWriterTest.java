@@ -97,6 +97,29 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void preservesExplicitJavaTestSourceRootsWhenEditingDependencies() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java", "src/integration-test/java")));
+        config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[test.sources]\njava = [\"src/test/java\", \"src/integration-test/java\"]"));
+        assertEquals(config.build().testSources(), parsed.build().testSources());
+        assertEquals("5.11.4", parsed.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+    }
+
+    @Test
     void removesDependenciesFromCorrectSections() {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
         config = writer.addDependency(config, DependencySection.MAIN, "com.google.guava:guava", "33.4.0-jre");

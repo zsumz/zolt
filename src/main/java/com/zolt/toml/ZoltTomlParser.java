@@ -74,11 +74,12 @@ public final class ZoltTomlParser {
         TomlTable testTable = optionalTable(result, "test");
         DependencyDeclarations testDependencies = DependencyDeclarations.empty();
         if (testTable != null) {
-            validateKeys("test", testTable, Set.of("dependencies"));
+            validateKeys("test", testTable, Set.of("dependencies", "sources"));
             testDependencies = dependencyDeclarations(optionalTable(testTable, "dependencies"), "test.dependencies");
         }
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
+        build = parseTestSources(testTable, build);
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
         return new ProjectConfig(
@@ -105,6 +106,23 @@ public final class ZoltTomlParser {
                 stringOrDefault(buildTable, "build", "test", defaults.test()),
                 stringOrDefault(buildTable, "build", "output", defaults.output()),
                 stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()));
+    }
+
+    private static BuildSettings parseTestSources(TomlTable testTable, BuildSettings build) {
+        if (testTable == null) {
+            return build;
+        }
+        TomlTable sourcesTable = optionalTable(testTable, "sources");
+        if (sourcesTable == null) {
+            return build;
+        }
+        validateKeys("test.sources", sourcesTable, Set.of("java"));
+        return new BuildSettings(
+                build.source(),
+                build.test(),
+                build.output(),
+                build.testOutput(),
+                stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()));
     }
 
     private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {

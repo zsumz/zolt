@@ -42,6 +42,7 @@ public final class ZoltTomlWriter {
         writeStringMap(toml, "platforms", config.platforms());
         writeDependencies(toml, "dependencies", config.dependencies(), config.managedDependencies());
         writeDependencies(toml, "test.dependencies", config.testDependencies(), config.managedTestDependencies());
+        writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
         writeNative(toml, config.nativeSettings());
         return toml.toString();
@@ -168,6 +169,15 @@ public final class ZoltTomlWriter {
         writeAssignment(toml, "test", build.test());
         writeAssignment(toml, "output", build.output());
         writeAssignment(toml, "testOutput", build.testOutput());
+    }
+
+    private static void writeTestSources(StringBuilder toml, BuildSettings build) {
+        if (build.testSources().equals(List.of(build.test()))) {
+            return;
+        }
+        toml.append("[test.sources]\n");
+        writeStringArray(toml, "java", build.testSources());
+        toml.append('\n');
     }
 
     private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {

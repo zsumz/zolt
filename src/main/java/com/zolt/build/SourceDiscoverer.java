@@ -16,10 +16,24 @@ public final class SourceDiscoverer {
         Path testOutput = projectDirectory.resolve(settings.testOutput()).normalize();
         return new SourceDiscoveryResult(
                 discoverSources(projectDirectory.resolve(settings.source()).normalize(), output, testOutput),
-                discoverSources(projectDirectory.resolve(settings.test()).normalize(), output, testOutput));
+                discoverSources(settings.testSources().stream()
+                        .map(root -> projectDirectory.resolve(root).normalize())
+                        .toList(), output, testOutput));
     }
 
     private static List<Path> discoverSources(Path root, Path output, Path testOutput) {
+        return discoverSources(List.of(root), output, testOutput);
+    }
+
+    private static List<Path> discoverSources(List<Path> roots, Path output, Path testOutput) {
+        return roots.stream()
+                .flatMap(root -> discoverSourcesFromRoot(root, output, testOutput).stream())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private static List<Path> discoverSourcesFromRoot(Path root, Path output, Path testOutput) {
         if (!Files.isDirectory(root)) {
             return List.of();
         }
