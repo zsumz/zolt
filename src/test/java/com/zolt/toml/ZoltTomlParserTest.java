@@ -27,6 +27,10 @@ final class ZoltTomlParserTest {
         assertEquals("33.4.0-jre", config.dependencies().get("com.google.guava:guava"));
         assertTrue(config.testDependencies().isEmpty());
         assertTrue(config.managedDependencies().isEmpty());
+        assertTrue(config.annotationProcessors().isEmpty());
+        assertTrue(config.managedAnnotationProcessors().isEmpty());
+        assertTrue(config.testAnnotationProcessors().isEmpty());
+        assertTrue(config.managedTestAnnotationProcessors().isEmpty());
         assertEquals("src/main/java", config.build().source());
         assertEquals(List.of("src/test/java"), config.build().testSources());
         assertEquals("target/test-classes", config.build().testOutput());
@@ -53,6 +57,10 @@ final class ZoltTomlParserTest {
         assertTrue(config.platforms().isEmpty());
         assertTrue(config.dependencies().isEmpty());
         assertTrue(config.managedDependencies().isEmpty());
+        assertTrue(config.annotationProcessors().isEmpty());
+        assertTrue(config.managedAnnotationProcessors().isEmpty());
+        assertTrue(config.testAnnotationProcessors().isEmpty());
+        assertTrue(config.managedTestAnnotationProcessors().isEmpty());
         assertFalse(config.project().main().isPresent());
         assertEquals("src/main/java", config.build().source());
         assertEquals("target/classes", config.build().output());
@@ -87,6 +95,53 @@ final class ZoltTomlParserTest {
         assertTrue(config.managedDependencies().contains("org.springframework.boot:spring-boot-starter-webmvc"));
         assertEquals("2.0.17", config.dependencies().get("org.slf4j:slf4j-api"));
         assertTrue(config.managedTestDependencies().contains("org.junit.jupiter:junit-jupiter"));
+    }
+
+    @Test
+    void parsesAnnotationProcessorDeclarations() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "micronaut"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [platforms]
+                "io.micronaut.platform:micronaut-platform" = "5.0.0"
+
+                [annotationProcessors]
+                "io.micronaut:micronaut-inject-java" = {}
+                "org.mapstruct:mapstruct-processor" = { version = "1.6.3" }
+
+                [test.annotationProcessors]
+                "io.micronaut:micronaut-inject-java" = {}
+                "com.example:test-processor" = "1.0.0"
+                """);
+
+        assertTrue(config.managedAnnotationProcessors().contains("io.micronaut:micronaut-inject-java"));
+        assertEquals("1.6.3", config.annotationProcessors().get("org.mapstruct:mapstruct-processor"));
+        assertTrue(config.managedTestAnnotationProcessors().contains("io.micronaut:micronaut-inject-java"));
+        assertEquals("1.0.0", config.testAnnotationProcessors().get("com.example:test-processor"));
+    }
+
+    @Test
+    void rejectsMalformedAnnotationProcessorDeclaration() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [annotationProcessors]
+                        "io.micronaut:micronaut-inject-java" = 42
+                        """));
+
+        assertEquals(
+                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version or {} for a platform-managed version.",
+                exception.getMessage());
     }
 
     @Test

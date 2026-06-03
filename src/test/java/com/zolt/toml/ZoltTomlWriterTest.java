@@ -61,6 +61,10 @@ final class ZoltTomlWriterTest {
         assertEquals(original.managedDependencies(), parsed.managedDependencies());
         assertEquals(original.testDependencies(), parsed.testDependencies());
         assertEquals(original.managedTestDependencies(), parsed.managedTestDependencies());
+        assertEquals(original.annotationProcessors(), parsed.annotationProcessors());
+        assertEquals(original.managedAnnotationProcessors(), parsed.managedAnnotationProcessors());
+        assertEquals(original.testAnnotationProcessors(), parsed.testAnnotationProcessors());
+        assertEquals(original.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
         assertEquals(original.build(), parsed.build());
     }
 
@@ -163,6 +167,67 @@ final class ZoltTomlWriterTest {
         assertEquals(config.platforms(), parsed.platforms());
         assertEquals(config.managedDependencies(), parsed.managedDependencies());
         assertEquals(config.managedTestDependencies(), parsed.managedTestDependencies());
+    }
+
+    @Test
+    void writesAnnotationProcessorDeclarationsDeterministically() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("micronaut", "0.1.0", "com.example", "21", Optional.empty()),
+                ProjectConfig.defaultRepositories(),
+                Map.of("io.micronaut.platform:micronaut-platform", "5.0.0"),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of("org.mapstruct:mapstruct-processor", "1.6.3"),
+                Set.of("io.micronaut:micronaut-inject-java"),
+                Map.of("com.example:test-processor", "1.0.0"),
+                Set.of("io.micronaut:micronaut-inject-java"),
+                BuildSettings.defaults(),
+                NativeSettings.defaults());
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[annotationProcessors]\n"));
+        assertTrue(toml.contains("\"io.micronaut:micronaut-inject-java\" = {}"));
+        assertTrue(toml.contains("\"org.mapstruct:mapstruct-processor\" = \"1.6.3\""));
+        assertTrue(toml.indexOf("\"io.micronaut:micronaut-inject-java\" = {}")
+                < toml.indexOf("\"org.mapstruct:mapstruct-processor\" = \"1.6.3\""));
+        assertTrue(toml.contains("[test.annotationProcessors]\n"));
+        assertEquals(config.annotationProcessors(), parsed.annotationProcessors());
+        assertEquals(config.managedAnnotationProcessors(), parsed.managedAnnotationProcessors());
+        assertEquals(config.testAnnotationProcessors(), parsed.testAnnotationProcessors());
+        assertEquals(config.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
+    }
+
+    @Test
+    void preservesAnnotationProcessorsWhenEditingDependencies() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("micronaut", "0.1.0", "com.example", "21", Optional.empty()),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of("org.mapstruct:mapstruct-processor", "1.6.3"),
+                Set.of("io.micronaut:micronaut-inject-java"),
+                Map.of("com.example:test-processor", "1.0.0"),
+                Set.of(),
+                BuildSettings.defaults(),
+                NativeSettings.defaults());
+
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+        config = writer.addPlatform(config, "io.micronaut.platform:micronaut-platform", "5.0.0");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.annotationProcessors(), parsed.annotationProcessors());
+        assertEquals(config.managedAnnotationProcessors(), parsed.managedAnnotationProcessors());
+        assertEquals(config.testAnnotationProcessors(), parsed.testAnnotationProcessors());
+        assertEquals(config.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
     }
 
     @Test

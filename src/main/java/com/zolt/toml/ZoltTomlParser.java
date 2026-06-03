@@ -25,6 +25,7 @@ public final class ZoltTomlParser {
             "repositories",
             "platforms",
             "dependencies",
+            "annotationProcessors",
             "test",
             "build",
             "native");
@@ -70,12 +71,19 @@ public final class ZoltTomlParser {
         Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
 
         DependencyDeclarations dependencies = dependencyDeclarations(optionalTable(result, "dependencies"), "dependencies");
+        DependencyDeclarations annotationProcessors = dependencyDeclarations(
+                optionalTable(result, "annotationProcessors"),
+                "annotationProcessors");
 
         TomlTable testTable = optionalTable(result, "test");
         DependencyDeclarations testDependencies = DependencyDeclarations.empty();
+        DependencyDeclarations testAnnotationProcessors = DependencyDeclarations.empty();
         if (testTable != null) {
-            validateKeys("test", testTable, Set.of("dependencies", "sources"));
+            validateKeys("test", testTable, Set.of("dependencies", "sources", "annotationProcessors"));
             testDependencies = dependencyDeclarations(optionalTable(testTable, "dependencies"), "test.dependencies");
+            testAnnotationProcessors = dependencyDeclarations(
+                    optionalTable(testTable, "annotationProcessors"),
+                    "test.annotationProcessors");
         }
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
@@ -90,6 +98,10 @@ public final class ZoltTomlParser {
                 dependencies.managed(),
                 testDependencies.versioned(),
                 testDependencies.managed(),
+                annotationProcessors.versioned(),
+                annotationProcessors.managed(),
+                testAnnotationProcessors.versioned(),
+                testAnnotationProcessors.managed(),
                 build,
                 nativeSettings);
     }

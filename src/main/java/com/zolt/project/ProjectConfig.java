@@ -11,6 +11,10 @@ public record ProjectConfig(
         Set<String> managedDependencies,
         Map<String, String> testDependencies,
         Set<String> managedTestDependencies,
+        Map<String, String> annotationProcessors,
+        Set<String> managedAnnotationProcessors,
+        Map<String, String> testAnnotationProcessors,
+        Set<String> managedTestAnnotationProcessors,
         BuildSettings build,
         NativeSettings nativeSettings) {
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
@@ -22,7 +26,37 @@ public record ProjectConfig(
         managedDependencies = Set.copyOf(managedDependencies);
         testDependencies = Map.copyOf(testDependencies);
         managedTestDependencies = Set.copyOf(managedTestDependencies);
+        annotationProcessors = Map.copyOf(annotationProcessors);
+        managedAnnotationProcessors = Set.copyOf(managedAnnotationProcessors);
+        testAnnotationProcessors = Map.copyOf(testAnnotationProcessors);
+        managedTestAnnotationProcessors = Set.copyOf(managedTestAnnotationProcessors);
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            BuildSettings build,
+            NativeSettings nativeSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                dependencies,
+                managedDependencies,
+                testDependencies,
+                managedTestDependencies,
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                build,
+                nativeSettings);
     }
 
     public ProjectConfig(
@@ -39,6 +73,10 @@ public record ProjectConfig(
                 dependencies,
                 Set.of(),
                 testDependencies,
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 Set.of(),
                 build,
                 nativeSettings);

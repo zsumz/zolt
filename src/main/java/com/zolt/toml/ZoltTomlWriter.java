@@ -42,6 +42,16 @@ public final class ZoltTomlWriter {
         writeStringMap(toml, "platforms", config.platforms());
         writeDependencies(toml, "dependencies", config.dependencies(), config.managedDependencies());
         writeDependencies(toml, "test.dependencies", config.testDependencies(), config.managedTestDependencies());
+        writeOptionalDependencies(
+                toml,
+                "annotationProcessors",
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors());
+        writeOptionalDependencies(
+                toml,
+                "test.annotationProcessors",
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors());
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
         writeNative(toml, config.nativeSettings());
@@ -62,6 +72,10 @@ public final class ZoltTomlWriter {
                     remove(config.managedDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
             case TEST -> new ProjectConfig(
@@ -72,6 +86,10 @@ public final class ZoltTomlWriter {
                     config.managedDependencies(),
                     put(config.testDependencies(), coordinate, version),
                     remove(config.managedTestDependencies(), coordinate),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
         };
@@ -87,6 +105,10 @@ public final class ZoltTomlWriter {
                     add(config.managedDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
             case TEST -> new ProjectConfig(
@@ -97,6 +119,10 @@ public final class ZoltTomlWriter {
                     config.managedDependencies(),
                     remove(config.testDependencies(), coordinate),
                     add(config.managedTestDependencies(), coordinate),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
         };
@@ -112,6 +138,10 @@ public final class ZoltTomlWriter {
                     remove(config.managedDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
             case TEST -> new ProjectConfig(
@@ -122,6 +152,10 @@ public final class ZoltTomlWriter {
                     config.managedDependencies(),
                     remove(config.testDependencies(), coordinate),
                     remove(config.managedTestDependencies(), coordinate),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings());
         };
@@ -136,6 +170,10 @@ public final class ZoltTomlWriter {
                 config.managedDependencies(),
                 config.testDependencies(),
                 config.managedTestDependencies(),
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors(),
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors(),
                 config.build(),
                 config.nativeSettings());
     }
@@ -149,6 +187,10 @@ public final class ZoltTomlWriter {
                 config.managedDependencies(),
                 config.testDependencies(),
                 config.managedTestDependencies(),
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors(),
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors(),
                 config.build(),
                 config.nativeSettings());
     }
@@ -221,6 +263,17 @@ public final class ZoltTomlWriter {
             toml.append('\n');
         }
         toml.append('\n');
+    }
+
+    private static void writeOptionalDependencies(
+            StringBuilder toml,
+            String section,
+            Map<String, String> versioned,
+            Set<String> managed) {
+        if (versioned.isEmpty() && managed.isEmpty()) {
+            return;
+        }
+        writeDependencies(toml, section, versioned, managed);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
