@@ -38,6 +38,8 @@ final class ClasspathBuilderTest {
         assertEquals(List.of(), classpaths.compile().entries());
         assertEquals(List.of(), classpaths.runtime().entries());
         assertEquals(List.of(jar), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
     }
 
     @Test
@@ -48,6 +50,38 @@ final class ClasspathBuilderTest {
         assertEquals(List.of(jar), classpaths.compile().entries());
         assertEquals(List.of(), classpaths.runtime().entries());
         assertEquals(List.of(), classpaths.test().entries());
+    }
+
+    @Test
+    void processorDependenciesAreIncludedOnlyOnProcessorClasspath() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope(
+                "com.example",
+                "processor-lib",
+                "1.0.0",
+                DependencyScope.PROCESSOR)));
+
+        Path jar = jar("processor-lib", "1.0.0");
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(jar), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+    }
+
+    @Test
+    void testProcessorDependenciesAreIncludedOnlyOnTestProcessorClasspath() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope(
+                "com.example",
+                "test-processor-lib",
+                "1.0.0",
+                DependencyScope.TEST_PROCESSOR)));
+
+        Path jar = jar("test-processor-lib", "1.0.0");
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(jar), classpaths.testProcessor().entries());
     }
 
     @Test

@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -440,6 +443,98 @@ final class ResolveServiceTest {
                         && lockPackage.direct()));
     }
 
+    @Test
+    void annotationProcessorsResolveToProcessorScopesOnly() {
+        addArtifact("com.example", "processor", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>processor</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>processor-helper</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "processor-helper", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>processor-helper</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, processorConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "processor"))
+                        && lockPackage.scope() == DependencyScope.PROCESSOR
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "processor-helper"))
+                        && lockPackage.scope() == DependencyScope.PROCESSOR
+                        && !lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(
+                cacheRoot.resolve("com/example/processor-helper/1.0.0/processor-helper-1.0.0.jar"),
+                cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar")),
+                classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+    }
+
+    @Test
+    void projectPlatformProvidesManagedVersionForAnnotationProcessor() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>processor</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addArtifact("com.example", "processor", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>processor</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, processorPlatformConfig(), cacheRoot);
+
+        assertEquals(1, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "processor"))
+                        && lockPackage.version().equals("1.0.0")
+                        && lockPackage.scope() == DependencyScope.PROCESSOR
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "platform"))));
+    }
 
     @Test
     void unmanagedDirectDependencyFailsClearly() {
@@ -468,6 +563,36 @@ final class ResolveServiceTest {
                 () -> resolveService.resolve(projectDir, platformConfig(), cacheRoot));
 
         assertTrue(exception.getMessage().contains("Dependency com.example:app in [dependencies]"));
+        assertTrue(exception.getMessage().contains("uses a platform-managed version"));
+    }
+
+    @Test
+    void unmanagedAnnotationProcessorFailsClearly() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>other</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, processorPlatformConfig(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Dependency com.example:processor in [annotationProcessors]"));
         assertTrue(exception.getMessage().contains("uses a platform-managed version"));
     }
 
@@ -506,6 +631,40 @@ final class ResolveServiceTest {
                 Set.of(),
                 Map.of(),
                 Set.of("com.example:app"),
+                BuildSettings.defaults(),
+                null);
+    }
+
+    private ProjectConfig processorConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of("com.example:processor", "1.0.0"),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null);
+    }
+
+    private ProjectConfig processorPlatformConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of("com.example:platform", "1.0.0"),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of("com.example:processor"),
+                Map.of(),
+                Set.of(),
                 BuildSettings.defaults(),
                 null);
     }

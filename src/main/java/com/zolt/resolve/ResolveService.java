@@ -22,12 +22,12 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.SequencedMap;
 
 public final class ResolveService {
     private final CoordinateParser coordinateParser;
@@ -152,6 +152,40 @@ public final class ResolveService {
                     DependencyScope.TEST,
                     RequestOrigin.DIRECT));
         }
+        for (Map.Entry<String, String> dependency : config.annotationProcessors().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.PROCESSOR,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedAnnotationProcessors()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("annotationProcessors", packageId, projectManagedVersions),
+                    DependencyScope.PROCESSOR,
+                    RequestOrigin.DIRECT));
+        }
+        for (Map.Entry<String, String> dependency : config.testAnnotationProcessors().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.TEST_PROCESSOR,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedTestAnnotationProcessors()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("test.annotationProcessors", packageId, projectManagedVersions),
+                    DependencyScope.TEST_PROCESSOR,
+                    RequestOrigin.DIRECT));
+        }
         return requests;
     }
 
@@ -176,9 +210,12 @@ public final class ResolveService {
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests) {
-        SequencedMap<PackageId, DependencyRequest> selectedRequests = selectedRequests(graph, selection, directRequests);
+        Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
         List<LockPackage> packages = selection.selectedNodes().stream()
-                .map(node -> lockPackage(context, node, selectedRequests.get(node.packageId()), graph))
+                .flatMap(node -> selectedScopes
+                        .getOrDefault(node.packageId(), List.of(new SelectedScope(DependencyScope.COMPILE, false)))
+                        .stream()
+                        .map(scope -> lockPackage(context, node, scope, graph)))
                 .toList();
         List<LockConflict> conflicts = selection.conflicts().stream()
                 .map(conflict -> new LockConflict(
@@ -190,20 +227,32 @@ public final class ResolveService {
         return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, packages, conflicts);
     }
 
-    private SequencedMap<PackageId, DependencyRequest> selectedRequests(
+    private Map<PackageId, List<SelectedScope>> selectedScopes(
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests) {
-        SequencedMap<PackageId, DependencyRequest> requests = new LinkedHashMap<>();
+        Map<PackageId, List<SelectedScope>> requests = new LinkedHashMap<>();
         List<DependencyRequest> allRequests = new ArrayList<>();
         allRequests.addAll(directRequests);
         allRequests.addAll(graph.edges().stream().map(ResolutionEdge::request).toList());
         for (PackageNode node : selection.selectedNodes()) {
-            allRequests.stream()
+            List<SelectedScope> scopes = allRequests.stream()
                     .filter(request -> request.packageId().equals(node.packageId()))
                     .filter(request -> request.requestedVersion().equals(node.selectedVersion()))
-                    .findFirst()
-                    .ifPresent(request -> requests.put(node.packageId(), request));
+                    .collect(java.util.stream.Collectors.groupingBy(
+                            DependencyRequest::scope,
+                            java.util.stream.Collectors.reducing(
+                                    false,
+                                    DependencyRequest::direct,
+                                    Boolean::logicalOr)))
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new SelectedScope(entry.getKey(), entry.getValue()))
+                    .sorted(Comparator.comparing(selectedScope -> selectedScope.scope().lockfileName()))
+                    .toList();
+            if (!scopes.isEmpty()) {
+                requests.put(node.packageId(), scopes);
+            }
         }
         return requests;
     }
@@ -211,7 +260,7 @@ public final class ResolveService {
     private LockPackage lockPackage(
             RepositoryContext context,
             PackageNode node,
-            DependencyRequest request,
+            SelectedScope selectedScope,
             ResolutionGraph graph) {
         Coordinate coordinate = new Coordinate(
                 node.packageId().groupId(),
@@ -219,14 +268,12 @@ public final class ResolveService {
                 Optional.of(node.selectedVersion()));
         CachedArtifact pom = context.getPom(coordinate);
         CachedArtifact jar = context.getJar(coordinate);
-        DependencyScope scope = request == null ? DependencyScope.COMPILE : request.scope();
-        boolean direct = request != null && request.direct();
         return new LockPackage(
                 node.packageId(),
                 node.selectedVersion(),
                 "maven-central",
-                scope,
-                direct,
+                selectedScope.scope(),
+                selectedScope.direct(),
                 Optional.of(jar.repositoryPath()),
                 Optional.of(pom.repositoryPath()),
                 Optional.of(sha256(jar.bytes())),
@@ -254,6 +301,9 @@ public final class ResolveService {
         } catch (NoSuchAlgorithmException exception) {
             throw new ResolveException("Could not compute artifact checksum because SHA-256 is unavailable.", exception);
         }
+    }
+
+    private record SelectedScope(DependencyScope scope, boolean direct) {
     }
 
     @FunctionalInterface

@@ -16,7 +16,9 @@ public final class ClasspathBuilder {
         return new ClasspathSet(
                 classpath(sorted, scope -> scope.entersMainCompileClasspath()),
                 classpath(sorted, scope -> scope.entersMainRuntimeClasspath()),
-                classpath(sorted, scope -> scope.entersMainRuntimeClasspath() || scope.entersTestClasspath()));
+                classpath(sorted, scope -> scope.entersMainRuntimeClasspath() || scope.entersTestClasspath()),
+                classpath(sorted, scope -> scope.entersMainProcessorClasspath()),
+                classpath(sorted, scope -> scope.entersTestProcessorClasspath()));
     }
 
     private static Classpath classpath(

@@ -134,6 +134,12 @@ public final class DependencyGraphTraverser {
         if (dependencyScope == DependencyScope.TEST || dependencyScope == DependencyScope.PROVIDED) {
             return Optional.empty();
         }
+        if (parentScope == DependencyScope.PROCESSOR) {
+            return Optional.of(DependencyScope.PROCESSOR);
+        }
+        if (parentScope == DependencyScope.TEST_PROCESSOR) {
+            return Optional.of(DependencyScope.TEST_PROCESSOR);
+        }
         if (parentScope == DependencyScope.TEST) {
             return Optional.of(DependencyScope.TEST);
         }

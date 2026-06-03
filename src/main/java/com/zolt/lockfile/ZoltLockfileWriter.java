@@ -38,7 +38,7 @@ public final class ZoltLockfileWriter {
         assignment(output, "id", lockPackage.packageId().toString());
         assignment(output, "version", lockPackage.version());
         assignment(output, "source", lockPackage.source());
-        assignment(output, "scope", lockPackage.scope().name().toLowerCase(java.util.Locale.ROOT));
+        assignment(output, "scope", lockPackage.scope().lockfileName());
         output.append("direct = ").append(lockPackage.direct()).append('\n');
         lockPackage.jar().ifPresent(value -> assignment(output, "jar", value));
         lockPackage.pom().ifPresent(value -> assignment(output, "pom", value));
@@ -78,7 +78,7 @@ public final class ZoltLockfileWriter {
     private static List<LockPackage> sortedPackages(List<LockPackage> packages) {
         return packages.stream()
                 .sorted(Comparator.comparing(lockPackage ->
-                        lockPackage.packageId() + ":" + lockPackage.version()))
+                        lockPackage.packageId() + ":" + lockPackage.version() + ":" + lockPackage.scope().lockfileName()))
                 .toList();
     }
 

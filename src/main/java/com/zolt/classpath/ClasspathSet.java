@@ -5,5 +5,7 @@ import com.zolt.resolve.Classpath;
 public record ClasspathSet(
         Classpath compile,
         Classpath runtime,
-        Classpath test) {
+        Classpath test,
+        Classpath processor,
+        Classpath testProcessor) {
 }

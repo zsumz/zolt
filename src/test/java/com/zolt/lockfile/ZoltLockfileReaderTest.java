@@ -54,6 +54,32 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsProcessorScopes() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.example:processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test-processor"
+                direct = true
+                dependencies = []
+                """);
+
+        assertEquals(DependencyScope.PROCESSOR, lockfile.packages().get(0).scope());
+        assertEquals(DependencyScope.TEST_PROCESSOR, lockfile.packages().get(1).scope());
+    }
+
+    @Test
     void rejectsUnsupportedLockfileVersion() {
         LockfileReadException exception = assertThrows(
                 LockfileReadException.class,

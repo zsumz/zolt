@@ -182,8 +182,13 @@ public final class ZoltLockfileReader {
     }
 
     private static DependencyScope scope(String value, PackageId packageId) {
+        for (DependencyScope scope : DependencyScope.values()) {
+            if (scope.lockfileName().equals(value)) {
+                return scope;
+            }
+        }
         try {
-            return DependencyScope.valueOf(value.toUpperCase(Locale.ROOT));
+            return DependencyScope.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             throw new LockfileReadException(
                     "Invalid scope `" + value + "` for " + packageId + " in zolt.lock.",
