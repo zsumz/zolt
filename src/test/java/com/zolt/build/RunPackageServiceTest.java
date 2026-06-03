@@ -37,7 +37,7 @@ final class RunPackageServiceTest {
                 }
                 """);
         List<List<String>> commands = new ArrayList<>();
-        RunPackageService service = service(command -> {
+        RunPackageService service = service((command, outputConsumer) -> {
             commands.add(command);
             return new JavaRunner.ProcessResult(0, "hello\n");
         });
@@ -64,7 +64,7 @@ final class RunPackageServiceTest {
 
     @Test
     void missingMainClassProducesActionableErrorBeforePackaging() {
-        RunPackageService service = service(command -> new JavaRunner.ProcessResult(0, ""));
+        RunPackageService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, ""));
 
         RunPackageException exception = assertThrows(
                 RunPackageException.class,

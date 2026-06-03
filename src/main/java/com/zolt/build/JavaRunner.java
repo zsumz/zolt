@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 public final class JavaRunner {
     private final String pathSeparator;
@@ -26,8 +27,18 @@ public final class JavaRunner {
             Classpath classpath,
             String mainClass,
             List<String> arguments) {
+        return run(java, classpath, mainClass, arguments, ignored -> {
+        });
+    }
+
+    public JavaRunResult run(
+            Path java,
+            Classpath classpath,
+            String mainClass,
+            List<String> arguments,
+            Consumer<String> outputConsumer) {
         List<String> command = command(java, classpath, mainClass, arguments);
-        ProcessResult result = processRunner.run(command);
+        ProcessResult result = processRunner.run(command, outputConsumer);
         if (result.exitCode() != 0) {
             throw new JavaRunException(
                     "java exited with code "
@@ -58,14 +69,22 @@ public final class JavaRunner {
         return List.copyOf(command);
     }
 
-    private static ProcessResult runProcess(List<String> command) {
+    private static ProcessResult runProcess(List<String> command, Consumer<String> outputConsumer) {
         try {
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            StringBuilder output = new StringBuilder();
+            byte[] buffer = new byte[8192];
+            int read = process.getInputStream().read(buffer);
+            while (read >= 0) {
+                String chunk = new String(buffer, 0, read, StandardCharsets.UTF_8);
+                output.append(chunk);
+                outputConsumer.accept(chunk);
+                read = process.getInputStream().read(buffer);
+            }
             int exitCode = process.waitFor();
-            return new ProcessResult(exitCode, output);
+            return new ProcessResult(exitCode, output.toString());
         } catch (IOException exception) {
             throw new JavaRunException(
                     "Could not run java. Check that the configured JDK is installed and readable.",
@@ -78,7 +97,7 @@ public final class JavaRunner {
 
     @FunctionalInterface
     interface ProcessRunner {
-        ProcessResult run(List<String> command);
+        ProcessResult run(List<String> command, Consumer<String> outputConsumer);
     }
 
     record ProcessResult(int exitCode, String output) {

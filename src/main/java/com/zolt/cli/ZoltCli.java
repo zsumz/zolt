@@ -465,16 +465,25 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                RunResult result = new RunService().run(workingDirectory, config, cacheRoot, arguments);
+                RunResult result = new RunService().run(
+                        workingDirectory,
+                        config,
+                        cacheRoot,
+                        arguments,
+                        output -> {
+                            spec.commandLine().getOut().print(output);
+                            spec.commandLine().getOut().flush();
+                        });
                 String output = result.javaRunResult().output();
-                printAndFlush(spec, output);
                 if (!output.isEmpty() && !output.endsWith("\n")) {
                     spec.commandLine().getOut().println();
                 }
                 spec.commandLine().getOut().println("Ran " + result.javaRunResult().mainClass());
+            } catch (JavaRunException exception) {
+                spec.commandLine().getErr().println("error: " + firstLine(exception.getMessage()));
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } catch (BuildException
                     | JavacException
-                    | JavaRunException
                     | ResourceCopyException
                     | RunException
                     | SourceDiscoveryException
@@ -741,6 +750,11 @@ public final class ZoltCli implements Runnable {
     private static void printAndFlush(CommandSpec spec, String output) {
         spec.commandLine().getOut().print(output);
         spec.commandLine().getOut().flush();
+    }
+
+    private static String firstLine(String value) {
+        int newline = value.indexOf('\n');
+        return newline < 0 ? value : value.substring(0, newline);
     }
 
     private static void printJdkStatus(CommandSpec spec, JdkStatus status) {

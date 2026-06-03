@@ -14,7 +14,7 @@ final class JavaRunnerTest {
     @Test
     void passesRuntimeClasspathMainClassAndArguments() {
         List<List<String>> commands = new ArrayList<>();
-        JavaRunner runner = new JavaRunner(":", command -> {
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> {
             commands.add(command);
             return new JavaRunner.ProcessResult(0, "hello\n");
         });
@@ -36,8 +36,28 @@ final class JavaRunnerTest {
     }
 
     @Test
+    void streamsOutputAndStillReturnsCapturedOutput() {
+        List<String> streamed = new ArrayList<>();
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> {
+            outputConsumer.accept("starting\n");
+            outputConsumer.accept("ready\n");
+            return new JavaRunner.ProcessResult(0, "starting\nready\n");
+        });
+
+        JavaRunResult result = runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of(),
+                streamed::add);
+
+        assertEquals(List.of("starting\n", "ready\n"), streamed);
+        assertEquals("starting\nready\n", result.output());
+    }
+
+    @Test
     void nonZeroExitIncludesApplicationOutput() {
-        JavaRunner runner = new JavaRunner(":", command -> new JavaRunner.ProcessResult(7, "boom\n"));
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(7, "boom\n"));
 
         JavaRunException exception = assertThrows(
                 JavaRunException.class,

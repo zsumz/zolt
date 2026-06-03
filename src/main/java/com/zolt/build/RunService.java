@@ -11,6 +11,7 @@ import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class RunService {
     private final BuildService buildService;
@@ -46,6 +47,16 @@ public final class RunService {
             ProjectConfig config,
             Path cacheRoot,
             List<String> arguments) {
+        return run(projectDirectory, config, cacheRoot, arguments, ignored -> {
+        });
+    }
+
+    public RunResult run(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            List<String> arguments,
+            Consumer<String> outputConsumer) {
         String mainClass = config.project().main().orElseThrow(() -> new RunException(
                 "No main class is configured. Add [project].main to zolt.toml."));
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
@@ -64,7 +75,8 @@ public final class RunService {
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runtimeEntries),
                 mainClass,
-                arguments);
+                arguments,
+                outputConsumer);
         return new RunResult(buildResult, javaRunResult);
     }
 }

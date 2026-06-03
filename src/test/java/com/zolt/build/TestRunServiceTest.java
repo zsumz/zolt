@@ -30,7 +30,7 @@ final class TestRunServiceTest {
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<List<String>> commands = new ArrayList<>();
-        TestRunService service = service(command -> {
+        TestRunService service = service((command, outputConsumer) -> {
             commands.add(command);
             return new JavaRunner.ProcessResult(0, "Tests successful\n");
         });
@@ -54,7 +54,7 @@ final class TestRunServiceTest {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-        TestRunService service = service(command -> new JavaRunner.ProcessResult(0, ""));
+        TestRunService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, ""));
 
         TestRunException exception = assertThrows(
                 TestRunException.class,
@@ -69,7 +69,7 @@ final class TestRunServiceTest {
         writeConsoleLockfile();
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-        TestRunService service = service(command -> new JavaRunner.ProcessResult(2, "test failed\n"));
+        TestRunService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(2, "test failed\n"));
 
         JavaRunException exception = assertThrows(
                 JavaRunException.class,
