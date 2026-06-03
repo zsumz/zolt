@@ -67,6 +67,10 @@ public final class ResolveService {
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean locked) {
+        return resolve(projectDirectory, config, cacheRoot, locked, false);
+    }
+
+    public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean locked, boolean offline) {
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
         if (locked && !Files.isRegularFile(lockfilePath)) {
             throw new ResolveException(
@@ -75,7 +79,7 @@ public final class ResolveService {
                             + ". Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
         }
 
-        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot));
+        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
         List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
         DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
         ResolutionGraph graph = traverser.traverse(directRequests);
@@ -260,13 +264,15 @@ public final class ResolveService {
     private final class RepositoryContext implements DependencyMetadataSource {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
+        private final boolean offline;
         private final Map<String, EffectiveRawPom> metadata = new HashMap<>();
         private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private int downloadCount;
 
-        RepositoryContext(ProjectConfig config, LocalArtifactCache cache) {
+        RepositoryContext(ProjectConfig config, LocalArtifactCache cache, boolean offline) {
             this.config = config;
             this.cache = cache;
+            this.offline = offline;
         }
 
         @Override
@@ -275,6 +281,9 @@ public final class ResolveService {
         }
 
         CachedArtifact getPom(Coordinate coordinate) {
+            if (offline) {
+                return cache.getCachedPom(coordinate);
+            }
             Path before = cache.pomPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchPom(coordinate, requested ->
@@ -286,6 +295,9 @@ public final class ResolveService {
         }
 
         CachedArtifact getJar(Coordinate coordinate) {
+            if (offline) {
+                return cache.getCachedJar(coordinate);
+            }
             Path before = cache.jarPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchJar(coordinate, requested ->

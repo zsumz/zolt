@@ -79,6 +79,32 @@ final class LocalArtifactCacheTest {
     }
 
     @Test
+    void cachedOnlyPomDoesNotFetch() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        cache.getOrFetchPom(coordinate, requested ->
+                artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<project/>"));
+
+        CachedArtifact artifact = cache.getCachedPom(coordinate);
+
+        assertEquals(cache.pomPath(coordinate), artifact.cachePath());
+        assertArrayEquals("<project/>".getBytes(StandardCharsets.UTF_8), artifact.bytes());
+    }
+
+    @Test
+    void cachedOnlyJarFailsClearlyWhenMissing() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> cache.getCachedJar(coordinate));
+
+        assertTrue(exception.getMessage().contains("Offline mode requires cached JAR"));
+        assertTrue(exception.getMessage().contains("Run the command without --offline"));
+    }
+
+    @Test
     void failedDownloadDoesNotCreateCacheFile() {
         LocalArtifactCache cache = new LocalArtifactCache(tempDir);
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");

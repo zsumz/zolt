@@ -201,6 +201,26 @@ final class ZoltCliTest {
     }
 
     @Test
+    void resolveOfflineReportsMissingCachedArtifactClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(
+                projectDir,
+                "https://repo.maven.apache.org/maven2",
+                Map.of("com.example:missing", "1.0.0"),
+                Map.of());
+
+        CommandResult result = execute(
+                "resolve",
+                "--offline",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Offline mode requires cached POM"));
+        assertTrue(result.stderr().contains("Run the command without --offline"));
+    }
+
+    @Test
     void addAddsCompileDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -760,6 +780,32 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Compiled 1 main source files"));
         assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void buildOfflineUsesExistingLockfileAndCache() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--offline",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Compiled 1 main source files"));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }
 

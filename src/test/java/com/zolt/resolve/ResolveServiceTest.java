@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.zolt.cache.ArtifactCacheException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
@@ -158,6 +159,34 @@ final class ResolveServiceTest {
         assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
         assertTrue(exception.getMessage().contains("Run `zolt resolve` to refresh it"));
         assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void offlineResolveUsesCachedArtifactsWithoutFetching() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, config(), cacheRoot);
+        responses.clear();
+
+        ResolveResult result = resolveService.resolve(projectDir, config(), cacheRoot, false, true);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(0, result.downloadCount());
+    }
+
+    @Test
+    void offlineResolveFailsClearlyWhenArtifactIsMissingFromCache() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> resolveService.resolve(projectDir, config(), cacheRoot, false, true));
+
+        assertTrue(exception.getMessage().contains("Offline mode requires cached POM"));
+        assertTrue(exception.getMessage().contains("Run the command without --offline"));
     }
 
     @Test

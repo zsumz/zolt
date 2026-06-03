@@ -41,6 +41,14 @@ public final class LocalArtifactCache {
         return getOrFetch(coordinate, pathBuilder.jarPath(coordinate), fetcher);
     }
 
+    public CachedArtifact getCachedPom(Coordinate coordinate) {
+        return getCached(coordinate, pathBuilder.pomPath(coordinate), "POM");
+    }
+
+    public CachedArtifact getCachedJar(Coordinate coordinate) {
+        return getCached(coordinate, pathBuilder.jarPath(coordinate), "JAR");
+    }
+
     private CachedArtifact getOrFetch(Coordinate coordinate, String repositoryPath, ArtifactFetcher fetcher) {
         Path cachePath = cachePath(repositoryPath);
         if (Files.isRegularFile(cachePath)) {
@@ -59,6 +67,26 @@ public final class LocalArtifactCache {
         }
         writeAtomically(cachePath, artifact.bytes());
         return new CachedArtifact(coordinate, repositoryPath, cachePath, artifact.bytes());
+    }
+
+    private CachedArtifact getCached(Coordinate coordinate, String repositoryPath, String artifactKind) {
+        Path cachePath = cachePath(repositoryPath);
+        if (!Files.isRegularFile(cachePath)) {
+            throw new ArtifactCacheException(
+                    "Offline mode requires cached "
+                            + artifactKind
+                            + " for "
+                            + coordinate
+                            + " at "
+                            + cachePath
+                            + ". Run the command without --offline to download it, then retry with --offline.");
+        }
+        byte[] bytes = read(cachePath);
+        if (bytes.length == 0) {
+            throw new ArtifactCacheException(
+                    "Cached artifact at " + cachePath + " is empty. Delete it and run the command again.");
+        }
+        return new CachedArtifact(coordinate, repositoryPath, cachePath, bytes);
     }
 
     private Path cachePath(String repositoryPath) {

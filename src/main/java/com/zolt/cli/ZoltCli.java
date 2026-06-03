@@ -26,6 +26,7 @@ import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
+import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathFormatter;
 import com.zolt.classpath.ClasspathSet;
@@ -177,7 +178,11 @@ public final class ZoltCli implements Runnable {
                     return;
                 }
                 printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-            } catch (AddCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+            } catch (AddCommandException
+                    | ArtifactCacheException
+                    | CoordinateParseException
+                    | ResolveException
+                    | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
@@ -305,7 +310,11 @@ public final class ZoltCli implements Runnable {
                         return;
                     }
                     printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-                } catch (PlatformCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+                } catch (PlatformCommandException
+                        | ArtifactCacheException
+                        | CoordinateParseException
+                        | ResolveException
+                        | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
                 }
@@ -368,7 +377,11 @@ public final class ZoltCli implements Runnable {
                     tomlWriter.write(configPath, updated);
                     spec.commandLine().getOut().println("Removed platform " + platform + " from [platforms]");
                     printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-                } catch (PlatformCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+                } catch (PlatformCommandException
+                        | ArtifactCacheException
+                        | CoordinateParseException
+                        | ResolveException
+                        | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
                 }
@@ -415,7 +428,11 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println(
                         "Removed dependency " + request.coordinate() + " from [" + section + "]");
                 printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-            } catch (RemoveCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+            } catch (RemoveCommandException
+                    | ArtifactCacheException
+                    | CoordinateParseException
+                    | ResolveException
+                    | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
@@ -438,6 +455,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--locked", description = "Fail if zolt.lock would change.")
         private boolean locked;
 
+        @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
+        private boolean offline;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -454,9 +474,10 @@ public final class ZoltCli implements Runnable {
                         workingDirectory,
                         new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
                         cacheRoot,
-                        locked);
+                        locked,
+                        offline);
                 printResolveResult(spec, result, !locked);
-            } catch (ResolveException | ZoltConfigException exception) {
+            } catch (ArtifactCacheException | ResolveException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
@@ -579,6 +600,9 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "build", description = "Compile main Java sources with the resolved compile classpath.")
     public static final class BuildCommand implements Runnable {
+        @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
+        private boolean offline;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -592,13 +616,14 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                BuildResult result = new BuildService().build(workingDirectory, config, cacheRoot);
+                BuildResult result = new BuildService().build(workingDirectory, config, cacheRoot, offline);
                 if (result.resolvedLockfile()) {
                     spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
                 }
                 spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
                 spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
             } catch (BuildException
+                    | ArtifactCacheException
                     | JavacException
                     | ResourceCopyException
                     | SourceDiscoveryException
