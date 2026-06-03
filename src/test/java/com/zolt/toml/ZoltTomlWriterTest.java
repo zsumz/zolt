@@ -3,8 +3,14 @@ package com.zolt.toml;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.BuildSettings;
 import com.zolt.project.DependencySection;
+import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectMetadata;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlWriterTest {
@@ -53,6 +59,15 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesNativeSettingsWhenConfigured() {
+        ProjectConfig original = configWithNativeSettings();
+
+        ProjectConfig parsed = parser.parse(writer.write(original));
+
+        assertEquals(original.nativeSettings(), parsed.nativeSettings());
+    }
+
+    @Test
     void addsDependenciesToCorrectSections() {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
         config = writer.addDependency(config, DependencySection.MAIN, "com.google.guava:guava", "33.4.0-jre");
@@ -62,6 +77,17 @@ final class ZoltTomlWriterTest {
 
         assertEquals("33.4.0-jre", parsed.dependencies().get("com.google.guava:guava"));
         assertEquals("5.11.4", parsed.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+    }
+
+    @Test
+    void preservesNativeSettingsWhenEditingDependencies() {
+        ProjectConfig config = configWithNativeSettings();
+        config = writer.addDependency(config, DependencySection.MAIN, "com.google.guava:guava", "33.4.0-jre");
+        config = writer.removeDependency(config, DependencySection.MAIN, "com.google.guava:guava");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.nativeSettings(), parsed.nativeSettings());
     }
 
     @Test
@@ -86,5 +112,15 @@ final class ZoltTomlWriterTest {
         String toml = writer.write(config);
 
         assertTrue(toml.indexOf("\"com.google.guava:guava\"") < toml.indexOf("\"org.slf4j:slf4j-api\""));
+    }
+
+    private static ProjectConfig configWithNativeSettings() {
+        return new ProjectConfig(
+                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults(),
+                new NativeSettings("hello-native", "target/native-custom", List.of("--no-fallback")));
     }
 }

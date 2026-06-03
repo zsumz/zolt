@@ -68,6 +68,7 @@ final class ZoltCliTest {
                 "test",
                 "package",
                 "run-package",
+                "native",
                 "clean",
                 "doctor")));
     }
@@ -745,6 +746,21 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("No main class is configured"));
+        assertTrue(result.stderr().contains("[project].main"));
+    }
+
+    @Test
+    void nativeReportsMissingMainClassClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "native",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Native Image main class is missing"));
         assertTrue(result.stderr().contains("[project].main"));
     }
 

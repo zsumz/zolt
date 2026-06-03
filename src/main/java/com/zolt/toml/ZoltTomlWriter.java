@@ -2,12 +2,14 @@ package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.DependencySection;
+import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -38,6 +40,7 @@ public final class ZoltTomlWriter {
         writeStringMap(toml, "dependencies", config.dependencies());
         writeStringMap(toml, "test.dependencies", config.testDependencies());
         writeBuild(toml, config.build());
+        writeNative(toml, config.nativeSettings());
         return toml.toString();
     }
 
@@ -52,13 +55,15 @@ public final class ZoltTomlWriter {
                     config.repositories(),
                     put(config.dependencies(), coordinate, version),
                     config.testDependencies(),
-                    config.build());
+                    config.build(),
+                    config.nativeSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
                     config.dependencies(),
                     put(config.testDependencies(), coordinate, version),
-                    config.build());
+                    config.build(),
+                    config.nativeSettings());
         };
     }
 
@@ -69,13 +74,15 @@ public final class ZoltTomlWriter {
                     config.repositories(),
                     remove(config.dependencies(), coordinate),
                     config.testDependencies(),
-                    config.build());
+                    config.build(),
+                    config.nativeSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
                     config.dependencies(),
                     remove(config.testDependencies(), coordinate),
-                    config.build());
+                    config.build(),
+                    config.nativeSettings());
         };
     }
 
@@ -97,6 +104,22 @@ public final class ZoltTomlWriter {
         writeAssignment(toml, "testOutput", build.testOutput());
     }
 
+    private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {
+        NativeSettings defaults = NativeSettings.defaults();
+        if (nativeSettings == null
+                || ((nativeSettings.imageName() == null || nativeSettings.imageName().isBlank())
+                && nativeSettings.output().equals(defaults.output())
+                && nativeSettings.args().isEmpty())) {
+            return;
+        }
+        toml.append("\n[native]\n");
+        if (nativeSettings.imageName() != null && !nativeSettings.imageName().isBlank()) {
+            writeAssignment(toml, "imageName", nativeSettings.imageName());
+        }
+        writeAssignment(toml, "output", nativeSettings.output());
+        writeStringArray(toml, "args", nativeSettings.args());
+    }
+
     private static void writeStringMap(StringBuilder toml, String section, Map<String, String> values) {
         toml.append('[').append(section).append("]\n");
         for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
@@ -107,6 +130,17 @@ public final class ZoltTomlWriter {
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
         toml.append(key).append(" = ").append(quote(value)).append('\n');
+    }
+
+    private static void writeStringArray(StringBuilder toml, String key, List<String> values) {
+        toml.append(key).append(" = [");
+        for (int index = 0; index < values.size(); index++) {
+            if (index > 0) {
+                toml.append(", ");
+            }
+            toml.append(quote(values.get(index)));
+        }
+        toml.append("]\n");
     }
 
     private static Map<String, String> put(Map<String, String> source, String coordinate, String version) {

@@ -1,16 +1,19 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.tomlj.Toml;
+import org.tomlj.TomlArray;
 import org.tomlj.TomlParseError;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
@@ -21,9 +24,11 @@ public final class ZoltTomlParser {
             "repositories",
             "dependencies",
             "test",
-            "build");
+            "build",
+            "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput");
+    private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
 
     public ProjectConfig parse(Path path) {
         try {
@@ -70,8 +75,9 @@ public final class ZoltTomlParser {
         }
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
+        NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
-        return new ProjectConfig(project, repositories, dependencies, testDependencies, build);
+        return new ProjectConfig(project, repositories, dependencies, testDependencies, build, nativeSettings);
     }
 
     private static BuildSettings parseBuild(TomlTable buildTable) {
@@ -86,6 +92,19 @@ public final class ZoltTomlParser {
                 stringOrDefault(buildTable, "build", "test", defaults.test()),
                 stringOrDefault(buildTable, "build", "output", defaults.output()),
                 stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()));
+    }
+
+    private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {
+        if (nativeTable == null) {
+            return NativeSettings.defaults();
+        }
+
+        NativeSettings defaults = NativeSettings.defaults().withDefaultImageName(projectName);
+        validateKeys("native", nativeTable, NATIVE_KEYS);
+        return new NativeSettings(
+                stringOrDefault(nativeTable, "native", "imageName", defaults.imageName()),
+                stringOrDefault(nativeTable, "native", "output", defaults.output()),
+                stringListOrDefault(nativeTable, "native", "args", defaults.args()));
     }
 
     private static String parseErrorMessage(TomlParseResult result) {
@@ -148,8 +167,15 @@ public final class ZoltTomlParser {
     }
 
     private static String stringOrDefault(TomlTable table, String section, String key, String defaultValue) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof String value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
+        }
+        if (value.isBlank()) {
             return defaultValue;
         }
         return value;
@@ -170,5 +196,31 @@ public final class ZoltTomlParser {
             values.put(key, value);
         }
         return values;
+    }
+
+    private static List<String> stringListOrDefault(
+            TomlTable table,
+            String section,
+            String key,
+            List<String> defaultValue) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof TomlArray array)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
+        }
+
+        ArrayList<String> values = new ArrayList<>();
+        for (int index = 0; index < array.size(); index++) {
+            String value = array.getString(index);
+            if (value == null || value.isBlank()) {
+                throw new ZoltConfigException(
+                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
     }
 }
