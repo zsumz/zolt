@@ -39,6 +39,7 @@ public final class PomDependencyManager {
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {
         return pom.rawPom().dependencies().stream()
+                .filter(dependency -> dependency.classifier().isEmpty())
                 .map(dependency -> applyManagedVersion(dependency, pom))
                 .toList();
     }
@@ -46,6 +47,9 @@ public final class PomDependencyManager {
     private Map<ManagedDependencyKey, RawPomDependency> managedDependencies(EffectiveRawPom pom) {
         Map<ManagedDependencyKey, RawPomDependency> dependencies = new LinkedHashMap<>();
         for (RawPomDependency dependency : pom.dependencyManagement()) {
+            if (dependency.classifier().isPresent()) {
+                continue;
+            }
             RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
             dependencies.put(key(interpolated), interpolated);
         }

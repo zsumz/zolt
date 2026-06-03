@@ -370,6 +370,9 @@ public final class ResolveService {
                         Coordinate coordinate = coordinateParser.parse(platform.getKey() + ":" + platform.getValue());
                         EffectiveRawPom pom = effectivePom(coordinate, List.of());
                         for (RawPomDependency dependency : pom.dependencyManagement()) {
+                            if (dependency.classifier().isPresent()) {
+                                continue;
+                            }
                             RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
                             if (managedJarDependency(interpolated) && interpolated.version().isPresent()) {
                                 versions.put(
@@ -481,6 +484,10 @@ public final class ResolveService {
         private List<RawPomDependency> expandedDependencyManagement(EffectiveRawPom pom, List<String> importStack) {
             List<RawPomDependency> dependencies = new ArrayList<>();
             for (RawPomDependency dependency : pom.dependencyManagement()) {
+                if (dependency.classifier().isPresent()) {
+                    dependencies.add(dependency);
+                    continue;
+                }
                 RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
                 if (isImportedBom(interpolated)) {
                     Coordinate bomCoordinate = new Coordinate(
@@ -498,7 +505,9 @@ public final class ResolveService {
                                             + " is missing a version. Add a version before resolving."))));
                     EffectiveRawPom imported = effectivePom(bomCoordinate, importStack);
                     dependencies.addAll(imported.dependencyManagement().stream()
-                            .map(importedDependency -> interpolator.interpolateDependency(importedDependency, imported))
+                            .map(importedDependency -> importedDependency.classifier().isPresent()
+                                    ? importedDependency
+                                    : interpolator.interpolateDependency(importedDependency, imported))
                             .toList());
                 } else {
                     dependencies.add(dependency);
