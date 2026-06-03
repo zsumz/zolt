@@ -44,6 +44,7 @@ final class WorkspaceIdeModelServiceTest {
         assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), model.workspace().lockfile());
         assertEquals(List.of("apps/api", "modules/core"), model.workspace().members());
         assertEquals(List.of("apps/api"), model.workspace().defaultMembers());
+        assertEquals(List.of("modules/core", "apps/api"), model.workspace().buildOrder());
         assertEquals(List.of("apps/api", "modules/core"), model.projects().stream()
                 .map(WorkspaceIdeModel.ProjectModel::member)
                 .toList());
@@ -96,6 +97,7 @@ final class WorkspaceIdeModelServiceTest {
 
         assertTrue(json.contains("\"workspace\": {"));
         assertTrue(json.contains("\"members\": ["));
+        assertTrue(json.contains("\"buildOrder\": ["));
         assertTrue(json.contains("\"apps/api\""));
         assertTrue(json.contains("\"projects\": ["));
         assertTrue(json.contains("\"member\": \"apps/api\""));

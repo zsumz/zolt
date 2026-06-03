@@ -49,7 +49,8 @@ public final class WorkspaceIdeModelJsonWriter {
         pathField(json, 2, "config", workspace.config(), true);
         pathField(json, 2, "lockfile", workspace.lockfile(), true);
         stringArrayField(json, 2, "members", workspace.members(), true);
-        stringArrayField(json, 2, "defaultMembers", workspace.defaultMembers(), false);
+        stringArrayField(json, 2, "defaultMembers", workspace.defaultMembers(), true);
+        stringArrayField(json, 2, "buildOrder", workspace.buildOrder(), false);
         indent(json, 1).append("}");
     }
 

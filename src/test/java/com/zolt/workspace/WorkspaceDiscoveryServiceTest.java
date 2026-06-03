@@ -51,6 +51,7 @@ final class WorkspaceDiscoveryServiceTest {
         assertEquals(List.of("api", "core"), workspace.members().stream()
                 .map(member -> member.config().project().name())
                 .toList());
+        assertEquals(List.of("apps/api", "modules/core"), workspace.buildOrder());
     }
 
     @Test
@@ -183,6 +184,58 @@ final class WorkspaceDiscoveryServiceTest {
                                 "test",
                                 "com.acme:test-fixtures")),
                 workspace.edges());
+    }
+
+    @Test
+    void createsDependencyFirstBuildOrder() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core", "apps/worker"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", "com.acme");
+        member("apps/worker", "worker", "com.acme");
+
+        Workspace workspace = service.load(tempDir);
+
+        assertEquals(List.of("modules/core", "apps/api", "apps/worker"), workspace.buildOrder());
+    }
+
+    @Test
+    void rejectsWorkspaceDependencyCycle() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api", "modules/core", "modules/util"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", "com.acme", """
+
+                [dependencies]
+                "com.acme:util" = { workspace = "modules/util" }
+                """);
+        member("modules/util", "util", "com.acme", """
+
+                [dependencies]
+                "com.acme:api" = { workspace = "apps/api" }
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Workspace dependency cycle detected: apps/api -> modules/core -> modules/util -> apps/api.",
+                exception.getMessage());
     }
 
     @Test

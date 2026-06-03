@@ -53,7 +53,8 @@ public final class WorkspaceIdeModelService {
                 workspace.configPath(),
                 workspace.root().resolve("zolt.lock"),
                 workspace.config().members(),
-                workspace.config().defaultMembers());
+                workspace.config().defaultMembers(),
+                workspace.buildOrder());
     }
 
     private List<WorkspaceIdeModel.ProjectModel> projectModels(
@@ -111,6 +112,6 @@ public final class WorkspaceIdeModelService {
     }
 
     private static WorkspaceIdeModel.WorkspaceInfo emptyWorkspaceInfo() {
-        return new WorkspaceIdeModel.WorkspaceInfo(null, null, null, null, List.of(), List.of());
+        return new WorkspaceIdeModel.WorkspaceInfo(null, null, null, null, List.of(), List.of(), List.of());
     }
 }

@@ -8,10 +8,21 @@ public record Workspace(
         Path configPath,
         WorkspaceConfig config,
         List<WorkspaceMember> members,
-        List<WorkspaceProjectEdge> edges) {
+        List<WorkspaceProjectEdge> edges,
+        List<String> buildOrder) {
     public Workspace {
         members = List.copyOf(members);
         edges = List.copyOf(edges);
+        buildOrder = List.copyOf(buildOrder);
+    }
+
+    public Workspace(
+            Path root,
+            Path configPath,
+            WorkspaceConfig config,
+            List<WorkspaceMember> members,
+            List<WorkspaceProjectEdge> edges) {
+        this(root, configPath, config, members, edges, memberPaths(members));
     }
 
     public Workspace(
@@ -20,5 +31,11 @@ public record Workspace(
             WorkspaceConfig config,
             List<WorkspaceMember> members) {
         this(root, configPath, config, members, List.of());
+    }
+
+    private static List<String> memberPaths(List<WorkspaceMember> members) {
+        return members.stream()
+                .map(WorkspaceMember::path)
+                .toList();
     }
 }

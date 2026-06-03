@@ -21,10 +21,12 @@ public record WorkspaceIdeModel(
             Path config,
             Path lockfile,
             List<String> members,
-            List<String> defaultMembers) {
+            List<String> defaultMembers,
+            List<String> buildOrder) {
         public WorkspaceInfo {
             members = List.copyOf(members);
             defaultMembers = List.copyOf(defaultMembers);
+            buildOrder = List.copyOf(buildOrder);
         }
     }
 
