@@ -12,6 +12,7 @@ import com.zolt.build.ManifestGenerationException;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
+import com.zolt.build.ResourceCopyException;
 import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
@@ -383,6 +384,7 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
             } catch (BuildException
                     | JavacException
+                    | ResourceCopyException
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
@@ -421,6 +423,7 @@ public final class ZoltCli implements Runnable {
             } catch (BuildException
                     | JavacException
                     | JavaRunException
+                    | ResourceCopyException
                     | RunException
                     | SourceDiscoveryException
                     | LockfileReadException
@@ -456,6 +459,7 @@ public final class ZoltCli implements Runnable {
             } catch (BuildException
                     | JavacException
                     | JavaRunException
+                    | ResourceCopyException
                     | TestRunException
                     | SourceDiscoveryException
                     | LockfileReadException
@@ -500,6 +504,7 @@ public final class ZoltCli implements Runnable {
                     | JavacException
                     | ManifestGenerationException
                     | PackageException
+                    | ResourceCopyException
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException

@@ -18,6 +18,7 @@ public final class BuildService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final SourceDiscoverer sourceDiscoverer;
+    private final ResourceCopier resourceCopier;
     private final JdkDetector jdkDetector;
     private final JavacRunner javacRunner;
 
@@ -27,6 +28,7 @@ public final class BuildService {
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new SourceDiscoverer(),
+                new ResourceCopier(),
                 new JdkDetector(),
                 new JavacRunner());
     }
@@ -36,12 +38,14 @@ public final class BuildService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.resolveService = resolveService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.sourceDiscoverer = sourceDiscoverer;
+        this.resourceCopier = resourceCopier;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
     }
@@ -67,9 +71,11 @@ public final class BuildService {
                 sources.mainSources(),
                 classpaths.compile(),
                 outputDirectory);
+        ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),
+                resourceResult.copiedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output());
     }

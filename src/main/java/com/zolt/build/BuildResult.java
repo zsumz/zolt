@@ -7,6 +7,7 @@ import java.util.Optional;
 public record BuildResult(
         Optional<ResolveResult> resolveResult,
         int sourceCount,
+        int resourceCount,
         Path outputDirectory,
         String compilerOutput) {
     public BuildResult {

@@ -59,6 +59,22 @@ final class TestCompileServiceTest {
     }
 
     @Test
+    void copiesMainAndTestResourcesDuringTestCompilation() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        source("src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
+        source("src/test/resources/fixtures/input.txt", "fixture\n");
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals(1, result.buildResult().resourceCount());
+        assertEquals(1, result.resourceCount());
+        assertEquals("[]\n", Files.readString(projectDir.resolve("target/classes/META-INF/native-image/reflect-config.json")));
+        assertEquals("fixture\n", Files.readString(projectDir.resolve("target/test-classes/fixtures/input.txt")));
+    }
+
+    @Test
     void testCompileClasspathIncludesTestDependencies() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");

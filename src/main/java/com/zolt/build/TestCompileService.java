@@ -17,6 +17,7 @@ public final class TestCompileService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final SourceDiscoverer sourceDiscoverer;
+    private final ResourceCopier resourceCopier;
     private final JdkDetector jdkDetector;
     private final JavacRunner javacRunner;
 
@@ -26,6 +27,7 @@ public final class TestCompileService {
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new SourceDiscoverer(),
+                new ResourceCopier(),
                 new JdkDetector(),
                 new JavacRunner());
     }
@@ -35,12 +37,14 @@ public final class TestCompileService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.buildService = buildService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.sourceDiscoverer = sourceDiscoverer;
+        this.resourceCopier = resourceCopier;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
     }
@@ -64,9 +68,11 @@ public final class TestCompileService {
                 sources.testSources(),
                 new Classpath(testCompileEntries),
                 outputDirectory);
+        ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config.build());
         return new TestCompileResult(
                 buildResult,
                 javacResult.sourceCount(),
+                resourceResult.copiedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output());
     }
