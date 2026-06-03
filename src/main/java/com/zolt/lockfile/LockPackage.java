@@ -15,12 +15,42 @@ public record LockPackage(
         Optional<String> pom,
         Optional<String> jarSha256,
         Optional<String> pomSha256,
+        Optional<String> workspace,
+        Optional<String> workspaceOutput,
         List<String> dependencies) {
     public LockPackage {
         jar = jar == null ? Optional.empty() : jar;
         pom = pom == null ? Optional.empty() : pom;
         jarSha256 = jarSha256 == null ? Optional.empty() : jarSha256;
         pomSha256 = pomSha256 == null ? Optional.empty() : pomSha256;
+        workspace = workspace == null ? Optional.empty() : workspace;
+        workspaceOutput = workspaceOutput == null ? Optional.empty() : workspaceOutput;
         dependencies = List.copyOf(dependencies);
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            List<String> dependencies) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                Optional.empty(),
+                Optional.empty(),
+                dependencies);
     }
 }

@@ -50,6 +50,31 @@ public final class ZoltLockfileReader {
                 .toList();
     }
 
+    public List<ResolvedClasspathPackage> classpathPackages(
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            Path workspaceRoot) {
+        return lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.jar().isPresent()
+                        || (lockPackage.workspace().isPresent() && lockPackage.workspaceOutput().isPresent()))
+                .map(lockPackage -> {
+                    Path classpathPath = lockPackage.workspace().isPresent()
+                            ? workspaceRoot.resolve(lockPackage.workspace().orElseThrow())
+                                    .resolve(lockPackage.workspaceOutput().orElseThrow())
+                                    .normalize()
+                            : cacheRoot.resolve(lockPackage.jar().orElseThrow());
+                    return new ResolvedClasspathPackage(
+                            new ResolvedPackage(
+                                    lockPackage.packageId(),
+                                    lockPackage.version(),
+                                    lockPackage.direct(),
+                                    lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
+                                    classpathPath),
+                            lockPackage.scope());
+                })
+                .toList();
+    }
+
     private ZoltLockfile read(TomlParseResult result) {
         if (result.hasErrors()) {
             TomlParseError error = result.errors().getFirst();
@@ -102,6 +127,8 @@ public final class ZoltLockfileReader {
                 optionalString(table, "pom"),
                 optionalString(table, "jarSha256"),
                 optionalString(table, "pomSha256"),
+                optionalString(table, "workspace"),
+                optionalString(table, "workspaceOutput"),
                 stringArray(table, "dependencies"));
     }
 

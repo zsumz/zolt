@@ -80,6 +80,52 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsWorkspacePackageFields() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.acme:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "target/classes"
+                dependencies = []
+                """);
+
+        LockPackage lockPackage = lockfile.packages().getFirst();
+        assertEquals("workspace", lockPackage.source());
+        assertEquals("modules/core", lockPackage.workspace().orElseThrow());
+        assertEquals("target/classes", lockPackage.workspaceOutput().orElseThrow());
+    }
+
+    @Test
+    void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.acme:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "target/classes"
+                dependencies = []
+                """);
+
+        List<ResolvedClasspathPackage> packages = reader.classpathPackages(
+                lockfile,
+                java.nio.file.Path.of("cache"),
+                java.nio.file.Path.of("workspace"));
+
+        assertEquals(java.nio.file.Path.of("workspace/modules/core/target/classes"), packages.getFirst().resolvedPackage().jarPath());
+    }
+
+    @Test
     void rejectsUnsupportedLockfileVersion() {
         LockfileReadException exception = assertThrows(
                 LockfileReadException.class,

@@ -68,6 +68,32 @@ final class ZoltLockfileWriterTest {
         assertTrue(output.contains("scope = \"test-processor\""));
     }
 
+    @Test
+    void writesWorkspacePackageFields() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(new LockPackage(
+                        new PackageId("com.acme", "core"),
+                        "0.1.0",
+                        "workspace",
+                        DependencyScope.COMPILE,
+                        true,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of("modules/core"),
+                        Optional.of("target/classes"),
+                        List.of())),
+                List.of());
+
+        String output = writer.write(lockfile);
+
+        assertTrue(output.contains("source = \"workspace\""));
+        assertTrue(output.contains("workspace = \"modules/core\""));
+        assertTrue(output.contains("workspaceOutput = \"target/classes\""));
+    }
+
     private static ZoltLockfile unsortedLockfile() {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,

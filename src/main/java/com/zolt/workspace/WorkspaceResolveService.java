@@ -5,6 +5,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveOutput;
@@ -64,7 +65,7 @@ public final class WorkspaceResolveService {
             downloadCount += output.downloadCount();
         }
 
-        ZoltLockfile lockfile = aggregate(memberOutputs);
+        ZoltLockfile lockfile = aggregate(workspace, memberOutputs);
         if (locked) {
             verifyLocked(lockfilePath, lockfile);
         } else {
@@ -156,10 +157,14 @@ public final class WorkspaceResolveService {
         return merged;
     }
 
-    private static ZoltLockfile aggregate(List<MemberResolveOutput> memberOutputs) {
+    private static ZoltLockfile aggregate(Workspace workspace, List<MemberResolveOutput> memberOutputs) {
         Map<String, LockPackage> packages = new LinkedHashMap<>();
         Map<PackageId, VersionOwner> selectedVersions = new LinkedHashMap<>();
         Map<String, LockConflict> conflicts = new LinkedHashMap<>();
+        for (LockPackage lockPackage : workspacePackages(workspace)) {
+            selectedVersions.putIfAbsent(lockPackage.packageId(), new VersionOwner(lockPackage.version(), lockPackage.workspace().orElse("<workspace>")));
+            packages.put(packageKey(lockPackage), lockPackage);
+        }
         for (MemberResolveOutput memberOutput : memberOutputs) {
             for (LockPackage lockPackage : memberOutput.lockfile().packages()) {
                 VersionOwner existingVersion = selectedVersions.putIfAbsent(
@@ -192,6 +197,41 @@ public final class WorkspaceResolveService {
                 ZoltLockfile.CURRENT_VERSION,
                 List.copyOf(packages.values()),
                 List.copyOf(conflicts.values()));
+    }
+
+    private static List<LockPackage> workspacePackages(Workspace workspace) {
+        Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
+        List<LockPackage> packages = new ArrayList<>();
+        for (WorkspaceProjectEdge edge : workspace.edges()) {
+            WorkspaceMember target = membersByPath.get(edge.to());
+            packages.add(new LockPackage(
+                    packageId(edge.coordinate()),
+                    target.config().project().version(),
+                    "workspace",
+                    scope(edge.scope()),
+                    true,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(edge.to()),
+                    Optional.of(target.config().build().output()),
+                    List.of()));
+        }
+        return packages;
+    }
+
+    private static PackageId packageId(String coordinate) {
+        String[] parts = coordinate.split(":", -1);
+        return new PackageId(parts[0], parts[1]);
+    }
+
+    private static DependencyScope scope(String value) {
+        return switch (value) {
+            case "compile" -> DependencyScope.COMPILE;
+            case "test" -> DependencyScope.TEST;
+            default -> throw new ResolveException("Unsupported workspace dependency scope `" + value + "`.");
+        };
     }
 
     private static LockPackage merge(LockPackage left, LockPackage right) {

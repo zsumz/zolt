@@ -90,7 +90,7 @@ final class WorkspaceResolveServiceTest {
 
         ResolveResult result = service.resolve(tempDir.resolve("apps/api"), tempDir.resolve("cache"), false, false);
 
-        assertEquals(2, result.resolvedCount());
+        assertEquals(3, result.resolvedCount());
         assertEquals(4, result.downloadCount());
         assertEquals(0, result.conflictCount());
         assertEquals(tempDir.resolve("zolt.lock"), result.lockfilePath());
@@ -100,6 +100,14 @@ final class WorkspaceResolveServiceTest {
 
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.acme", "core"))
+                        && lockPackage.version().equals("0.1.0")
+                        && lockPackage.source().equals("workspace")
+                        && lockPackage.scope() == DependencyScope.COMPILE
+                        && lockPackage.direct()
+                        && lockPackage.workspace().orElseThrow().equals("modules/core")
+                        && lockPackage.workspaceOutput().orElseThrow().equals("target/classes")));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))
                         && lockPackage.scope() == DependencyScope.COMPILE
                         && lockPackage.direct()));
@@ -107,6 +115,10 @@ final class WorkspaceResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "lib"))
                         && lockPackage.scope() == DependencyScope.COMPILE
                         && lockPackage.direct()));
+
+        assertTrue(lockfileReader.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir).stream()
+                .anyMatch(classpathPackage -> classpathPackage.resolvedPackage().jarPath()
+                        .equals(tempDir.resolve("modules/core/target/classes"))));
     }
 
     @Test
