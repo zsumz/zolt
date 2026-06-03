@@ -102,6 +102,68 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesWorkspaceDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+
+                [test.dependencies]
+                "com.acme:test-fixtures" = { workspace = "modules/test-fixtures" }
+                """);
+
+        assertEquals("modules/core", config.workspaceDependencies().get("com.acme:core"));
+        assertEquals("modules/test-fixtures", config.workspaceTestDependencies().get("com.acme:test-fixtures"));
+        assertTrue(config.dependencies().isEmpty());
+        assertTrue(config.testDependencies().isEmpty());
+    }
+
+    @Test
+    void rejectsWorkspaceDependencyWithVersion() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "api"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [dependencies]
+                        "com.acme:core" = { version = "1.0.0", workspace = "modules/core" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [dependencies].com.acme:core in zolt.toml. Use either version or workspace, not both.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsBlankWorkspaceDependencyPath() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "api"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [dependencies]
+                        "com.acme:core" = { workspace = "" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [dependencies].com.acme:core.workspace in zolt.toml. Use a non-empty workspace member path.",
+                exception.getMessage());
+    }
+
+    @Test
     void parsesAnnotationProcessorDeclarations() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -367,7 +429,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version or {} for a platform-managed version.",
+                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member.",
                 exception.getMessage());
     }
 

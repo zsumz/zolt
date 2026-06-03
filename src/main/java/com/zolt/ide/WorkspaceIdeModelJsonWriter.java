@@ -62,7 +62,8 @@ public final class WorkspaceIdeModelJsonWriter {
                 indent(json, 2).append("{\n");
                 stringField(json, 3, "from", edge.from(), true);
                 stringField(json, 3, "to", edge.to(), true);
-                stringField(json, 3, "scope", edge.scope(), false);
+                stringField(json, 3, "scope", edge.scope(), true);
+                stringField(json, 3, "coordinate", edge.coordinate(), false);
                 indent(json, 2).append("}");
                 if (index < edges.size() - 1) {
                     json.append(',');

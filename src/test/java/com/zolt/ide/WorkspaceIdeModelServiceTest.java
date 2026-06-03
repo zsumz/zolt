@@ -24,7 +24,11 @@ final class WorkspaceIdeModelServiceTest {
                 members = ["apps/api", "modules/core"]
                 defaultMembers = ["apps/api"]
                 """);
-        member("apps/api", "api");
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
         member("modules/core", "core");
 
         WorkspaceIdeModel model = service.export(
@@ -46,7 +50,9 @@ final class WorkspaceIdeModelServiceTest {
         assertEquals(List.of("api", "core"), model.projects().stream()
                 .map(project -> project.model().project().name())
                 .toList());
-        assertEquals(List.of(), model.edges());
+        assertEquals(
+                List.of(new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")),
+                model.edges());
         assertEquals(List.of(), model.diagnostics());
     }
 
@@ -99,11 +105,39 @@ final class WorkspaceIdeModelServiceTest {
         assertTrue(json.contains("\"diagnostics\": []"));
     }
 
+    @Test
+    void writerPrintsWorkspaceProjectEdges() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core");
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        String json = new WorkspaceIdeModelJsonWriter().write(model);
+
+        assertTrue(json.contains("\"edges\": ["));
+        assertTrue(json.contains("\"from\": \"apps/api\""));
+        assertTrue(json.contains("\"to\": \"modules/core\""));
+        assertTrue(json.contains("\"scope\": \"compile\""));
+        assertTrue(json.contains("\"coordinate\": \"com.acme:core\""));
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }
 
     private void member(String path, String name) throws IOException {
+        member(path, name, "");
+    }
+
+    private void member(String path, String name, String extraToml) throws IOException {
         Path member = tempDir.resolve(path);
         Files.createDirectories(member);
         Files.writeString(member.resolve("zolt.toml"), """
@@ -112,7 +146,7 @@ final class WorkspaceIdeModelServiceTest {
                 version = "0.1.0"
                 group = "com.acme"
                 java = "21"
-                """.formatted(name));
+                %s""".formatted(name, extraToml));
         Files.writeString(member.resolve("zolt.lock"), "version = 1\n");
     }
 }

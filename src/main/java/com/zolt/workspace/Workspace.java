@@ -7,8 +7,18 @@ public record Workspace(
         Path root,
         Path configPath,
         WorkspaceConfig config,
-        List<WorkspaceMember> members) {
+        List<WorkspaceMember> members,
+        List<WorkspaceProjectEdge> edges) {
     public Workspace {
         members = List.copyOf(members);
+        edges = List.copyOf(edges);
+    }
+
+    public Workspace(
+            Path root,
+            Path configPath,
+            WorkspaceConfig config,
+            List<WorkspaceMember> members) {
+        this(root, configPath, config, members, List.of());
     }
 }

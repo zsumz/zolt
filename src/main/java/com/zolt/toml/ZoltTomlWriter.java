@@ -41,8 +41,18 @@ public final class ZoltTomlWriter {
         writeProject(toml, config.project());
         writeStringMap(toml, "repositories", config.repositories());
         writeStringMap(toml, "platforms", config.platforms());
-        writeDependencies(toml, "dependencies", config.dependencies(), config.managedDependencies());
-        writeDependencies(toml, "test.dependencies", config.testDependencies(), config.managedTestDependencies());
+        writeDependencies(
+                toml,
+                "dependencies",
+                config.dependencies(),
+                config.managedDependencies(),
+                config.workspaceDependencies());
+        writeDependencies(
+                toml,
+                "test.dependencies",
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.workspaceTestDependencies());
         writeOptionalDependencies(
                 toml,
                 "annotationProcessors",
@@ -72,8 +82,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     put(config.dependencies(), coordinate, version),
                     remove(config.managedDependencies(), coordinate),
+                    remove(config.workspaceDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -87,8 +99,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     config.dependencies(),
                     config.managedDependencies(),
+                    config.workspaceDependencies(),
                     put(config.testDependencies(), coordinate, version),
                     remove(config.managedTestDependencies(), coordinate),
+                    remove(config.workspaceTestDependencies(), coordinate),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -107,8 +121,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     remove(config.dependencies(), coordinate),
                     add(config.managedDependencies(), coordinate),
+                    remove(config.workspaceDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -122,8 +138,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     config.dependencies(),
                     config.managedDependencies(),
+                    config.workspaceDependencies(),
                     remove(config.testDependencies(), coordinate),
                     add(config.managedTestDependencies(), coordinate),
+                    remove(config.workspaceTestDependencies(), coordinate),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -142,8 +160,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     remove(config.dependencies(), coordinate),
                     remove(config.managedDependencies(), coordinate),
+                    remove(config.workspaceDependencies(), coordinate),
                     config.testDependencies(),
                     config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -157,8 +177,10 @@ public final class ZoltTomlWriter {
                     config.platforms(),
                     config.dependencies(),
                     config.managedDependencies(),
+                    config.workspaceDependencies(),
                     remove(config.testDependencies(), coordinate),
                     remove(config.managedTestDependencies(), coordinate),
+                    remove(config.workspaceTestDependencies(), coordinate),
                     config.annotationProcessors(),
                     config.managedAnnotationProcessors(),
                     config.testAnnotationProcessors(),
@@ -176,8 +198,10 @@ public final class ZoltTomlWriter {
                 put(config.platforms(), coordinate, version),
                 config.dependencies(),
                 config.managedDependencies(),
+                config.workspaceDependencies(),
                 config.testDependencies(),
                 config.managedTestDependencies(),
+                config.workspaceTestDependencies(),
                 config.annotationProcessors(),
                 config.managedAnnotationProcessors(),
                 config.testAnnotationProcessors(),
@@ -194,8 +218,10 @@ public final class ZoltTomlWriter {
                 remove(config.platforms(), coordinate),
                 config.dependencies(),
                 config.managedDependencies(),
+                config.workspaceDependencies(),
                 config.testDependencies(),
                 config.managedTestDependencies(),
+                config.workspaceTestDependencies(),
                 config.annotationProcessors(),
                 config.managedAnnotationProcessors(),
                 config.testAnnotationProcessors(),
@@ -270,15 +296,21 @@ public final class ZoltTomlWriter {
             StringBuilder toml,
             String section,
             Map<String, String> versioned,
-            Set<String> managed) {
+            Set<String> managed,
+            Map<String, String> workspace) {
         toml.append('[').append(section).append("]\n");
-        for (String coordinate : sortedCoordinates(versioned, managed)) {
+        for (String coordinate : sortedCoordinates(versioned, managed, workspace)) {
             toml.append(quote(coordinate)).append(" = ");
-            String version = versioned.get(coordinate);
-            if (version == null) {
-                toml.append("{}");
+            String workspacePath = workspace.get(coordinate);
+            if (workspacePath != null) {
+                toml.append("{ workspace = ").append(quote(workspacePath)).append(" }");
             } else {
-                toml.append(quote(version));
+                String version = versioned.get(coordinate);
+                if (version == null) {
+                    toml.append("{}");
+                } else {
+                    toml.append(quote(version));
+                }
             }
             toml.append('\n');
         }
@@ -293,7 +325,7 @@ public final class ZoltTomlWriter {
         if (versioned.isEmpty() && managed.isEmpty()) {
             return;
         }
-        writeDependencies(toml, section, versioned, managed);
+        writeDependencies(toml, section, versioned, managed, Map.of());
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
@@ -339,10 +371,14 @@ public final class ZoltTomlWriter {
         return new TreeMap<>(values);
     }
 
-    private static Set<String> sortedCoordinates(Map<String, String> versioned, Set<String> managed) {
+    private static Set<String> sortedCoordinates(
+            Map<String, String> versioned,
+            Set<String> managed,
+            Map<String, String> workspace) {
         TreeSet<String> coordinates = new TreeSet<>();
         coordinates.addAll(versioned.keySet());
         coordinates.addAll(managed);
+        coordinates.addAll(workspace.keySet());
         return coordinates;
     }
 

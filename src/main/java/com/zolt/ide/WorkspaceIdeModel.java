@@ -36,6 +36,7 @@ public record WorkspaceIdeModel(
     public record ProjectEdge(
             String from,
             String to,
-            String scope) {
+            String scope,
+            String coordinate) {
     }
 }

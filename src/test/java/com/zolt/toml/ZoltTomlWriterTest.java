@@ -60,8 +60,10 @@ final class ZoltTomlWriterTest {
         assertEquals(original.platforms(), parsed.platforms());
         assertEquals(original.dependencies(), parsed.dependencies());
         assertEquals(original.managedDependencies(), parsed.managedDependencies());
+        assertEquals(original.workspaceDependencies(), parsed.workspaceDependencies());
         assertEquals(original.testDependencies(), parsed.testDependencies());
         assertEquals(original.managedTestDependencies(), parsed.managedTestDependencies());
+        assertEquals(original.workspaceTestDependencies(), parsed.workspaceTestDependencies());
         assertEquals(original.annotationProcessors(), parsed.annotationProcessors());
         assertEquals(original.managedAnnotationProcessors(), parsed.managedAnnotationProcessors());
         assertEquals(original.testAnnotationProcessors(), parsed.testAnnotationProcessors());
@@ -193,6 +195,51 @@ final class ZoltTomlWriterTest {
         assertEquals(config.platforms(), parsed.platforms());
         assertEquals(config.managedDependencies(), parsed.managedDependencies());
         assertEquals(config.managedTestDependencies(), parsed.managedTestDependencies());
+    }
+
+    @Test
+    void writesWorkspaceDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+
+                [test.dependencies]
+                "com.acme:test-fixtures" = { workspace = "modules/test-fixtures" }
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"com.acme:core\" = { workspace = \"modules/core\" }"));
+        assertTrue(toml.contains("\"com.acme:test-fixtures\" = { workspace = \"modules/test-fixtures\" }"));
+        assertEquals(config.workspaceDependencies(), parsed.workspaceDependencies());
+        assertEquals(config.workspaceTestDependencies(), parsed.workspaceTestDependencies());
+    }
+
+    @Test
+    void editingDependenciesRemovesConflictingWorkspaceDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+
+        config = writer.addDependency(config, DependencySection.MAIN, "com.acme:core", "1.0.0");
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals("1.0.0", parsed.dependencies().get("com.acme:core"));
+        assertTrue(parsed.workspaceDependencies().isEmpty());
     }
 
     @Test

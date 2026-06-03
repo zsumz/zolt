@@ -154,11 +154,113 @@ final class WorkspaceDiscoveryServiceTest {
                 exception.getMessage());
     }
 
+    @Test
+    void createsEdgesForWorkspaceDependencies() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core", "modules/test-fixtures"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+
+                [test.dependencies]
+                "com.acme:test-fixtures" = { workspace = "modules/test-fixtures" }
+                """);
+        member("modules/core", "core", "com.acme");
+        member("modules/test-fixtures", "test-fixtures", "com.acme");
+
+        Workspace workspace = service.load(tempDir);
+
+        assertEquals(
+                List.of(
+                        new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core"),
+                        new WorkspaceProjectEdge(
+                                "apps/api",
+                                "modules/test-fixtures",
+                                "test",
+                                "com.acme:test-fixtures")),
+                workspace.edges());
+    }
+
+    @Test
+    void rejectsWorkspaceDependencyTargetThatIsNotAMember() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Workspace dependency `com.acme:core` in member `apps/api` points to `modules/core`, but that path is not listed in [workspace].members.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsWorkspaceDependencyCoordinateMismatch() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:not-core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", "com.acme");
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Workspace dependency `com.acme:not-core` in member `apps/api` points to `modules/core`, whose project coordinate is `com.acme:core`. Update the dependency key or workspace path so they match.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsWorkspaceSelfDependency() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:api" = { workspace = "apps/api" }
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Workspace member `apps/api` cannot depend on itself through `com.acme:api`.",
+                exception.getMessage());
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }
 
     private void member(String path, String name, String group) throws IOException {
+        member(path, name, group, "");
+    }
+
+    private void member(String path, String name, String group, String extraToml) throws IOException {
         Path member = tempDir.resolve(path);
         Files.createDirectories(member);
         Files.writeString(member.resolve("zolt.toml"), """
@@ -167,6 +269,6 @@ final class WorkspaceDiscoveryServiceTest {
                 version = "0.1.0"
                 group = "%s"
                 java = "21"
-                """.formatted(name, group));
+                %s""".formatted(name, group, extraToml));
     }
 }

@@ -4,6 +4,7 @@ import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspaceMember;
+import com.zolt.workspace.WorkspaceProjectEdge;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,7 @@ public final class WorkspaceIdeModelService {
                     SCHEMA_VERSION,
                     workspaceInfo(workspace),
                     projectModels(workspace, cacheRoot, checkLock, offline),
-                    List.of(),
+                    projectEdges(workspace),
                     List.of());
         } catch (WorkspaceConfigException exception) {
             return invalidWorkspace(start, exception);
@@ -67,6 +68,18 @@ public final class WorkspaceIdeModelService {
                     ideModelService.export(member.directory(), cacheRoot, checkLock, offline)));
         }
         return List.copyOf(projects);
+    }
+
+    private static List<WorkspaceIdeModel.ProjectEdge> projectEdges(Workspace workspace) {
+        List<WorkspaceIdeModel.ProjectEdge> edges = new ArrayList<>();
+        for (WorkspaceProjectEdge edge : workspace.edges()) {
+            edges.add(new WorkspaceIdeModel.ProjectEdge(
+                    edge.from(),
+                    edge.to(),
+                    edge.scope(),
+                    edge.coordinate()));
+        }
+        return List.copyOf(edges);
     }
 
     private static WorkspaceIdeModel missingWorkspace(Path start) {

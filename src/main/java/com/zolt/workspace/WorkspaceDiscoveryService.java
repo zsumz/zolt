@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 public final class WorkspaceDiscoveryService {
     private final WorkspaceConfigParser workspaceParser;
@@ -49,7 +50,8 @@ public final class WorkspaceDiscoveryService {
         WorkspaceConfig config = workspaceParser.parse(configPath);
         List<WorkspaceMember> members = members(root, config);
         validateDefaultMembers(root, config.defaultMembers(), members);
-        return new Workspace(root, configPath, config, members);
+        List<WorkspaceProjectEdge> edges = workspaceProjectEdges(root, members);
+        return new Workspace(root, configPath, config, members, edges);
     }
 
     private List<WorkspaceMember> members(Path root, WorkspaceConfig config) {
@@ -122,6 +124,86 @@ public final class WorkspaceDiscoveryService {
                                 + "` must also be listed in [workspace].members.");
             }
         }
+    }
+
+    private List<WorkspaceProjectEdge> workspaceProjectEdges(Path root, List<WorkspaceMember> members) {
+        Map<String, WorkspaceMember> membersByPath = new LinkedHashMap<>();
+        for (WorkspaceMember member : members) {
+            membersByPath.put(member.path(), member);
+        }
+
+        List<WorkspaceProjectEdge> edges = new ArrayList<>();
+        for (WorkspaceMember member : members) {
+            addWorkspaceProjectEdges(
+                    root,
+                    membersByPath,
+                    edges,
+                    member,
+                    "compile",
+                    member.config().workspaceDependencies(),
+                    "[dependencies]");
+            addWorkspaceProjectEdges(
+                    root,
+                    membersByPath,
+                    edges,
+                    member,
+                    "test",
+                    member.config().workspaceTestDependencies(),
+                    "[test.dependencies]");
+        }
+        return List.copyOf(edges);
+    }
+
+    private static void addWorkspaceProjectEdges(
+            Path root,
+            Map<String, WorkspaceMember> membersByPath,
+            List<WorkspaceProjectEdge> edges,
+            WorkspaceMember from,
+            String scope,
+            Map<String, String> dependencies,
+            String section) {
+        for (Map.Entry<String, String> dependency : new TreeMap<>(dependencies).entrySet()) {
+            String coordinate = dependency.getKey();
+            String declaredPath = dependency.getValue();
+            ResolvedMemberPath resolved = resolveMemberPath(root, declaredPath, section + "." + coordinate + ".workspace");
+            WorkspaceMember targetByPath = membersByPath.get(resolved.path());
+            if (targetByPath == null) {
+                throw new WorkspaceConfigException(
+                        "Workspace dependency `"
+                                + coordinate
+                                + "` in member `"
+                                + from.path()
+                                + "` points to `"
+                                + resolved.path()
+                                + "`, but that path is not listed in [workspace].members.");
+            }
+            if (from.path().equals(targetByPath.path())) {
+                throw new WorkspaceConfigException(
+                        "Workspace member `"
+                                + from.path()
+                                + "` cannot depend on itself through `"
+                                + coordinate
+                                + "`.");
+            }
+            String targetCoordinate = coordinate(targetByPath);
+            if (!targetCoordinate.equals(coordinate)) {
+                throw new WorkspaceConfigException(
+                        "Workspace dependency `"
+                                + coordinate
+                                + "` in member `"
+                                + from.path()
+                                + "` points to `"
+                                + resolved.path()
+                                + "`, whose project coordinate is `"
+                                + targetCoordinate
+                                + "`. Update the dependency key or workspace path so they match.");
+            }
+            edges.add(new WorkspaceProjectEdge(from.path(), targetByPath.path(), scope, coordinate));
+        }
+    }
+
+    private static String coordinate(WorkspaceMember member) {
+        return member.config().project().group() + ":" + member.config().project().name();
     }
 
     private static ResolvedMemberPath resolveMemberPath(Path root, String declaredPath, String field) {

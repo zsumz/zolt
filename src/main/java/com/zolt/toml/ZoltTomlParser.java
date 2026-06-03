@@ -73,20 +73,28 @@ public final class ZoltTomlParser {
 
         Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
 
-        DependencyDeclarations dependencies = dependencyDeclarations(optionalTable(result, "dependencies"), "dependencies");
+        DependencyDeclarations dependencies = dependencyDeclarations(
+                optionalTable(result, "dependencies"),
+                "dependencies",
+                true);
         DependencyDeclarations annotationProcessors = dependencyDeclarations(
                 optionalTable(result, "annotationProcessors"),
-                "annotationProcessors");
+                "annotationProcessors",
+                false);
 
         TomlTable testTable = optionalTable(result, "test");
         DependencyDeclarations testDependencies = DependencyDeclarations.empty();
         DependencyDeclarations testAnnotationProcessors = DependencyDeclarations.empty();
         if (testTable != null) {
             validateKeys("test", testTable, Set.of("dependencies", "sources", "annotationProcessors"));
-            testDependencies = dependencyDeclarations(optionalTable(testTable, "dependencies"), "test.dependencies");
+            testDependencies = dependencyDeclarations(
+                    optionalTable(testTable, "dependencies"),
+                    "test.dependencies",
+                    true);
             testAnnotationProcessors = dependencyDeclarations(
                     optionalTable(testTable, "annotationProcessors"),
-                    "test.annotationProcessors");
+                    "test.annotationProcessors",
+                    false);
         }
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
@@ -100,8 +108,10 @@ public final class ZoltTomlParser {
                 platforms,
                 dependencies.versioned(),
                 dependencies.managed(),
+                dependencies.workspace(),
                 testDependencies.versioned(),
                 testDependencies.managed(),
+                testDependencies.workspace(),
                 annotationProcessors.versioned(),
                 annotationProcessors.managed(),
                 testAnnotationProcessors.versioned(),
@@ -262,40 +272,68 @@ public final class ZoltTomlParser {
         return values;
     }
 
-    private static DependencyDeclarations dependencyDeclarations(TomlTable table, String section) {
+    private static DependencyDeclarations dependencyDeclarations(TomlTable table, String section, boolean allowWorkspace) {
         if (table == null) {
             return DependencyDeclarations.empty();
         }
 
         Map<String, String> versioned = new LinkedHashMap<>();
         LinkedHashSet<String> managed = new LinkedHashSet<>();
+        Map<String, String> workspace = new LinkedHashMap<>();
         for (String key : table.keySet()) {
             Object rawValue = table.get(List.of(key));
             if (rawValue instanceof String value) {
                 if (value.isBlank()) {
                     throw new ZoltConfigException(
-                            "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string version or {} for a platform-managed version.");
+                            invalidDependencyDeclarationMessage(section, key, allowWorkspace));
                 }
                 versioned.put(key, value);
                 continue;
             }
             if (rawValue instanceof TomlTable dependencyTable) {
-                validateKeys(section + "." + key, dependencyTable, Set.of("version"));
-                String version = dependencyTable.getString("version");
-                if (version == null) {
+                validateKeys(section + "." + key, dependencyTable, allowWorkspace
+                        ? Set.of("version", "workspace")
+                        : Set.of("version"));
+                Object rawVersion = dependencyTable.get(List.of("version"));
+                Object rawWorkspace = dependencyTable.get(List.of("workspace"));
+                if (rawVersion != null && rawWorkspace != null) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + " in zolt.toml. Use either version or workspace, not both.");
+                }
+                if (rawVersion == null && rawWorkspace == null) {
                     managed.add(key);
-                } else if (version.isBlank()) {
+                } else if (rawVersion instanceof String version) {
+                    if (version.isBlank()) {
+                        throw new ZoltConfigException(
+                                "Invalid value for [" + section + "]." + key + ".version in zolt.toml. Use a non-empty string version.");
+                    }
+                    versioned.put(key, version);
+                } else if (rawWorkspace instanceof String workspacePath) {
+                    if (workspacePath.isBlank()) {
+                        throw new ZoltConfigException(
+                                "Invalid value for [" + section + "]." + key + ".workspace in zolt.toml. Use a non-empty workspace member path.");
+                    }
+                    workspace.put(key, workspacePath);
+                } else if (rawVersion != null) {
                     throw new ZoltConfigException(
                             "Invalid value for [" + section + "]." + key + ".version in zolt.toml. Use a non-empty string version.");
                 } else {
-                    versioned.put(key, version);
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + ".workspace in zolt.toml. Use a non-empty workspace member path.");
                 }
                 continue;
             }
             throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string version or {} for a platform-managed version.");
+                    invalidDependencyDeclarationMessage(section, key, allowWorkspace));
         }
-        return new DependencyDeclarations(versioned, Set.copyOf(managed));
+        return new DependencyDeclarations(versioned, Set.copyOf(managed), workspace);
+    }
+
+    private static String invalidDependencyDeclarationMessage(String section, String key, boolean allowWorkspace) {
+        String allowedValues = allowWorkspace
+                ? "Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member."
+                : "Use a non-empty string version or {} for a platform-managed version.";
+        return "Invalid value for [" + section + "]." + key + " in zolt.toml. " + allowedValues;
     }
 
     private static List<String> stringListOrDefault(
@@ -326,9 +364,10 @@ public final class ZoltTomlParser {
 
     private record DependencyDeclarations(
             Map<String, String> versioned,
-            Set<String> managed) {
+            Set<String> managed,
+            Map<String, String> workspace) {
         private static DependencyDeclarations empty() {
-            return new DependencyDeclarations(Map.of(), Set.of());
+            return new DependencyDeclarations(Map.of(), Set.of(), Map.of());
         }
     }
 }
