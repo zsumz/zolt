@@ -69,6 +69,22 @@ final class ClasspathBuilderTest {
     }
 
     @Test
+    void processorClasspathIncludesTransitiveProcessorPackagesOnly() {
+        ClasspathSet classpaths = builder.build(List.of(
+                packageWithScope("com.framework", "processor-api", "1.0.0", DependencyScope.PROCESSOR, false),
+                packageWithScope("com.framework", "processor-core", "1.0.0", DependencyScope.PROCESSOR, true),
+                packageWithScope("com.framework", "runtime-support", "1.0.0", DependencyScope.RUNTIME, false)));
+
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(jar("runtime-support", "1.0.0")), classpaths.runtime().entries());
+        assertEquals(List.of(jar("runtime-support", "1.0.0")), classpaths.test().entries());
+        assertEquals(List.of(
+                jar("processor-api", "1.0.0"),
+                jar("processor-core", "1.0.0")), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+    }
+
+    @Test
     void testProcessorDependenciesAreIncludedOnlyOnTestProcessorClasspath() {
         ClasspathSet classpaths = builder.build(List.of(packageWithScope(
                 "com.example",
@@ -112,11 +128,20 @@ final class ClasspathBuilderTest {
             String artifactId,
             String version,
             DependencyScope scope) {
+        return packageWithScope(groupId, artifactId, version, scope, false);
+    }
+
+    private static ResolvedClasspathPackage packageWithScope(
+            String groupId,
+            String artifactId,
+            String version,
+            DependencyScope scope,
+            boolean direct) {
         return new ResolvedClasspathPackage(
                 new ResolvedPackage(
                         new PackageId(groupId, artifactId),
                         version,
-                        false,
+                        direct,
                         Path.of("cache", artifactId, artifactId + "-" + version + ".pom"),
                         jar(artifactId, version)),
                 scope);

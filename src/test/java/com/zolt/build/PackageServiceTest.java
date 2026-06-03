@@ -137,10 +137,12 @@ final class PackageServiceTest {
     }
 
     @Test
-    void doesNotBundleDependencyJarContents() throws IOException {
+    void doesNotBundleDependencyOrProcessorJarContents() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path dependencyJar = cacheRoot.resolve("com/example/lib/1.0.0/lib-1.0.0.jar");
+        Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         createJarWithEntry(dependencyJar, "com/example/lib/Lib.class");
+        createJarWithEntry(processorJar, "com/example/processor/Processor.class");
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
 
@@ -151,6 +153,15 @@ final class PackageServiceTest {
                 scope = "compile"
                 direct = true
                 jar = "com/example/lib/1.0.0/lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
                 dependencies = []
                 """);
         source("src/main/java/com/example/Main.java", """
@@ -167,6 +178,7 @@ final class PackageServiceTest {
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
             assertNotNull(jar.getEntry("com/example/Main.class"));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("com/example/lib/Lib.class")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("com/example/processor/Processor.class")));
         }
     }
 

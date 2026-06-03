@@ -104,6 +104,12 @@ public final class IdeModelService {
                 "java",
                 root.resolve(settings.source()).normalize(),
                 false));
+        roots.add(new IdeModel.SourceRoot(
+                "main-generated-java",
+                "main",
+                "java",
+                root.resolve(config.compilerSettings().generatedSources()).normalize(),
+                true));
         for (int index = 0; index < settings.testSources().size(); index++) {
             roots.add(new IdeModel.SourceRoot(
                     "test-java-" + (index + 1),
@@ -112,6 +118,12 @@ public final class IdeModelService {
                     root.resolve(settings.testSources().get(index)).normalize(),
                     false));
         }
+        roots.add(new IdeModel.SourceRoot(
+                "test-generated-java",
+                "test",
+                "java",
+                root.resolve(config.compilerSettings().generatedTestSources()).normalize(),
+                true));
         return roots;
     }
 

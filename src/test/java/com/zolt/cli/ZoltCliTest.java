@@ -826,11 +826,25 @@ final class ZoltCliTest {
                       "generated": false
                     },
                     {
+                      "id": "main-generated-java",
+                      "kind": "main",
+                      "language": "java",
+                      "path": "%s",
+                      "generated": true
+                    },
+                    {
                       "id": "test-java-1",
                       "kind": "test",
                       "language": "java",
                       "path": "%s",
                       "generated": false
+                    },
+                    {
+                      "id": "test-generated-java",
+                      "kind": "test",
+                      "language": "java",
+                      "path": "%s",
+                      "generated": true
                     }
                   ],
                   "resourceRoots": [
@@ -873,7 +887,9 @@ final class ZoltCliTest {
                 jsonPath(root.resolve("zolt.toml")),
                 jsonPath(root.resolve("zolt.lock")),
                 jsonPath(root.resolve("src/main/java")),
+                jsonPath(root.resolve("target/generated/sources/annotations")),
                 jsonPath(root.resolve("src/test/java")),
+                jsonPath(root.resolve("target/generated/test-sources/annotations")),
                 jsonPath(root.resolve("src/main/resources")),
                 jsonPath(root.resolve("src/test/resources")),
                 jsonPath(root.resolve("target/classes")),

@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,9 +51,11 @@ final class RunPackageServiceTest {
 
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         Path dependencyJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         assertEquals(jarPath, result.packageResult().jarPath());
         assertEquals("hello\n", result.javaRunResult().output());
         assertTrue(Files.exists(jarPath));
+        assertFalse(commands.getFirst().get(2).contains(processorJar.toString()));
         assertEquals(List.of(
                 commands.getFirst().get(0),
                 "-classpath",
@@ -98,6 +101,15 @@ final class RunPackageServiceTest {
                 scope = "runtime"
                 direct = false
                 jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
                 dependencies = []
                 """);
     }
