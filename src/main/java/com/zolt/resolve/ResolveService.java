@@ -15,7 +15,9 @@ import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
 import com.zolt.project.ProjectConfig;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -61,19 +63,53 @@ public final class ResolveService {
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return resolve(projectDirectory, config, cacheRoot, false);
+    }
+
+    public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean locked) {
+        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        if (locked && !Files.isRegularFile(lockfilePath)) {
+            throw new ResolveException(
+                    "Locked resolve requires zolt.lock at "
+                            + lockfilePath
+                            + ". Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
+        }
+
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot));
         List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
         DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
         ResolutionGraph graph = traverser.traverse(directRequests);
         VersionSelectionResult selection = versionSelector.select(directRequests, graph);
         ZoltLockfile lockfile = lockfile(context, graph, selection, directRequests);
-        Path lockfilePath = projectDirectory.resolve("zolt.lock");
-        lockfileWriter.write(lockfilePath, lockfile);
+        if (locked) {
+            verifyLocked(lockfilePath, lockfile);
+        } else {
+            lockfileWriter.write(lockfilePath, lockfile);
+        }
         return new ResolveResult(
                 lockfile.packages().size(),
                 context.downloadCount(),
                 lockfile.conflicts().size(),
                 lockfilePath);
+    }
+
+    private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {
+        String existing;
+        try {
+            existing = Files.readString(lockfilePath);
+        } catch (IOException exception) {
+            throw new ResolveException(
+                    "Could not read zolt.lock at "
+                            + lockfilePath
+                            + " for locked resolve. Check that the file exists and is readable.",
+                    exception);
+        }
+
+        String expected = lockfileWriter.write(candidate);
+        if (!existing.equals(expected)) {
+            throw new ResolveException(
+                    "zolt.lock is out of date. Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.");
+        }
     }
 
     private List<DependencyRequest> directRequests(ProjectConfig config, Map<PackageId, String> projectManagedVersions) {

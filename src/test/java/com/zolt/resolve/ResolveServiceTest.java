@@ -107,6 +107,60 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void lockedResolveSucceedsWhenLockfileMatches() throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, config(), cacheRoot);
+        String existingLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+        ResolveResult result = resolveService.resolve(projectDir, config(), cacheRoot, true);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void lockedResolveFailsWhenLockfileIsMissing() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config(), cacheRoot, true));
+
+        assertTrue(exception.getMessage().contains("Locked resolve requires zolt.lock"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve` to create it"));
+    }
+
+    @Test
+    void lockedResolveFailsWhenLockfileWouldChange() throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, config(), cacheRoot);
+        String existingLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+        addArtifact("com.example", "extra", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>extra</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, configWithDependencies(Map.of(
+                        "com.example:app", "1.0.0",
+                        "com.example:extra", "1.0.0")), cacheRoot, true));
+
+        assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve` to refresh it"));
+        assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void importedBomProvidesManagedVersionForTransitiveDependency() {
         addArtifact("com.example", "app", "1.0.0", """
                 <project>
@@ -389,10 +443,14 @@ final class ResolveServiceTest {
     }
 
     private ProjectConfig config() {
+        return configWithDependencies(Map.of("com.example:app", "1.0.0"));
+    }
+
+    private ProjectConfig configWithDependencies(Map<String, String> dependencies) {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
-                Map.of("com.example:app", "1.0.0"),
+                dependencies,
                 Map.of(),
                 BuildSettings.defaults());
     }

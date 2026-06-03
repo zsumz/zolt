@@ -435,6 +435,9 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "resolve", description = "Resolve dependencies, download artifacts, and write zolt.lock.")
     public static final class ResolveCommand implements Runnable {
+        @Option(names = "--locked", description = "Fail if zolt.lock would change.")
+        private boolean locked;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -450,8 +453,9 @@ public final class ZoltCli implements Runnable {
                 ResolveResult result = new ResolveService().resolve(
                         workingDirectory,
                         new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
-                        cacheRoot);
-                printResolveResult(spec, result);
+                        cacheRoot,
+                        locked);
+                printResolveResult(spec, result, !locked);
             } catch (ResolveException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
@@ -901,10 +905,18 @@ public final class ZoltCli implements Runnable {
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result) {
+        printResolveResult(spec, result, true);
+    }
+
+    private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
         spec.commandLine().getOut().println("Resolved " + result.resolvedCount() + " packages");
         spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
         spec.commandLine().getOut().println("Conflicts " + result.conflictCount());
-        spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
+        if (wroteLockfile) {
+            spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
+        } else {
+            spec.commandLine().getOut().println("Verified " + result.lockfilePath());
+        }
     }
 
     private static void printAndFlush(CommandSpec spec, String output) {

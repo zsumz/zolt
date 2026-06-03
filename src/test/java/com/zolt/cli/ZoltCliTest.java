@@ -142,6 +142,65 @@ final class ZoltCliTest {
     }
 
     @Test
+    void resolveLockedVerifiesExistingLockfile() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            Files.createDirectories(projectDir);
+            Files.writeString(projectDir.resolve("zolt.toml"), """
+                    [project]
+                    name = "demo"
+                    version = "0.1.0"
+                    group = "com.example"
+                    java = "21"
+                    main = "com.example.Main"
+
+                    [repositories]
+                    test = "%s"
+
+                    [dependencies]
+                    "com.example:app" = "1.0.0"
+                    """.formatted(repository.baseUri()));
+            CommandResult unlocked = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            CommandResult locked = execute(
+                    "resolve",
+                    "--locked",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, unlocked.exitCode());
+            assertEquals(0, locked.exitCode());
+            assertTrue(locked.stdout().contains("Verified " + projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
+    void resolveLockedReportsMissingLockfileClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "resolve",
+                "--locked",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Locked resolve requires zolt.lock"));
+        assertTrue(result.stderr().contains("Run `zolt resolve` to create it"));
+    }
+
+    @Test
     void addAddsCompileDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
