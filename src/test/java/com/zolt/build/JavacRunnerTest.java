@@ -111,7 +111,7 @@ final class JavacRunnerTest {
                 "-classpath",
                 "alpha.jar:zeta.jar",
                 "-processorpath",
-                "processor-a.jar:processor-z.jar",
+                "processor-a.jar:processor-z.jar:alpha.jar:zeta.jar",
                 "-s",
                 generatedSources.toString(),
                 source.normalize().toString()), commands.getFirst());

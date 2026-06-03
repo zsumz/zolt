@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.StringJoiner;
 
@@ -99,7 +100,7 @@ public final class JavacRunner {
             command.add("-proc:none");
         } else {
             command.add("-processorpath");
-            command.add(joinedPath(processorClasspathEntries));
+            command.add(joinedPath(combinedProcessorPath(processorClasspathEntries, classpathEntries)));
         }
         if (generatedSourcesDirectory != null) {
             command.add("-s");
@@ -127,6 +128,13 @@ public final class JavacRunner {
             joiner.add(entry.toString());
         }
         return joiner.toString();
+    }
+
+    private static List<Path> combinedProcessorPath(List<Path> processorEntries, List<Path> classpathEntries) {
+        LinkedHashSet<Path> entries = new LinkedHashSet<>();
+        entries.addAll(processorEntries);
+        entries.addAll(classpathEntries);
+        return List.copyOf(entries);
     }
 
     private static ProcessResult runProcess(List<String> command) {
