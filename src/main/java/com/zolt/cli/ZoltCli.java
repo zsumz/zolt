@@ -14,6 +14,9 @@ import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.RunException;
+import com.zolt.build.RunPackageException;
+import com.zolt.build.RunPackageResult;
+import com.zolt.build.RunPackageService;
 import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
@@ -75,6 +78,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
                 ZoltCli.PackageCommand.class,
+                ZoltCli.RunPackageCommand.class,
                 ZoltCli.CleanCommand.class,
                 ZoltCli.DoctorCommand.class
         })
@@ -538,17 +542,66 @@ public final class ZoltCli implements Runnable {
                 if (result.hasMainClass()) {
                     spec.commandLine().getOut().println("Included Main-Class manifest entry");
                     spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
+                    spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
                 } else {
                     spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
                 }
                 spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
-                spec.commandLine().getOut().println("Future: zolt run-package will run thin jars with dependency classpaths.");
                 spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
             } catch (BuildException
                     | JavacException
                     | ManifestGenerationException
                     | PackageException
                     | ResourceCopyException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
+        }
+    }
+
+    @Command(name = "run-package", description = "Run a packaged thin jar with runtime dependencies.")
+    public static final class RunPackageCommand implements Runnable {
+        @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
+        private List<String> arguments = List.of();
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                RunPackageResult result = new RunPackageService().runPackage(
+                        workingDirectory,
+                        config,
+                        cacheRoot,
+                        arguments);
+                String output = result.javaRunResult().output();
+                printAndFlush(spec, output);
+                if (!output.isEmpty() && !output.endsWith("\n")) {
+                    spec.commandLine().getOut().println();
+                }
+                spec.commandLine().getOut().println("Ran packaged "
+                        + result.javaRunResult().mainClass()
+                        + " from "
+                        + result.packageResult().jarPath());
+            } catch (BuildException
+                    | JavacException
+                    | JavaRunException
+                    | ManifestGenerationException
+                    | PackageException
+                    | ResourceCopyException
+                    | RunPackageException
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException

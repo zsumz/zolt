@@ -66,6 +66,7 @@ final class ZoltCliTest {
                 "run",
                 "test",
                 "package",
+                "run-package",
                 "clean",
                 "doctor")));
     }
@@ -652,8 +653,8 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Packaged 1 compiled files"));
         assertTrue(result.stdout().contains("Included Main-Class manifest entry"));
         assertTrue(result.stdout().contains("Run with: java -jar " + jarPath));
+        assertTrue(result.stdout().contains("Run with dependencies: zolt run-package -- [args]"));
         assertTrue(result.stdout().contains("Thin jar: dependencies are not bundled."));
-        assertTrue(result.stdout().contains("Future: zolt run-package will run thin jars with dependency classpaths."));
         assertTrue(result.stdout().contains("Wrote jar to " + jarPath));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         try (JarFile jar = new JarFile(jarPath.toFile())) {
@@ -700,6 +701,50 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Could not package jar"));
         assertTrue(result.stderr().contains("Check that target/ is writable"));
+    }
+
+    @Test
+    void runPackageBuildsThinJarAndRunsConfiguredMainClass() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("packaged " + args[0] + " " + args[1]);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run-package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--",
+                "one",
+                "two");
+
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("packaged one two"));
+        assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
+        assertTrue(Files.exists(jarPath));
+    }
+
+    @Test
+    void runPackageReportsMissingMainClassClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "run-package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("No main class is configured"));
+        assertTrue(result.stderr().contains("[project].main"));
     }
 
     @Test
