@@ -495,6 +495,72 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void selectedVersionKeepsAllParticipatingScopes() {
+        addArtifact("com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>shared</artifactId>
+                      <version>2.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "processor", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>processor</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>shared</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "shared", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>shared</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        addArtifact("com.example", "shared", "2.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>shared</artifactId>
+                  <version>2.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, configWithDependencyAndProcessor(), cacheRoot);
+
+        assertEquals(4, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "shared"))
+                        && lockPackage.version().equals("2.0.0")
+                        && lockPackage.scope() == DependencyScope.COMPILE));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "shared"))
+                        && lockPackage.version().equals("2.0.0")
+                        && lockPackage.scope() == DependencyScope.PROCESSOR));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertTrue(classpaths.processor().entries().contains(
+                cacheRoot.resolve("com/example/shared/2.0.0/shared-2.0.0.jar")));
+    }
+
+    @Test
     void projectPlatformProvidesManagedVersionForAnnotationProcessor() {
         addPom("com.example", "platform", "1.0.0", """
                 <project>
@@ -641,6 +707,23 @@ final class ResolveServiceTest {
                 Map.of("test", baseUri.toString()),
                 Map.of(),
                 Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of("com.example:processor", "1.0.0"),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null);
+    }
+
+    private ProjectConfig configWithDependencyAndProcessor() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of(),
+                Map.of("com.example:app", "1.0.0"),
                 Set.of(),
                 Map.of(),
                 Set.of(),

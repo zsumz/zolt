@@ -238,7 +238,6 @@ public final class ResolveService {
         for (PackageNode node : selection.selectedNodes()) {
             List<SelectedScope> scopes = allRequests.stream()
                     .filter(request -> request.packageId().equals(node.packageId()))
-                    .filter(request -> request.requestedVersion().equals(node.selectedVersion()))
                     .collect(java.util.stream.Collectors.groupingBy(
                             DependencyRequest::scope,
                             java.util.stream.Collectors.reducing(
