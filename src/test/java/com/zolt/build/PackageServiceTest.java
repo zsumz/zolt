@@ -3,14 +3,18 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.jar.Attributes;
@@ -53,6 +57,60 @@ final class PackageServiceTest {
             assertEquals("1.0", attributes.getValue(Attributes.Name.MANIFEST_VERSION));
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
         }
+    }
+
+    @Test
+    void packagesResourcesAndNativeImageConfigDeterministically() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        source("src/main/resources/config/app.properties", "name=demo\n");
+        source("src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
+
+        PackageResult result = packageService.packageJar(
+                projectDir,
+                config(Optional.of("com.example.Main")),
+                projectDir.resolve("cache"));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals(List.of(
+                    "META-INF/MANIFEST.MF",
+                    "META-INF/native-image/reflect-config.json",
+                    "com/example/Main.class",
+                    "config/app.properties"), jar.stream().map(JarEntry::getName).toList());
+            assertEquals("[]\n", readEntry(jar, "META-INF/native-image/reflect-config.json"));
+            assertEquals("name=demo\n", readEntry(jar, "config/app.properties"));
+        }
+    }
+
+    @Test
+    void duplicateJarEntriesFailWithActionableError() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        source("src/main/resources/META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n");
+
+        PackageException exception = assertThrows(
+                PackageException.class,
+                () -> packageService.packageJar(
+                        projectDir,
+                        config(Optional.of("com.example.Main")),
+                        projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("Duplicate jar entry `META-INF/MANIFEST.MF`"));
+        assertTrue(exception.getMessage().contains("Remove or rename the duplicate resource"));
     }
 
     @Test
@@ -137,6 +195,12 @@ final class PackageServiceTest {
             output.putNextEntry(new JarEntry(entryName));
             output.write(new byte[] {0});
             output.closeEntry();
+        }
+    }
+
+    private static String readEntry(JarFile jar, String name) throws IOException {
+        try (InputStream input = jar.getInputStream(jar.getEntry(name))) {
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 

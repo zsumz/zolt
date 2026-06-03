@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.zip.ZipException;
 
 public final class PackageService {
     private static final long DETERMINISTIC_ENTRY_TIME = 0L;
@@ -70,11 +71,19 @@ public final class PackageService {
     }
 
     private static void writeEntry(JarOutputStream output, String name, byte[] content) throws IOException {
-        JarEntry entry = new JarEntry(name);
-        entry.setTime(DETERMINISTIC_ENTRY_TIME);
-        output.putNextEntry(entry);
-        output.write(content);
-        output.closeEntry();
+        try {
+            JarEntry entry = new JarEntry(name);
+            entry.setTime(DETERMINISTIC_ENTRY_TIME);
+            output.putNextEntry(entry);
+            output.write(content);
+            output.closeEntry();
+        } catch (ZipException exception) {
+            throw new PackageException(
+                    "Duplicate jar entry `"
+                            + name
+                            + "`. Remove or rename the duplicate resource and try packaging again.",
+                    exception);
+        }
     }
 
     private static String entryName(Path outputDirectory, Path file) {
