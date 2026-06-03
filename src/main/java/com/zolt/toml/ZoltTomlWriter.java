@@ -76,6 +76,31 @@ public final class ZoltTomlWriter {
         };
     }
 
+    public ProjectConfig addManagedDependency(ProjectConfig config, DependencySection section, String coordinate) {
+        return switch (section) {
+            case MAIN -> new ProjectConfig(
+                    config.project(),
+                    config.repositories(),
+                    config.platforms(),
+                    remove(config.dependencies(), coordinate),
+                    add(config.managedDependencies(), coordinate),
+                    config.testDependencies(),
+                    config.managedTestDependencies(),
+                    config.build(),
+                    config.nativeSettings());
+            case TEST -> new ProjectConfig(
+                    config.project(),
+                    config.repositories(),
+                    config.platforms(),
+                    config.dependencies(),
+                    config.managedDependencies(),
+                    remove(config.testDependencies(), coordinate),
+                    add(config.managedTestDependencies(), coordinate),
+                    config.build(),
+                    config.nativeSettings());
+        };
+    }
+
     public ProjectConfig removeDependency(ProjectConfig config, DependencySection section, String coordinate) {
         return switch (section) {
             case MAIN -> new ProjectConfig(
@@ -99,6 +124,32 @@ public final class ZoltTomlWriter {
                     config.build(),
                     config.nativeSettings());
         };
+    }
+
+    public ProjectConfig addPlatform(ProjectConfig config, String coordinate, String version) {
+        return new ProjectConfig(
+                config.project(),
+                config.repositories(),
+                put(config.platforms(), coordinate, version),
+                config.dependencies(),
+                config.managedDependencies(),
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.build(),
+                config.nativeSettings());
+    }
+
+    public ProjectConfig removePlatform(ProjectConfig config, String coordinate) {
+        return new ProjectConfig(
+                config.project(),
+                config.repositories(),
+                remove(config.platforms(), coordinate),
+                config.dependencies(),
+                config.managedDependencies(),
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.build(),
+                config.nativeSettings());
     }
 
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
@@ -192,6 +243,12 @@ public final class ZoltTomlWriter {
     private static Set<String> remove(Set<String> source, String coordinate) {
         TreeSet<String> updated = new TreeSet<>(source);
         updated.remove(coordinate);
+        return updated;
+    }
+
+    private static Set<String> add(Set<String> source, String coordinate) {
+        TreeSet<String> updated = new TreeSet<>(source);
+        updated.add(coordinate);
         return updated;
     }
 

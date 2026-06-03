@@ -142,6 +142,41 @@ final class ZoltTomlWriterTest {
         assertEquals(config.managedTestDependencies(), parsed.managedTestDependencies());
     }
 
+    @Test
+    void addsManagedDependenciesToCorrectSections() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
+        config = writer.addManagedDependency(config, DependencySection.MAIN, "com.example:app");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-tool");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertTrue(parsed.managedDependencies().contains("com.example:app"));
+        assertTrue(parsed.managedTestDependencies().contains("com.example:test-tool"));
+    }
+
+    @Test
+    void explicitDependencyReplacesManagedDependency() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
+        config = writer.addManagedDependency(config, DependencySection.MAIN, "com.example:app");
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals("1.0.0", parsed.dependencies().get("com.example:app"));
+        assertTrue(parsed.managedDependencies().isEmpty());
+    }
+
+    @Test
+    void addsAndRemovesPlatforms() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
+        config = writer.addPlatform(config, "com.example:enterprise-platform", "2026.1.0");
+        config = writer.removePlatform(config, "com.example:enterprise-platform");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertTrue(parsed.platforms().isEmpty());
+    }
+
     private static ProjectConfig configWithNativeSettings() {
         return new ProjectConfig(
                 new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),

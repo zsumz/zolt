@@ -72,6 +72,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.InitCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
+                ZoltCli.PlatformCommand.class,
                 ZoltCli.ResolveCommand.class,
                 ZoltCli.TreeCommand.class,
                 ZoltCli.WhyCommand.class,
@@ -138,9 +139,12 @@ public final class ZoltCli implements Runnable {
     public static final class AddCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[test] GROUP:ARTIFACT:VERSION",
+                paramLabel = "[test] GROUP:ARTIFACT[:VERSION]",
                 description = "Dependency coordinate, optionally prefixed with `test` for test dependencies.")
         private List<String> arguments;
+
+        @Option(names = "--managed", description = "Use a version managed by a declared platform.")
+        private boolean managed;
 
         @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
         private boolean noResolve;
@@ -187,12 +191,22 @@ public final class ZoltCli implements Runnable {
             DependencySection section = values.size() == 2 ? DependencySection.TEST : DependencySection.MAIN;
             String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
             Coordinate coordinate = coordinateParser.parse(rawCoordinate);
+            if (managed && coordinate.version().isPresent()) {
+                throw new AddCommandException(
+                        "Managed dependency coordinate must not include a version. Use `group:artifact`.");
+            }
+            if (managed) {
+                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", true);
+            }
             String version = coordinate.version().orElseThrow(() -> new AddCommandException(
-                    "Dependency coordinate must include a version. Use `group:artifact:version`."));
-            return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version);
+                    "Dependency coordinate must include a version. Use `group:artifact:version` or add `--managed` when a declared platform should provide the version."));
+            return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false);
         }
 
         private ProjectConfig updateConfig(ProjectConfig config, AddRequest request) {
+            if (request.managed()) {
+                return tomlWriter.addManagedDependency(config, request.section(), request.coordinate());
+            }
             return tomlWriter.addDependency(config, request.section(), request.coordinate(), request.version());
         }
 
@@ -202,10 +216,24 @@ public final class ZoltCli implements Runnable {
                     : original.dependencies();
             String section = request.section() == DependencySection.TEST ? "test.dependencies" : "dependencies";
             String existing = dependencies.get(request.coordinate());
+            boolean existingManaged = managedDependencies(original, request.section()).contains(request.coordinate());
+            if (request.managed()) {
+                if (existingManaged) {
+                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                            + " already uses a platform-managed version in [" + section + "]");
+                } else if (existing != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from " + existing + " to platform-managed version in [" + section + "]");
+                } else {
+                    spec.commandLine().getOut().println("Added dependency " + request.coordinate()
+                            + " with a platform-managed version to [" + section + "]");
+                }
+                return;
+            }
             if (request.version().equals(existing)) {
                 spec.commandLine().getOut().println("Dependency " + request.coordinate() + ":" + request.version()
                         + " already exists in [" + section + "]");
-            } else if (managedDependencies(original, request.section()).contains(request.coordinate())) {
+            } else if (existingManaged) {
                 spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
                         + " from managed version to " + request.version() + " in [" + section + "]");
             } else if (existing != null) {
@@ -214,6 +242,136 @@ public final class ZoltCli implements Runnable {
             } else {
                 spec.commandLine().getOut().println("Added dependency " + request.coordinate() + ":" + request.version()
                         + " to [" + section + "]");
+            }
+        }
+    }
+
+    @Command(
+            name = "platform",
+            mixinStandardHelpOptions = true,
+            description = "Manage BOM/platform imports in zolt.toml.",
+            subcommands = {
+                    PlatformCommand.AddCommand.class,
+                    PlatformCommand.RemoveCommand.class
+            })
+    public static final class PlatformCommand implements Runnable {
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            spec.commandLine().usage(spec.commandLine().getOut());
+        }
+
+        @Command(
+                name = "add",
+                mixinStandardHelpOptions = true,
+                description = "Add a platform BOM import to zolt.toml and refresh zolt.lock.")
+        public static final class AddCommand implements Runnable {
+            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT:VERSION", description = "Platform BOM coordinate.")
+            private String coordinate;
+
+            @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
+            private boolean noResolve;
+
+            @Option(names = "--cwd", hidden = true)
+            private Path workingDirectory = Path.of(".");
+
+            @Option(names = "--cache-root", hidden = true)
+            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+            @Spec
+            private CommandSpec spec;
+
+            private final CoordinateParser coordinateParser = new CoordinateParser();
+            private final ZoltTomlParser tomlParser = new ZoltTomlParser();
+            private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
+            private final ResolveService resolveService = new ResolveService();
+
+            @Override
+            public void run() {
+                try {
+                    Coordinate parsed = coordinateParser.parse(coordinate);
+                    String version = parsed.version().orElseThrow(() -> new PlatformCommandException(
+                            "Platform coordinate must include a version. Use `group:artifact:version`."));
+                    String platform = parsed.groupId() + ":" + parsed.artifactId();
+                    Path configPath = workingDirectory.resolve("zolt.toml");
+                    ProjectConfig config = tomlParser.parse(configPath);
+                    ProjectConfig updated = tomlWriter.addPlatform(config, platform, version);
+                    tomlWriter.write(configPath, updated);
+                    printAddSummary(config, platform, version);
+                    if (noResolve) {
+                        spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                        return;
+                    }
+                    printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                } catch (PlatformCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                }
+            }
+
+            private void printAddSummary(ProjectConfig original, String platform, String version) {
+                String existing = original.platforms().get(platform);
+                if (version.equals(existing)) {
+                    spec.commandLine().getOut().println("Platform " + platform + ":" + version
+                            + " already exists in [platforms]");
+                } else if (existing != null) {
+                    spec.commandLine().getOut().println("Updated platform " + platform
+                            + " from " + existing + " to " + version + " in [platforms]");
+                } else {
+                    spec.commandLine().getOut().println("Added platform " + platform + ":" + version
+                            + " to [platforms]");
+                }
+            }
+        }
+
+        @Command(
+                name = "remove",
+                mixinStandardHelpOptions = true,
+                description = "Remove a platform BOM import and refresh zolt.lock.")
+        public static final class RemoveCommand implements Runnable {
+            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Platform BOM coordinate.")
+            private String coordinate;
+
+            @Option(names = "--cwd", hidden = true)
+            private Path workingDirectory = Path.of(".");
+
+            @Option(names = "--cache-root", hidden = true)
+            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+            @Spec
+            private CommandSpec spec;
+
+            private final CoordinateParser coordinateParser = new CoordinateParser();
+            private final ZoltTomlParser tomlParser = new ZoltTomlParser();
+            private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
+            private final ResolveService resolveService = new ResolveService();
+
+            @Override
+            public void run() {
+                try {
+                    Coordinate parsed = coordinateParser.parse(coordinate);
+                    if (parsed.version().isPresent()) {
+                        throw new PlatformCommandException(
+                                "Platform remove coordinate must not include a version. Use `group:artifact`.");
+                    }
+                    String platform = parsed.groupId() + ":" + parsed.artifactId();
+                    Path configPath = workingDirectory.resolve("zolt.toml");
+                    ProjectConfig config = tomlParser.parse(configPath);
+                    if (!config.platforms().containsKey(platform)) {
+                        spec.commandLine().getOut().println(
+                                "Platform " + platform + " is not present in [platforms]; nothing to remove.");
+                        return;
+                    }
+                    ProjectConfig updated = tomlWriter.removePlatform(config, platform);
+                    tomlWriter.write(configPath, updated);
+                    spec.commandLine().getOut().println("Removed platform " + platform + " from [platforms]");
+                    printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                } catch (PlatformCommandException | CoordinateParseException | ResolveException | ZoltConfigException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                }
             }
         }
     }
@@ -771,7 +929,7 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    private record AddRequest(DependencySection section, String coordinate, String version) {
+    private record AddRequest(DependencySection section, String coordinate, String version, boolean managed) {
     }
 
     private record RemoveRequest(DependencySection section, String coordinate) {
@@ -802,6 +960,12 @@ public final class ZoltCli implements Runnable {
 
     private static final class RemoveCommandException extends RuntimeException {
         private RemoveCommandException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class PlatformCommandException extends RuntimeException {
+        private PlatformCommandException(String message) {
             super(message);
         }
     }

@@ -58,6 +58,7 @@ final class ZoltCliTest {
                 "init",
                 "add",
                 "remove",
+                "platform",
                 "resolve",
                 "tree",
                 "why",
@@ -183,6 +184,43 @@ final class ZoltCliTest {
         assertTrue(second.stdout().contains("already exists in [test.dependencies]"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertEquals(1, occurrences(config, "\"org.junit.jupiter:junit-jupiter\" = \"5.11.4\""));
+    }
+
+    @Test
+    void addAddsManagedDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--managed",
+                "com.example:legacy-api");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency com.example:legacy-api with a platform-managed version to [dependencies]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("\"com.example:legacy-api\" = {}"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void addRejectsManagedDependencyWithExplicitVersion() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--managed",
+                "com.example:legacy-api:1.0.0");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Managed dependency coordinate must not include a version. Use `group:artifact`."));
     }
 
     @Test
@@ -312,6 +350,106 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains(
                 "Dependency com.example:missing is not present in [dependencies]; nothing to remove."));
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void platformAddWritesPlatformWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "com.example:enterprise-platform:2026.1.0");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added platform com.example:enterprise-platform:2026.1.0 to [platforms]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("\"com.example:enterprise-platform\" = \"2026.1.0\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void platformAddRefreshesLockfileByDefault() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>enterprise-platform</artifactId>
+                      <version>2026.1.0</version>
+                      <dependencyManagement>
+                        <dependencies>
+                          <dependency>
+                            <groupId>com.example</groupId>
+                            <artifactId>legacy-api</artifactId>
+                            <version>1.5.0</version>
+                          </dependency>
+                        </dependencies>
+                      </dependencyManagement>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString());
+
+            CommandResult result = execute(
+                    "platform",
+                    "add",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString(),
+                    "com.example:enterprise-platform:2026.1.0");
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Added platform com.example:enterprise-platform:2026.1.0 to [platforms]"));
+            assertTrue(result.stdout().contains("Resolved 0 packages"));
+            assertTrue(result.stdout().contains("Downloaded 1 artifacts"));
+            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
+    void platformRemoveDeletesPlatformAndRefreshesLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        CommandResult add = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "com.example:enterprise-platform:2026.1.0");
+
+        CommandResult remove = execute(
+                "platform",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "com.example:enterprise-platform");
+
+        assertEquals(0, add.exitCode());
+        assertEquals(0, remove.exitCode());
+        assertTrue(remove.stdout().contains("Removed platform com.example:enterprise-platform from [platforms]"));
+        assertTrue(remove.stdout().contains("Resolved 0 packages"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("\"com.example:enterprise-platform\""));
+    }
+
+    @Test
+    void platformRemoveRejectsVersionedCoordinate() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "platform",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "com.example:enterprise-platform:2026.1.0");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Platform remove coordinate must not include a version. Use `group:artifact`."));
     }
 
     @Test
