@@ -1,5 +1,6 @@
 package com.zolt.ide;
 
+import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockfileReadException;
@@ -9,6 +10,8 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolveException;
+import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
@@ -24,28 +27,39 @@ public final class IdeModelService {
     private final ZoltTomlParser tomlParser;
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
+    private final ResolveService resolveService;
 
     public IdeModelService() {
-        this(new ZoltTomlParser(), new ZoltLockfileReader(), new ClasspathBuilder());
+        this(new ZoltTomlParser(), new ZoltLockfileReader(), new ClasspathBuilder(), new ResolveService());
     }
 
     IdeModelService(
             ZoltTomlParser tomlParser,
             ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder) {
+            ClasspathBuilder classpathBuilder,
+            ResolveService resolveService) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
+        this.resolveService = resolveService;
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot) {
+        return export(projectDirectory, cacheRoot, false, false);
+    }
+
+    public IdeModel export(Path projectDirectory, Path cacheRoot, boolean checkLock, boolean offline) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path configPath = root.resolve("zolt.toml").normalize();
         Path lockfilePath = root.resolve("zolt.lock").normalize();
+        Path normalizedCacheRoot = cacheRoot.toAbsolutePath().normalize();
         List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
 
         ProjectConfig config = readConfig(configPath, diagnostics);
-        IdeModel.ClasspathInfo classpaths = classpaths(lockfilePath, cacheRoot.toAbsolutePath().normalize(), root, config, diagnostics);
+        IdeModel.ClasspathInfo classpaths = classpaths(lockfilePath, normalizedCacheRoot, root, config, diagnostics);
+        if (checkLock) {
+            checkLockFreshness(root, lockfilePath, normalizedCacheRoot, config, offline, diagnostics);
+        }
 
         return new IdeModel(
                 SCHEMA_VERSION,
@@ -57,6 +71,46 @@ public final class IdeModelService {
                 outputInfo(root, config),
                 classpaths,
                 diagnostics);
+    }
+
+    private void checkLockFreshness(
+            Path root,
+            Path lockfilePath,
+            Path cacheRoot,
+            ProjectConfig config,
+            boolean offline,
+            List<IdeModel.Diagnostic> diagnostics) {
+        if (config == null || !Files.isRegularFile(lockfilePath)) {
+            return;
+        }
+        try {
+            lockfileReader.read(lockfilePath);
+        } catch (LockfileReadException exception) {
+            return;
+        }
+        try {
+            resolveService.resolve(root, config, cacheRoot, true, offline);
+        } catch (ResolveException exception) {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "error",
+                    lockDiagnosticCode(exception),
+                    exception.getMessage(),
+                    lockfilePath,
+                    "Run zolt resolve."));
+        } catch (ArtifactCacheException exception) {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "error",
+                    "LOCKFILE_CHECK_UNAVAILABLE",
+                    exception.getMessage(),
+                    lockfilePath,
+                    "Run zolt resolve without --offline to seed the cache, then retry zolt ide model --check-lock --offline."));
+        }
+    }
+
+    private static String lockDiagnosticCode(ResolveException exception) {
+        return exception.getMessage().contains("out of date")
+                ? "LOCKFILE_STALE"
+                : "LOCKFILE_CHECK_FAILED";
     }
 
     private ProjectConfig readConfig(Path configPath, List<IdeModel.Diagnostic> diagnostics) {

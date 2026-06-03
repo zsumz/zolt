@@ -635,6 +635,12 @@ public final class ZoltCli implements Runnable {
             @Option(names = "--format", required = true, description = "Output format: json.")
             private Format format;
 
+            @Option(names = "--check-lock", description = "Report whether zolt.lock is stale without rewriting it.")
+            private boolean checkLock;
+
+            @Option(names = "--offline", description = "Use only artifacts already present in the local cache when checking zolt.lock.")
+            private boolean offline;
+
             @Option(names = "--cwd", hidden = true)
             private Path workingDirectory = Path.of(".");
 
@@ -646,7 +652,11 @@ public final class ZoltCli implements Runnable {
 
             @Override
             public void run() {
-                String output = new IdeModelJsonWriter().write(new IdeModelService().export(workingDirectory, cacheRoot));
+                String output = new IdeModelJsonWriter().write(new IdeModelService().export(
+                        workingDirectory,
+                        cacheRoot,
+                        checkLock,
+                        offline));
                 printAndFlush(spec, output);
             }
         }
