@@ -63,6 +63,18 @@ public final class BuildService {
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        return build(projectDirectory, config, classpaths, resolveResult);
+    }
+
+    public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {
+        return build(projectDirectory, config, classpaths, Optional.empty());
+    }
+
+    private BuildResult build(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            Optional<ResolveResult> resolveResult) {
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

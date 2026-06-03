@@ -64,6 +64,8 @@ import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
+import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceResolveService;
 import java.nio.file.Path;
@@ -695,6 +697,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
         private boolean offline;
 
+        @Option(names = "--workspace", description = "Build all discovered workspace members in dependency order.")
+        private boolean workspace;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -707,6 +712,21 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                if (workspace) {
+                    WorkspaceBuildResult result = new WorkspaceBuildService().build(workingDirectory, cacheRoot, offline);
+                    if (result.resolvedLockfile()) {
+                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    }
+                    for (WorkspaceBuildResult.MemberBuildResult member : result.members()) {
+                        spec.commandLine().getOut().println(
+                                "Compiled "
+                                        + member.result().sourceCount()
+                                        + " main source files in "
+                                        + member.member());
+                    }
+                    spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " workspace main source files");
+                    return;
+                }
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 BuildResult result = new BuildService().build(workingDirectory, config, cacheRoot, offline);
                 if (result.resolvedLockfile()) {
@@ -721,6 +741,7 @@ public final class ZoltCli implements Runnable {
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
+                    | WorkspaceConfigException
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
