@@ -20,7 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -1247,6 +1249,110 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testWorkspaceRunsMembersInDependencyOrder() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Path cacheRoot = tempDir.resolve("cache");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        Path apiTest = apiDir.resolve("src/test/java/com/example/api/ApiTest.java");
+        Files.createDirectories(apiTest.getParent());
+        Files.writeString(apiTest, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class ApiTest {
+                    public String message() {
+                        return Api.message() + Core.message();
+                    }
+                }
+                """);
+        Files.writeString(workspaceDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "target/classes"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "test",
+                "--workspace",
+                "--cwd", apiDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Tests passed in modules/core"));
+        assertTrue(result.stdout().contains("Tests passed in apps/api"));
+        assertTrue(result.stdout().contains("Tests passed for 2 workspace members"));
+        assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
+        assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
+        assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
+    }
+
+    @Test
     void buildOfflineUsesExistingLockfileAndCache() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -1732,6 +1838,48 @@ final class ZoltCliTest {
         Path source = projectDir.resolve("src/main/java/com/example/Main.java");
         Files.createDirectories(source.getParent());
         Files.writeString(source, content);
+    }
+
+    private static void writeFakeConsoleJar(Path jar) throws IOException {
+        Path workDir = jar.getParent().resolve("fake-console-work");
+        Path source = workDir.resolve("src/org/junit/platform/console/ConsoleLauncher.java");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, """
+                package org.junit.platform.console;
+
+                public final class ConsoleLauncher {
+                    private ConsoleLauncher() {
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println("fake console");
+                    }
+                }
+                """);
+        Path classes = workDir.resolve("classes");
+        new com.zolt.build.JavacRunner().compile(
+                currentJavac(),
+                java.util.List.of(source),
+                new com.zolt.resolve.Classpath(java.util.List.of()),
+                classes);
+
+        Files.createDirectories(jar.getParent());
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            JarEntry entry = new JarEntry("org/junit/platform/console/ConsoleLauncher.class");
+            output.putNextEntry(entry);
+            output.write(Files.readAllBytes(classes.resolve("org/junit/platform/console/ConsoleLauncher.class")));
+            output.closeEntry();
+        }
+    }
+
+    private static Path currentJavac() {
+        return Path.of(System.getProperty("java.home")).resolve("bin").resolve(executable("javac"));
+    }
+
+    private static String executable(String name) {
+        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
+                ? name + ".exe"
+                : name;
     }
 
     private static String currentJavaMajorVersion() {

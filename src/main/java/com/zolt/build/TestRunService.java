@@ -52,6 +52,26 @@ public final class TestRunService {
         TestCompileResult compileResult = testCompileService.compileTests(projectDirectory, config, cacheRoot);
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        return runTests(config, classpaths, compileResult);
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult) {
+        TestCompileResult compileResult = testCompileService.compileTests(
+                projectDirectory,
+                config,
+                classpaths,
+                buildResult);
+        return runTests(config, classpaths, compileResult);
+    }
+
+    private TestRunResult runTests(
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult) {
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());

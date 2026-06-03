@@ -53,6 +53,14 @@ public final class TestCompileService {
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        return compileTests(projectDirectory, config, classpaths, buildResult);
+    }
+
+    public TestCompileResult compileTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult) {
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

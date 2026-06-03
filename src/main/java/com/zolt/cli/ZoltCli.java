@@ -68,6 +68,8 @@ import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.WorkspaceTestResult;
+import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -800,6 +802,9 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "test", description = "Compile and run tests, starting with JUnit support.")
     public static final class TestCommand implements Runnable {
+        @Option(names = "--workspace", description = "Test all discovered workspace members in dependency order.")
+        private boolean workspace;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -812,6 +817,24 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                if (workspace) {
+                    WorkspaceTestResult result = new WorkspaceTestService().test(workingDirectory, cacheRoot);
+                    if (result.resolvedLockfile()) {
+                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    }
+                    for (WorkspaceTestResult.MemberTestRunResult member : result.members()) {
+                        printAndFlush(spec, member.result().output());
+                        if (!member.result().output().isEmpty() && !member.result().output().endsWith("\n")) {
+                            spec.commandLine().getOut().println();
+                        }
+                        spec.commandLine().getOut().println("Tests passed in " + member.member());
+                    }
+                    spec.commandLine().getOut().println(
+                            "Tests passed for "
+                                    + result.members().size()
+                                    + " workspace members");
+                    return;
+                }
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 TestRunResult result = new TestRunService().runTests(workingDirectory, config, cacheRoot);
                 printAndFlush(spec, result.output());
@@ -827,6 +850,7 @@ public final class ZoltCli implements Runnable {
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
+                    | WorkspaceConfigException
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
