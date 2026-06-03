@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -60,6 +61,7 @@ final class ZoltCliTest {
                 "tree",
                 "why",
                 "conflicts",
+                "classpath",
                 "build",
                 "run",
                 "test",
@@ -436,6 +438,85 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("No dependency conflicts found.\n", result.stdout());
+    }
+
+    @Test
+    void classpathPrintsRequestedClasspathFromLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:compile-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "com/example/test-lib/1.0.0/test-lib-1.0.0.jar"
+                dependencies = []
+                """);
+
+        Path compileJar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path testJar = cacheRoot.resolve("com/example/test-lib/1.0.0/test-lib-1.0.0.jar");
+
+        CommandResult compile = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "compile");
+        CommandResult runtime = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "runtime");
+        CommandResult test = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "test");
+
+        assertEquals(0, compile.exitCode());
+        assertEquals(compileJar + System.lineSeparator(), compile.stdout());
+        assertEquals(0, runtime.exitCode());
+        assertEquals(
+                compileJar + File.pathSeparator + runtimeJar + System.lineSeparator(),
+                runtime.stdout());
+        assertEquals(0, test.exitCode());
+        assertEquals(
+                compileJar + File.pathSeparator + runtimeJar + File.pathSeparator + testJar + System.lineSeparator(),
+                test.stdout());
+    }
+
+    @Test
+    void classpathReportsMissingLockfileCleanly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+
+        CommandResult result = execute("classpath", "--cwd", projectDir.toString(), "runtime");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.lock"));
     }
 
     @Test

@@ -20,6 +20,9 @@ import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
+import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.classpath.ClasspathFormatter;
+import com.zolt.classpath.ClasspathSet;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -67,6 +70,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.TreeCommand.class,
                 ZoltCli.WhyCommand.class,
                 ZoltCli.ConflictsCommand.class,
+                ZoltCli.ClasspathCommand.class,
                 ZoltCli.BuildCommand.class,
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
@@ -354,6 +358,47 @@ public final class ZoltCli implements Runnable {
                 String output = new DependencyConflictFormatter().format(
                         new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
                 spec.commandLine().getOut().print(output);
+            } catch (LockfileReadException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            }
+        }
+    }
+
+    @Command(name = "classpath", description = "Print a classpath from zolt.lock.")
+    public static final class ClasspathCommand implements Runnable {
+        enum Kind {
+            COMPILE,
+            RUNTIME,
+            TEST
+        }
+
+        @Parameters(index = "0", paramLabel = "compile|runtime|test", description = "Classpath kind to print.")
+        private Kind kind;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            try {
+                ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
+                ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(
+                        lockfileReader.read(workingDirectory.resolve("zolt.lock")),
+                        cacheRoot));
+                String output = new ClasspathFormatter().format(switch (kind) {
+                    case COMPILE -> classpaths.compile();
+                    case RUNTIME -> classpaths.runtime();
+                    case TEST -> classpaths.test();
+                });
+                spec.commandLine().getOut().print(output);
+                spec.commandLine().getOut().flush();
             } catch (LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
