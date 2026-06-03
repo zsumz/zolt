@@ -1,0 +1,31 @@
+[project]
+name = "micronaut-http"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+main = "com.example.micronaut.DemoApplication"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[platforms]
+"io.micronaut.platform:micronaut-platform" = "4.10.12"
+
+[dependencies]
+"io.micronaut:micronaut-http-server-netty" = {}
+"io.micronaut:micronaut-runtime" = {}
+"io.micronaut.serde:micronaut-serde-jackson" = {}
+"ch.qos.logback:logback-classic" = {}
+
+[annotationProcessors]
+"io.micronaut:micronaut-inject-java" = {}
+"io.micronaut:micronaut-http-validation" = {}
+"io.micronaut.serde:micronaut-serde-processor" = {}
+
+[test.dependencies]
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
