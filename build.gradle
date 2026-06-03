@@ -94,6 +94,24 @@ tasks.register('nativeSmokeTest') {
         def smokeDir = layout.buildDirectory.dir('native-smoke').get().asFile
         delete smokeDir
         smokeDir.mkdirs()
+
+        def releaseDir = new File(smokeDir, 'release')
+        providers.exec {
+            commandLine binary.absolutePath,
+                    'release-archive',
+                    '--binary',
+                    binary.absolutePath,
+                    '--output',
+                    releaseDir.absolutePath
+        }.result.get().assertNormalExitValue()
+        def releaseArchives = releaseDir.listFiles()?.findAll { file ->
+            file.name.startsWith("zolt-${project.version}-")
+                    && (file.name.endsWith('.tar.gz') || file.name.endsWith('.zip'))
+        } ?: []
+        if (releaseArchives.size() != 1) {
+            throw new GradleException("Native smoke test failed: expected one release archive under ${releaseDir}.")
+        }
+
         providers.exec {
             commandLine binary.absolutePath, 'init', '--cwd', smokeDir.absolutePath, 'hello-native'
         }.result.get().assertNormalExitValue()

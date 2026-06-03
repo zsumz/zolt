@@ -70,6 +70,7 @@ final class ZoltCliTest {
                 "package",
                 "run-package",
                 "native",
+                "release-archive",
                 "clean",
                 "doctor")));
     }
@@ -1005,6 +1006,43 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Native Image main class is missing"));
         assertTrue(result.stderr().contains("[project].main"));
+    }
+
+    @Test
+    void releaseArchiveAssemblesArchiveFromNativeBinary() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("README.md"), "# Demo\n");
+        Path binary = projectDir.resolve("target/native/demo");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "native");
+
+        CommandResult result = execute(
+                "release-archive",
+                "--cwd", projectDir.toString(),
+                "--target", "linux-x64");
+
+        Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Assembled linux-x64 release archive"));
+        assertTrue(result.stdout().contains("Included 2 files under demo-0.1.0-linux-x64"));
+        assertTrue(result.stdout().contains("Wrote archive to " + archive));
+        assertTrue(Files.exists(archive));
+    }
+
+    @Test
+    void releaseArchiveReportsMissingBinaryClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "release-archive",
+                "--cwd", projectDir.toString(),
+                "--target", "linux-x64");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Release archive requires native binary"));
+        assertTrue(result.stderr().contains("Run `zolt native` or pass --binary <path>"));
     }
 
     @Test
