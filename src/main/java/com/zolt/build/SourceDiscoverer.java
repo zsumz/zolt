@@ -30,7 +30,7 @@ public final class SourceDiscoverer {
                     .map(Path::normalize)
                     .filter(path -> !path.startsWith(output))
                     .filter(path -> !path.startsWith(testOutput))
-                    .filter(path -> !hasOutputDirectorySegment(path))
+                    .filter(path -> !startsWithOutputDirectorySegment(root.relativize(path)))
                     .sorted()
                     .toList();
         } catch (IOException exception) {
@@ -42,12 +42,10 @@ public final class SourceDiscoverer {
         }
     }
 
-    private static boolean hasOutputDirectorySegment(Path path) {
-        for (Path segment : path) {
-            if (OUTPUT_DIRECTORY_NAMES.contains(segment.toString())) {
-                return true;
-            }
+    private static boolean startsWithOutputDirectorySegment(Path relativePath) {
+        if (relativePath.getNameCount() == 0) {
+            return false;
         }
-        return false;
+        return OUTPUT_DIRECTORY_NAMES.contains(relativePath.getName(0).toString());
     }
 }

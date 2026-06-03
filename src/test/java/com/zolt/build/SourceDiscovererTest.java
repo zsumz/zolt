@@ -46,6 +46,15 @@ final class SourceDiscovererTest {
     }
 
     @Test
+    void doesNotIgnoreJavaPackageNamedBuild() throws IOException {
+        Path buildPackage = source("src/main/java/com/example/build/Tool.java");
+
+        SourceDiscoveryResult result = discoverer.discover(projectDir, BuildSettings.defaults());
+
+        assertEquals(List.of(buildPackage), result.mainSources());
+    }
+
+    @Test
     void missingSourceDirectoriesReturnEmptyLists() {
         SourceDiscoveryResult result = discoverer.discover(projectDir, BuildSettings.defaults());
 

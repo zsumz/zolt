@@ -66,6 +66,16 @@ final class ResourceCopierTest {
         assertFalse(Files.exists(projectDir.resolve("target/classes/build/generated.txt")));
     }
 
+    @Test
+    void doesNotIgnoreNestedResourceDirectoryNamedBuild() throws IOException {
+        Path resource = resource("src/main/resources/com/example/build/info.txt", "ok\n");
+
+        ResourceCopyResult result = copier.copyMainResources(projectDir, BuildSettings.defaults());
+
+        assertEquals(List.of(resource), result.copiedResources());
+        assertEquals("ok\n", Files.readString(projectDir.resolve("target/classes/com/example/build/info.txt")));
+    }
+
     private Path resource(String path, String content) throws IOException {
         Path resource = projectDir.resolve(path);
         Files.createDirectories(resource.getParent());

@@ -48,7 +48,7 @@ public final class ResourceCopier {
                     .filter(path -> !path.getFileName().toString().endsWith(".java"))
                     .filter(path -> !path.startsWith(mainOutput))
                     .filter(path -> !path.startsWith(testOutput))
-                    .filter(path -> !hasOutputDirectorySegment(resourceRoot.relativize(path)))
+                    .filter(path -> !startsWithOutputDirectorySegment(resourceRoot.relativize(path)))
                     .sorted()
                     .toList();
 
@@ -69,12 +69,10 @@ public final class ResourceCopier {
         }
     }
 
-    private static boolean hasOutputDirectorySegment(Path relativePath) {
-        for (Path segment : relativePath) {
-            if (OUTPUT_DIRECTORY_NAMES.contains(segment.toString())) {
-                return true;
-            }
+    private static boolean startsWithOutputDirectorySegment(Path relativePath) {
+        if (relativePath.getNameCount() == 0) {
+            return false;
         }
-        return false;
+        return OUTPUT_DIRECTORY_NAMES.contains(relativePath.getName(0).toString());
     }
 }
