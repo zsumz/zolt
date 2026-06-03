@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -104,6 +105,189 @@ final class ResolveServiceTest {
         assertEquals(0, second.downloadCount());
     }
 
+    @Test
+    void importedBomProvidesManagedVersionForTransitiveDependency() {
+        addArtifact("com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <properties>
+                    <bom.version>1.0.0</bom.version>
+                  </properties>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>bom</artifactId>
+                        <version>${bom.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>managed-lib</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addPom("com.example", "bom", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>bom</artifactId>
+                  <version>1.0.0</version>
+                  <properties>
+                    <managed-lib.version>2.0.0</managed-lib.version>
+                  </properties>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>managed-lib</artifactId>
+                        <version>${managed-lib.version}</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addArtifact("com.example", "managed-lib", "2.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>managed-lib</artifactId>
+                  <version>2.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, config(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(5, result.downloadCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "managed-lib"))
+                        && lockPackage.version().equals("2.0.0")));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "bom"))));
+    }
+
+    @Test
+    void importedBomMissingVersionFailsClearly() {
+        addArtifact("com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>bom</artifactId>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>managed-lib</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Imported BOM com.example:bom"));
+        assertTrue(exception.getMessage().contains("is missing a version"));
+    }
+
+    @Test
+    void importedBomCycleFailsClearly() {
+        addArtifact("com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>bom-a</artifactId>
+                        <version>1.0.0</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>managed-lib</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addPom("com.example", "bom-a", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>bom-a</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>bom-b</artifactId>
+                        <version>1.0.0</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addPom("com.example", "bom-b", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>bom-b</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>bom-a</artifactId>
+                        <version>1.0.0</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Imported BOM cycle detected"));
+        assertTrue(exception.getMessage().contains("com.example:bom-a:1.0.0"));
+        assertTrue(exception.getMessage().contains("com.example:bom-b:1.0.0"));
+    }
+
     private ProjectConfig config() {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
@@ -125,6 +309,11 @@ final class ResolveServiceTest {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
         responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
+    }
+
+    private void addPom(String groupId, String artifactId, String version, String pom) {
+        String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
     }
 
     private void handle(HttpExchange exchange) throws IOException {

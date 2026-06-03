@@ -10,6 +10,7 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
+import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
@@ -190,6 +191,7 @@ public final class ResolveService {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final Map<String, EffectiveRawPom> metadata = new HashMap<>();
+        private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private int downloadCount;
 
         RepositoryContext(ProjectConfig config, LocalArtifactCache cache) {
@@ -199,7 +201,7 @@ public final class ResolveService {
 
         @Override
         public EffectiveRawPom load(Coordinate coordinate) {
-            return metadata.computeIfAbsent(coordinate.toString(), ignored -> effectivePom(coordinate));
+            return effectivePom(coordinate, List.of());
         }
 
         CachedArtifact getPom(Coordinate coordinate) {
@@ -228,7 +230,21 @@ public final class ResolveService {
             return downloadCount;
         }
 
-        private EffectiveRawPom effectivePom(Coordinate coordinate) {
+        private EffectiveRawPom effectivePom(Coordinate coordinate, List<String> importStack) {
+            String key = coordinate.toString();
+            EffectiveRawPom cached = metadata.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            if (importStack.contains(key)) {
+                throw new ResolveException(
+                        "Imported BOM cycle detected: "
+                                + String.join(" -> ", importStack)
+                                + " -> "
+                                + key
+                                + ". Remove one of the import-scoped dependencyManagement entries.");
+            }
+
             CachedArtifact pomArtifact = getPom(coordinate);
             RawPom rawPom = rawPomParser.parse(pomArtifact.bytes());
             List<RawPom> parents = loadParents(rawPom);
@@ -236,7 +252,18 @@ public final class ResolveService {
             String version = rawPom.version().or(() -> nearestVersion(parents)).orElse(coordinate.version().orElseThrow());
             Map<String, String> properties = inheritedProperties(rawPom, parents);
             List<RawPomDependency> dependencyManagement = inheritedDependencyManagement(rawPom, parents);
-            return new EffectiveRawPom(rawPom, parents, groupId, version, properties, dependencyManagement);
+            EffectiveRawPom base = new EffectiveRawPom(rawPom, parents, groupId, version, properties, dependencyManagement);
+            List<String> nextStack = new ArrayList<>(importStack);
+            nextStack.add(key);
+            EffectiveRawPom effective = new EffectiveRawPom(
+                    rawPom,
+                    parents,
+                    groupId,
+                    version,
+                    properties,
+                    expandedDependencyManagement(base, nextStack));
+            metadata.put(key, effective);
+            return effective;
         }
 
         private List<RawPom> loadParents(RawPom rawPom) {
@@ -298,6 +325,40 @@ public final class ResolveService {
             }
             dependencies.addAll(rawPom.dependencyManagement());
             return dependencies;
+        }
+
+        private List<RawPomDependency> expandedDependencyManagement(EffectiveRawPom pom, List<String> importStack) {
+            List<RawPomDependency> dependencies = new ArrayList<>();
+            for (RawPomDependency dependency : pom.dependencyManagement()) {
+                RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
+                if (isImportedBom(interpolated)) {
+                    Coordinate bomCoordinate = new Coordinate(
+                            interpolated.groupId(),
+                            interpolated.artifactId(),
+                            Optional.of(interpolated.version().orElseThrow(() -> new ResolveException(
+                                    "Imported BOM "
+                                            + interpolated.groupId()
+                                            + ":"
+                                            + interpolated.artifactId()
+                                            + " in "
+                                            + pom.groupId()
+                                            + ":"
+                                            + pom.rawPom().artifactId()
+                                            + " is missing a version. Add a version before resolving."))));
+                    EffectiveRawPom imported = effectivePom(bomCoordinate, importStack);
+                    dependencies.addAll(imported.dependencyManagement().stream()
+                            .map(importedDependency -> interpolator.interpolateDependency(importedDependency, imported))
+                            .toList());
+                } else {
+                    dependencies.add(dependency);
+                }
+            }
+            return dependencies;
+        }
+
+        private static boolean isImportedBom(RawPomDependency dependency) {
+            return dependency.type().filter("pom"::equals).isPresent()
+                    && dependency.scope().filter("import"::equals).isPresent();
         }
     }
 }
