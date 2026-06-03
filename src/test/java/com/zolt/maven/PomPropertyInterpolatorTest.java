@@ -83,6 +83,23 @@ final class PomPropertyInterpolatorTest {
     }
 
     @Test
+    void resolvesChainedProperties() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                  <properties>
+                    <jackson.version>2.19.1</jackson.version>
+                    <jackson.version.core>${jackson.version}</jackson.version.core>
+                  </properties>
+                </project>
+                """);
+
+        assertEquals("2.19.1", interpolator.interpolate("${jackson.version.core}", pom));
+    }
+
+    @Test
     void interpolatesDependencyFields() {
         EffectiveRawPom pom = effective("""
                 <project>
@@ -127,6 +144,29 @@ final class PomPropertyInterpolatorTest {
 
         assertEquals(
                 "Unresolved POM property `${missing.version}` while processing com.example:app:1.2.3. Define the property or declare the value explicitly.",
+                exception.getMessage());
+    }
+
+    @Test
+    void cyclicPropertiesFailClearly() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                  <properties>
+                    <first.version>${second.version}</first.version>
+                    <second.version>${first.version}</second.version>
+                  </properties>
+                </project>
+                """);
+
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> interpolator.interpolate("${first.version}", pom));
+
+        assertEquals(
+                "Cyclic POM property reference while processing com.example:app:1.2.3: first.version -> second.version -> first.version.",
                 exception.getMessage());
     }
 

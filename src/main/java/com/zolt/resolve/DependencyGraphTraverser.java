@@ -86,6 +86,10 @@ public final class DependencyGraphTraverser {
                 if (!decision.included()) {
                     continue;
                 }
+                Optional<DependencyScope> requestScope = transitiveScope(item.request().scope(), dependency.scope());
+                if (requestScope.isEmpty()) {
+                    continue;
+                }
 
                 String requestedVersion = dependency.rawDependency().version()
                         .orElseThrow(() -> new GraphTraversalException(
@@ -101,7 +105,7 @@ public final class DependencyGraphTraverser {
                 DependencyRequest request = new DependencyRequest(
                         new PackageId(dependency.rawDependency().groupId(), dependency.rawDependency().artifactId()),
                         requestedVersion,
-                        dependency.scope(),
+                        requestScope.orElseThrow(),
                         RequestOrigin.TRANSITIVE);
                 queue.add(TraversalItem.transitive(node, request, dependency.exclusions(), decision));
             }
@@ -124,6 +128,22 @@ public final class DependencyGraphTraverser {
 
     private static Coordinate coordinate(RawPomDependency dependency) {
         return new Coordinate(dependency.groupId(), dependency.artifactId(), dependency.version());
+    }
+
+    private static Optional<DependencyScope> transitiveScope(DependencyScope parentScope, DependencyScope dependencyScope) {
+        if (dependencyScope == DependencyScope.TEST || dependencyScope == DependencyScope.PROVIDED) {
+            return Optional.empty();
+        }
+        if (parentScope == DependencyScope.TEST) {
+            return Optional.of(DependencyScope.TEST);
+        }
+        if (parentScope == DependencyScope.RUNTIME) {
+            return Optional.of(DependencyScope.RUNTIME);
+        }
+        if (parentScope == DependencyScope.COMPILE) {
+            return Optional.of(dependencyScope);
+        }
+        return Optional.empty();
     }
 
     private static String requestSortKey(DependencyRequest request) {

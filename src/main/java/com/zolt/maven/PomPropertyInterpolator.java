@@ -1,13 +1,15 @@
 package com.zolt.maven;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 public final class PomPropertyInterpolator {
     public String interpolate(String value, EffectiveRawPom pom) {
         Map<String, String> properties = properties(pom);
         String context = pom.groupId() + ":" + pom.rawPom().artifactId() + ":" + pom.version();
-        return interpolate(value, properties, context);
+        return interpolate(value, properties, context, new LinkedHashSet<>());
     }
 
     public RawPomDependency interpolateDependency(RawPomDependency dependency, EffectiveRawPom pom) {
@@ -26,7 +28,7 @@ public final class PomPropertyInterpolator {
                         .toList());
     }
 
-    private String interpolate(String value, Map<String, String> properties, String context) {
+    private String interpolate(String value, Map<String, String> properties, String context, Set<String> propertyStack) {
         String result = value;
         int start = result.indexOf("${");
         while (start >= 0) {
@@ -37,6 +39,16 @@ public final class PomPropertyInterpolator {
             }
 
             String propertyName = result.substring(start + 2, end);
+            if (propertyStack.contains(propertyName)) {
+                throw new PomInterpolationException(
+                        "Cyclic POM property reference while processing "
+                                + context
+                                + ": "
+                                + String.join(" -> ", propertyStack)
+                                + " -> "
+                                + propertyName
+                                + ".");
+            }
             String replacement = properties.get(propertyName);
             if (replacement == null) {
                 throw new PomInterpolationException(
@@ -46,6 +58,9 @@ public final class PomPropertyInterpolator {
                                 + context
                                 + ". Define the property or declare the value explicitly.");
             }
+            propertyStack.add(propertyName);
+            replacement = interpolate(replacement, properties, context, propertyStack);
+            propertyStack.remove(propertyName);
             result = result.substring(0, start) + replacement + result.substring(end + 1);
             start = result.indexOf("${", start + replacement.length());
         }

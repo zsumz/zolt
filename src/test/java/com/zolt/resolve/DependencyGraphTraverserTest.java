@@ -110,6 +110,39 @@ final class DependencyGraphTraverserTest {
     }
 
     @Test
+    void skipsTransitiveTestAndProvidedDependenciesFromMainGraph() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                testDependency("com.example", "test-helper", "1.0.0"),
+                providedDependency("com.example", "provided-api", "1.0.0"))));
+
+        ResolutionGraph graph = traverser(source).traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertEquals(List.of("com.example:root:1.0.0"), nodeStrings(graph));
+    }
+
+    @Test
+    void directTestDependenciesKeepCompileAndRuntimeTransitivesInTestScope() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:test-root:1.0.0", pom("com.example", "test-root", "1.0.0", List.of(
+                dependency("com.example", "compile-helper", "1.0.0"),
+                runtimeDependency("com.example", "runtime-helper", "1.0.0"),
+                testDependency("com.example", "test-helper", "1.0.0"))));
+        source.put("com.example:compile-helper:1.0.0", pom("com.example", "compile-helper", "1.0.0", List.of()));
+        source.put("com.example:runtime-helper:1.0.0", pom("com.example", "runtime-helper", "1.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(source).traverse(List.of(directTest("com.example", "test-root", "1.0.0")));
+
+        assertEquals(List.of(
+                "com.example:test-root:1.0.0",
+                "com.example:compile-helper:1.0.0",
+                "com.example:runtime-helper:1.0.0"), nodeStrings(graph));
+        assertEquals(List.of(DependencyScope.TEST, DependencyScope.TEST), graph.edges().stream()
+                .map(edge -> edge.request().scope())
+                .toList());
+    }
+
+    @Test
     void appliesExclusionOnlyThroughDeclaringEdge() {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
         source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
@@ -154,6 +187,10 @@ final class DependencyGraphTraverserTest {
         return new DependencyRequest(new PackageId(groupId, artifactId), version, DependencyScope.COMPILE, RequestOrigin.DIRECT);
     }
 
+    private static DependencyRequest directTest(String groupId, String artifactId, String version) {
+        return new DependencyRequest(new PackageId(groupId, artifactId), version, DependencyScope.TEST, RequestOrigin.DIRECT);
+    }
+
     private static EffectiveRawPom pom(String groupId, String artifactId, String version, List<RawPomDependency> dependencies) {
         RawPom rawPom = new RawPom(
                 Optional.of(groupId),
@@ -173,6 +210,14 @@ final class DependencyGraphTraverserTest {
 
     private static RawPomDependency runtimeDependency(String groupId, String artifactId, String version) {
         return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("runtime"), Optional.empty(), Optional.empty(), false, List.of());
+    }
+
+    private static RawPomDependency testDependency(String groupId, String artifactId, String version) {
+        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("test"), Optional.empty(), Optional.empty(), false, List.of());
+    }
+
+    private static RawPomDependency providedDependency(String groupId, String artifactId, String version) {
+        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("provided"), Optional.empty(), Optional.empty(), false, List.of());
     }
 
     private static RawPomDependency optionalDependency(String groupId, String artifactId, String version) {

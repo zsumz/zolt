@@ -1,0 +1,20 @@
+[project]
+name = "spring-boot-webmvc"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+main = "com.example.springboot.DemoApplication"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[dependencies]
+"org.springframework.boot:spring-boot-starter-webmvc" = "4.0.6"
+
+[test.dependencies]
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
