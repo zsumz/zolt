@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,8 +15,12 @@ import java.util.stream.Stream;
 
 public final class CleanService {
     public CleanResult clean(Path projectDirectory, BuildSettings settings) {
-        Path projectRoot = projectDirectory.normalize();
-        Set<Path> targets = cleanTargets(projectRoot, settings);
+        return clean(projectDirectory, settings, CompilerSettings.defaults());
+    }
+
+    public CleanResult clean(Path projectDirectory, BuildSettings settings, CompilerSettings compilerSettings) {
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Set<Path> targets = cleanTargets(projectRoot, settings, compilerSettings);
         ArrayList<Path> deleted = new ArrayList<>();
         for (Path target : targets) {
             if (!Files.exists(target)) {
@@ -27,9 +32,11 @@ public final class CleanService {
         return new CleanResult(deleted);
     }
 
-    private static Set<Path> cleanTargets(Path projectRoot, BuildSettings settings) {
+    private static Set<Path> cleanTargets(Path projectRoot, BuildSettings settings, CompilerSettings compilerSettings) {
         Path output = safeProjectPath(projectRoot, settings.output());
         Path testOutput = safeProjectPath(projectRoot, settings.testOutput());
+        Path generatedSources = safeProjectPath(projectRoot, compilerSettings.generatedSources());
+        Path generatedTestSources = safeProjectPath(projectRoot, compilerSettings.generatedTestSources());
         Path sharedParent = sharedOutputParent(output, testOutput).orElse(null);
         Set<Path> targets = new LinkedHashSet<>();
         if (sharedParent != null && isBuildOutputParent(sharedParent)) {
@@ -38,6 +45,8 @@ public final class CleanService {
             targets.add(output);
             targets.add(testOutput);
         }
+        targets.add(generatedSources);
+        targets.add(generatedTestSources);
         return targets;
     }
 
@@ -56,8 +65,9 @@ public final class CleanService {
     }
 
     private static Path safeProjectPath(Path projectRoot, String configuredPath) {
-        Path path = projectRoot.resolve(configuredPath).normalize();
-        if (!path.startsWith(projectRoot) || path.equals(projectRoot)) {
+        Path configured = Path.of(configuredPath);
+        Path path = projectRoot.resolve(configured).normalize();
+        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
             throw new CleanException(
                     "Refusing to clean output path "
                             + configuredPath

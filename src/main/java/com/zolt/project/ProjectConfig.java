@@ -16,7 +16,8 @@ public record ProjectConfig(
         Map<String, String> testAnnotationProcessors,
         Set<String> managedTestAnnotationProcessors,
         BuildSettings build,
-        NativeSettings nativeSettings) {
+        NativeSettings nativeSettings,
+        CompilerSettings compilerSettings) {
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
@@ -31,6 +32,38 @@ public record ProjectConfig(
         testAnnotationProcessors = Map.copyOf(testAnnotationProcessors);
         managedTestAnnotationProcessors = Set.copyOf(managedTestAnnotationProcessors);
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
+        compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            BuildSettings build,
+            NativeSettings nativeSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                dependencies,
+                managedDependencies,
+                testDependencies,
+                managedTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                CompilerSettings.defaults());
     }
 
     public ProjectConfig(
@@ -56,7 +89,8 @@ public record ProjectConfig(
                 Map.of(),
                 Set.of(),
                 build,
-                nativeSettings);
+                nativeSettings,
+                CompilerSettings.defaults());
     }
 
     public ProjectConfig(
@@ -79,7 +113,8 @@ public record ProjectConfig(
                 Map.of(),
                 Set.of(),
                 build,
-                nativeSettings);
+                nativeSettings,
+                CompilerSettings.defaults());
     }
 
     public ProjectConfig(

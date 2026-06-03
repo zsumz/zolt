@@ -1,6 +1,7 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
@@ -54,6 +55,7 @@ public final class ZoltTomlWriter {
                 config.managedTestAnnotationProcessors());
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
+        writeCompiler(toml, config.compilerSettings());
         writeNative(toml, config.nativeSettings());
         return toml.toString();
     }
@@ -77,7 +79,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -91,7 +94,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
         };
     }
 
@@ -110,7 +114,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -124,7 +129,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
         };
     }
 
@@ -143,7 +149,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -157,7 +164,8 @@ public final class ZoltTomlWriter {
                     config.testAnnotationProcessors(),
                     config.managedTestAnnotationProcessors(),
                     config.build(),
-                    config.nativeSettings());
+                    config.nativeSettings(),
+                    config.compilerSettings());
         };
     }
 
@@ -175,7 +183,8 @@ public final class ZoltTomlWriter {
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
                 config.build(),
-                config.nativeSettings());
+                config.nativeSettings(),
+                config.compilerSettings());
     }
 
     public ProjectConfig removePlatform(ProjectConfig config, String coordinate) {
@@ -192,7 +201,8 @@ public final class ZoltTomlWriter {
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
                 config.build(),
-                config.nativeSettings());
+                config.nativeSettings(),
+                config.compilerSettings());
     }
 
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
@@ -220,6 +230,16 @@ public final class ZoltTomlWriter {
         toml.append("[test.sources]\n");
         writeStringArray(toml, "java", build.testSources());
         toml.append('\n');
+    }
+
+    private static void writeCompiler(StringBuilder toml, CompilerSettings compilerSettings) {
+        CompilerSettings defaults = CompilerSettings.defaults();
+        if (compilerSettings == null || compilerSettings.equals(defaults)) {
+            return;
+        }
+        toml.append("\n[compiler]\n");
+        writeAssignment(toml, "generatedSources", compilerSettings.generatedSources());
+        writeAssignment(toml, "generatedTestSources", compilerSettings.generatedTestSources());
     }
 
     private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {

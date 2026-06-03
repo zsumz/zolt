@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
@@ -66,6 +67,20 @@ final class ZoltTomlWriterTest {
         assertEquals(original.testAnnotationProcessors(), parsed.testAnnotationProcessors());
         assertEquals(original.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
         assertEquals(original.build(), parsed.build());
+        assertEquals(original.compilerSettings(), parsed.compilerSettings());
+    }
+
+    @Test
+    void writesCompilerSettingsWhenConfigured() {
+        ProjectConfig config = configWithCompilerSettings();
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[compiler]\n"));
+        assertTrue(toml.contains("generatedSources = \"build/generated/main\""));
+        assertTrue(toml.contains("generatedTestSources = \"build/generated/test\""));
+        assertEquals(config.compilerSettings(), parsed.compilerSettings());
     }
 
     @Test
@@ -75,6 +90,17 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(writer.write(original));
 
         assertEquals(original.nativeSettings(), parsed.nativeSettings());
+    }
+
+    @Test
+    void preservesCompilerSettingsWhenEditingDependencies() {
+        ProjectConfig config = configWithCompilerSettings();
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.compilerSettings(), parsed.compilerSettings());
     }
 
     @Test
@@ -273,5 +299,23 @@ final class ZoltTomlWriterTest {
                 Map.of(),
                 BuildSettings.defaults(),
                 new NativeSettings("hello-native", "target/native-custom", List.of("--no-fallback")));
+    }
+
+    private static ProjectConfig configWithCompilerSettings() {
+        return new ProjectConfig(
+                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                NativeSettings.defaults(),
+                new CompilerSettings("build/generated/main", "build/generated/test"));
     }
 }

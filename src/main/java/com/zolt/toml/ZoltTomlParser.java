@@ -1,6 +1,7 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
@@ -28,9 +29,11 @@ public final class ZoltTomlParser {
             "annotationProcessors",
             "test",
             "build",
+            "compiler",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput");
+    private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
 
     public ProjectConfig parse(Path path) {
@@ -88,6 +91,7 @@ public final class ZoltTomlParser {
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         build = parseTestSources(testTable, build);
+        CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
         return new ProjectConfig(
@@ -103,7 +107,8 @@ public final class ZoltTomlParser {
                 testAnnotationProcessors.versioned(),
                 testAnnotationProcessors.managed(),
                 build,
-                nativeSettings);
+                nativeSettings,
+                compilerSettings);
     }
 
     private static BuildSettings parseBuild(TomlTable buildTable) {
@@ -135,6 +140,22 @@ public final class ZoltTomlParser {
                 build.output(),
                 build.testOutput(),
                 stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()));
+    }
+
+    private static CompilerSettings parseCompiler(TomlTable compilerTable) {
+        CompilerSettings defaults = CompilerSettings.defaults();
+        if (compilerTable == null) {
+            return defaults;
+        }
+
+        validateKeys("compiler", compilerTable, COMPILER_KEYS);
+        return new CompilerSettings(
+                stringOrDefault(compilerTable, "compiler", "generatedSources", defaults.generatedSources()),
+                stringOrDefault(
+                        compilerTable,
+                        "compiler",
+                        "generatedTestSources",
+                        defaults.generatedTestSources()));
     }
 
     private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {

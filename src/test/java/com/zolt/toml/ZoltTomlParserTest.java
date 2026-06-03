@@ -34,6 +34,8 @@ final class ZoltTomlParserTest {
         assertEquals("src/main/java", config.build().source());
         assertEquals(List.of("src/test/java"), config.build().testSources());
         assertEquals("target/test-classes", config.build().testOutput());
+        assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
+        assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
     }
 
     @Test
@@ -64,6 +66,8 @@ final class ZoltTomlParserTest {
         assertFalse(config.project().main().isPresent());
         assertEquals("src/main/java", config.build().source());
         assertEquals("target/classes", config.build().output());
+        assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
+        assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
         assertEquals("", config.nativeSettings().imageName());
         assertEquals("target/native", config.nativeSettings().output());
         assertTrue(config.nativeSettings().args().isEmpty());
@@ -122,6 +126,24 @@ final class ZoltTomlParserTest {
         assertEquals("1.6.3", config.annotationProcessors().get("org.mapstruct:mapstruct-processor"));
         assertTrue(config.managedTestAnnotationProcessors().contains("io.micronaut:micronaut-inject-java"));
         assertEquals("1.0.0", config.testAnnotationProcessors().get("com.example:test-processor"));
+    }
+
+    @Test
+    void parsesCompilerGeneratedSourceDirectories() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "processor-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [compiler]
+                generatedSources = "build/generated/main"
+                generatedTestSources = "build/generated/test"
+                """);
+
+        assertEquals("build/generated/main", config.compilerSettings().generatedSources());
+        assertEquals("build/generated/test", config.compilerSettings().generatedTestSources());
     }
 
     @Test

@@ -74,7 +74,9 @@ public final class BuildService {
                 jdkStatus.javac().orElseThrow(),
                 sources.mainSources(),
                 classpaths.compile(),
-                outputDirectory);
+                outputDirectory,
+                classpaths.processor(),
+                generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources()));
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
         return new BuildResult(
                 resolveResult,
@@ -82,5 +84,18 @@ public final class BuildService {
                 resourceResult.copiedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output());
+    }
+
+    private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {
+        Path configured = Path.of(configuredPath);
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Path path = projectRoot.resolve(configured).normalize();
+        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
+            throw new BuildException(
+                    "Invalid generated source output path `"
+                            + configuredPath
+                            + "`. Use a project-relative path under the project directory.");
+        }
+        return path;
     }
 }

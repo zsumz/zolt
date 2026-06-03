@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ final class CleanServiceTest {
     void deletesDefaultTargetDirectory() throws IOException {
         file("target/classes/com/example/Main.class");
         file("target/test-classes/com/example/MainTest.class");
+        file("target/generated/sources/annotations/com/example/Generated.java");
 
         CleanResult result = cleanService.clean(projectDir, BuildSettings.defaults());
 
@@ -34,14 +36,36 @@ final class CleanServiceTest {
     void deletesCustomOutputDirectories() throws IOException {
         file("out/main/Main.class");
         file("out-test/test/MainTest.class");
+        file("target/generated/sources/annotations/com/example/Generated.java");
+        file("target/generated/test-sources/annotations/com/example/GeneratedTest.java");
 
         CleanResult result = cleanService.clean(
                 projectDir,
-                new BuildSettings("src/main/java", "src/test/java", "out/main", "out-test/test"));
+                new BuildSettings("src/main/java", "src/test/java", "out/main", "out-test/test"),
+                CompilerSettings.defaults());
 
-        assertEquals(2, result.deletedCount());
+        assertEquals(4, result.deletedCount());
         assertFalse(Files.exists(projectDir.resolve("out/main")));
         assertFalse(Files.exists(projectDir.resolve("out-test/test")));
+        assertFalse(Files.exists(projectDir.resolve("target/generated/sources/annotations")));
+        assertFalse(Files.exists(projectDir.resolve("target/generated/test-sources/annotations")));
+    }
+
+    @Test
+    void deletesConfiguredGeneratedSourceDirectories() throws IOException {
+        file("out/main/Main.class");
+        file("out-test/test/MainTest.class");
+        file("build/generated/main/com/example/Generated.java");
+        file("build/generated/test/com/example/GeneratedTest.java");
+
+        CleanResult result = cleanService.clean(
+                projectDir,
+                new BuildSettings("src/main/java", "src/test/java", "out/main", "out-test/test"),
+                new CompilerSettings("build/generated/main", "build/generated/test"));
+
+        assertEquals(4, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve("build/generated/main")));
+        assertFalse(Files.exists(projectDir.resolve("build/generated/test")));
     }
 
     @Test

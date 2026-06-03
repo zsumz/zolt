@@ -67,7 +67,9 @@ public final class TestCompileService {
                 jdkStatus.javac().orElseThrow(),
                 sources.testSources(),
                 new Classpath(testCompileEntries),
-                outputDirectory);
+                outputDirectory,
+                classpaths.testProcessor(),
+                generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedTestSources()));
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config.build());
         return new TestCompileResult(
                 buildResult,
@@ -75,5 +77,18 @@ public final class TestCompileService {
                 resourceResult.copiedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output());
+    }
+
+    private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {
+        Path configured = Path.of(configuredPath);
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Path path = projectRoot.resolve(configured).normalize();
+        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
+            throw new BuildException(
+                    "Invalid generated test source output path `"
+                            + configuredPath
+                            + "`. Use a project-relative path under the project directory.");
+        }
+        return path;
     }
 }

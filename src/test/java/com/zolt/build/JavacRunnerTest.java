@@ -82,7 +82,68 @@ final class JavacRunnerTest {
                 tempDir.resolve("target/classes").toString(),
                 "-classpath",
                 "alpha.jar:zeta.jar",
+                "-proc:none",
                 source.normalize().toString()), commands.getFirst());
+    }
+
+    @Test
+    void passesProcessorPathAndGeneratedSourcesToJavacCommand() throws IOException {
+        Path source = source("src/main/java/com/example/Main.java", "final class Main {}\n");
+        Path generatedSources = tempDir.resolve("target/generated/sources/annotations");
+        List<List<String>> commands = new ArrayList<>();
+        JavacRunner runner = new JavacRunner(":", command -> {
+            commands.add(command);
+            return new JavacRunner.ProcessResult(0, "");
+        });
+
+        runner.compile(
+                Path.of("javac"),
+                List.of(source),
+                new Classpath(List.of(Path.of("zeta.jar"), Path.of("alpha.jar"))),
+                tempDir.resolve("target/classes"),
+                new Classpath(List.of(Path.of("processor-z.jar"), Path.of("processor-a.jar"))),
+                generatedSources);
+
+        assertEquals(List.of(
+                "javac",
+                "-d",
+                tempDir.resolve("target/classes").toString(),
+                "-classpath",
+                "alpha.jar:zeta.jar",
+                "-processorpath",
+                "processor-a.jar:processor-z.jar",
+                "-s",
+                generatedSources.toString(),
+                source.normalize().toString()), commands.getFirst());
+    }
+
+    @Test
+    void runsAnnotationProcessorAndCompilesGeneratedSource() throws IOException {
+        Path processorJar = AnnotationProcessorFixture.processorJar(tempDir);
+        Path source = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return GeneratedMessage.value();
+                    }
+                }
+                """);
+        Path output = tempDir.resolve("target/classes");
+        Path generatedSources = tempDir.resolve("target/generated/sources/annotations");
+
+        JavacResult result = new JavacRunner().compile(
+                currentJavac(),
+                List.of(source),
+                new Classpath(List.of()),
+                output,
+                new Classpath(List.of(processorJar)),
+                generatedSources);
+
+        assertEquals(1, result.sourceCount());
+        assertTrue(Files.exists(generatedSources.resolve("com/example/GeneratedMessage.java")));
+        assertTrue(Files.exists(output.resolve("com/example/Main.class")));
+        assertTrue(Files.exists(output.resolve("com/example/GeneratedMessage.class")));
     }
 
     @Test
@@ -105,6 +166,7 @@ final class JavacRunnerTest {
 
         assertTrue(exception.getMessage().contains("javac failed with exit code"));
         assertTrue(exception.getMessage().contains("Broken.java"));
+        assertTrue(exception.getMessage().contains("[annotationProcessors]"));
         assertFalse(exception.getMessage().isBlank());
     }
 

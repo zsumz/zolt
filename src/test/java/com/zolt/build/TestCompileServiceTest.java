@@ -11,6 +11,7 @@ import com.zolt.resolve.Classpath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -108,6 +109,47 @@ final class TestCompileServiceTest {
 
         assertEquals(1, result.sourceCount());
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+    }
+
+    @Test
+    void testCompilationUsesTestProcessorClasspathAndGeneratedSources() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path processorJar = cacheRoot.resolve("com/example/test-processor/1.0.0/test-processor-1.0.0.jar");
+        Files.createDirectories(processorJar.getParent());
+        Files.copy(
+                AnnotationProcessorFixture.processorJar(projectDir.resolve("processor-work")),
+                processorJar,
+                StandardCopyOption.REPLACE_EXISTING);
+        writeLockfile("""
+                version = 1
+
+                [[package]]
+                id = "com.example:test-processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test-processor"
+                direct = true
+                jar = "com/example/test-processor/1.0.0/test-processor-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return GeneratedMessage.value();
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), cacheRoot);
+
+        assertEquals(0, result.buildResult().sourceCount());
+        assertEquals(1, result.sourceCount());
+        assertTrue(Files.exists(projectDir.resolve(
+                "target/generated/test-sources/annotations/com/example/GeneratedMessage.java")));
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/GeneratedMessage.class")));
     }
 
     @Test
