@@ -41,8 +41,16 @@ final class ReleaseArchiveServiceTest {
                 Path.of("dist"));
 
         assertEquals(projectDir.resolve("dist/zolt-0.1.0-macos-arm64.tar.gz"), result.archivePath());
+        assertEquals(projectDir.resolve("dist/zolt-0.1.0-macos-arm64.tar.gz.sha256"), result.checksumPath());
+        assertEquals(projectDir.resolve("dist/release-manifest.json"), result.manifestPath());
         assertEquals("zolt-0.1.0-macos-arm64", result.rootDirectory());
+        assertEquals(64, result.sha256().length());
         assertEquals(3, result.fileCount());
+        assertEquals(
+                result.sha256() + "  zolt-0.1.0-macos-arm64.tar.gz\n",
+                Files.readString(result.checksumPath()));
+        assertTrue(Files.readString(result.manifestPath()).contains("\"target\": \"macos-arm64\""));
+        assertTrue(Files.readString(result.manifestPath()).contains("\"sha256\": \"" + result.sha256() + "\""));
         assertEquals(List.of(
                 "zolt-0.1.0-macos-arm64/",
                 "zolt-0.1.0-macos-arm64/bin/",
@@ -64,6 +72,9 @@ final class ReleaseArchiveServiceTest {
                 Path.of("dist"));
 
         assertEquals(projectDir.resolve("dist/zolt-0.1.0-windows-x64.zip"), result.archivePath());
+        assertEquals(projectDir.resolve("dist/zolt-0.1.0-windows-x64.zip.sha256"), result.checksumPath());
+        assertEquals(64, result.sha256().length());
+        assertTrue(Files.readString(result.manifestPath()).contains("\"format\": \"zip\""));
         try (ZipFile zip = new ZipFile(result.archivePath().toFile())) {
             assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/bin/zolt.exe")));
             assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/README.md")));
@@ -86,6 +97,43 @@ final class ReleaseArchiveServiceTest {
         List<String> entries = tarEntries(result.archivePath());
         assertTrue(entries.contains("zolt-0.1.0-linux-x64/README.md"));
         assertTrue(entries.stream().noneMatch(entry -> entry.endsWith("/LICENSE")));
+    }
+
+    @Test
+    void manifestIsDeterministicAndListsExistingArchives() throws IOException {
+        writeProjectFiles();
+        Path unixBinary = writeBinary("target/native/zolt");
+        Path windowsBinary = writeBinary("target/native/zolt.exe");
+
+        service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.WINDOWS_X64,
+                windowsBinary,
+                Path.of("dist"));
+        ReleaseArchiveResult result = service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.MACOS_ARM64,
+                unixBinary,
+                Path.of("dist"));
+
+        String manifest = Files.readString(result.manifestPath());
+        int macosIndex = manifest.indexOf("\"archive\": \"zolt-0.1.0-macos-arm64.tar.gz\"");
+        int windowsIndex = manifest.indexOf("\"archive\": \"zolt-0.1.0-windows-x64.zip\"");
+        assertTrue(macosIndex >= 0);
+        assertTrue(windowsIndex >= 0);
+        assertTrue(macosIndex < windowsIndex);
+        assertTrue(Files.exists(projectDir.resolve("dist/zolt-0.1.0-macos-arm64.tar.gz.sha256")));
+        assertTrue(Files.exists(projectDir.resolve("dist/zolt-0.1.0-windows-x64.zip.sha256")));
+
+        service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.MACOS_ARM64,
+                unixBinary,
+                Path.of("dist"));
+        assertEquals(manifest, Files.readString(result.manifestPath()));
     }
 
     @Test

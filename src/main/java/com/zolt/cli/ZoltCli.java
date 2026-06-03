@@ -899,6 +899,8 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println("Assembled " + result.target().id() + " release archive");
                 spec.commandLine().getOut().println("Included " + result.fileCount() + " files under " + result.rootDirectory());
                 spec.commandLine().getOut().println("Wrote archive to " + result.archivePath());
+                spec.commandLine().getOut().println("Wrote checksum to " + result.checksumPath());
+                spec.commandLine().getOut().println("Wrote manifest to " + result.manifestPath());
             } catch (ReleaseArchiveException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
