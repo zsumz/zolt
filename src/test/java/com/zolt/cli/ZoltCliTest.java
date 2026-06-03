@@ -71,6 +71,7 @@ final class ZoltCliTest {
                 "run-package",
                 "native",
                 "release-archive",
+                "release-verify",
                 "clean",
                 "doctor")));
     }
@@ -1047,6 +1048,22 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Release archive requires native binary"));
         assertTrue(result.stderr().contains("Run `zolt native` or pass --binary <path>"));
+    }
+
+    @Test
+    void releaseVerifyReportsMissingArchiveClearly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "release-verify",
+                "--cwd", projectDir.toString(),
+                "dist/missing.tar.gz");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Release archive verification failed for"));
+        assertTrue(result.stderr().contains("archive does not exist"));
+        assertTrue(result.stderr().contains("Pass a valid release archive path"));
     }
 
     @Test

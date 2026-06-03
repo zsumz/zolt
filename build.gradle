@@ -111,6 +111,13 @@ tasks.register('nativeSmokeTest') {
         if (releaseArchives.size() != 1) {
             throw new GradleException("Native smoke test failed: expected one release archive under ${releaseDir}.")
         }
+        providers.exec {
+            commandLine binary.absolutePath,
+                    'release-verify',
+                    '--work-dir',
+                    new File(smokeDir, 'release-verify').absolutePath,
+                    releaseArchives[0].absolutePath
+        }.result.get().assertNormalExitValue()
 
         providers.exec {
             commandLine binary.absolutePath, 'init', '--cwd', smokeDir.absolutePath, 'hello-native'

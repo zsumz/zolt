@@ -132,6 +132,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$ReleaseVerifyCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$CleanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
