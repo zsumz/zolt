@@ -7,9 +7,11 @@ import java.util.Optional;
 
 public record WorkspaceTestResult(
         Optional<ResolveResult> resolveResult,
+        List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
         List<MemberTestRunResult> members) {
     public WorkspaceTestResult {
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
+        builtMembers = List.copyOf(builtMembers);
         members = List.copyOf(members);
     }
 
@@ -18,10 +20,9 @@ public record WorkspaceTestResult(
     }
 
     public int mainSourceCount() {
-        return members.stream()
-                .map(MemberTestRunResult::result)
-                .map(TestRunResult::compileResult)
-                .mapToInt(result -> result.buildResult().sourceCount())
+        return builtMembers.stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::result)
+                .mapToInt(result -> result.sourceCount())
                 .sum();
     }
 

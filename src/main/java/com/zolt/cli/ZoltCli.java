@@ -68,6 +68,7 @@ import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
@@ -699,8 +700,14 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
         private boolean offline;
 
-        @Option(names = "--workspace", description = "Build all discovered workspace members in dependency order.")
+        @Option(names = "--workspace", description = "Build workspace members in dependency order.")
         private boolean workspace;
+
+        @Option(names = "--all", description = "Select every workspace member.")
+        private boolean all;
+
+        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+        private List<String> members = List.of();
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -715,7 +722,11 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 if (workspace) {
-                    WorkspaceBuildResult result = new WorkspaceBuildService().build(workingDirectory, cacheRoot, offline);
+                    WorkspaceBuildResult result = new WorkspaceBuildService().build(
+                            workingDirectory,
+                            cacheRoot,
+                            offline,
+                            new WorkspaceSelectionRequest(all, members));
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -802,8 +813,14 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "test", description = "Compile and run tests, starting with JUnit support.")
     public static final class TestCommand implements Runnable {
-        @Option(names = "--workspace", description = "Test all discovered workspace members in dependency order.")
+        @Option(names = "--workspace", description = "Test workspace members in dependency order.")
         private boolean workspace;
+
+        @Option(names = "--all", description = "Select every workspace member.")
+        private boolean all;
+
+        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+        private List<String> members = List.of();
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -818,7 +835,10 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 if (workspace) {
-                    WorkspaceTestResult result = new WorkspaceTestService().test(workingDirectory, cacheRoot);
+                    WorkspaceTestResult result = new WorkspaceTestService().test(
+                            workingDirectory,
+                            cacheRoot,
+                            new WorkspaceSelectionRequest(all, members));
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }

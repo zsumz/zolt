@@ -18,6 +18,7 @@ public final class WorkspaceTestService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final TestRunService testRunService;
+    private final WorkspaceMemberSelector memberSelector;
 
     public WorkspaceTestService() {
         this(
@@ -25,7 +26,8 @@ public final class WorkspaceTestService {
                 new WorkspaceBuildService(),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
-                new TestRunService());
+                new TestRunService(),
+                new WorkspaceMemberSelector());
     }
 
     WorkspaceTestService(
@@ -33,19 +35,29 @@ public final class WorkspaceTestService {
             WorkspaceBuildService workspaceBuildService,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
-            TestRunService testRunService) {
+            TestRunService testRunService,
+            WorkspaceMemberSelector memberSelector) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.testRunService = testRunService;
+        this.memberSelector = memberSelector;
     }
 
     public WorkspaceTestResult test(Path startDirectory, Path cacheRoot) {
+        return test(startDirectory, cacheRoot, WorkspaceSelectionRequest.defaults());
+    }
+
+    public WorkspaceTestResult test(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt test --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false);
+        WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
+        WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
 
         ZoltLockfile lockfile = lockfileReader.read(workspace.root().resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(
@@ -56,7 +68,7 @@ public final class WorkspaceTestService {
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
         List<WorkspaceTestResult.MemberTestRunResult> results = new ArrayList<>();
-        for (String memberPath : workspace.buildOrder()) {
+        for (String memberPath : selection.selectedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
             results.add(new WorkspaceTestResult.MemberTestRunResult(
@@ -67,7 +79,7 @@ public final class WorkspaceTestService {
                             classpaths,
                             memberBuild.result())));
         }
-        return new WorkspaceTestResult(buildResult.resolveResult(), results);
+        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }
 
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {

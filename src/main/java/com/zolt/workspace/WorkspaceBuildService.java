@@ -21,6 +21,7 @@ public final class WorkspaceBuildService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final BuildService buildService;
+    private final WorkspaceMemberSelector memberSelector;
 
     public WorkspaceBuildService() {
         this(
@@ -28,7 +29,8 @@ public final class WorkspaceBuildService {
                 new WorkspaceResolveService(),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
-                new BuildService());
+                new BuildService(),
+                new WorkspaceMemberSelector());
     }
 
     WorkspaceBuildService(
@@ -36,18 +38,29 @@ public final class WorkspaceBuildService {
             WorkspaceResolveService workspaceResolveService,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
-            BuildService buildService) {
+            BuildService buildService,
+            WorkspaceMemberSelector memberSelector) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceResolveService = workspaceResolveService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.buildService = buildService;
+        this.memberSelector = memberSelector;
     }
 
     public WorkspaceBuildResult build(Path startDirectory, Path cacheRoot, boolean offline) {
+        return build(startDirectory, cacheRoot, offline, WorkspaceSelectionRequest.defaults());
+    }
+
+    public WorkspaceBuildResult build(
+            Path startDirectory,
+            Path cacheRoot,
+            boolean offline,
+            WorkspaceSelectionRequest selectionRequest) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt build --workspace` from a workspace directory or create zolt-workspace.toml."));
+        WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
         Path lockfilePath = workspace.root().resolve("zolt.lock");
         Optional<ResolveResult> resolveResult = Optional.empty();
         if (!Files.isRegularFile(lockfilePath)) {
@@ -62,7 +75,7 @@ public final class WorkspaceBuildService {
 
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<WorkspaceBuildResult.MemberBuildResult> results = new ArrayList<>();
-        for (String memberPath : workspace.buildOrder()) {
+        for (String memberPath : selection.includedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             results.add(new WorkspaceBuildResult.MemberBuildResult(
                     member.path(),

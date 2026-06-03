@@ -1,6 +1,7 @@
 package com.zolt.workspace;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -66,6 +67,68 @@ final class WorkspaceBuildServiceTest {
         assertTrue(Files.exists(tempDir.resolve("modules/core/target/classes/com/acme/core/Core.class")));
         assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
         assertTrue(Files.exists(tempDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void buildsSelectedWorkspaceMembersAndDependencies() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core", "apps/worker"]
+                """);
+        member("modules/core", "core", "");
+        source("modules/core/src/main/java/com/acme/core/Core.java", """
+                package com.acme.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        source("apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                import com.acme.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        member("apps/worker", "worker", "");
+        source("apps/worker/src/main/java/com/acme/worker/Worker.java", """
+                package com.acme.worker;
+
+                public final class Worker {
+                }
+                """);
+
+        WorkspaceBuildResult result = service.build(
+                tempDir,
+                tempDir.resolve("cache"),
+                false,
+                new WorkspaceSelectionRequest(false, List.of("apps/api")));
+
+        assertEquals(List.of("modules/core", "apps/api"), result.members().stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::member)
+                .toList());
+        assertEquals(2, result.sourceCount());
+        assertTrue(Files.exists(tempDir.resolve("modules/core/target/classes/com/acme/core/Core.class")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
+        assertFalse(Files.exists(tempDir.resolve("apps/worker/target/classes/com/acme/worker/Worker.class")));
     }
 
     private void workspace(String content) throws IOException {
