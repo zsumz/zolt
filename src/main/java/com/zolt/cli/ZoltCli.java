@@ -306,7 +306,7 @@ public final class ZoltCli implements Runnable {
                 String output = new DependencyTreeFormatter().format(
                         config,
                         new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
-                spec.commandLine().getOut().print(output);
+                printAndFlush(spec, output);
             } catch (LockfileReadException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
@@ -336,7 +336,7 @@ public final class ZoltCli implements Runnable {
                         config,
                         new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")),
                         new PackageId(coordinate.groupId(), coordinate.artifactId()));
-                spec.commandLine().getOut().print(output);
+                printAndFlush(spec, output);
             } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
@@ -357,7 +357,7 @@ public final class ZoltCli implements Runnable {
             try {
                 String output = new DependencyConflictFormatter().format(
                         new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
-                spec.commandLine().getOut().print(output);
+                printAndFlush(spec, output);
             } catch (LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
@@ -397,8 +397,7 @@ public final class ZoltCli implements Runnable {
                     case RUNTIME -> classpaths.runtime();
                     case TEST -> classpaths.test();
                 });
-                spec.commandLine().getOut().print(output);
-                spec.commandLine().getOut().flush();
+                printAndFlush(spec, output);
             } catch (LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
@@ -460,7 +459,7 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 RunResult result = new RunService().run(workingDirectory, config, cacheRoot, arguments);
                 String output = result.javaRunResult().output();
-                spec.commandLine().getOut().print(output);
+                printAndFlush(spec, output);
                 if (!output.isEmpty() && !output.endsWith("\n")) {
                     spec.commandLine().getOut().println();
                 }
@@ -496,7 +495,7 @@ public final class ZoltCli implements Runnable {
             try {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 TestRunResult result = new TestRunService().runTests(workingDirectory, config, cacheRoot);
-                spec.commandLine().getOut().print(result.output());
+                printAndFlush(spec, result.output());
                 if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
                     spec.commandLine().getOut().println();
                 }
@@ -634,6 +633,11 @@ public final class ZoltCli implements Runnable {
         spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
         spec.commandLine().getOut().println("Conflicts " + result.conflictCount());
         spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
+    }
+
+    private static void printAndFlush(CommandSpec spec, String output) {
+        spec.commandLine().getOut().print(output);
+        spec.commandLine().getOut().flush();
     }
 
     private static void printJdkStatus(CommandSpec spec, JdkStatus status) {

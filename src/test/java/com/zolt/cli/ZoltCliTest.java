@@ -441,6 +441,23 @@ final class ZoltCliTest {
     }
 
     @Test
+    void formattedCommandsFlushOutputBeforeExit() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        FlushTrackingPrintWriter stdout = new FlushTrackingPrintWriter();
+        CommandLine commandLine = ZoltCli.newCommandLine();
+        commandLine.setOut(stdout);
+        commandLine.setErr(new PrintWriter(new StringWriter()));
+
+        int exitCode = commandLine.execute("conflicts", "--cwd", projectDir.toString());
+
+        assertEquals(0, exitCode);
+        assertEquals("No dependency conflicts found.\n", stdout.content());
+        assertTrue(stdout.flushed());
+    }
+
+    @Test
     void classpathPrintsRequestedClasspathFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
@@ -759,6 +776,34 @@ final class ZoltCliTest {
     }
 
     private record CommandResult(int exitCode, String stdout, String stderr) {
+    }
+
+    private static final class FlushTrackingPrintWriter extends PrintWriter {
+        private final StringWriter writer;
+        private boolean flushed;
+
+        private FlushTrackingPrintWriter() {
+            this(new StringWriter());
+        }
+
+        private FlushTrackingPrintWriter(StringWriter writer) {
+            super(writer);
+            this.writer = writer;
+        }
+
+        @Override
+        public void flush() {
+            flushed = true;
+            super.flush();
+        }
+
+        private boolean flushed() {
+            return flushed;
+        }
+
+        private String content() {
+            return writer.toString();
+        }
     }
 
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
