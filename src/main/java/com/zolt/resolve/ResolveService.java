@@ -14,6 +14,7 @@ import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.net.URI;
@@ -30,6 +31,10 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class ResolveService {
+    private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
+            "org.springframework.boot",
+            "spring-boot-loader");
+
     private final CoordinateParser coordinateParser;
     private final MavenRepositoryClient repositoryClient;
     private final RawPomParser rawPomParser;
@@ -209,7 +214,35 @@ public final class ResolveService {
                     DependencyScope.TEST_PROCESSOR,
                     RequestOrigin.DIRECT));
         }
+        addPackageModeRequests(config, projectManagedVersions, requests);
         return requests;
+    }
+
+    private void addPackageModeRequests(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            List<DependencyRequest> requests) {
+        if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
+            return;
+        }
+        boolean loaderAlreadyOnMainRuntimeClasspath = requests.stream()
+                .anyMatch(request -> request.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)
+                        && request.scope().entersMainRuntimeClasspath());
+        if (loaderAlreadyOnMainRuntimeClasspath) {
+            return;
+        }
+        String version = projectManagedVersions.get(SPRING_BOOT_LOADER_PACKAGE);
+        if (version == null || version.isBlank()) {
+            throw new ResolveException(
+                    "Spring Boot package mode requires package tool artifact `org.springframework.boot:spring-boot-loader`, "
+                            + "but no declared [platforms] entry manages its version. Add the Spring Boot platform to [platforms] "
+                            + "or declare `org.springframework.boot:spring-boot-loader` with an explicit version, then run `zolt resolve`.");
+        }
+        requests.add(new DependencyRequest(
+                SPRING_BOOT_LOADER_PACKAGE,
+                version,
+                DependencyScope.RUNTIME,
+                RequestOrigin.TRANSITIVE));
     }
 
     private static String managedVersion(

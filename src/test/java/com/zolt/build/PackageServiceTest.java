@@ -221,6 +221,15 @@ final class PackageServiceTest {
                 dependencies = []
 
                 [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
                 id = "com.example:processor"
                 version = "1.0.0"
                 source = "maven-central"
@@ -261,6 +270,9 @@ final class PackageServiceTest {
             assertEquals("server.port=0\n", readEntry(jar, "BOOT-INF/classes/application.properties"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/runtime-lib-1.0.0.jar"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/spring-boot-4.0.6.jar"));
+            assertEquals(1, jar.stream()
+                    .filter(entry -> entry.getName().equals("BOOT-INF/lib/runtime-lib-1.0.0.jar"))
+                    .count());
             assertEquals(JarEntry.STORED, jar.getEntry("BOOT-INF/lib/runtime-lib-1.0.0.jar").getMethod());
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
                     "BOOT-INF/lib/spring-boot-loader-4.0.6.jar")));

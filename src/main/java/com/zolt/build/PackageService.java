@@ -247,14 +247,16 @@ public final class PackageService {
     }
 
     private List<RuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
-        return lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        Map<String, RuntimeJar> runtimeJars = new LinkedHashMap<>();
+        lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
                 .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
                 .sorted(Comparator.comparing(PackageService::classpathSortKey))
                 .map(dependency -> new RuntimeJar(
                         dependency.resolvedPackage().packageId(),
                         dependency.resolvedPackage().selectedVersion(),
                         dependency.resolvedPackage().jarPath()))
-                .toList();
+                .forEach(runtimeJar -> runtimeJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
+        return List.copyOf(runtimeJars.values());
     }
 
     private static String classpathSortKey(ResolvedClasspathPackage dependency) {
@@ -263,6 +265,10 @@ public final class PackageService {
                 + dependency.resolvedPackage().selectedVersion()
                 + ":"
                 + dependency.scope();
+    }
+
+    private static String runtimeJarKey(RuntimeJar runtimeJar) {
+        return runtimeJar.packageId() + ":" + runtimeJar.version() + ":" + runtimeJar.jarPath();
     }
 
     private static SpringBootLoader springBootLoader(List<RuntimeJar> runtimeJars) {
@@ -299,7 +305,7 @@ public final class PackageService {
                 .findFirst()
                 .map(version -> " The resolved Spring Boot version appears to be " + version + ".")
                 .orElse("");
-        return "Spring Boot package mode requires `org.springframework.boot:spring-boot-loader` in zolt.lock. Add `\"org.springframework.boot:spring-boot-loader\" = {}` to [dependencies] when using the Spring Boot platform, or add an explicit version, then run `zolt resolve` and retry."
+        return "Spring Boot package mode requires `org.springframework.boot:spring-boot-loader` in zolt.lock. Add the Spring Boot platform to [platforms] so Zolt can resolve the loader as package tooling, or declare the loader with an explicit version, then run `zolt resolve` and retry."
                 + versionHint;
     }
 
