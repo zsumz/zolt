@@ -9,6 +9,7 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.PackageMode;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class WorkspaceRunPackageService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
@@ -55,10 +57,23 @@ public final class WorkspaceRunPackageService {
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest,
             List<String> arguments) {
+        return runPackages(startDirectory, cacheRoot, selectionRequest, arguments, Optional.empty());
+    }
+
+    public WorkspaceRunPackageResult runPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            List<String> arguments,
+            Optional<PackageMode> packageModeOverride) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt run-package --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspacePackageResult packageResult = workspacePackageService.packageJars(start, cacheRoot, selectionRequest);
+        WorkspacePackageResult packageResult = workspacePackageService.packageJars(
+                start,
+                cacheRoot,
+                selectionRequest,
+                packageModeOverride);
 
         ZoltLockfile lockfile = lockfileReader.read(workspace.root().resolve("zolt.lock"));
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);

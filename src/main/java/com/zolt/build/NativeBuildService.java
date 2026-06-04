@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;
 import java.util.List;
@@ -44,7 +45,10 @@ public final class NativeBuildService {
             Path nativeImageExecutable) {
         String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
                 "Native Image main class is missing. Add [project].main to zolt.toml."));
-        PackageResult packageResult = packageService.packageJar(projectDirectory, config, cacheRoot);
+        PackageResult packageResult = packageService.packageJar(
+                projectDirectory,
+                config.withPackageSettings(PackageSettings.defaults()),
+                cacheRoot);
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));

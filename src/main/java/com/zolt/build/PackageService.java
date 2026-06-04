@@ -4,6 +4,7 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -41,6 +42,7 @@ public final class PackageService {
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        ensureSupportedPackageMode(config.packageSettings().mode());
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
         return packageJar(projectDirectory, config, buildResult, cacheRoot);
     }
@@ -50,6 +52,7 @@ public final class PackageService {
             ProjectConfig config,
             BuildResult buildResult,
             Path cacheRoot) {
+        ensureSupportedPackageMode(config.packageSettings().mode());
         return packageJar(projectDirectory, config, buildResult, Optional.of(cacheRoot));
     }
 
@@ -57,6 +60,7 @@ public final class PackageService {
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult) {
+        ensureSupportedPackageMode(config.packageSettings().mode());
         return packageJar(projectDirectory, config, buildResult, Optional.empty());
     }
 
@@ -65,6 +69,7 @@ public final class PackageService {
             ProjectConfig config,
             BuildResult buildResult,
             Optional<Path> cacheRoot) {
+        PackageMode mode = config.packageSettings().mode();
         Path outputDirectory = buildResult.outputDirectory();
         if (!Files.isDirectory(outputDirectory)) {
             throw new PackageException(
@@ -96,6 +101,7 @@ public final class PackageService {
             }
             return new PackageResult(
                     buildResult,
+                    mode,
                     jarPath,
                     writtenRuntimeClasspathPath,
                     files.size(),
@@ -107,6 +113,23 @@ public final class PackageService {
                             + ". Check that target/ is writable and try again.",
                     exception);
         }
+    }
+
+    private static void ensureSupportedPackageMode(PackageMode mode) {
+        if (mode == PackageMode.THIN) {
+            return;
+        }
+        String nextStep = switch (mode) {
+            case SPRING_BOOT -> "until  lands";
+            case UBER -> "until uber jar support lands";
+            case THIN -> "";
+        };
+        throw new PackageException(
+                "Package mode `"
+                        + mode.configValue()
+                        + "` is not implemented yet. Use `zolt package --mode thin` or set [package].mode = \"thin\" "
+                        + nextStep
+                        + ".");
     }
 
     private void writeRuntimeClasspath(

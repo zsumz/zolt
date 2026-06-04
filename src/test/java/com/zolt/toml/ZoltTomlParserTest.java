@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;
 import java.util.List;
@@ -39,6 +40,7 @@ final class ZoltTomlParserTest {
         assertEquals("target/test-classes", config.build().testOutput());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
         assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
+        assertEquals(PackageMode.THIN, config.packageSettings().mode());
     }
 
     @Test
@@ -74,6 +76,7 @@ final class ZoltTomlParserTest {
         assertEquals("target/classes", config.build().output());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
         assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
+        assertEquals(PackageMode.THIN, config.packageSettings().mode());
         assertEquals("", config.nativeSettings().imageName());
         assertEquals("target/native", config.nativeSettings().output());
         assertTrue(config.nativeSettings().args().isEmpty());
@@ -297,6 +300,62 @@ final class ZoltTomlParserTest {
 
         assertEquals("build/generated/main", config.compilerSettings().generatedSources());
         assertEquals("build/generated/test", config.compilerSettings().generatedTestSources());
+    }
+
+    @Test
+    void parsesPackageSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "boot"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "spring-boot"
+                """);
+
+        assertEquals(PackageMode.SPRING_BOOT, config.packageSettings().mode());
+    }
+
+    @Test
+    void rejectsUnknownPackageMode() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [package]
+                        mode = "war"
+                        """));
+
+        assertEquals(
+                "Unsupported package mode `war` in zolt.toml. Supported package modes are: thin, spring-boot, uber.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnknownPackageField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [package]
+                        classifier = "all"
+                        """));
+
+        assertEquals(
+                "Unknown field [package].classifier in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
     }
 
     @Test

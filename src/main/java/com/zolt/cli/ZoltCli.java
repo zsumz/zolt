@@ -45,6 +45,8 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.project.DependencySection;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
@@ -91,6 +93,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -993,6 +996,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
         private List<String> memberGroups = List.of();
 
+        @Option(names = "--mode", description = "Package mode: thin, spring-boot, or uber.")
+        private String mode;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1005,11 +1011,13 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
                 if (workspace) {
                     WorkspacePackageResult result = new WorkspacePackageService().packageJars(
                             workingDirectory,
                             cacheRoot,
-                            workspaceSelection(all, members, memberGroups));
+                            workspaceSelection(all, members, memberGroups),
+                            packageModeOverride);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -1017,7 +1025,9 @@ public final class ZoltCli implements Runnable {
                         spec.commandLine().getOut().println(
                                 "Packaged "
                                         + member.result().entryCount()
-                                        + " compiled files in "
+                                        + " compiled files as "
+                                        + member.result().mode().configValue()
+                                        + " jar in "
                                         + member.member());
                         if (member.result().hasMainClass()) {
                             spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
@@ -1027,15 +1037,22 @@ public final class ZoltCli implements Runnable {
                     spec.commandLine().getOut().println(
                             "Packaged "
                                     + result.members().size()
-                                    + " workspace members into thin jars");
+                                    + " workspace members");
                     return;
                 }
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                ProjectConfig config = withPackageModeOverride(
+                        new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
+                        packageModeOverride);
                 PackageResult result = new PackageService().packageJar(workingDirectory, config, cacheRoot);
                 if (result.buildResult().resolvedLockfile()) {
                     spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
                 }
-                spec.commandLine().getOut().println("Packaged " + result.entryCount() + " compiled files");
+                spec.commandLine().getOut().println(
+                        "Packaged "
+                                + result.entryCount()
+                                + " compiled files as "
+                                + result.mode().configValue()
+                                + " jar");
                 if (result.hasMainClass()) {
                     spec.commandLine().getOut().println("Included Main-Class manifest entry");
                     spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
@@ -1080,6 +1097,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
         private List<String> memberGroups = List.of();
 
+        @Option(names = "--mode", description = "Package mode: thin, spring-boot, or uber.")
+        private String mode;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1092,12 +1112,14 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
                 if (workspace) {
                     WorkspaceRunPackageResult result = new WorkspaceRunPackageService().runPackages(
                             workingDirectory,
                             cacheRoot,
                             workspaceSelection(all, members, memberGroups),
-                            arguments);
+                            arguments,
+                            packageModeOverride);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -1116,7 +1138,9 @@ public final class ZoltCli implements Runnable {
                     }
                     return;
                 }
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                ProjectConfig config = withPackageModeOverride(
+                        new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
+                        packageModeOverride);
                 RunPackageResult result = new RunPackageService().runPackage(
                         workingDirectory,
                         config,
@@ -1515,6 +1539,26 @@ public final class ZoltCli implements Runnable {
     private static void printAndFlush(CommandSpec spec, String output) {
         spec.commandLine().getOut().print(output);
         spec.commandLine().getOut().flush();
+    }
+
+    private static Optional<PackageMode> packageModeOverride(String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(PackageMode.fromConfigValue(value).orElseThrow(() -> new PackageException(
+                "Unsupported package mode `"
+                        + value
+                        + "`. Supported package modes are: "
+                        + PackageMode.supportedValues()
+                        + ".")));
+    }
+
+    private static ProjectConfig withPackageModeOverride(
+            ProjectConfig config,
+            Optional<PackageMode> packageModeOverride) {
+        return packageModeOverride
+                .map(mode -> config.withPackageSettings(new PackageSettings(mode)))
+                .orElse(config);
     }
 
     private static String firstLine(String value) {

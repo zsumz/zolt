@@ -1,12 +1,16 @@
 package com.zolt.workspace;
 
 import com.zolt.build.PackageService;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
+import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class WorkspacePackageService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
@@ -37,6 +41,14 @@ public final class WorkspacePackageService {
             Path startDirectory,
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest) {
+        return packageJars(startDirectory, cacheRoot, selectionRequest, Optional.empty());
+    }
+
+    public WorkspacePackageResult packageJars(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            Optional<PackageMode> packageModeOverride) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt package --workspace` from a workspace directory or create zolt-workspace.toml."));
@@ -49,11 +61,14 @@ public final class WorkspacePackageService {
         for (String memberPath : selection.selectedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
+            ProjectConfig memberConfig = packageModeOverride
+                    .map(mode -> member.config().withPackageSettings(new PackageSettings(mode)))
+                    .orElse(member.config());
             results.add(new WorkspacePackageResult.MemberPackageResult(
                     member.path(),
                     packageService.packageJar(
                             member.directory(),
-                            member.config(),
+                            memberConfig,
                             memberBuild.result())));
         }
         return new WorkspacePackageResult(buildResult.resolveResult(), buildResult.members(), results);

@@ -3,6 +3,8 @@ package com.zolt.toml;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
@@ -31,10 +33,12 @@ public final class ZoltTomlParser {
             "test",
             "build",
             "compiler",
+            "package",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput");
     private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
+    private static final Set<String> PACKAGE_KEYS = Set.of("mode");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
 
     public ProjectConfig parse(Path path) {
@@ -112,6 +116,7 @@ public final class ZoltTomlParser {
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         build = parseTestSources(testTable, build);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
+        PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
         return new ProjectConfig(
@@ -133,7 +138,8 @@ public final class ZoltTomlParser {
                 testAnnotationProcessors.managed(),
                 build,
                 nativeSettings,
-                compilerSettings);
+                compilerSettings,
+                packageSettings);
     }
 
     private static BuildSettings parseBuild(TomlTable buildTable) {
@@ -181,6 +187,30 @@ public final class ZoltTomlParser {
                         "compiler",
                         "generatedTestSources",
                         defaults.generatedTestSources()));
+    }
+
+    private static PackageSettings parsePackage(TomlTable packageTable) {
+        if (packageTable == null) {
+            return PackageSettings.defaults();
+        }
+
+        validateKeys("package", packageTable, PACKAGE_KEYS);
+        Object rawMode = packageTable.get(List.of("mode"));
+        if (rawMode == null) {
+            return PackageSettings.defaults();
+        }
+        if (!(rawMode instanceof String mode) || mode.isBlank()) {
+            throw new ZoltConfigException(
+                    "Invalid value for [package].mode in zolt.toml. Use one of: "
+                            + PackageMode.supportedValues()
+                            + ".");
+        }
+        return new PackageSettings(PackageMode.fromConfigValue(mode).orElseThrow(() -> new ZoltConfigException(
+                "Unsupported package mode `"
+                        + mode
+                        + "` in zolt.toml. Supported package modes are: "
+                        + PackageMode.supportedValues()
+                        + ".")));
     }
 
     private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {

@@ -8,6 +8,8 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.util.List;
@@ -74,6 +76,7 @@ final class ZoltTomlWriterTest {
         assertEquals(original.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
         assertEquals(original.build(), parsed.build());
         assertEquals(original.compilerSettings(), parsed.compilerSettings());
+        assertEquals(original.packageSettings(), parsed.packageSettings());
     }
 
     @Test
@@ -238,6 +241,19 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesPackageSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[package]\n"));
+        assertTrue(toml.contains("mode = \"spring-boot\""));
+        assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
     void preservesCompilerSettingsWhenEditingDependencies() {
         ProjectConfig config = configWithCompilerSettings();
         config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
@@ -246,6 +262,18 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(writer.write(config));
 
         assertEquals(config.compilerSettings(), parsed.compilerSettings());
+    }
+
+    @Test
+    void preservesPackageSettingsWhenEditingDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withPackageSettings(new PackageSettings(PackageMode.UBER));
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.packageSettings(), parsed.packageSettings());
     }
 
     @Test

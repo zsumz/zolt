@@ -1931,9 +1931,9 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved workspace dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("Packaged 1 compiled files in apps/api"));
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar in apps/api"));
         assertTrue(result.stdout().contains("Included Main-Class manifest entry in apps/api"));
-        assertTrue(result.stdout().contains("Packaged 1 workspace members into thin jars"));
+        assertTrue(result.stdout().contains("Packaged 1 workspace members"));
         assertTrue(Files.exists(apiDir.resolve("target/api-0.1.0.jar")));
         assertFalse(Files.exists(coreDir.resolve("target/core-0.1.0.jar")));
     }
@@ -2185,7 +2185,7 @@ final class ZoltCliTest {
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("Packaged 1 compiled files"));
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
         assertTrue(result.stdout().contains("Included Main-Class manifest entry"));
         assertTrue(result.stdout().contains("Run with: java -jar " + jarPath));
         assertTrue(result.stdout().contains("Run with dependencies: zolt run-package -- [args]"));
@@ -2201,6 +2201,70 @@ final class ZoltCliTest {
                     "com.example.Main",
                     jar.getManifest().getMainAttributes().getValue(Attributes.Name.MAIN_CLASS));
         }
+    }
+
+    @Test
+    void packageModeOverrideUsesThinForCurrentCommandOnly() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [package]
+                mode = "spring-boot"
+                """);
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--mode", "thin",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
+        assertTrue(Files.readString(projectDir.resolve("zolt.toml")).contains("mode = \"spring-boot\""));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
+    void packageRejectsConfiguredSpringBootModeUntilImplemented() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [package]
+                mode = "spring-boot"
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Package mode `spring-boot` is not implemented yet"));
+        assertTrue(result.stderr().contains(""));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
+    void packageRejectsUnknownModeOverride() {
+        CommandResult result = execute(
+                "package",
+                "--mode", "war",
+                "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Unsupported package mode `war`"));
+        assertTrue(result.stderr().contains("thin, spring-boot, uber"));
     }
 
     @Test

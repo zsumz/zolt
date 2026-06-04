@@ -136,7 +136,8 @@ public final class WorkspaceResolveService {
                 config.managedTestAnnotationProcessors(),
                 config.build(),
                 config.nativeSettings(),
-                config.compilerSettings());
+                config.compilerSettings(),
+                config.packageSettings());
     }
 
     private static Map<String, String> mergedPolicy(

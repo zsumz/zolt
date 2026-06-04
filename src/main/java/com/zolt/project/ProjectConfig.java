@@ -22,7 +22,8 @@ public record ProjectConfig(
         Set<String> managedTestAnnotationProcessors,
         BuildSettings build,
         NativeSettings nativeSettings,
-        CompilerSettings compilerSettings) {
+        CompilerSettings compilerSettings,
+        PackageSettings packageSettings) {
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
@@ -43,6 +44,50 @@ public record ProjectConfig(
         managedTestAnnotationProcessors = Set.copyOf(managedTestAnnotationProcessors);
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
+        packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            BuildSettings build,
+            NativeSettings nativeSettings,
+            CompilerSettings compilerSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                PackageSettings.defaults());
     }
 
     public ProjectConfig(
@@ -100,15 +145,10 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
-                Map.of(),
-                Set.of(),
-                Map.of(),
                 dependencies,
                 managedDependencies,
-                Map.of(),
                 testDependencies,
                 managedTestDependencies,
-                Map.of(),
                 annotationProcessors,
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
@@ -228,5 +268,29 @@ public record ProjectConfig(
 
     public static Map<String, String> defaultRepositories() {
         return Map.of("central", MAVEN_CENTRAL);
+    }
+
+    public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
+        return new ProjectConfig(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings);
     }
 }

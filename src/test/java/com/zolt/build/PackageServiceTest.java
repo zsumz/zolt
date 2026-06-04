@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.InputStream;
@@ -48,6 +50,7 @@ final class PackageServiceTest {
                 projectDir.resolve("cache"));
 
         assertEquals(projectDir.resolve("target/demo-0.1.0.jar"), result.jarPath());
+        assertEquals(PackageMode.THIN, result.mode());
         assertEquals(1, result.entryCount());
         assertTrue(result.hasMainClass());
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
@@ -111,6 +114,30 @@ final class PackageServiceTest {
 
         assertTrue(exception.getMessage().contains("Duplicate jar entry `META-INF/MANIFEST.MF`"));
         assertTrue(exception.getMessage().contains("Remove or rename the duplicate resource"));
+    }
+
+    @Test
+    void unsupportedPackageModeFailsBeforeWritingJar() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+
+        PackageException exception = assertThrows(
+                PackageException.class,
+                () -> packageService.packageJar(projectDir, config, projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("Package mode `spring-boot` is not implemented yet"));
+        assertTrue(exception.getMessage().contains("Use `zolt package --mode thin`"));
+        assertTrue(exception.getMessage().contains(""));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
     @Test

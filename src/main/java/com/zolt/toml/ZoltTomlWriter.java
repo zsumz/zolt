@@ -4,6 +4,8 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
@@ -72,6 +74,7 @@ public final class ZoltTomlWriter {
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
         writeCompiler(toml, config.compilerSettings());
+        writePackage(toml, config.packageSettings());
         writeNative(toml, config.nativeSettings());
         return toml.toString();
     }
@@ -101,7 +104,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -121,7 +125,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -141,7 +146,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -161,7 +167,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST_PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -181,7 +188,8 @@ public final class ZoltTomlWriter {
                     remove(config.managedTestAnnotationProcessors(), coordinate),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
         };
     }
 
@@ -206,7 +214,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -226,7 +235,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -246,7 +256,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -266,7 +277,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST_PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -286,7 +298,8 @@ public final class ZoltTomlWriter {
                     add(config.managedTestAnnotationProcessors(), coordinate),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
         };
     }
 
@@ -311,7 +324,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -331,7 +345,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -351,7 +366,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -371,7 +387,8 @@ public final class ZoltTomlWriter {
                     config.managedTestAnnotationProcessors(),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
             case TEST_PROCESSOR -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -391,7 +408,8 @@ public final class ZoltTomlWriter {
                     remove(config.managedTestAnnotationProcessors(), coordinate),
                     config.build(),
                     config.nativeSettings(),
-                    config.compilerSettings());
+                    config.compilerSettings(),
+                    config.packageSettings());
         };
     }
 
@@ -415,7 +433,8 @@ public final class ZoltTomlWriter {
                 config.managedTestAnnotationProcessors(),
                 config.build(),
                 config.nativeSettings(),
-                config.compilerSettings());
+                config.compilerSettings(),
+                config.packageSettings());
     }
 
     public ProjectConfig removePlatform(ProjectConfig config, String coordinate) {
@@ -438,7 +457,8 @@ public final class ZoltTomlWriter {
                 config.managedTestAnnotationProcessors(),
                 config.build(),
                 config.nativeSettings(),
-                config.compilerSettings());
+                config.compilerSettings(),
+                config.packageSettings());
     }
 
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
@@ -476,6 +496,14 @@ public final class ZoltTomlWriter {
         toml.append("\n[compiler]\n");
         writeAssignment(toml, "generatedSources", compilerSettings.generatedSources());
         writeAssignment(toml, "generatedTestSources", compilerSettings.generatedTestSources());
+    }
+
+    private static void writePackage(StringBuilder toml, PackageSettings packageSettings) {
+        if (packageSettings == null || packageSettings.mode() == PackageMode.THIN) {
+            return;
+        }
+        toml.append("\n[package]\n");
+        writeAssignment(toml, "mode", packageSettings.mode().configValue());
     }
 
     private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {

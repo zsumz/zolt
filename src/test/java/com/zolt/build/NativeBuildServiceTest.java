@@ -9,6 +9,8 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageMode;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
@@ -46,7 +48,8 @@ final class NativeBuildServiceTest {
 
         NativeBuildResult result = service.buildNative(
                 projectDir,
-                config(Optional.of("com.example.Main")),
+                config(Optional.of("com.example.Main"))
+                        .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT)),
                 cacheRoot,
                 Path.of("custom-native-image"));
 
@@ -55,6 +58,7 @@ final class NativeBuildServiceTest {
         Path outputBinary = projectDir.resolve("target/native-custom/demo-native");
         Path logFile = projectDir.resolve("target/native-custom/native-image.log");
         assertEquals(jarPath, result.packageResult().jarPath());
+        assertEquals(PackageMode.THIN, result.packageResult().mode());
         assertEquals(outputBinary, result.nativeImageResult().outputBinary());
         assertEquals(logFile, result.nativeImageResult().logFile());
         assertTrue(Files.exists(jarPath));
