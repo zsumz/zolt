@@ -1,0 +1,7 @@
+[workspace]
+name = "workspace-app"
+members = ["apps/api", "modules/core"]
+defaultMembers = ["apps/api"]
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
