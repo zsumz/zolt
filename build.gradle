@@ -212,83 +212,23 @@ tasks.register('selfHostingParityCheck') {
         }
 
         zoltCommand([
-                'resolve',
-                '--locked',
+                'self-check',
                 '--cache-root',
                 cacheDir.absolutePath
         ])
         zoltCommand([
-                'resolve',
-                '--locked',
+                'self-check',
                 '--offline',
                 '--cache-root',
                 cacheDir.absolutePath
         ])
         zoltCommand([
-                'build',
-                '--offline',
+                'self-parity',
+                '--bootstrap-jar',
+                bootstrapJar.absolutePath,
                 '--cache-root',
                 cacheDir.absolutePath
         ])
-        zoltCommand([
-                'package',
-                '--cache-root',
-                cacheDir.absolutePath
-        ])
-
-        def zoltJar = file("target/${project.name}-${project.version}.jar")
-        if (!zoltJar.isFile()) {
-            throw new GradleException("Self-hosting parity failed: expected Zolt-built jar at ${zoltJar}. Run zolt package and retry.")
-        }
-
-        def bootstrapEntries = comparableJarEntries(bootstrapJar)
-        def zoltEntries = comparableJarEntries(zoltJar)
-        def missing = bootstrapEntries - zoltEntries
-        def extra = zoltEntries - bootstrapEntries
-        if (!missing.isEmpty() || !extra.isEmpty()) {
-            throw new GradleException(
-                    "Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.\n"
-                            + "Missing from Zolt-built jar:\n"
-                            + formatEntries(missing)
-                            + "\nExtra in Zolt-built jar:\n"
-                            + formatEntries(extra)
-                            + "\nRun ./gradlew selfHostingParityCheck after reviewing source/resource packaging changes.")
-        }
-
-        def jarExecution = providers.exec {
-            commandLine javaExecutable.get(),
-                    '-cp',
-                    files(zoltJar, configurations.runtimeClasspath).asPath,
-                    application.mainClass.get(),
-                    '--version'
-        }
-        def jarOutput = jarExecution.standardOutput.asText.get() + jarExecution.standardError.asText.get()
-        jarExecution.result.get().assertNormalExitValue()
-        if (!jarOutput.contains("zolt ${project.version}")) {
-            throw new GradleException(
-                    "Self-hosting parity failed: Zolt-built jar did not print expected version zolt ${project.version}. Output was:\n"
-                            + jarOutput)
-        }
-
-        logger.lifecycle("Self-hosting parity check passed for ${bootstrapJar} and ${zoltJar}")
+        logger.lifecycle("Self-hosting parity check passed for ${bootstrapJar}")
     }
-}
-
-static Set<String> comparableJarEntries(File jarFile) {
-    def entries = new TreeSet<String>()
-    new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
-        zip.entries().each { entry ->
-            if (!entry.directory && entry.name != 'META-INF/MANIFEST.MF') {
-                entries.add(entry.name)
-            }
-        }
-    }
-    entries
-}
-
-static String formatEntries(Set<String> entries) {
-    if (entries.isEmpty()) {
-        return '  <none>'
-    }
-    entries.take(50).collect { "  - ${it}" }.join('\n')
 }

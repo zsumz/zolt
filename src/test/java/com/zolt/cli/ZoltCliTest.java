@@ -76,6 +76,7 @@ final class ZoltCliTest {
                 "release-archive",
                 "release-verify",
                 "self-check",
+                "self-parity",
                 "clean",
                 "doctor")));
     }
