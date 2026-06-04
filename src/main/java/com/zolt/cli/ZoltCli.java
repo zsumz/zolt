@@ -33,6 +33,8 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.doctor.SelfHostingCheckResult;
+import com.zolt.doctor.SelfHostingCheckService;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
 import com.zolt.ide.WorkspaceIdeModelJsonWriter;
@@ -1267,6 +1269,9 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "doctor", description = "Inspect local Java/JDK/Zolt project health.")
     public static final class DoctorCommand implements Runnable {
+        @Option(names = "--self-hosting", description = "Check whether the project is ready for Zolt-owned self-hosting flows.")
+        private boolean selfHosting;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1279,8 +1284,14 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 JdkStatus status = new JdkDetector().detect(config.project().java());
                 printJdkStatus(spec, status);
-                if (!status.ok()) {
-                    throw new CommandLine.ExecutionException(spec.commandLine(), "JDK check failed.");
+                boolean ok = status.ok();
+                if (selfHosting) {
+                    SelfHostingCheckResult result = new SelfHostingCheckService().check(workingDirectory);
+                    printSelfHostingStatus(spec, result);
+                    ok = ok && result.ok();
+                }
+                if (!ok) {
+                    throw new CommandLine.ExecutionException(spec.commandLine(), "Project health check failed.");
                 }
             } catch (ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
@@ -1350,6 +1361,14 @@ public final class ZoltCli implements Runnable {
         spec.commandLine().getOut().println("version: " + status.version().orElse("unknown"));
         for (String problem : status.problems()) {
             spec.commandLine().getErr().println("error: " + problem);
+        }
+    }
+
+    private static void printSelfHostingStatus(CommandSpec spec, SelfHostingCheckResult result) {
+        spec.commandLine().getOut().println("Self-hosting status: " + (result.ok() ? "ok" : "error"));
+        for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
+            String marker = check.ok() ? "ok" : "error";
+            spec.commandLine().getOut().println(marker + ": " + check.name() + " - " + check.message());
         }
     }
 
