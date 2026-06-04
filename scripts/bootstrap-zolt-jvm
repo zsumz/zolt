@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+CACHE_ROOT="${ZOLT_CACHE_ROOT:-.zolt/cache}"
+BOOTSTRAP_DIR="${ZOLT_BOOTSTRAP_DIR:-build/bootstrap-zolt}"
+BOOTSTRAP_CLASSES="${BOOTSTRAP_DIR}/classes"
+BOOTSTRAP_JAR="${BOOTSTRAP_DIR}/zolt-bootstrap.jar"
+SOURCE_LIST="${BOOTSTRAP_DIR}/sources.list"
+LOCKFILE="${ZOLT_LOCKFILE:-zolt.lock}"
+MAVEN_CENTRAL="${ZOLT_MAVEN_CENTRAL:-https://repo.maven.apache.org/maven2}"
+
+if [[ ! -f "$LOCKFILE" ]]; then
+  printf 'error: bootstrap lockfile does not exist at %s\n' "$LOCKFILE" >&2
+  printf 'hint: run zolt resolve before scripts/bootstrap-zolt-jvm\n' >&2
+  exit 1
+fi
+
+if ! command -v javac >/dev/null 2>&1; then
+  printf 'error: javac is required for scripts/bootstrap-zolt-jvm\n' >&2
+  printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
+  exit 1
+fi
+
+if ! command -v jar >/dev/null 2>&1; then
+  printf 'error: jar is required for scripts/bootstrap-zolt-jvm\n' >&2
+  printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
+  exit 1
+fi
+
+checksum() {
+  if command -v shasum >/dev/null 2>&1; then
+    LC_ALL=C LANG=C shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    LC_ALL=C LANG=C sha256sum "$1" | awk '{print $1}'
+  else
+    printf 'error: shasum or sha256sum is required for scripts/bootstrap-zolt-jvm\n' >&2
+    exit 1
+  fi
+}
+
+ensure_artifact() {
+  local jar_path="$1"
+  local expected_sha="$2"
+  local artifact="${CACHE_ROOT}/${jar_path}"
+
+  if [[ ! -f "$artifact" ]]; then
+    if ! command -v curl >/dev/null 2>&1; then
+      printf 'error: bootstrap artifact is missing and curl is not available: %s\n' "$artifact" >&2
+      printf 'hint: seed %s or install curl before scripts/bootstrap-zolt-jvm\n' "$CACHE_ROOT" >&2
+      exit 1
+    fi
+    mkdir -p "$(dirname "$artifact")"
+    curl -fsSL "${MAVEN_CENTRAL}/${jar_path}" -o "$artifact"
+  fi
+
+  local actual_sha
+  actual_sha="$(checksum "$artifact")"
+  if [[ "$actual_sha" != "$expected_sha" ]]; then
+    printf 'error: checksum mismatch for bootstrap artifact %s\n' "$artifact" >&2
+    printf 'expected: %s\n' "$expected_sha" >&2
+    printf 'actual:   %s\n' "$actual_sha" >&2
+    printf 'hint: delete the corrupt artifact and rerun scripts/bootstrap-zolt-jvm\n' >&2
+    exit 1
+  fi
+}
+
+classpath=""
+while IFS='|' read -r scope jar_path jar_sha; do
+  if [[ -z "$jar_path" ]]; then
+    continue
+  fi
+  ensure_artifact "$jar_path" "$jar_sha"
+  artifact="${CACHE_ROOT}/${jar_path}"
+  if [[ -z "$classpath" ]]; then
+    classpath="$artifact"
+  else
+    classpath="${classpath}:${artifact}"
+  fi
+done < <(awk '
+  /^\[\[package\]\]/ {
+    scope = ""
+    jar = ""
+    sha = ""
+  }
+  /^scope = / {
+    scope = $3
+    gsub(/"/, "", scope)
+  }
+  /^jar = / {
+    jar = $3
+    gsub(/"/, "", jar)
+  }
+  /^jarSha256 = / {
+    sha = $3
+    gsub(/"/, "", sha)
+    if (scope != "test") {
+      print scope "|" jar "|" sha
+    }
+  }
+' "$LOCKFILE")
+
+if [[ -z "$classpath" ]]; then
+  printf 'error: no compile/runtime bootstrap artifacts were found in %s\n' "$LOCKFILE" >&2
+  printf 'hint: check that zolt.lock contains non-test package entries\n' >&2
+  exit 1
+fi
+
+mkdir -p "$BOOTSTRAP_CLASSES"
+mkdir -p "$BOOTSTRAP_DIR"
+find "$BOOTSTRAP_CLASSES" -mindepth 1 -delete
+find src/main/java -name '*.java' -print | sort > "$SOURCE_LIST"
+
+if [[ ! -s "$SOURCE_LIST" ]]; then
+  printf 'error: no Java source files found under src/main/java\n' >&2
+  printf 'hint: check the repository layout before scripts/bootstrap-zolt-jvm\n' >&2
+  exit 1
+fi
+
+javac --release 21 -cp "$classpath" -d "$BOOTSTRAP_CLASSES" @"$SOURCE_LIST"
+
+if [[ -d src/main/resources ]]; then
+  cp -R src/main/resources/. "$BOOTSTRAP_CLASSES"/
+fi
+
+jar --create --file "$BOOTSTRAP_JAR" --main-class com.zolt.cli.ZoltCli -C "$BOOTSTRAP_CLASSES" .
+
+exec java -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
