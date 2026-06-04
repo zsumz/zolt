@@ -60,6 +60,8 @@ import com.zolt.release.ReleaseTarget;
 import com.zolt.release.ReleaseVerificationException;
 import com.zolt.release.ReleaseVerificationResult;
 import com.zolt.release.ReleaseVerificationService;
+import com.zolt.selfhost.SelfCheckResult;
+import com.zolt.selfhost.SelfCheckService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
@@ -115,6 +117,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.NativeCommand.class,
                 ZoltCli.ReleaseArchiveCommand.class,
                 ZoltCli.ReleaseVerifyCommand.class,
+                ZoltCli.SelfCheckCommand.class,
                 ZoltCli.CleanCommand.class,
                 ZoltCli.DoctorCommand.class
         })
@@ -1236,6 +1239,30 @@ public final class ZoltCli implements Runnable {
         }
     }
 
+    @Command(name = "self-check", description = "Run the JVM self-hosting verification path.")
+    public static final class SelfCheckCommand implements Runnable {
+        @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
+        private boolean offline;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            SelfCheckResult result = new SelfCheckService().check(workingDirectory, cacheRoot, offline);
+            printSelfCheckStatus(spec, result);
+            if (!result.ok()) {
+                throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");
+            }
+        }
+    }
+
     @Command(name = "clean", description = "Remove project build output.")
     public static final class CleanCommand implements Runnable {
         @Option(names = "--cwd", hidden = true)
@@ -1369,6 +1396,14 @@ public final class ZoltCli implements Runnable {
         for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
             String marker = check.ok() ? "ok" : "error";
             spec.commandLine().getOut().println(marker + ": " + check.name() + " - " + check.message());
+        }
+    }
+
+    private static void printSelfCheckStatus(CommandSpec spec, SelfCheckResult result) {
+        spec.commandLine().getOut().println("Self-check status: " + (result.ok() ? "ok" : "error"));
+        for (SelfCheckResult.SelfCheckStep step : result.steps()) {
+            String marker = step.ok() ? "ok" : "error";
+            spec.commandLine().getOut().println(marker + ": " + step.name() + " - " + step.message());
         }
     }
 

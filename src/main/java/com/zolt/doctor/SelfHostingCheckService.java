@@ -24,6 +24,11 @@ public final class SelfHostingCheckService {
     public SelfHostingCheckResult check(Path projectDirectory) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         ProjectConfig config = tomlParser.parse(root.resolve("zolt.toml"));
+        return check(root, config);
+    }
+
+    public SelfHostingCheckResult check(Path projectDirectory, ProjectConfig config) {
+        Path root = projectDirectory.toAbsolutePath().normalize();
         List<SelfHostingCheckResult.SelfHostingCheck> checks = new ArrayList<>();
         add(checks, "main class",
                 config.project().main().isPresent(),

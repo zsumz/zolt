@@ -1,0 +1,146 @@
+package com.zolt.selfhost;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.build.BuildResult;
+import com.zolt.build.PackageResult;
+import com.zolt.build.TestCompileResult;
+import com.zolt.build.TestRunResult;
+import com.zolt.doctor.SelfHostingCheckService;
+import com.zolt.resolve.ResolveResult;
+import com.zolt.toml.ZoltTomlParser;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class SelfCheckServiceTest {
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void runsJvmSelfHostingPathInOrder() throws IOException {
+        writeSelfHostingProject(true);
+        List<String> calls = new ArrayList<>();
+        SelfCheckService service = new SelfCheckService(
+                new ZoltTomlParser(),
+                new SelfHostingCheckService(),
+                (projectDirectory, config, cacheRoot, offline) -> {
+                    calls.add("resolve:" + offline);
+                    return new ResolveResult(3, 0, 0, projectDirectory.resolve("zolt.lock"));
+                },
+                (projectDirectory, config, cacheRoot, offline) -> {
+                    calls.add("build:" + offline);
+                    return buildResult(projectDirectory, 12);
+                },
+                (projectDirectory, config, cacheRoot) -> {
+                    calls.add("test");
+                    BuildResult buildResult = buildResult(projectDirectory, 12);
+                    TestCompileResult compileResult = new TestCompileResult(
+                            buildResult,
+                            34,
+                            0,
+                            projectDirectory.resolve("target/test-classes"),
+                            "");
+                    return new TestRunResult(compileResult, "Tests passed\n");
+                },
+                (projectDirectory, config, buildResult) -> {
+                    calls.add("package:" + buildResult.sourceCount());
+                    return new PackageResult(
+                            buildResult,
+                            projectDirectory.resolve("target/demo-0.1.0.jar"),
+                            46,
+                            true);
+                });
+
+        SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), true);
+
+        assertTrue(result.ok());
+        assertEquals(List.of("resolve:true", "build:true", "test", "package:12"), calls);
+        assertEquals(List.of(
+                        "doctor --self-hosting",
+                        "resolve --locked",
+                        "build",
+                        "test",
+                        "package"),
+                result.steps().stream().map(SelfCheckResult.SelfCheckStep::name).toList());
+        assertTrue(result.steps().getLast().message().contains("target/demo-0.1.0.jar"));
+    }
+
+    @Test
+    void stopsWhenReadinessCheckFails() throws IOException {
+        writeSelfHostingProject(false);
+        SelfCheckService service = new SelfCheckService(
+                new ZoltTomlParser(),
+                new SelfHostingCheckService(),
+                (projectDirectory, config, cacheRoot, offline) -> {
+                    throw new AssertionError("resolve should not run");
+                },
+                (projectDirectory, config, cacheRoot, offline) -> {
+                    throw new AssertionError("build should not run");
+                },
+                (projectDirectory, config, cacheRoot) -> {
+                    throw new AssertionError("test should not run");
+                },
+                (projectDirectory, config, buildResult) -> {
+                    throw new AssertionError("package should not run");
+                });
+
+        SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), false);
+
+        assertFalse(result.ok());
+        assertEquals(1, result.steps().size());
+        assertEquals("doctor --self-hosting", result.steps().getFirst().name());
+        assertTrue(result.steps().getFirst().message().contains("JUnit Platform Console"));
+    }
+
+    private BuildResult buildResult(Path projectDirectory, int sourceCount) {
+        return new BuildResult(
+                Optional.empty(),
+                sourceCount,
+                0,
+                projectDirectory.resolve("target/classes"),
+                "");
+    }
+
+    private void writeSelfHostingProject(boolean includeTestRunner) throws IOException {
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
+        Files.createDirectories(tempDir.resolve("src/main/java"));
+        Files.createDirectories(tempDir.resolve("src/test/java"));
+        Files.writeString(tempDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                main = "com.example.Main"
+
+                [repositories]
+                central = "https://repo.maven.apache.org/maven2"
+
+                %s
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+
+                [native]
+                imageName = "demo"
+                output = "target/native"
+                args = ["--no-fallback"]
+                """.formatted(includeTestRunner
+                ? """
+                [test.dependencies]
+                "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+
+                """
+                : ""));
+    }
+}

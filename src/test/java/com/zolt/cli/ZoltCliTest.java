@@ -75,6 +75,7 @@ final class ZoltCliTest {
                 "native",
                 "release-archive",
                 "release-verify",
+                "self-check",
                 "clean",
                 "doctor")));
     }
