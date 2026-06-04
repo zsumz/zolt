@@ -1239,10 +1239,16 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    @Command(name = "self-check", description = "Run the JVM self-hosting verification path.")
+    @Command(name = "self-check", description = "Run the self-hosting verification path.")
     public static final class SelfCheckCommand implements Runnable {
         @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
         private boolean offline;
+
+        @Option(names = "--native", description = "Also build and smoke the Native Image binary.")
+        private boolean nativeCheck;
+
+        @Option(names = "--native-image", description = "Path to the native-image executable.")
+        private Path nativeImageExecutable;
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -1255,7 +1261,12 @@ public final class ZoltCli implements Runnable {
 
         @Override
         public void run() {
-            SelfCheckResult result = new SelfCheckService().check(workingDirectory, cacheRoot, offline);
+            SelfCheckResult result = new SelfCheckService().check(
+                    workingDirectory,
+                    cacheRoot,
+                    offline,
+                    nativeCheck,
+                    nativeImageExecutable);
             printSelfCheckStatus(spec, result);
             if (!result.ok()) {
                 throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");

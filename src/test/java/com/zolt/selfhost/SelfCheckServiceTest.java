@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.JavaRunResult;
+import com.zolt.build.NativeBuildResult;
+import com.zolt.build.NativeImageResult;
 import com.zolt.build.PackageResult;
 import com.zolt.build.RunPackageResult;
 import com.zolt.build.TestCompileResult;
@@ -65,6 +67,12 @@ final class SelfCheckServiceTest {
                     return new RunPackageResult(
                             packageResult,
                             new JavaRunResult("com.example.Main", "demo 0.1.0\n"));
+                },
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
+                    throw new AssertionError("native should not run");
+                },
+                (binary, arguments) -> {
+                    throw new AssertionError("native binary should not run");
                 });
 
         SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), true);
@@ -108,6 +116,12 @@ final class SelfCheckServiceTest {
                 },
                 (projectDirectory, config, cacheRoot, packageResult) -> {
                     throw new AssertionError("run package should not run");
+                },
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
+                    throw new AssertionError("native should not run");
+                },
+                (binary, arguments) -> {
+                    throw new AssertionError("native binary should not run");
                 });
 
         SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), false);
@@ -144,13 +158,132 @@ final class SelfCheckServiceTest {
                 (projectDirectory, config, suppliedBuildResult) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
-                        new JavaRunResult("com.example.Main", "usage\n")));
+                        new JavaRunResult("com.example.Main", "usage\n")),
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
+                    throw new AssertionError("native should not run");
+                },
+                (binary, arguments) -> {
+                    throw new AssertionError("native binary should not run");
+                });
 
         SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), false);
 
         assertFalse(result.ok());
         assertEquals("run packaged jar", result.steps().getLast().name());
         assertTrue(result.steps().getLast().message().contains("expected packaged application to print `demo 0.1.0`"));
+    }
+
+    @Test
+    void runsNativeSelfHostingPathWhenRequested() throws IOException {
+        writeSelfHostingProject(true);
+        BuildResult buildResult = buildResult(tempDir, 12);
+        PackageResult packageResult = new PackageResult(
+                buildResult,
+                tempDir.resolve("target/demo-0.1.0.jar"),
+                46,
+                true);
+        NativeBuildResult nativeBuildResult = new NativeBuildResult(
+                packageResult,
+                new NativeImageResult(
+                        tempDir.resolve("target/native/demo"),
+                        tempDir.resolve("target/native/native-image.log"),
+                        "native ok\n"));
+        List<String> calls = new ArrayList<>();
+        SelfCheckService service = new SelfCheckService(
+                new ZoltTomlParser(),
+                new SelfHostingCheckService(),
+                (projectDirectory, config, cacheRoot, offline) ->
+                        new ResolveResult(3, 0, 0, projectDirectory.resolve("zolt.lock")),
+                (projectDirectory, config, cacheRoot, offline) -> buildResult,
+                (projectDirectory, config, cacheRoot) -> new TestRunResult(
+                        new TestCompileResult(
+                                buildResult,
+                                34,
+                                0,
+                                projectDirectory.resolve("target/test-classes"),
+                                ""),
+                        "Tests passed\n"),
+                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
+                        suppliedPackageResult,
+                        new JavaRunResult("com.example.Main", "demo 0.1.0\n")),
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
+                    calls.add("native:" + nativeImageExecutable);
+                    return nativeBuildResult;
+                },
+                (binary, arguments) -> {
+                    calls.add("run-native:" + binary.getFileName() + ":" + arguments);
+                    return new SelfCheckService.NativeBinaryRunResult(binary, "demo 0.1.0\n");
+                });
+
+        SelfCheckResult result = service.check(
+                tempDir,
+                tempDir.resolve("cache"),
+                false,
+                true,
+                Path.of("custom-native-image"));
+
+        assertTrue(result.ok());
+        assertEquals(List.of("native:custom-native-image", "run-native:demo:[--version]"), calls);
+        assertEquals(List.of(
+                        "doctor --self-hosting",
+                        "resolve --locked",
+                        "build",
+                        "test",
+                        "package",
+                        "run packaged jar",
+                        "native",
+                        "run native binary"),
+                result.steps().stream().map(SelfCheckResult.SelfCheckStep::name).toList());
+        assertEquals("printed demo 0.1.0", result.steps().getLast().message());
+    }
+
+    @Test
+    void failsWhenNativeBinaryDoesNotPrintVersion() throws IOException {
+        writeSelfHostingProject(true);
+        BuildResult buildResult = buildResult(tempDir, 12);
+        PackageResult packageResult = new PackageResult(
+                buildResult,
+                tempDir.resolve("target/demo-0.1.0.jar"),
+                46,
+                true);
+        NativeBuildResult nativeBuildResult = new NativeBuildResult(
+                packageResult,
+                new NativeImageResult(
+                        tempDir.resolve("target/native/demo"),
+                        tempDir.resolve("target/native/native-image.log"),
+                        "native ok\n"));
+        SelfCheckService service = new SelfCheckService(
+                new ZoltTomlParser(),
+                new SelfHostingCheckService(),
+                (projectDirectory, config, cacheRoot, offline) ->
+                        new ResolveResult(3, 0, 0, projectDirectory.resolve("zolt.lock")),
+                (projectDirectory, config, cacheRoot, offline) -> buildResult,
+                (projectDirectory, config, cacheRoot) -> new TestRunResult(
+                        new TestCompileResult(
+                                buildResult,
+                                34,
+                                0,
+                                projectDirectory.resolve("target/test-classes"),
+                                ""),
+                        "Tests passed\n"),
+                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
+                        suppliedPackageResult,
+                        new JavaRunResult("com.example.Main", "demo 0.1.0\n")),
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> nativeBuildResult,
+                (binary, arguments) -> new SelfCheckService.NativeBinaryRunResult(binary, "usage\n"));
+
+        SelfCheckResult result = service.check(
+                tempDir,
+                tempDir.resolve("cache"),
+                false,
+                true,
+                Path.of("native-image"));
+
+        assertFalse(result.ok());
+        assertEquals("run native binary", result.steps().getLast().name());
+        assertTrue(result.steps().getLast().message().contains("expected native binary to print `demo 0.1.0`"));
     }
 
     private BuildResult buildResult(Path projectDirectory, int sourceCount) {

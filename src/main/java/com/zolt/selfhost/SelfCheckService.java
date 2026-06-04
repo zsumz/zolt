@@ -2,6 +2,8 @@ package com.zolt.selfhost;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildService;
+import com.zolt.build.NativeBuildResult;
+import com.zolt.build.NativeBuildService;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageResult;
@@ -14,6 +16,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +30,8 @@ public final class SelfCheckService {
     private final TestRunner testRunner;
     private final ProjectPackager projectPackager;
     private final PackagedApplicationRunner packagedApplicationRunner;
+    private final NativeBuilder nativeBuilder;
+    private final NativeBinaryRunner nativeBinaryRunner;
 
     public SelfCheckService() {
         this(
@@ -40,7 +46,10 @@ public final class SelfCheckService {
                 (projectDirectory, config, buildResult) -> new PackageService()
                         .packageJar(projectDirectory, config, buildResult),
                 (projectDirectory, config, cacheRoot, packageResult) -> new RunPackageService()
-                        .runPackage(projectDirectory, config, cacheRoot, List.of("--version")));
+                        .runPackage(projectDirectory, config, cacheRoot, List.of("--version")),
+                (projectDirectory, config, cacheRoot, nativeImageExecutable) -> new NativeBuildService()
+                        .buildNative(projectDirectory, config, cacheRoot, nativeImageExecutable),
+                SelfCheckService::runNativeBinary);
     }
 
     SelfCheckService(
@@ -50,7 +59,9 @@ public final class SelfCheckService {
             ProjectBuilder projectBuilder,
             TestRunner testRunner,
             ProjectPackager projectPackager,
-            PackagedApplicationRunner packagedApplicationRunner) {
+            PackagedApplicationRunner packagedApplicationRunner,
+            NativeBuilder nativeBuilder,
+            NativeBinaryRunner nativeBinaryRunner) {
         this.tomlParser = tomlParser;
         this.selfHostingCheckService = selfHostingCheckService;
         this.lockedResolver = lockedResolver;
@@ -58,9 +69,20 @@ public final class SelfCheckService {
         this.testRunner = testRunner;
         this.projectPackager = projectPackager;
         this.packagedApplicationRunner = packagedApplicationRunner;
+        this.nativeBuilder = nativeBuilder;
+        this.nativeBinaryRunner = nativeBinaryRunner;
     }
 
     public SelfCheckResult check(Path projectDirectory, Path cacheRoot, boolean offline) {
+        return check(projectDirectory, cacheRoot, offline, false, null);
+    }
+
+    public SelfCheckResult check(
+            Path projectDirectory,
+            Path cacheRoot,
+            boolean offline,
+            boolean nativeCheck,
+            Path nativeImageExecutable) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         List<SelfCheckResult.SelfCheckStep> steps = new ArrayList<>();
         ProjectConfig config;
@@ -145,6 +167,42 @@ public final class SelfCheckService {
                     "printed " + expectedVersion));
         } catch (RuntimeException exception) {
             steps.add(failed("run packaged jar", exception.getMessage()));
+            return new SelfCheckResult(steps);
+        }
+
+        if (!nativeCheck) {
+            return new SelfCheckResult(steps);
+        }
+
+        NativeBuildResult nativeBuildResult;
+        try {
+            nativeBuildResult = nativeBuilder.buildNative(root, config, cacheRoot, nativeImageExecutable);
+            steps.add(new SelfCheckResult.SelfCheckStep(
+                    "native",
+                    true,
+                    "built " + nativeBuildResult.nativeImageResult().outputBinary()));
+        } catch (RuntimeException exception) {
+            steps.add(failed("native", exception.getMessage()));
+            return new SelfCheckResult(steps);
+        }
+
+        try {
+            NativeBinaryRunResult nativeRunResult = nativeBinaryRunner.run(
+                    nativeBuildResult.nativeImageResult().outputBinary(),
+                    List.of("--version"));
+            String expectedVersion = config.project().name() + " " + config.project().version();
+            if (!nativeRunResult.output().contains(expectedVersion)) {
+                steps.add(failed(
+                        "run native binary",
+                        "expected native binary to print `" + expectedVersion + "` for --version"));
+                return new SelfCheckResult(steps);
+            }
+            steps.add(new SelfCheckResult.SelfCheckStep(
+                    "run native binary",
+                    true,
+                    "printed " + expectedVersion));
+        } catch (RuntimeException exception) {
+            steps.add(failed("run native binary", exception.getMessage()));
         }
         return new SelfCheckResult(steps);
     }
@@ -159,6 +217,42 @@ public final class SelfCheckService {
                 .map(check -> check.name() + ": " + check.message())
                 .findFirst()
                 .orElse("self-hosting readiness failed");
+    }
+
+    private static NativeBinaryRunResult runNativeBinary(Path binary, List<String> arguments) {
+        List<String> command = new ArrayList<>();
+        command.add(binary.toString());
+        command.addAll(arguments);
+        try {
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+            StringBuilder output = new StringBuilder();
+            byte[] buffer = new byte[8192];
+            int read = process.getInputStream().read(buffer);
+            while (read >= 0) {
+                output.append(new String(buffer, 0, read, StandardCharsets.UTF_8));
+                read = process.getInputStream().read(buffer);
+            }
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IllegalStateException(
+                        "native binary exited with code "
+                                + exitCode
+                                + ". Check the application output and try again.\n"
+                                + output.toString().stripTrailing());
+            }
+            return new NativeBinaryRunResult(binary, output.toString());
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "Could not run native binary at "
+                            + binary
+                            + ". Check that `zolt native` produced an executable binary.",
+                    exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("native binary run was interrupted. Try the self-check again.", exception);
+        }
     }
 
     @FunctionalInterface
@@ -184,5 +278,22 @@ public final class SelfCheckService {
     @FunctionalInterface
     interface PackagedApplicationRunner {
         RunPackageResult run(Path projectDirectory, ProjectConfig config, Path cacheRoot, PackageResult packageResult);
+    }
+
+    @FunctionalInterface
+    interface NativeBuilder {
+        NativeBuildResult buildNative(
+                Path projectDirectory,
+                ProjectConfig config,
+                Path cacheRoot,
+                Path nativeImageExecutable);
+    }
+
+    @FunctionalInterface
+    interface NativeBinaryRunner {
+        NativeBinaryRunResult run(Path binary, List<String> arguments);
+    }
+
+    record NativeBinaryRunResult(Path binary, String output) {
     }
 }
