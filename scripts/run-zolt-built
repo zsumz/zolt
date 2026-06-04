@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+CACHE_ROOT="${ZOLT_CACHE_ROOT:-.zolt/cache}"
+JAR_PATH="${ZOLT_JAR:-}"
+
+if [[ -z "$JAR_PATH" ]]; then
+  shopt -s nullglob
+  jars=(target/*.jar)
+  shopt -u nullglob
+  if [[ "${#jars[@]}" -ne 1 ]]; then
+    printf 'error: expected exactly one Zolt-built jar under target/, found %s\n' "${#jars[@]}" >&2
+    printf 'hint: run zolt self-check or zolt package before scripts/run-zolt-built\n' >&2
+    exit 1
+  fi
+  JAR_PATH="${jars[0]}"
+fi
+
+if [[ ! -f "$JAR_PATH" ]]; then
+  printf 'error: Zolt-built jar does not exist at %s\n' "$JAR_PATH" >&2
+  printf 'hint: run zolt self-check or zolt package before scripts/run-zolt-built\n' >&2
+  exit 1
+fi
+
+runtime_cp="$(./gradlew -q run --args="classpath runtime --cache-root ${CACHE_ROOT}" --warning-mode all)"
+if [[ -n "$runtime_cp" ]]; then
+  classpath="${JAR_PATH}:${runtime_cp}"
+else
+  classpath="$JAR_PATH"
+fi
+
+exec java -cp "$classpath" com.zolt.cli.ZoltCli "$@"
