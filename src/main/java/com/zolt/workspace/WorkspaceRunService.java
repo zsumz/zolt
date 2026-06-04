@@ -4,7 +4,6 @@ import com.zolt.build.JavaRunResult;
 import com.zolt.build.JavaRunner;
 import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
-import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -24,7 +23,7 @@ public final class WorkspaceRunService {
     private final WorkspaceBuildService workspaceBuildService;
     private final WorkspaceMemberSelector memberSelector;
     private final ZoltLockfileReader lockfileReader;
-    private final ClasspathBuilder classpathBuilder;
+    private final WorkspaceClasspathService workspaceClasspathService;
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
 
@@ -34,7 +33,7 @@ public final class WorkspaceRunService {
                 new WorkspaceBuildService(),
                 new WorkspaceMemberSelector(),
                 new ZoltLockfileReader(),
-                new ClasspathBuilder(),
+                new WorkspaceClasspathService(),
                 new JdkDetector(),
                 new JavaRunner());
     }
@@ -44,14 +43,14 @@ public final class WorkspaceRunService {
             WorkspaceBuildService workspaceBuildService,
             WorkspaceMemberSelector memberSelector,
             ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
+            WorkspaceClasspathService workspaceClasspathService,
             JdkDetector jdkDetector,
             JavaRunner javaRunner) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;
         this.memberSelector = memberSelector;
         this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
+        this.workspaceClasspathService = workspaceClasspathService;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
     }
@@ -69,10 +68,6 @@ public final class WorkspaceRunService {
         WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
 
         ZoltLockfile lockfile = lockfileReader.read(workspace.root().resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(
-                lockfile,
-                cacheRoot,
-                workspace.root()));
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
 
@@ -88,6 +83,11 @@ public final class WorkspaceRunService {
             if (!jdkStatus.ok()) {
                 throw new RunException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
             }
+            ClasspathSet classpaths = workspaceClasspathService.classpathsFor(
+                    workspace,
+                    lockfile,
+                    cacheRoot,
+                    member.path());
 
             List<Path> runtimeEntries = new ArrayList<>();
             runtimeEntries.add(memberBuild.result().outputDirectory());
