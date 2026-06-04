@@ -58,20 +58,45 @@ tasks.register('nativeImage') {
         def outputFile = nativeBinary.get().asFile
         def logFile = nativeImageLog.get().asFile
         outputFile.parentFile.mkdirs()
+        def cacheDir = file('.zolt/cache')
 
-        def execution = providers.exec {
-            executable = providers.gradleProperty('nativeImageExecutable').orElse('native-image').get()
-            args '--no-fallback',
-                    '--native-image-info',
-                    '-cp',
-                    files(tasks.named('jar').get().archiveFile.get().asFile, configurations.runtimeClasspath).asPath,
-                    application.mainClass.get(),
-                    '-o',
-                    outputFile.absolutePath
+        def zoltCommand = { List<String> args ->
+            providers.exec {
+                commandLine([javaExecutable.get(),
+                             '-cp',
+                             sourceSets.main.runtimeClasspath.asPath,
+                             application.mainClass.get()] + args)
+            }.result.get().assertNormalExitValue()
         }
 
-        logFile.text = execution.standardOutput.asText.get() + execution.standardError.asText.get()
-        execution.result.get().assertNormalExitValue()
+        zoltCommand([
+                'resolve',
+                '--locked',
+                '--cache-root',
+                cacheDir.absolutePath
+        ])
+
+        def nativeArgs = [
+                'native',
+                '--cache-root',
+                cacheDir.absolutePath
+        ]
+        def nativeImageExecutable = providers.gradleProperty('nativeImageExecutable').orNull
+        if (nativeImageExecutable != null) {
+            nativeArgs.addAll(['--native-image', nativeImageExecutable])
+        }
+        zoltCommand(nativeArgs)
+
+        def zoltNativeOutput = file('target/native/zolt')
+        def zoltNativeLog = file('target/native/native-image.log')
+        java.nio.file.Files.copy(
+                zoltNativeOutput.toPath(),
+                outputFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        java.nio.file.Files.copy(
+                zoltNativeLog.toPath(),
+                logFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         logger.lifecycle("Native image log written to ${logFile}")
         logger.lifecycle("Native binary written to ${outputFile}")
     }
