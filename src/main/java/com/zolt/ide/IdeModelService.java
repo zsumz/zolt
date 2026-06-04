@@ -77,6 +77,29 @@ public final class IdeModelService {
                 diagnostics);
     }
 
+    IdeModel exportWithClasspaths(
+            Path projectDirectory,
+            Path lockfilePath,
+            IdeModel.ClasspathInfo classpaths,
+            List<IdeModel.Diagnostic> diagnostics) {
+        Path root = projectDirectory.toAbsolutePath().normalize();
+        Path configPath = root.resolve("zolt.toml").normalize();
+        List<IdeModel.Diagnostic> modelDiagnostics = new ArrayList<>(diagnostics);
+        ProjectConfig config = readConfig(configPath, modelDiagnostics);
+
+        return new IdeModel(
+                SCHEMA_VERSION,
+                projectInfo(config),
+                javaInfo(config),
+                new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
+                sourceRoots(root, config),
+                resourceRoots(root, config),
+                outputInfo(root, config),
+                dependencyInfo(config),
+                classpaths,
+                modelDiagnostics);
+    }
+
     private void checkLockFreshness(
             Path root,
             Path lockfilePath,

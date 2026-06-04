@@ -58,6 +58,67 @@ final class WorkspaceIdeModelServiceTest {
     }
 
     @Test
+    void exportsMemberModelsWithWorkspaceRootLockfileAndClasspaths() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core");
+        Files.writeString(tempDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.acme:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "target/classes"
+                members = ["apps/api"]
+                dependencies = []
+                """);
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        IdeModel apiModel = model.projects().stream()
+                .filter(project -> project.member().equals("apps/api"))
+                .findFirst()
+                .orElseThrow()
+                .model();
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), apiModel.paths().lockfile());
+        assertTrue(apiModel.classpaths().compile().contains(tempDir
+                .resolve("modules/core/target/classes")
+                .toAbsolutePath()
+                .normalize()));
+        assertEquals(List.of(), apiModel.diagnostics());
+        assertEquals(List.of(), model.diagnostics());
+    }
+
+    @Test
+    void reportsMissingWorkspaceLockAtWorkspaceLevel() throws IOException {
+        Files.writeString(tempDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        assertEquals("LOCKFILE_MISSING", model.diagnostics().getFirst().code());
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), model.diagnostics().getFirst().path());
+        assertEquals(List.of(), model.projects().getFirst().model().diagnostics());
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), model.projects().getFirst().model().paths().lockfile());
+    }
+
+    @Test
     void reportsMissingWorkspaceAsStructuredDiagnostic() throws IOException {
         Files.createDirectories(tempDir.resolve("standalone"));
 
@@ -159,6 +220,7 @@ final class WorkspaceIdeModelServiceTest {
 
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
     }
 
     private void member(String path, String name) throws IOException {
