@@ -25,6 +25,7 @@ public final class ZoltTomlParser {
             "project",
             "repositories",
             "platforms",
+            "api",
             "dependencies",
             "annotationProcessors",
             "test",
@@ -73,10 +74,21 @@ public final class ZoltTomlParser {
 
         Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
 
+        TomlTable apiTable = optionalTable(result, "api");
+        DependencyDeclarations apiDependencies = DependencyDeclarations.empty();
+        if (apiTable != null) {
+            validateKeys("api", apiTable, Set.of("dependencies"));
+            apiDependencies = dependencyDeclarations(
+                    optionalTable(apiTable, "dependencies"),
+                    "api.dependencies",
+                    true);
+        }
+
         DependencyDeclarations dependencies = dependencyDeclarations(
                 optionalTable(result, "dependencies"),
                 "dependencies",
                 true);
+        validateNoDuplicateMainDependencyCoordinates(apiDependencies, dependencies);
         DependencyDeclarations annotationProcessors = dependencyDeclarations(
                 optionalTable(result, "annotationProcessors"),
                 "annotationProcessors",
@@ -106,6 +118,9 @@ public final class ZoltTomlParser {
                 project,
                 repositories,
                 platforms,
+                apiDependencies.versioned(),
+                apiDependencies.managed(),
+                apiDependencies.workspace(),
                 dependencies.versioned(),
                 dependencies.managed(),
                 dependencies.workspace(),
@@ -327,6 +342,28 @@ public final class ZoltTomlParser {
                     invalidDependencyDeclarationMessage(section, key, allowWorkspace));
         }
         return new DependencyDeclarations(versioned, Set.copyOf(managed), workspace);
+    }
+
+    private static void validateNoDuplicateMainDependencyCoordinates(
+            DependencyDeclarations apiDependencies,
+            DependencyDeclarations implementationDependencies) {
+        Set<String> apiCoordinates = allCoordinates(apiDependencies);
+        for (String coordinate : allCoordinates(implementationDependencies)) {
+            if (apiCoordinates.contains(coordinate)) {
+                throw new ZoltConfigException(
+                        "Dependency "
+                                + coordinate
+                                + " is declared in both [api.dependencies] and [dependencies]. Keep it in one section.");
+            }
+        }
+    }
+
+    private static Set<String> allCoordinates(DependencyDeclarations declarations) {
+        LinkedHashSet<String> coordinates = new LinkedHashSet<>();
+        coordinates.addAll(declarations.versioned().keySet());
+        coordinates.addAll(declarations.managed());
+        coordinates.addAll(declarations.workspace().keySet());
+        return Set.copyOf(coordinates);
     }
 
     private static String invalidDependencyDeclarationMessage(String section, String key, boolean allowWorkspace) {

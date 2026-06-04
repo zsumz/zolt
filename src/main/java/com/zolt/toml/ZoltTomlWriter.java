@@ -41,6 +41,12 @@ public final class ZoltTomlWriter {
         writeProject(toml, config.project());
         writeStringMap(toml, "repositories", config.repositories());
         writeStringMap(toml, "platforms", config.platforms());
+        writeOptionalDependencies(
+                toml,
+                "api.dependencies",
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies());
         writeDependencies(
                 toml,
                 "dependencies",
@@ -80,6 +86,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    remove(config.apiDependencies(), coordinate),
+                    remove(config.managedApiDependencies(), coordinate),
+                    remove(config.workspaceApiDependencies(), coordinate),
                     put(config.dependencies(), coordinate, version),
                     remove(config.managedDependencies(), coordinate),
                     remove(config.workspaceDependencies(), coordinate),
@@ -97,6 +106,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    config.apiDependencies(),
+                    config.managedApiDependencies(),
+                    config.workspaceApiDependencies(),
                     config.dependencies(),
                     config.managedDependencies(),
                     config.workspaceDependencies(),
@@ -119,6 +131,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    remove(config.apiDependencies(), coordinate),
+                    remove(config.managedApiDependencies(), coordinate),
+                    remove(config.workspaceApiDependencies(), coordinate),
                     remove(config.dependencies(), coordinate),
                     add(config.managedDependencies(), coordinate),
                     remove(config.workspaceDependencies(), coordinate),
@@ -136,6 +151,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    config.apiDependencies(),
+                    config.managedApiDependencies(),
+                    config.workspaceApiDependencies(),
                     config.dependencies(),
                     config.managedDependencies(),
                     config.workspaceDependencies(),
@@ -158,6 +176,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    remove(config.apiDependencies(), coordinate),
+                    remove(config.managedApiDependencies(), coordinate),
+                    remove(config.workspaceApiDependencies(), coordinate),
                     remove(config.dependencies(), coordinate),
                     remove(config.managedDependencies(), coordinate),
                     remove(config.workspaceDependencies(), coordinate),
@@ -175,6 +196,9 @@ public final class ZoltTomlWriter {
                     config.project(),
                     config.repositories(),
                     config.platforms(),
+                    config.apiDependencies(),
+                    config.managedApiDependencies(),
+                    config.workspaceApiDependencies(),
                     config.dependencies(),
                     config.managedDependencies(),
                     config.workspaceDependencies(),
@@ -196,6 +220,9 @@ public final class ZoltTomlWriter {
                 config.project(),
                 config.repositories(),
                 put(config.platforms(), coordinate, version),
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies(),
                 config.dependencies(),
                 config.managedDependencies(),
                 config.workspaceDependencies(),
@@ -216,6 +243,9 @@ public final class ZoltTomlWriter {
                 config.project(),
                 config.repositories(),
                 remove(config.platforms(), coordinate),
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies(),
                 config.dependencies(),
                 config.managedDependencies(),
                 config.workspaceDependencies(),
@@ -326,6 +356,18 @@ public final class ZoltTomlWriter {
             return;
         }
         writeDependencies(toml, section, versioned, managed, Map.of());
+    }
+
+    private static void writeOptionalDependencies(
+            StringBuilder toml,
+            String section,
+            Map<String, String> versioned,
+            Set<String> managed,
+            Map<String, String> workspace) {
+        if (versioned.isEmpty() && managed.isEmpty() && workspace.isEmpty()) {
+            return;
+        }
+        writeDependencies(toml, section, versioned, managed, workspace);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {

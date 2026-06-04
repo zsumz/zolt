@@ -24,6 +24,9 @@ final class ZoltTomlParserTest {
         assertEquals("com.example.Main", config.project().main().orElseThrow());
         assertEquals("https://repo.maven.apache.org/maven2", config.repositories().get("central"));
         assertTrue(config.platforms().isEmpty());
+        assertTrue(config.apiDependencies().isEmpty());
+        assertTrue(config.managedApiDependencies().isEmpty());
+        assertTrue(config.workspaceApiDependencies().isEmpty());
         assertEquals("33.4.0-jre", config.dependencies().get("com.google.guava:guava"));
         assertTrue(config.testDependencies().isEmpty());
         assertTrue(config.managedDependencies().isEmpty());
@@ -57,6 +60,9 @@ final class ZoltTomlParserTest {
 
         assertEquals(ProjectConfig.MAVEN_CENTRAL, config.repositories().get("central"));
         assertTrue(config.platforms().isEmpty());
+        assertTrue(config.apiDependencies().isEmpty());
+        assertTrue(config.managedApiDependencies().isEmpty());
+        assertTrue(config.workspaceApiDependencies().isEmpty());
         assertTrue(config.dependencies().isEmpty());
         assertTrue(config.managedDependencies().isEmpty());
         assertTrue(config.annotationProcessors().isEmpty());
@@ -71,6 +77,91 @@ final class ZoltTomlParserTest {
         assertEquals("", config.nativeSettings().imageName());
         assertEquals("target/native", config.nativeSettings().output());
         assertTrue(config.nativeSettings().args().isEmpty());
+    }
+
+    @Test
+    void parsesApiDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [api.dependencies]
+                "com.fasterxml.jackson.core:jackson-annotations" = "2.20.0"
+                "com.acme:managed-contract" = {}
+                "com.acme:shared-contract" = { workspace = "modules/shared-contract" }
+                """);
+
+        assertEquals("2.20.0", config.apiDependencies().get("com.fasterxml.jackson.core:jackson-annotations"));
+        assertTrue(config.managedApiDependencies().contains("com.acme:managed-contract"));
+        assertEquals("modules/shared-contract", config.workspaceApiDependencies().get("com.acme:shared-contract"));
+        assertTrue(config.dependencies().isEmpty());
+        assertTrue(config.workspaceDependencies().isEmpty());
+    }
+
+    @Test
+    void rejectsDuplicateApiAndImplementationDependencyCoordinate() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "web"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [api.dependencies]
+                        "com.acme:contract" = "1.0.0"
+
+                        [dependencies]
+                        "com.acme:contract" = "1.0.0"
+                        """));
+
+        assertEquals(
+                "Dependency com.acme:contract is declared in both [api.dependencies] and [dependencies]. Keep it in one section.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnknownApiField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "web"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [api]
+                        exports = ["com.acme:contract"]
+                        """));
+
+        assertEquals(
+                "Unknown field [api].exports in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsMalformedApiDependencyDeclaration() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "web"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [api.dependencies]
+                        "com.acme:contract" = 42
+                        """));
+
+        assertEquals(
+                "Invalid value for [api.dependencies].com.acme:contract in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member.",
+                exception.getMessage());
     }
 
     @Test

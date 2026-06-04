@@ -58,6 +58,9 @@ final class ZoltTomlWriterTest {
         assertEquals(original.project(), parsed.project());
         assertEquals(original.repositories(), parsed.repositories());
         assertEquals(original.platforms(), parsed.platforms());
+        assertEquals(original.apiDependencies(), parsed.apiDependencies());
+        assertEquals(original.managedApiDependencies(), parsed.managedApiDependencies());
+        assertEquals(original.workspaceApiDependencies(), parsed.workspaceApiDependencies());
         assertEquals(original.dependencies(), parsed.dependencies());
         assertEquals(original.managedDependencies(), parsed.managedDependencies());
         assertEquals(original.workspaceDependencies(), parsed.workspaceDependencies());
@@ -70,6 +73,77 @@ final class ZoltTomlWriterTest {
         assertEquals(original.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
         assertEquals(original.build(), parsed.build());
         assertEquals(original.compilerSettings(), parsed.compilerSettings());
+    }
+
+    @Test
+    void writesApiDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [api.dependencies]
+                "com.acme:managed-contract" = {}
+                "com.acme:shared-contract" = { workspace = "modules/shared-contract" }
+                "com.fasterxml.jackson.core:jackson-annotations" = "2.20.0"
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[api.dependencies]\n"));
+        assertTrue(toml.contains("\"com.acme:managed-contract\" = {}"));
+        assertTrue(toml.contains("\"com.acme:shared-contract\" = { workspace = \"modules/shared-contract\" }"));
+        assertTrue(toml.contains("\"com.fasterxml.jackson.core:jackson-annotations\" = \"2.20.0\""));
+        assertEquals(config.apiDependencies(), parsed.apiDependencies());
+        assertEquals(config.managedApiDependencies(), parsed.managedApiDependencies());
+        assertEquals(config.workspaceApiDependencies(), parsed.workspaceApiDependencies());
+    }
+
+    @Test
+    void preservesApiDependenciesWhenEditingOtherSections() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [api.dependencies]
+                "com.acme:contract" = "1.0.0"
+                """);
+
+        config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
+        config = writer.addPlatform(config, "com.acme:enterprise-platform", "2026.1.0");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals("1.0.0", parsed.apiDependencies().get("com.acme:contract"));
+        assertEquals("5.11.4", parsed.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+        assertEquals("2026.1.0", parsed.platforms().get("com.acme:enterprise-platform"));
+    }
+
+    @Test
+    void editingMainDependencyRemovesConflictingApiDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [api.dependencies]
+                "com.acme:contract" = "1.0.0"
+                """);
+
+        config = writer.addDependency(config, DependencySection.MAIN, "com.acme:contract", "2.0.0");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertTrue(parsed.apiDependencies().isEmpty());
+        assertEquals("2.0.0", parsed.dependencies().get("com.acme:contract"));
     }
 
     @Test

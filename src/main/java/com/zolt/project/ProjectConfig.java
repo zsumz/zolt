@@ -7,6 +7,9 @@ public record ProjectConfig(
         ProjectMetadata project,
         Map<String, String> repositories,
         Map<String, String> platforms,
+        Map<String, String> apiDependencies,
+        Set<String> managedApiDependencies,
+        Map<String, String> workspaceApiDependencies,
         Map<String, String> dependencies,
         Set<String> managedDependencies,
         Map<String, String> workspaceDependencies,
@@ -25,6 +28,9 @@ public record ProjectConfig(
     public ProjectConfig {
         repositories = Map.copyOf(repositories);
         platforms = Map.copyOf(platforms);
+        apiDependencies = Map.copyOf(apiDependencies);
+        managedApiDependencies = Set.copyOf(managedApiDependencies);
+        workspaceApiDependencies = Map.copyOf(workspaceApiDependencies);
         dependencies = Map.copyOf(dependencies);
         managedDependencies = Set.copyOf(managedDependencies);
         workspaceDependencies = Map.copyOf(workspaceDependencies);
@@ -58,6 +64,9 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
                 Map.of(),
@@ -91,10 +100,15 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
+                Map.of(),
                 testDependencies,
                 managedTestDependencies,
+                Map.of(),
                 annotationProcessors,
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
@@ -124,6 +138,9 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
@@ -153,6 +170,9 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
                 Map.of(),
@@ -178,6 +198,9 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                Map.of(),
+                Map.of(),
+                Set.of(),
                 Map.of(),
                 dependencies,
                 Set.of(),
