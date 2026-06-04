@@ -84,87 +84,19 @@ tasks.register('nativeSmokeTest') {
 
     doLast {
         def binary = nativeBinary.get().asFile
-        providers.exec {
-            commandLine binary.absolutePath, '--version'
-        }.result.get().assertNormalExitValue()
-        providers.exec {
-            commandLine binary.absolutePath, 'help'
-        }.result.get().assertNormalExitValue()
-
         def smokeDir = layout.buildDirectory.dir('native-smoke').get().asFile
-        delete smokeDir
-        smokeDir.mkdirs()
-
-        def releaseDir = new File(smokeDir, 'release')
         providers.exec {
-            commandLine binary.absolutePath,
-                    'release-archive',
+            commandLine javaExecutable.get(),
+                    '-cp',
+                    sourceSets.main.runtimeClasspath.asPath,
+                    application.mainClass.get(),
+                    'native-smoke',
                     '--binary',
                     binary.absolutePath,
-                    '--output',
-                    releaseDir.absolutePath
-        }.result.get().assertNormalExitValue()
-        def releaseArchives = releaseDir.listFiles()?.findAll { file ->
-            file.name.startsWith("zolt-${project.version}-")
-                    && (file.name.endsWith('.tar.gz') || file.name.endsWith('.zip'))
-        } ?: []
-        if (releaseArchives.size() != 1) {
-            throw new GradleException("Native smoke test failed: expected one release archive under ${releaseDir}.")
-        }
-        providers.exec {
-            commandLine binary.absolutePath,
-                    'release-verify',
                     '--work-dir',
-                    new File(smokeDir, 'release-verify').absolutePath,
-                    releaseArchives[0].absolutePath
+                    smokeDir.absolutePath
         }.result.get().assertNormalExitValue()
-
-        providers.exec {
-            commandLine binary.absolutePath, 'init', '--cwd', smokeDir.absolutePath, 'hello-native'
-        }.result.get().assertNormalExitValue()
-
-        def config = new File(smokeDir, 'hello-native/zolt.toml')
-        if (!config.isFile()) {
-            throw new GradleException("Native smoke test failed: expected ${config} to exist.")
-        }
-
-        def projectDir = config.parentFile
-        def cacheDir = new File(smokeDir, 'cache')
-        providers.exec {
-            commandLine binary.absolutePath,
-                    'resolve',
-                    '--cwd',
-                    projectDir.absolutePath,
-                    '--cache-root',
-                    cacheDir.absolutePath
-        }.result.get().assertNormalExitValue()
-
-        providers.exec {
-            commandLine binary.absolutePath,
-                    'build',
-                    '--cwd',
-                    projectDir.absolutePath,
-                    '--cache-root',
-                    cacheDir.absolutePath
-        }.result.get().assertNormalExitValue()
-
-        def runExecution = providers.exec {
-            commandLine binary.absolutePath,
-                    'run',
-                    '--cwd',
-                    projectDir.absolutePath,
-                    '--cache-root',
-                    cacheDir.absolutePath
-        }
-        def runOutput = runExecution.standardOutput.asText.get() + runExecution.standardError.asText.get()
-        runExecution.result.get().assertNormalExitValue()
-        if (!runOutput.contains('Hello from hello-native!')) {
-            throw new GradleException(
-                    "Native smoke test failed: expected native zolt run output to contain 'Hello from hello-native!'. Output was:\n"
-                            + runOutput)
-        }
-
-        logger.lifecycle("Native smoke project workflow passed for ${projectDir}")
+        logger.lifecycle("Native smoke project workflow passed under ${smokeDir}")
     }
 }
 

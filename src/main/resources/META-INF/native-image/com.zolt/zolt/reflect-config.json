@@ -144,6 +144,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$NativeSmokeCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$ReleaseArchiveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

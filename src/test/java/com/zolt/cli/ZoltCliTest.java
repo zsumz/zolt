@@ -73,6 +73,7 @@ final class ZoltCliTest {
                 "package",
                 "run-package",
                 "native",
+                "native-smoke",
                 "release-archive",
                 "release-verify",
                 "self-check",
