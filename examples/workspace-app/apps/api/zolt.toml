@@ -8,6 +8,9 @@ main = "com.example.workspace.api.ApiApplication"
 [dependencies]
 "com.example.workspace:core" = { workspace = "modules/core" }
 
+[test.dependencies]
+"org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+
 [build]
 source = "src/main/java"
 test = "src/test/java"
