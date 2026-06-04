@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-CACHE_ROOT="${ZOLT_CACHE_ROOT:-.zolt/cache}"
 JAR_PATH="${ZOLT_JAR:-}"
 RUNTIME_CLASSPATH_FILE="${ZOLT_RUNTIME_CLASSPATH_FILE:-}"
 
@@ -31,21 +30,22 @@ if [[ -z "$RUNTIME_CLASSPATH_FILE" ]]; then
 fi
 
 runtime_cp=""
-if [[ -f "$RUNTIME_CLASSPATH_FILE" ]]; then
-  while IFS= read -r entry || [[ -n "$entry" ]]; do
-    if [[ -z "$entry" ]]; then
-      continue
-    fi
-    if [[ -z "$runtime_cp" ]]; then
-      runtime_cp="$entry"
-    else
-      runtime_cp="${runtime_cp}:${entry}"
-    fi
-  done < "$RUNTIME_CLASSPATH_FILE"
-else
-  printf 'warning: runtime classpath sidecar not found at %s; falling back to Gradle bootstrap\n' "$RUNTIME_CLASSPATH_FILE" >&2
-  runtime_cp="$(./gradlew -q run --args="classpath runtime --cache-root ${CACHE_ROOT}" --warning-mode all)"
+if [[ ! -f "$RUNTIME_CLASSPATH_FILE" ]]; then
+  printf 'error: runtime classpath sidecar does not exist at %s\n' "$RUNTIME_CLASSPATH_FILE" >&2
+  printf 'hint: run zolt package or zolt self-check before scripts/run-zolt-built\n' >&2
+  exit 1
 fi
+
+while IFS= read -r entry || [[ -n "$entry" ]]; do
+  if [[ -z "$entry" ]]; then
+    continue
+  fi
+  if [[ -z "$runtime_cp" ]]; then
+    runtime_cp="$entry"
+  else
+    runtime_cp="${runtime_cp}:${entry}"
+  fi
+done < "$RUNTIME_CLASSPATH_FILE"
 
 if [[ -n "$runtime_cp" ]]; then
   classpath="${JAR_PATH}:${runtime_cp}"
