@@ -1499,6 +1499,73 @@ final class ZoltCliTest {
     }
 
     @Test
+    void runPackageWorkspaceMemberRunsSelectedPackagedApplication() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+                main = "com.example.api.Api"
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println(Core.message() + ":" + args[0]);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run-package",
+                "--workspace",
+                "--member", "apps/api",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "hello");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Resolved workspace dependencies because zolt.lock was missing"));
+        assertTrue(result.stdout().contains("core:hello"));
+        assertTrue(result.stdout().contains("Ran packaged com.example.api.Api in apps/api from "));
+        assertTrue(Files.exists(apiDir.resolve("target/api-0.1.0.jar")));
+        assertFalse(Files.exists(coreDir.resolve("target/core-0.1.0.jar")));
+    }
+
+    @Test
     void buildOfflineUsesExistingLockfileAndCache() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
