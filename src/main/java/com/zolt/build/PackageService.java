@@ -163,6 +163,9 @@ public final class PackageService {
             try (OutputStream fileOutput = Files.newOutputStream(jarPath);
                     JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
                 writeEntry(jarOutput, GeneratedManifest.DEFAULT_PATH, springBootManifest(startClass, loader));
+                writeDirectoryEntry(jarOutput, "BOOT-INF/");
+                writeDirectoryEntry(jarOutput, BOOT_CLASSES_PREFIX);
+                writeDirectoryEntry(jarOutput, BOOT_LIB_PREFIX);
                 for (Map.Entry<String, byte[]> entry : loader.entries().entrySet()) {
                     writeEntry(jarOutput, entry.getKey(), entry.getValue());
                 }
@@ -409,6 +412,21 @@ public final class PackageService {
                     "Duplicate jar entry `"
                             + name
                             + "`. Remove or rename the duplicate resource and try packaging again.",
+                    exception);
+        }
+    }
+
+    private static void writeDirectoryEntry(JarOutputStream output, String name) throws IOException {
+        try {
+            JarEntry entry = new JarEntry(name);
+            entry.setTime(DETERMINISTIC_ENTRY_TIME);
+            output.putNextEntry(entry);
+            output.closeEntry();
+        } catch (ZipException exception) {
+            throw new PackageException(
+                    "Duplicate jar entry `"
+                            + name
+                            + "`. Check the package layout and try again.",
                     exception);
         }
     }
