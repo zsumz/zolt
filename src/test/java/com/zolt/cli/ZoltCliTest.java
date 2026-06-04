@@ -295,6 +295,50 @@ final class ZoltCliTest {
     }
 
     @Test
+    void addAddsProcessorDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "processor",
+                "org.mapstruct:mapstruct-processor:1.6.3");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[annotationProcessors]"));
+        assertTrue(config.contains("\"org.mapstruct:mapstruct-processor\" = \"1.6.3\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void addAddsManagedTestProcessorDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--managed",
+                "test-processor",
+                "io.micronaut:micronaut-inject-java");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency io.micronaut:micronaut-inject-java with a platform-managed version to [test.annotationProcessors]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[test.annotationProcessors]"));
+        assertTrue(config.contains("\"io.micronaut:micronaut-inject-java\" = {}"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void addRejectsManagedDependencyWithExplicitVersion() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -308,6 +352,23 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains(
                 "Managed dependency coordinate must not include a version. Use `group:artifact`."));
+    }
+
+    @Test
+    void addRejectsUnknownDependencySectionWithSupportedSections() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "compile-only",
+                "com.example:tool:1.0.0");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Unexpected dependency section `compile-only`"));
+        assertTrue(result.stderr().contains("zolt add processor group:artifact"));
+        assertTrue(result.stderr().contains("zolt add test-processor group:artifact"));
     }
 
     @Test
@@ -437,6 +498,61 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains(
                 "Dependency com.example:missing is not present in [dependencies]; nothing to remove."));
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void removeDeletesProcessorDependencyFromRequestedSection() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "processor", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>processor</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            Files.createDirectories(projectDir);
+            Files.writeString(projectDir.resolve("zolt.toml"), """
+                    [project]
+                    name = "demo"
+                    version = "0.1.0"
+                    group = "com.example"
+                    java = "21"
+
+                    [repositories]
+                    "local" = "%s"
+
+                    [platforms]
+
+                    [dependencies]
+                    "com.example:processor" = "1.0.0"
+
+                    [test.dependencies]
+
+                    [annotationProcessors]
+                    "com.example:processor" = "1.0.0"
+
+                    [build]
+                    source = "src/main/java"
+                    test = "src/test/java"
+                    output = "target/classes"
+                    testOutput = "target/test-classes"
+                    """.formatted(repository.baseUri()));
+
+            CommandResult result = execute(
+                    "remove",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString(),
+                    "processor",
+                    "com.example:processor");
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Removed dependency com.example:processor from [annotationProcessors]"));
+            assertTrue(result.stdout().contains("Resolved 1 packages"));
+            String config = Files.readString(projectDir.resolve("zolt.toml"));
+            assertTrue(config.contains("[dependencies]\n\"com.example:processor\" = \"1.0.0\""));
+            assertFalse(config.contains("[annotationProcessors]\n\"com.example:processor\" = \"1.0.0\""));
+        }
     }
 
     @Test

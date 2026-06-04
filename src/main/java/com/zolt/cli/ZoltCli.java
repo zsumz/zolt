@@ -182,8 +182,8 @@ public final class ZoltCli implements Runnable {
     public static final class AddCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[test] GROUP:ARTIFACT[:VERSION]",
-                description = "Dependency coordinate, optionally prefixed with `test` for test dependencies.")
+                paramLabel = "[test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
+                description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
         @Option(names = "--managed", description = "Use a version managed by a declared platform.")
@@ -221,6 +221,7 @@ public final class ZoltCli implements Runnable {
                 }
                 printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
             } catch (AddCommandException
+                    | DependencySectionException
                     | ArtifactCacheException
                     | CoordinateParseException
                     | ResolveException
@@ -231,11 +232,7 @@ public final class ZoltCli implements Runnable {
         }
 
         private AddRequest parseRequest(List<String> values) {
-            if (values.size() == 2 && !"test".equals(values.get(0))) {
-                throw new AddCommandException(
-                        "Unexpected dependency section `" + values.get(0) + "`. Use `zolt add test group:artifact:version` for test dependencies.");
-            }
-            DependencySection section = values.size() == 2 ? DependencySection.TEST : DependencySection.MAIN;
+            DependencySection section = parseSection(values, "zolt add");
             String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
             Coordinate coordinate = coordinateParser.parse(rawCoordinate);
             if (managed && coordinate.version().isPresent()) {
@@ -258,10 +255,8 @@ public final class ZoltCli implements Runnable {
         }
 
         private void printAddSummary(ProjectConfig original, AddRequest request) {
-            Map<String, String> dependencies = request.section() == DependencySection.TEST
-                    ? original.testDependencies()
-                    : original.dependencies();
-            String section = request.section() == DependencySection.TEST ? "test.dependencies" : "dependencies";
+            Map<String, String> dependencies = dependencies(original, request.section());
+            String section = sectionName(request.section());
             String existing = dependencies.get(request.coordinate());
             boolean existingManaged = managedDependencies(original, request.section()).contains(request.coordinate());
             if (request.managed()) {
@@ -435,8 +430,8 @@ public final class ZoltCli implements Runnable {
     public static final class RemoveCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[test] GROUP:ARTIFACT",
-                description = "Dependency coordinate, optionally prefixed with `test` for test dependencies.")
+                paramLabel = "[test|processor|test-processor] GROUP:ARTIFACT",
+                description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
         @Option(names = "--cwd", hidden = true)
@@ -471,6 +466,7 @@ public final class ZoltCli implements Runnable {
                         "Removed dependency " + request.coordinate() + " from [" + section + "]");
                 printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
             } catch (RemoveCommandException
+                    | DependencySectionException
                     | ArtifactCacheException
                     | CoordinateParseException
                     | ResolveException
@@ -481,11 +477,7 @@ public final class ZoltCli implements Runnable {
         }
 
         private RemoveRequest parseRequest(List<String> values) {
-            if (values.size() == 2 && !"test".equals(values.get(0))) {
-                throw new RemoveCommandException(
-                        "Unexpected dependency section `" + values.get(0) + "`. Use `zolt remove test group:artifact` for test dependencies.");
-            }
-            DependencySection section = values.size() == 2 ? DependencySection.TEST : DependencySection.MAIN;
+            DependencySection section = parseSection(values, "zolt remove");
             String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
             Coordinate coordinate = coordinateParser.parse(rawCoordinate);
             return new RemoveRequest(section, coordinate.groupId() + ":" + coordinate.artifactId());
@@ -1531,11 +1523,21 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> dependencies(ProjectConfig config, DependencySection section) {
-        return section == DependencySection.TEST ? config.testDependencies() : config.dependencies();
+        return switch (section) {
+            case MAIN -> config.dependencies();
+            case TEST -> config.testDependencies();
+            case PROCESSOR -> config.annotationProcessors();
+            case TEST_PROCESSOR -> config.testAnnotationProcessors();
+        };
     }
 
     private static java.util.Set<String> managedDependencies(ProjectConfig config, DependencySection section) {
-        return section == DependencySection.TEST ? config.managedTestDependencies() : config.managedDependencies();
+        return switch (section) {
+            case MAIN -> config.managedDependencies();
+            case TEST -> config.managedTestDependencies();
+            case PROCESSOR -> config.managedAnnotationProcessors();
+            case TEST_PROCESSOR -> config.managedTestAnnotationProcessors();
+        };
     }
 
     private static boolean hasDependency(ProjectConfig config, DependencySection section, String coordinate) {
@@ -1544,7 +1546,27 @@ public final class ZoltCli implements Runnable {
     }
 
     private static String sectionName(DependencySection section) {
-        return section == DependencySection.TEST ? "test.dependencies" : "dependencies";
+        return switch (section) {
+            case MAIN -> "dependencies";
+            case TEST -> "test.dependencies";
+            case PROCESSOR -> "annotationProcessors";
+            case TEST_PROCESSOR -> "test.annotationProcessors";
+        };
+    }
+
+    private static DependencySection parseSection(List<String> values, String command) {
+        if (values.size() == 1) {
+            return DependencySection.MAIN;
+        }
+        return switch (values.get(0)) {
+            case "test" -> DependencySection.TEST;
+            case "processor" -> DependencySection.PROCESSOR;
+            case "test-processor" -> DependencySection.TEST_PROCESSOR;
+            default -> throw new DependencySectionException("Unexpected dependency section `" + values.get(0)
+                    + "`. Use `" + command + " test group:artifact`, `"
+                    + command + " processor group:artifact`, or `"
+                    + command + " test-processor group:artifact`.");
+        };
     }
 
     private static final class AddCommandException extends RuntimeException {
@@ -1555,6 +1577,12 @@ public final class ZoltCli implements Runnable {
 
     private static final class RemoveCommandException extends RuntimeException {
         private RemoveCommandException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class DependencySectionException extends RuntimeException {
+        private DependencySectionException(String message) {
             super(message);
         }
     }

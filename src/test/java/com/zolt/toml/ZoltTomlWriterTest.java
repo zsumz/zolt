@@ -382,11 +382,47 @@ final class ZoltTomlWriterTest {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
         config = writer.addManagedDependency(config, DependencySection.MAIN, "com.example:app");
         config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-tool");
+        config = writer.addManagedDependency(config, DependencySection.PROCESSOR, "com.example:processor");
+        config = writer.addManagedDependency(config, DependencySection.TEST_PROCESSOR, "com.example:test-processor");
 
         ProjectConfig parsed = parser.parse(writer.write(config));
 
         assertTrue(parsed.managedDependencies().contains("com.example:app"));
         assertTrue(parsed.managedTestDependencies().contains("com.example:test-tool"));
+        assertTrue(parsed.managedAnnotationProcessors().contains("com.example:processor"));
+        assertTrue(parsed.managedTestAnnotationProcessors().contains("com.example:test-processor"));
+    }
+
+    @Test
+    void editsAnnotationProcessorSectionsWithoutTouchingRuntimeDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "processor-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:processor-api" = "1.0.0"
+
+                [annotationProcessors]
+                "com.example:processor" = {}
+
+                [test.annotationProcessors]
+                "com.example:test-processor" = "1.0.0"
+                """);
+
+        config = writer.addDependency(config, DependencySection.PROCESSOR, "com.example:processor", "2.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST_PROCESSOR, "com.example:test-processor");
+        config = writer.removeDependency(config, DependencySection.PROCESSOR, "com.example:missing-processor");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals("1.0.0", parsed.dependencies().get("com.example:processor-api"));
+        assertEquals("2.0.0", parsed.annotationProcessors().get("com.example:processor"));
+        assertTrue(parsed.managedAnnotationProcessors().isEmpty());
+        assertTrue(parsed.testAnnotationProcessors().isEmpty());
+        assertTrue(parsed.managedTestAnnotationProcessors().contains("com.example:test-processor"));
     }
 
     @Test
