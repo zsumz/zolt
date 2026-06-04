@@ -182,7 +182,7 @@ public final class ZoltCli implements Runnable {
     public static final class AddCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
+                paramLabel = "[api|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
                 description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
@@ -258,7 +258,11 @@ public final class ZoltCli implements Runnable {
             Map<String, String> dependencies = dependencies(original, request.section());
             String section = sectionName(request.section());
             String existing = dependencies.get(request.coordinate());
+            String existingWorkspace = workspaceDependencies(original, request.section()).get(request.coordinate());
+            String conflicting = conflictingDependencies(original, request.section()).get(request.coordinate());
+            String conflictingWorkspace = conflictingWorkspaceDependencies(original, request.section()).get(request.coordinate());
             boolean existingManaged = managedDependencies(original, request.section()).contains(request.coordinate());
+            boolean conflictingManaged = conflictingManagedDependencies(original, request.section()).contains(request.coordinate());
             if (request.managed()) {
                 if (existingManaged) {
                     spec.commandLine().getOut().println("Dependency " + request.coordinate()
@@ -266,6 +270,14 @@ public final class ZoltCli implements Runnable {
                 } else if (existing != null) {
                     spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
                             + " from " + existing + " to platform-managed version in [" + section + "]");
+                } else if (existingWorkspace != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from workspace member " + existingWorkspace
+                            + " to platform-managed version in [" + section + "]");
+                } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
+                            + " to platform-managed version in [" + section + "]");
                 } else {
                     spec.commandLine().getOut().println("Added dependency " + request.coordinate()
                             + " with a platform-managed version to [" + section + "]");
@@ -281,6 +293,14 @@ public final class ZoltCli implements Runnable {
             } else if (existing != null) {
                 spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
                         + " from " + existing + " to " + request.version() + " in [" + section + "]");
+            } else if (existingWorkspace != null) {
+                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                        + " from workspace member " + existingWorkspace
+                        + " to " + request.version() + " in [" + section + "]");
+            } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
+                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                        + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
+                        + " to " + request.version() + " in [" + section + "]");
             } else {
                 spec.commandLine().getOut().println("Added dependency " + request.coordinate() + ":" + request.version()
                         + " to [" + section + "]");
@@ -430,7 +450,7 @@ public final class ZoltCli implements Runnable {
     public static final class RemoveCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[test|processor|test-processor] GROUP:ARTIFACT",
+                paramLabel = "[api|test|processor|test-processor] GROUP:ARTIFACT",
                 description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
@@ -1549,6 +1569,7 @@ public final class ZoltCli implements Runnable {
     private static Map<String, String> dependencies(ProjectConfig config, DependencySection section) {
         return switch (section) {
             case MAIN -> config.dependencies();
+            case API -> config.apiDependencies();
             case TEST -> config.testDependencies();
             case PROCESSOR -> config.annotationProcessors();
             case TEST_PROCESSOR -> config.testAnnotationProcessors();
@@ -1558,20 +1579,69 @@ public final class ZoltCli implements Runnable {
     private static java.util.Set<String> managedDependencies(ProjectConfig config, DependencySection section) {
         return switch (section) {
             case MAIN -> config.managedDependencies();
+            case API -> config.managedApiDependencies();
             case TEST -> config.managedTestDependencies();
             case PROCESSOR -> config.managedAnnotationProcessors();
             case TEST_PROCESSOR -> config.managedTestAnnotationProcessors();
         };
     }
 
+    private static Map<String, String> workspaceDependencies(ProjectConfig config, DependencySection section) {
+        return switch (section) {
+            case MAIN -> config.workspaceDependencies();
+            case API -> config.workspaceApiDependencies();
+            case TEST -> config.workspaceTestDependencies();
+            case PROCESSOR, TEST_PROCESSOR -> Map.of();
+        };
+    }
+
+    private static Map<String, String> conflictingDependencies(ProjectConfig config, DependencySection section) {
+        return switch (section) {
+            case MAIN -> config.apiDependencies();
+            case API -> config.dependencies();
+            case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
+        };
+    }
+
+    private static java.util.Set<String> conflictingManagedDependencies(ProjectConfig config, DependencySection section) {
+        return switch (section) {
+            case MAIN -> config.managedApiDependencies();
+            case API -> config.managedDependencies();
+            case TEST, PROCESSOR, TEST_PROCESSOR -> java.util.Set.of();
+        };
+    }
+
+    private static Map<String, String> conflictingWorkspaceDependencies(ProjectConfig config, DependencySection section) {
+        return switch (section) {
+            case MAIN -> config.workspaceApiDependencies();
+            case API -> config.workspaceDependencies();
+            case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
+        };
+    }
+
+    private static String existingDescription(
+            String version,
+            boolean managed,
+            String workspace) {
+        if (version != null) {
+            return version;
+        }
+        if (managed) {
+            return "managed version";
+        }
+        return "workspace member " + workspace;
+    }
+
     private static boolean hasDependency(ProjectConfig config, DependencySection section, String coordinate) {
         return dependencies(config, section).containsKey(coordinate)
-                || managedDependencies(config, section).contains(coordinate);
+                || managedDependencies(config, section).contains(coordinate)
+                || workspaceDependencies(config, section).containsKey(coordinate);
     }
 
     private static String sectionName(DependencySection section) {
         return switch (section) {
             case MAIN -> "dependencies";
+            case API -> "api.dependencies";
             case TEST -> "test.dependencies";
             case PROCESSOR -> "annotationProcessors";
             case TEST_PROCESSOR -> "test.annotationProcessors";
@@ -1583,11 +1653,13 @@ public final class ZoltCli implements Runnable {
             return DependencySection.MAIN;
         }
         return switch (values.get(0)) {
+            case "api" -> DependencySection.API;
             case "test" -> DependencySection.TEST;
             case "processor" -> DependencySection.PROCESSOR;
             case "test-processor" -> DependencySection.TEST_PROCESSOR;
             default -> throw new DependencySectionException("Unexpected dependency section `" + values.get(0)
-                    + "`. Use `" + command + " test group:artifact`, `"
+                    + "`. Use `" + command + " api group:artifact`, `"
+                    + command + " test group:artifact`, `"
                     + command + " processor group:artifact`, or `"
                     + command + " test-processor group:artifact`.");
         };

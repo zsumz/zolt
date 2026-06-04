@@ -82,6 +82,26 @@ public final class ZoltTomlWriter {
             String coordinate,
             String version) {
         return switch (section) {
+            case API -> new ProjectConfig(
+                    config.project(),
+                    config.repositories(),
+                    config.platforms(),
+                    put(config.apiDependencies(), coordinate, version),
+                    remove(config.managedApiDependencies(), coordinate),
+                    remove(config.workspaceApiDependencies(), coordinate),
+                    remove(config.dependencies(), coordinate),
+                    remove(config.managedDependencies(), coordinate),
+                    remove(config.workspaceDependencies(), coordinate),
+                    config.testDependencies(),
+                    config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
+                    config.build(),
+                    config.nativeSettings(),
+                    config.compilerSettings());
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -167,6 +187,26 @@ public final class ZoltTomlWriter {
 
     public ProjectConfig addManagedDependency(ProjectConfig config, DependencySection section, String coordinate) {
         return switch (section) {
+            case API -> new ProjectConfig(
+                    config.project(),
+                    config.repositories(),
+                    config.platforms(),
+                    remove(config.apiDependencies(), coordinate),
+                    add(config.managedApiDependencies(), coordinate),
+                    remove(config.workspaceApiDependencies(), coordinate),
+                    remove(config.dependencies(), coordinate),
+                    remove(config.managedDependencies(), coordinate),
+                    remove(config.workspaceDependencies(), coordinate),
+                    config.testDependencies(),
+                    config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
+                    config.build(),
+                    config.nativeSettings(),
+                    config.compilerSettings());
             case MAIN -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
@@ -252,13 +292,33 @@ public final class ZoltTomlWriter {
 
     public ProjectConfig removeDependency(ProjectConfig config, DependencySection section, String coordinate) {
         return switch (section) {
-            case MAIN -> new ProjectConfig(
+            case API -> new ProjectConfig(
                     config.project(),
                     config.repositories(),
                     config.platforms(),
                     remove(config.apiDependencies(), coordinate),
                     remove(config.managedApiDependencies(), coordinate),
                     remove(config.workspaceApiDependencies(), coordinate),
+                    config.dependencies(),
+                    config.managedDependencies(),
+                    config.workspaceDependencies(),
+                    config.testDependencies(),
+                    config.managedTestDependencies(),
+                    config.workspaceTestDependencies(),
+                    config.annotationProcessors(),
+                    config.managedAnnotationProcessors(),
+                    config.testAnnotationProcessors(),
+                    config.managedTestAnnotationProcessors(),
+                    config.build(),
+                    config.nativeSettings(),
+                    config.compilerSettings());
+            case MAIN -> new ProjectConfig(
+                    config.project(),
+                    config.repositories(),
+                    config.platforms(),
+                    config.apiDependencies(),
+                    config.managedApiDependencies(),
+                    config.workspaceApiDependencies(),
                     remove(config.dependencies(), coordinate),
                     remove(config.managedDependencies(), coordinate),
                     remove(config.workspaceDependencies(), coordinate),

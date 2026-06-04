@@ -295,6 +295,71 @@ final class ZoltCliTest {
     }
 
     @Test
+    void addAddsApiDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                "central" = "https://repo.maven.apache.org/maven2"
+
+                [platforms]
+
+                [dependencies]
+                "com.example:contract" = "1.0.0"
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """);
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "api",
+                "com.example:contract:2.0.0");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Updated dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[api.dependencies]\n\"com.example:contract\" = \"2.0.0\""));
+        assertFalse(config.contains("[dependencies]\n\"com.example:contract\" = \"1.0.0\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void addAddsManagedApiDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--managed",
+                "api",
+                "com.example:contract");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency com.example:contract with a platform-managed version to [api.dependencies]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[api.dependencies]\n\"com.example:contract\" = {}"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void addAddsProcessorDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -367,6 +432,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unexpected dependency section `compile-only`"));
+        assertTrue(result.stderr().contains("zolt add api group:artifact"));
         assertTrue(result.stderr().contains("zolt add processor group:artifact"));
         assertTrue(result.stderr().contains("zolt add test-processor group:artifact"));
     }
@@ -498,6 +564,92 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains(
                 "Dependency com.example:missing is not present in [dependencies]; nothing to remove."));
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void removeWithoutSectionDoesNotDeleteApiDependency() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                "central" = "https://repo.maven.apache.org/maven2"
+
+                [platforms]
+
+                [api.dependencies]
+                "com.example:contract" = "1.0.0"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """);
+
+        CommandResult result = execute(
+                "remove",
+                "--cwd", projectDir.toString(),
+                "com.example:contract");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Dependency com.example:contract is not present in [dependencies]; nothing to remove."));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[api.dependencies]\n\"com.example:contract\" = \"1.0.0\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void removeDeletesApiDependency() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                "central" = "https://repo.maven.apache.org/maven2"
+
+                [platforms]
+
+                [api.dependencies]
+                "com.example:contract" = "1.0.0"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """);
+
+        CommandResult result = execute(
+                "remove",
+                "--cwd", projectDir.toString(),
+                "api",
+                "com.example:contract");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Removed dependency com.example:contract from [api.dependencies]"));
+        assertTrue(result.stdout().contains("Resolved 0 packages"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("\"com.example:contract\" = \"1.0.0\""));
     }
 
     @Test
