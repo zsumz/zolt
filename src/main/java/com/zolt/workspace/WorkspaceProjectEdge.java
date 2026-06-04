@@ -4,5 +4,13 @@ public record WorkspaceProjectEdge(
         String from,
         String to,
         String scope,
-        String coordinate) {
+        String coordinate,
+        boolean exported) {
+    public WorkspaceProjectEdge(
+            String from,
+            String to,
+            String scope,
+            String coordinate) {
+        this(from, to, scope, coordinate, false);
+    }
 }

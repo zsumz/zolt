@@ -18,7 +18,8 @@ public record LockPackage(
         Optional<String> workspace,
         Optional<String> workspaceOutput,
         List<String> dependencies,
-        List<String> members) {
+        List<String> members,
+        List<String> exportedBy) {
     public LockPackage {
         jar = jar == null ? Optional.empty() : jar;
         pom = pom == null ? Optional.empty() : pom;
@@ -28,6 +29,7 @@ public record LockPackage(
         workspaceOutput = workspaceOutput == null ? Optional.empty() : workspaceOutput;
         dependencies = List.copyOf(dependencies);
         members = members == null ? List.of() : List.copyOf(members);
+        exportedBy = exportedBy == null ? List.of() : List.copyOf(exportedBy);
     }
 
     public LockPackage(
@@ -54,6 +56,7 @@ public record LockPackage(
                 Optional.empty(),
                 Optional.empty(),
                 dependencies,
+                List.of(),
                 List.of());
     }
 
@@ -83,6 +86,38 @@ public record LockPackage(
                 workspace,
                 workspaceOutput,
                 dependencies,
+                List.of(),
+                List.of());
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            Optional<String> workspace,
+            Optional<String> workspaceOutput,
+            List<String> dependencies,
+            List<String> members) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                workspace,
+                workspaceOutput,
+                dependencies,
+                members,
                 List.of());
     }
 }

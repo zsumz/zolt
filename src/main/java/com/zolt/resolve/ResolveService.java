@@ -124,6 +124,23 @@ public final class ResolveService {
 
     private List<DependencyRequest> directRequests(ProjectConfig config, Map<PackageId, String> projectManagedVersions) {
         List<DependencyRequest> requests = new ArrayList<>();
+        for (Map.Entry<String, String> dependency : config.apiDependencies().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.COMPILE,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedApiDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("api.dependencies", packageId, projectManagedVersions),
+                    DependencyScope.COMPILE,
+                    RequestOrigin.DIRECT));
+        }
         for (Map.Entry<String, String> dependency : config.dependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(new DependencyRequest(

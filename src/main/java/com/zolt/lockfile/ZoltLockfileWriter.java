@@ -51,6 +51,11 @@ public final class ZoltLockfileWriter {
             stringArray(output, sortedStrings(lockPackage.members()));
             output.append('\n');
         }
+        if (!lockPackage.exportedBy().isEmpty()) {
+            output.append("exportedBy = ");
+            stringArray(output, sortedStrings(lockPackage.exportedBy()));
+            output.append('\n');
+        }
         output.append("dependencies = ");
         stringArray(output, sortedStrings(lockPackage.dependencies()));
         output.append("\n\n");

@@ -61,7 +61,10 @@ public final class WorkspaceResolveService {
                     mergeWorkspacePolicy(workspace, member),
                     cacheRoot,
                     offline);
-            memberOutputs.add(new MemberResolveOutput(member.path(), output.lockfile()));
+            memberOutputs.add(new MemberResolveOutput(
+                    member.path(),
+                    output.lockfile(),
+                    exportedExternalPackageIds(member.config())));
             downloadCount += output.downloadCount();
         }
 
@@ -190,7 +193,7 @@ public final class WorkspaceResolveService {
                                     + ". Align dependency versions before running workspace resolve.");
                 }
 
-                LockPackage memberPackage = withMember(lockPackage, memberOutput.member());
+                LockPackage memberPackage = withMember(lockPackage, memberOutput.member(), memberOutput.exportedPackageIds());
                 String key = packageKey(memberPackage);
                 LockPackage existingPackage = packages.get(key);
                 packages.put(key, existingPackage == null ? memberPackage : merge(existingPackage, memberPackage));
@@ -223,9 +226,17 @@ public final class WorkspaceResolveService {
                     Optional.of(edge.to()),
                     Optional.of(target.config().build().output()),
                     List.of(),
-                    List.of(edge.from())));
+                    List.of(edge.from()),
+                    edge.exported() ? List.of(edge.from()) : List.of()));
         }
         return packages;
+    }
+
+    private static Set<PackageId> exportedExternalPackageIds(ProjectConfig config) {
+        Set<PackageId> packageIds = new LinkedHashSet<>();
+        config.apiDependencies().keySet().forEach(coordinate -> packageIds.add(packageId(coordinate)));
+        config.managedApiDependencies().forEach(coordinate -> packageIds.add(packageId(coordinate)));
+        return Set.copyOf(packageIds);
     }
 
     private static PackageId packageId(String coordinate) {
@@ -246,6 +257,8 @@ public final class WorkspaceResolveService {
         dependencies.addAll(right.dependencies());
         Set<String> members = new LinkedHashSet<>(left.members());
         members.addAll(right.members());
+        Set<String> exportedBy = new LinkedHashSet<>(left.exportedBy());
+        exportedBy.addAll(right.exportedBy());
         return new LockPackage(
                 left.packageId(),
                 left.version(),
@@ -259,12 +272,17 @@ public final class WorkspaceResolveService {
                 firstPresent(left.workspace(), right.workspace()),
                 firstPresent(left.workspaceOutput(), right.workspaceOutput()),
                 List.copyOf(dependencies),
-                List.copyOf(members));
+                List.copyOf(members),
+                List.copyOf(exportedBy));
     }
 
-    private static LockPackage withMember(LockPackage lockPackage, String member) {
+    private static LockPackage withMember(LockPackage lockPackage, String member, Set<PackageId> exportedPackageIds) {
         Set<String> members = new LinkedHashSet<>(lockPackage.members());
         members.add(member);
+        Set<String> exportedBy = new LinkedHashSet<>(lockPackage.exportedBy());
+        if (exportedPackageIds.contains(lockPackage.packageId())) {
+            exportedBy.add(member);
+        }
         return new LockPackage(
                 lockPackage.packageId(),
                 lockPackage.version(),
@@ -278,7 +296,8 @@ public final class WorkspaceResolveService {
                 lockPackage.workspace(),
                 lockPackage.workspaceOutput(),
                 lockPackage.dependencies(),
-                List.copyOf(members));
+                List.copyOf(members),
+                List.copyOf(exportedBy));
     }
 
     private static Optional<String> firstPresent(Optional<String> left, Optional<String> right) {
@@ -309,7 +328,8 @@ public final class WorkspaceResolveService {
 
     private record MemberResolveOutput(
             String member,
-            ZoltLockfile lockfile) {
+            ZoltLockfile lockfile,
+            Set<PackageId> exportedPackageIds) {
     }
 
     private record VersionOwner(

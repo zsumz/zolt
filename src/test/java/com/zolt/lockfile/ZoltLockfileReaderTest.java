@@ -121,6 +121,24 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsOptionalExportedByMembers() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.example:contract"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                exportedBy = ["modules/api"]
+                dependencies = []
+                """);
+
+        assertEquals(List.of("modules/api"), lockfile.packages().getFirst().exportedBy());
+    }
+
+    @Test
     void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() {
         ZoltLockfile lockfile = reader.read("""
                 version = 1

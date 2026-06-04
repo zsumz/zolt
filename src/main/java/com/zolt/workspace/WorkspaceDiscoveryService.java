@@ -142,8 +142,18 @@ public final class WorkspaceDiscoveryService {
                     edges,
                     member,
                     "compile",
+                    member.config().workspaceApiDependencies(),
+                    "[api.dependencies]",
+                    true);
+            addWorkspaceProjectEdges(
+                    root,
+                    membersByPath,
+                    edges,
+                    member,
+                    "compile",
                     member.config().workspaceDependencies(),
-                    "[dependencies]");
+                    "[dependencies]",
+                    false);
             addWorkspaceProjectEdges(
                     root,
                     membersByPath,
@@ -151,7 +161,8 @@ public final class WorkspaceDiscoveryService {
                     member,
                     "test",
                     member.config().workspaceTestDependencies(),
-                    "[test.dependencies]");
+                    "[test.dependencies]",
+                    false);
         }
         return List.copyOf(edges);
     }
@@ -163,7 +174,8 @@ public final class WorkspaceDiscoveryService {
             WorkspaceMember from,
             String scope,
             Map<String, String> dependencies,
-            String section) {
+            String section,
+            boolean exported) {
         for (Map.Entry<String, String> dependency : new TreeMap<>(dependencies).entrySet()) {
             String coordinate = dependency.getKey();
             String declaredPath = dependency.getValue();
@@ -200,7 +212,7 @@ public final class WorkspaceDiscoveryService {
                                 + targetCoordinate
                                 + "`. Update the dependency key or workspace path so they match.");
             }
-            edges.add(new WorkspaceProjectEdge(from.path(), targetByPath.path(), scope, coordinate));
+            edges.add(new WorkspaceProjectEdge(from.path(), targetByPath.path(), scope, coordinate, exported));
         }
     }
 

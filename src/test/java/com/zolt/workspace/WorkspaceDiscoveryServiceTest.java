@@ -187,6 +187,27 @@ final class WorkspaceDiscoveryServiceTest {
     }
 
     @Test
+    void createsExportedEdgesForWorkspaceApiDependencies() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [api.dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", "com.acme");
+
+        Workspace workspace = service.load(tempDir);
+
+        assertEquals(
+                List.of(new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)),
+                workspace.edges());
+    }
+
+    @Test
     void createsDependencyFirstBuildOrder() throws IOException {
         workspace("""
                 [workspace]
