@@ -70,6 +70,8 @@ import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.WorkspaceRunResult;
+import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceRunPackageResult;
 import com.zolt.workspace.WorkspaceRunPackageService;
 import com.zolt.workspace.WorkspaceSelectionRequest;
@@ -771,6 +773,15 @@ public final class ZoltCli implements Runnable {
         @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
         private List<String> arguments = List.of();
 
+        @Option(names = "--workspace", description = "Run workspace members in dependency order.")
+        private boolean workspace;
+
+        @Option(names = "--all", description = "Select every workspace member.")
+        private boolean all;
+
+        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+        private List<String> members = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -783,6 +794,31 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                if (workspace) {
+                    WorkspaceRunResult result = new WorkspaceRunService().run(
+                            workingDirectory,
+                            cacheRoot,
+                            new WorkspaceSelectionRequest(all, members),
+                            arguments,
+                            output -> {
+                                spec.commandLine().getOut().print(output);
+                                spec.commandLine().getOut().flush();
+                            });
+                    if (result.resolvedLockfile()) {
+                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    }
+                    for (WorkspaceRunResult.MemberRunResult member : result.members()) {
+                        String output = member.result().javaRunResult().output();
+                        if (!output.isEmpty() && !output.endsWith("\n")) {
+                            spec.commandLine().getOut().println();
+                        }
+                        spec.commandLine().getOut().println("Ran "
+                                + member.result().javaRunResult().mainClass()
+                                + " in "
+                                + member.member());
+                    }
+                    return;
+                }
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 RunResult result = new RunService().run(
                         workingDirectory,
@@ -808,6 +844,7 @@ public final class ZoltCli implements Runnable {
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
+                    | WorkspaceConfigException
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
