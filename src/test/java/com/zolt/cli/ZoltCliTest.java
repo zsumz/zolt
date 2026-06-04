@@ -1327,6 +1327,120 @@ final class ZoltCliTest {
     }
 
     @Test
+    void buildWorkspaceMembersOptionSelectsCommaSeparatedMembers() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Path workerDir = workspaceDir.resolve("apps/worker");
+        Path adminDir = workspaceDir.resolve("apps/admin");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.createDirectories(workerDir);
+        Files.createDirectories(adminDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core", "apps/worker", "apps/admin"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        Files.writeString(workerDir.resolve("zolt.toml"), memberConfig("worker"));
+        Path workerSource = workerDir.resolve("src/main/java/com/example/worker/Worker.java");
+        Files.createDirectories(workerSource.getParent());
+        Files.writeString(workerSource, """
+                package com.example.worker;
+
+                public final class Worker {
+                }
+                """);
+        Files.writeString(adminDir.resolve("zolt.toml"), memberConfig("admin"));
+        Path adminSource = adminDir.resolve("src/main/java/com/example/admin/Admin.java");
+        Files.createDirectories(adminSource.getParent());
+        Files.writeString(adminSource, """
+                package com.example.admin;
+
+                public final class Admin {
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--workspace",
+                "--members", "apps/api,apps/worker",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Compiled 1 main source files in modules/core"));
+        assertTrue(result.stdout().contains("Compiled 1 main source files in apps/api"));
+        assertTrue(result.stdout().contains("Compiled 1 main source files in apps/worker"));
+        assertFalse(result.stdout().contains("apps/admin"));
+        assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
+        assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
+        assertTrue(Files.exists(workerDir.resolve("target/classes/com/example/worker/Worker.class")));
+        assertFalse(Files.exists(adminDir.resolve("target/classes/com/example/admin/Admin.class")));
+    }
+
+    @Test
+    void workspaceMembersOptionConflictsWithAll() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+
+        CommandResult result = execute(
+                "build",
+                "--workspace",
+                "--all",
+                "--members", "apps/api",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Use either --all or member selection for workspace selection, not both."));
+    }
+
+    @Test
     void testWorkspaceRunsMembersInDependencyOrder() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");

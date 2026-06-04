@@ -11,7 +11,7 @@ import java.util.Set;
 public final class WorkspaceMemberSelector {
     public WorkspaceSelection select(Workspace workspace, WorkspaceSelectionRequest request) {
         if (request.all() && !request.members().isEmpty()) {
-            throw new WorkspaceConfigException("Use either --all or --member for workspace selection, not both.");
+            throw new WorkspaceConfigException("Use either --all or member selection for workspace selection, not both.");
         }
 
         List<String> selectedMembers = selectedMembers(workspace, request);

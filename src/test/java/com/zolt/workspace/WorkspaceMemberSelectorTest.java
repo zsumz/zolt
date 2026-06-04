@@ -84,7 +84,7 @@ final class WorkspaceMemberSelectorTest {
                 WorkspaceConfigException.class,
                 () -> selector.select(workspace, new WorkspaceSelectionRequest(true, List.of("apps/api"))));
 
-        assertEquals("Use either --all or --member for workspace selection, not both.", exception.getMessage());
+        assertEquals("Use either --all or member selection for workspace selection, not both.", exception.getMessage());
     }
 
     private static Workspace workspace(List<String> members, List<String> defaultMembers) {

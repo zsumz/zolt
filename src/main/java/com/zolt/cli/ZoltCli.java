@@ -78,6 +78,7 @@ import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import picocli.CommandLine;
@@ -715,6 +716,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
         private List<String> members = List.of();
 
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -732,7 +736,7 @@ public final class ZoltCli implements Runnable {
                             workingDirectory,
                             cacheRoot,
                             offline,
-                            new WorkspaceSelectionRequest(all, members));
+                            workspaceSelection(all, members, memberGroups));
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -782,6 +786,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
         private List<String> members = List.of();
 
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -798,7 +805,7 @@ public final class ZoltCli implements Runnable {
                     WorkspaceRunResult result = new WorkspaceRunService().run(
                             workingDirectory,
                             cacheRoot,
-                            new WorkspaceSelectionRequest(all, members),
+                            workspaceSelection(all, members, memberGroups),
                             arguments,
                             output -> {
                                 spec.commandLine().getOut().print(output);
@@ -863,6 +870,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
         private List<String> members = List.of();
 
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -879,7 +889,7 @@ public final class ZoltCli implements Runnable {
                     WorkspaceTestResult result = new WorkspaceTestService().test(
                             workingDirectory,
                             cacheRoot,
-                            new WorkspaceSelectionRequest(all, members));
+                            workspaceSelection(all, members, memberGroups));
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -930,6 +940,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
         private List<String> members = List.of();
 
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -946,7 +959,7 @@ public final class ZoltCli implements Runnable {
                     WorkspacePackageResult result = new WorkspacePackageService().packageJars(
                             workingDirectory,
                             cacheRoot,
-                            new WorkspaceSelectionRequest(all, members));
+                            workspaceSelection(all, members, memberGroups));
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -1012,6 +1025,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
         private List<String> members = List.of();
 
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1028,7 +1044,7 @@ public final class ZoltCli implements Runnable {
                     WorkspaceRunPackageResult result = new WorkspaceRunPackageService().runPackages(
                             workingDirectory,
                             cacheRoot,
-                            new WorkspaceSelectionRequest(all, members),
+                            workspaceSelection(all, members, memberGroups),
                             arguments);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
@@ -1313,6 +1329,16 @@ public final class ZoltCli implements Runnable {
     private static String firstLine(String value) {
         int newline = value.indexOf('\n');
         return newline < 0 ? value : value.substring(0, newline);
+    }
+
+    private static WorkspaceSelectionRequest workspaceSelection(
+            boolean all,
+            List<String> members,
+            List<String> memberGroups) {
+        List<String> selectedMembers = new ArrayList<>();
+        selectedMembers.addAll(members);
+        selectedMembers.addAll(memberGroups);
+        return new WorkspaceSelectionRequest(all, selectedMembers);
     }
 
     private static void printJdkStatus(CommandSpec spec, JdkStatus status) {
