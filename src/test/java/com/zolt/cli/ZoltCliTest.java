@@ -835,11 +835,32 @@ final class ZoltCliTest {
                 direct = true
                 jar = "com/example/test-lib/1.0.0/test-lib-1.0.0.jar"
                 dependencies = []
+
+                [[package]]
+                id = "com.example:processor-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "com/example/processor-lib/1.0.0/processor-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-processor-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test-processor"
+                direct = true
+                jar = "com/example/test-processor-lib/1.0.0/test-processor-lib-1.0.0.jar"
+                dependencies = []
                 """);
 
         Path compileJar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
         Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
         Path testJar = cacheRoot.resolve("com/example/test-lib/1.0.0/test-lib-1.0.0.jar");
+        Path processorJar = cacheRoot.resolve("com/example/processor-lib/1.0.0/processor-lib-1.0.0.jar");
+        Path testProcessorJar = cacheRoot.resolve(
+                "com/example/test-processor-lib/1.0.0/test-processor-lib-1.0.0.jar");
 
         CommandResult compile = execute(
                 "classpath",
@@ -856,6 +877,16 @@ final class ZoltCliTest {
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test");
+        CommandResult processor = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "processor");
+        CommandResult testProcessor = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "test-processor");
 
         assertEquals(0, compile.exitCode());
         assertEquals(compileJar + System.lineSeparator(), compile.stdout());
@@ -867,6 +898,23 @@ final class ZoltCliTest {
         assertEquals(
                 compileJar + File.pathSeparator + runtimeJar + File.pathSeparator + testJar + System.lineSeparator(),
                 test.stdout());
+        assertEquals(0, processor.exitCode());
+        assertEquals(processorJar + System.lineSeparator(), processor.stdout());
+        assertEquals(0, testProcessor.exitCode());
+        assertEquals(testProcessorJar + System.lineSeparator(), testProcessor.stdout());
+    }
+
+    @Test
+    void classpathRejectsUnknownKindWithSupportedKinds() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute("classpath", "--cwd", projectDir.toString(), "processor-test");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Unknown classpath kind `processor-test`"));
+        assertTrue(result.stderr().contains("compile, runtime, test, processor, or test-processor"));
     }
 
     @Test

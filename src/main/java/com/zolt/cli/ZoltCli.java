@@ -607,13 +607,35 @@ public final class ZoltCli implements Runnable {
     @Command(name = "classpath", description = "Print a classpath from zolt.lock.")
     public static final class ClasspathCommand implements Runnable {
         enum Kind {
-            COMPILE,
-            RUNTIME,
-            TEST
+            COMPILE("compile"),
+            RUNTIME("runtime"),
+            TEST("test"),
+            PROCESSOR("processor"),
+            TEST_PROCESSOR("test-processor");
+
+            private final String label;
+
+            Kind(String label) {
+                this.label = label;
+            }
+
+            private static Kind parse(String value) {
+                for (Kind kind : values()) {
+                    if (kind.label.equalsIgnoreCase(value)) {
+                        return kind;
+                    }
+                }
+                throw new ClasspathCommandException(
+                        "Unknown classpath kind `" + value
+                                + "`. Use compile, runtime, test, processor, or test-processor.");
+            }
         }
 
-        @Parameters(index = "0", paramLabel = "compile|runtime|test", description = "Classpath kind to print.")
-        private Kind kind;
+        @Parameters(
+                index = "0",
+                paramLabel = "compile|runtime|test|processor|test-processor",
+                description = "Classpath kind to print.")
+        private String kind;
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -631,13 +653,15 @@ public final class ZoltCli implements Runnable {
                 ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(
                         lockfileReader.read(workingDirectory.resolve("zolt.lock")),
                         cacheRoot));
-                String output = new ClasspathFormatter().format(switch (kind) {
+                String output = new ClasspathFormatter().format(switch (Kind.parse(kind)) {
                     case COMPILE -> classpaths.compile();
                     case RUNTIME -> classpaths.runtime();
                     case TEST -> classpaths.test();
+                    case PROCESSOR -> classpaths.processor();
+                    case TEST_PROCESSOR -> classpaths.testProcessor();
                 });
                 printAndFlush(spec, output);
-            } catch (LockfileReadException exception) {
+            } catch (ClasspathCommandException | LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
@@ -1583,6 +1607,12 @@ public final class ZoltCli implements Runnable {
 
     private static final class DependencySectionException extends RuntimeException {
         private DependencySectionException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class ClasspathCommandException extends RuntimeException {
+        private ClasspathCommandException(String message) {
             super(message);
         }
     }
