@@ -67,6 +67,8 @@ import com.zolt.tree.DependencyWhyFormatter;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspacePackageResult;
+import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
 import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
@@ -880,6 +882,15 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "package", description = "Package compiled classes into a jar.")
     public static final class PackageCommand implements Runnable {
+        @Option(names = "--workspace", description = "Package workspace members in dependency order.")
+        private boolean workspace;
+
+        @Option(names = "--all", description = "Select every workspace member.")
+        private boolean all;
+
+        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+        private List<String> members = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -892,6 +903,31 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             try {
+                if (workspace) {
+                    WorkspacePackageResult result = new WorkspacePackageService().packageJars(
+                            workingDirectory,
+                            cacheRoot,
+                            new WorkspaceSelectionRequest(all, members));
+                    if (result.resolvedLockfile()) {
+                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    }
+                    for (WorkspacePackageResult.MemberPackageResult member : result.members()) {
+                        spec.commandLine().getOut().println(
+                                "Packaged "
+                                        + member.result().entryCount()
+                                        + " compiled files in "
+                                        + member.member());
+                        if (member.result().hasMainClass()) {
+                            spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
+                        }
+                        spec.commandLine().getOut().println("Wrote jar to " + member.result().jarPath());
+                    }
+                    spec.commandLine().getOut().println(
+                            "Packaged "
+                                    + result.members().size()
+                                    + " workspace members into thin jars");
+                    return;
+                }
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                 PackageResult result = new PackageService().packageJar(workingDirectory, config, cacheRoot);
                 if (result.buildResult().resolvedLockfile()) {
@@ -915,6 +951,7 @@ public final class ZoltCli implements Runnable {
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
+                    | WorkspaceConfigException
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);

@@ -28,6 +28,13 @@ public final class PackageService {
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
+        return packageJar(projectDirectory, config, buildResult);
+    }
+
+    public PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult) {
         Path outputDirectory = buildResult.outputDirectory();
         if (!Files.isDirectory(outputDirectory)) {
             throw new PackageException(
