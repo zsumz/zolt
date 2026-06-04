@@ -108,7 +108,8 @@ final class TestRunServiceTest {
                 () -> service.runTests(projectDir, config(), projectDir.resolve("cache")));
 
         assertTrue(exception.getMessage().contains("JUnit Platform Console is not present"));
-        assertTrue(exception.getMessage().contains("junit-platform-console-standalone"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve`"));
+        assertTrue(exception.getMessage().contains("test engines declared in [test.dependencies]"));
     }
 
     @Test

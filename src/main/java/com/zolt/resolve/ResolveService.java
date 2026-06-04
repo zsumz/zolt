@@ -34,6 +34,10 @@ public final class ResolveService {
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
             "org.springframework.boot",
             "spring-boot-loader");
+    private static final PackageId JUNIT_PLATFORM_CONSOLE_PACKAGE = new PackageId(
+            "org.junit.platform",
+            "junit-platform-console");
+    private static final String JUNIT_PLATFORM_CONSOLE_VERSION = "1.11.4";
 
     private final CoordinateParser coordinateParser;
     private final MavenRepositoryClient repositoryClient;
@@ -214,8 +218,44 @@ public final class ResolveService {
                     DependencyScope.TEST_PROCESSOR,
                     RequestOrigin.DIRECT));
         }
+        addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
         return requests;
+    }
+
+    private void addTestToolRequests(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            List<DependencyRequest> requests) {
+        if (!hasTestInputs(config)) {
+            return;
+        }
+        boolean consoleAlreadyOnTestClasspath = requests.stream()
+                .anyMatch(request -> request.packageId().groupId().equals("org.junit.platform")
+                        && request.packageId().artifactId().startsWith("junit-platform-console")
+                        && request.scope().entersTestClasspath());
+        if (consoleAlreadyOnTestClasspath) {
+            return;
+        }
+        String version = projectManagedVersions.getOrDefault(
+                JUNIT_PLATFORM_CONSOLE_PACKAGE,
+                JUNIT_PLATFORM_CONSOLE_VERSION);
+        if (version == null || version.isBlank()) {
+            version = JUNIT_PLATFORM_CONSOLE_VERSION;
+        }
+        requests.add(new DependencyRequest(
+                JUNIT_PLATFORM_CONSOLE_PACKAGE,
+                version,
+                DependencyScope.TEST,
+                RequestOrigin.TRANSITIVE));
+    }
+
+    private static boolean hasTestInputs(ProjectConfig config) {
+        return !config.testDependencies().isEmpty()
+                || !config.managedTestDependencies().isEmpty()
+                || !config.workspaceTestDependencies().isEmpty()
+                || !config.testAnnotationProcessors().isEmpty()
+                || !config.managedTestAnnotationProcessors().isEmpty();
     }
 
     private void addPackageModeRequests(

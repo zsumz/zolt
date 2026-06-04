@@ -526,19 +526,137 @@ final class ResolveServiceTest {
                   </dependencyManagement>
                 </project>
                 """);
+        addJUnitConsoleArtifact("1.11.4");
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
         createDirectory(projectDir);
 
         ResolveResult result = resolveService.resolve(projectDir, testPlatformConfig(), cacheRoot);
 
-        assertEquals(2, result.resolvedCount());
+        assertEquals(3, result.resolvedCount());
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))
                         && lockPackage.version().equals("1.0.0")
                         && lockPackage.scope() == DependencyScope.TEST
                         && lockPackage.direct()));
+    }
+
+    @Test
+    void testDependenciesAddJUnitPlatformConsoleRunnerTooling() {
+        addArtifact("org.junit.platform", "junit-platform-console", "1.11.4", """
+                <project>
+                  <groupId>org.junit.platform</groupId>
+                  <artifactId>junit-platform-console</artifactId>
+                  <version>1.11.4</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.junit.platform</groupId>
+                      <artifactId>junit-platform-launcher</artifactId>
+                      <version>1.11.4</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("org.junit.platform", "junit-platform-launcher", "1.11.4", """
+                <project>
+                  <groupId>org.junit.platform</groupId>
+                  <artifactId>junit-platform-launcher</artifactId>
+                  <version>1.11.4</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithTestDependencies(Map.of("com.example:app", "1.0.0")),
+                cacheRoot);
+
+        assertEquals(4, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "app"))
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.junit.platform", "junit-platform-console"))
+                        && lockPackage.version().equals("1.11.4")
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && !lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.junit.platform", "junit-platform-launcher"))
+                        && lockPackage.version().equals("1.11.4")
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && !lockPackage.direct()));
+    }
+
+    @Test
+    void testRunnerToolingUsesProjectManagedConsoleVersion() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.junit.platform</groupId>
+                        <artifactId>junit-platform-console</artifactId>
+                        <version>1.10.2</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addJUnitConsoleArtifact("1.10.2");
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, testPlatformConfig(), cacheRoot);
+
+        assertEquals(3, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.junit.platform", "junit-platform-console"))
+                        && lockPackage.version().equals("1.10.2")
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && !lockPackage.direct()));
+    }
+
+    @Test
+    void explicitJUnitPlatformConsoleDependencyStaysDirect() {
+        addArtifact("org.junit.platform", "junit-platform-console-standalone", "1.11.4", """
+                <project>
+                  <groupId>org.junit.platform</groupId>
+                  <artifactId>junit-platform-console-standalone</artifactId>
+                  <version>1.11.4</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithTestDependencies(Map.of("org.junit.platform:junit-platform-console-standalone", "1.11.4")),
+                cacheRoot);
+
+        assertEquals(1, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.junit.platform", "junit-platform-console-standalone"))
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.junit.platform", "junit-platform-console"))));
     }
 
     @Test
@@ -773,6 +891,15 @@ final class ResolveServiceTest {
                 BuildSettings.defaults());
     }
 
+    private ProjectConfig configWithTestDependencies(Map<String, String> testDependencies) {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of(),
+                testDependencies,
+                BuildSettings.defaults());
+    }
+
     private ProjectConfig platformConfig() {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
@@ -866,6 +993,16 @@ final class ResolveServiceTest {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
         responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
+    }
+
+    private void addJUnitConsoleArtifact(String version) {
+        addArtifact("org.junit.platform", "junit-platform-console", version, """
+                <project>
+                  <groupId>org.junit.platform</groupId>
+                  <artifactId>junit-platform-console</artifactId>
+                  <version>%s</version>
+                </project>
+                """.formatted(version));
     }
 
     private void addPom(String groupId, String artifactId, String version, String pom) {

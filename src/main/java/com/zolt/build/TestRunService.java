@@ -79,7 +79,8 @@ public final class TestRunService {
         if (runnerClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
             throw new TestRunException(
                     "JUnit Platform Console is not present on the test classpath. "
-                            + "Add org.junit.platform:junit-platform-console-standalone to [test.dependencies].");
+                            + "Run `zolt resolve` to refresh Zolt's test runner tooling. "
+                            + "Keep JUnit, Spock, and other test engines declared in [test.dependencies].");
         }
 
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
