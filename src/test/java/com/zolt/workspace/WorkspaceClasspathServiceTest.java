@@ -31,9 +31,11 @@ final class WorkspaceClasspathServiceTest {
         Path coreOutput = tempDir.resolve("modules/core/target/classes").normalize();
         Path extraOutput = tempDir.resolve("modules/extra/target/classes").normalize();
         Path coreHelperJar = tempDir.resolve("cache/org/example/core-helper/1.0.0/core-helper-1.0.0.jar");
+        Path coreApiJar = tempDir.resolve("cache/org/example/core-api/1.0.0/core-api-1.0.0.jar");
         Path workerHelperJar = tempDir.resolve("cache/org/example/worker-helper/1.0.0/worker-helper-1.0.0.jar");
         Path legacyJar = tempDir.resolve("cache/org/example/legacy/1.0.0/legacy-1.0.0.jar");
         createEmptyFile(coreHelperJar);
+        createEmptyFile(coreApiJar);
         createEmptyFile(workerHelperJar);
         createEmptyFile(legacyJar);
         ZoltLockfile lockfile = lockfileReader.read("""
@@ -72,6 +74,17 @@ final class WorkspaceClasspathServiceTest {
                 dependencies = []
 
                 [[package]]
+                id = "org.example:core-api"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "org/example/core-api/1.0.0/core-api-1.0.0.jar"
+                members = ["modules/core"]
+                exportedBy = ["modules/core"]
+                dependencies = []
+
+                [[package]]
                 id = "org.example:worker-helper"
                 version = "1.0.0"
                 source = "maven-central"
@@ -96,12 +109,16 @@ final class WorkspaceClasspathServiceTest {
 
         assertTrue(apiClasspaths.compile().entries().contains(coreOutput));
         assertFalse(apiClasspaths.compile().entries().contains(extraOutput));
-        assertTrue(apiClasspaths.compile().entries().contains(coreHelperJar));
+        assertFalse(apiClasspaths.compile().entries().contains(coreHelperJar));
+        assertTrue(apiClasspaths.compile().entries().contains(coreApiJar));
         assertFalse(apiClasspaths.compile().entries().contains(workerHelperJar));
         assertTrue(apiClasspaths.compile().entries().contains(legacyJar));
+        assertTrue(apiClasspaths.runtime().entries().contains(coreHelperJar));
+        assertTrue(apiClasspaths.runtime().entries().contains(coreApiJar));
         assertTrue(workerClasspaths.compile().entries().contains(extraOutput));
         assertFalse(workerClasspaths.compile().entries().contains(coreOutput));
         assertFalse(workerClasspaths.compile().entries().contains(coreHelperJar));
+        assertFalse(workerClasspaths.compile().entries().contains(coreApiJar));
         assertTrue(workerClasspaths.compile().entries().contains(workerHelperJar));
         assertTrue(workerClasspaths.compile().entries().contains(legacyJar));
     }

@@ -37,17 +37,53 @@ public final class WorkspaceClasspathService {
         Set<String> visibleMembers = new LinkedHashSet<>();
         visibleMembers.add(memberPath);
         visibleMembers.addAll(dependencyClosure);
-        ZoltLockfile filteredLockfile = new ZoltLockfile(
+        ZoltLockfile compileLockfile = new ZoltLockfile(
                 lockfile.version(),
-                classpathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
+                compileClasspathPackagesFor(lockfile.packages(), memberPath, dependencyClosure),
                 List.of());
-        return classpathBuilder.build(lockfileReader.classpathPackages(
-                filteredLockfile,
+        ZoltLockfile runtimeLockfile = new ZoltLockfile(
+                lockfile.version(),
+                runtimeClasspathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
+                List.of());
+        ClasspathSet compileClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+                compileLockfile,
                 cacheRoot,
                 workspace.root()));
+        ClasspathSet runtimeClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+                runtimeLockfile,
+                cacheRoot,
+                workspace.root()));
+        return new ClasspathSet(
+                compileClasspaths.compile(),
+                runtimeClasspaths.runtime(),
+                runtimeClasspaths.test(),
+                compileClasspaths.processor(),
+                compileClasspaths.testProcessor());
     }
 
-    private static List<LockPackage> classpathPackagesFor(
+    private static List<LockPackage> compileClasspathPackagesFor(
+            List<LockPackage> packages,
+            String memberPath,
+            Set<String> dependencyClosure) {
+        List<LockPackage> filteredPackages = new ArrayList<>();
+        for (LockPackage lockPackage : packages) {
+            if (lockPackage.workspace().isPresent()) {
+                if (dependencyClosure.contains(lockPackage.workspace().orElseThrow())) {
+                    filteredPackages.add(lockPackage);
+                }
+                continue;
+            }
+
+            if (lockPackage.members().isEmpty()
+                    || lockPackage.members().contains(memberPath)
+                    || intersects(lockPackage.exportedBy(), dependencyClosure)) {
+                filteredPackages.add(lockPackage);
+            }
+        }
+        return filteredPackages;
+    }
+
+    private static List<LockPackage> runtimeClasspathPackagesFor(
             List<LockPackage> packages,
             Set<String> dependencyClosure,
             Set<String> visibleMembers) {
