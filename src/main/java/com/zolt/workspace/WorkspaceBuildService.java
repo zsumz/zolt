@@ -1,6 +1,7 @@
 package com.zolt.workspace;
 
 import com.zolt.build.BuildService;
+import com.zolt.build.JavacException;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -76,9 +77,18 @@ public final class WorkspaceBuildService {
                     lockfile,
                     cacheRoot,
                     member.path());
-            results.add(new WorkspaceBuildResult.MemberBuildResult(
-                    member.path(),
-                    buildService.build(member.directory(), member.config(), classpaths)));
+            try {
+                results.add(new WorkspaceBuildResult.MemberBuildResult(
+                        member.path(),
+                        buildService.build(member.directory(), member.config(), classpaths)));
+            } catch (JavacException exception) {
+                throw new JavacException(
+                        exception.getMessage()
+                                + "\nWorkspace member `"
+                                + member.path()
+                                + "` failed to compile. If the missing type comes from a dependency of another workspace member, declare it directly in this member or move it to [api.dependencies] in the member that exposes it.",
+                        exception);
+            }
         }
         return new WorkspaceBuildResult(resolveResult, results);
     }
