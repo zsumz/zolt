@@ -129,7 +129,8 @@ public final class ZoltLockfileReader {
                 optionalString(table, "pomSha256"),
                 optionalString(table, "workspace"),
                 optionalString(table, "workspaceOutput"),
-                stringArray(table, "dependencies"));
+                stringArray(table, "dependencies"),
+                optionalStringArray(table, "members"));
     }
 
     private static List<LockConflict> conflicts(TomlArray conflictArray) {
@@ -187,6 +188,19 @@ public final class ZoltLockfileReader {
             throw new LockfileReadException("Missing required string array field `" + key + "` in zolt.lock.");
         }
 
+        return strings(array, key);
+    }
+
+    private static List<String> optionalStringArray(TomlTable table, String key) {
+        TomlArray array = table.getArray(key);
+        if (array == null) {
+            return List.of();
+        }
+
+        return strings(array, key);
+    }
+
+    private static List<String> strings(TomlArray array, String key) {
         List<String> values = new ArrayList<>();
         for (int index = 0; index < array.size(); index++) {
             String value = array.getString(index);

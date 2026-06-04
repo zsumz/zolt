@@ -34,9 +34,12 @@ public final class WorkspaceClasspathService {
             Path cacheRoot,
             String memberPath) {
         Set<String> dependencyClosure = dependencyClosure(workspace, memberPath);
+        Set<String> visibleMembers = new LinkedHashSet<>();
+        visibleMembers.add(memberPath);
+        visibleMembers.addAll(dependencyClosure);
         ZoltLockfile filteredLockfile = new ZoltLockfile(
                 lockfile.version(),
-                classpathPackagesFor(lockfile.packages(), dependencyClosure),
+                classpathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
                 List.of());
         return classpathBuilder.build(lockfileReader.classpathPackages(
                 filteredLockfile,
@@ -46,15 +49,31 @@ public final class WorkspaceClasspathService {
 
     private static List<LockPackage> classpathPackagesFor(
             List<LockPackage> packages,
-            Set<String> dependencyClosure) {
+            Set<String> dependencyClosure,
+            Set<String> visibleMembers) {
         List<LockPackage> filteredPackages = new ArrayList<>();
         for (LockPackage lockPackage : packages) {
-            if (lockPackage.workspace().isEmpty()
-                    || dependencyClosure.contains(lockPackage.workspace().orElseThrow())) {
+            if (lockPackage.workspace().isPresent()) {
+                if (dependencyClosure.contains(lockPackage.workspace().orElseThrow())) {
+                    filteredPackages.add(lockPackage);
+                }
+                continue;
+            }
+
+            if (lockPackage.members().isEmpty() || intersects(lockPackage.members(), visibleMembers)) {
                 filteredPackages.add(lockPackage);
             }
         }
         return filteredPackages;
+    }
+
+    private static boolean intersects(List<String> members, Set<String> visibleMembers) {
+        for (String member : members) {
+            if (visibleMembers.contains(member)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Set<String> dependencyClosure(Workspace workspace, String memberPath) {

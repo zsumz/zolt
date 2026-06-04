@@ -99,6 +99,25 @@ final class ZoltLockfileReaderTest {
         assertEquals("workspace", lockPackage.source());
         assertEquals("modules/core", lockPackage.workspace().orElseThrow());
         assertEquals("target/classes", lockPackage.workspaceOutput().orElseThrow());
+        assertEquals(List.of(), lockPackage.members());
+    }
+
+    @Test
+    void readsOptionalPackageMembers() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.example:demo"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                members = ["apps/api", "modules/core"]
+                dependencies = []
+                """);
+
+        assertEquals(List.of("apps/api", "modules/core"), lockfile.packages().getFirst().members());
     }
 
     @Test

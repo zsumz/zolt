@@ -94,6 +94,31 @@ final class ZoltLockfileWriterTest {
         assertTrue(output.contains("workspaceOutput = \"target/classes\""));
     }
 
+    @Test
+    void writesPackageMembersDeterministically() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(new LockPackage(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        "maven-central",
+                        DependencyScope.COMPILE,
+                        true,
+                        Optional.of("com/example/demo/1.0.0/demo-1.0.0.jar"),
+                        Optional.of("com/example/demo/1.0.0/demo-1.0.0.pom"),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of(),
+                        List.of("modules/core", "apps/api"))),
+                List.of());
+
+        String output = writer.write(lockfile);
+
+        assertTrue(output.contains("members = [\"apps/api\", \"modules/core\"]"));
+    }
+
     private static ZoltLockfile unsortedLockfile() {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,

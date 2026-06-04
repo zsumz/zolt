@@ -163,7 +163,9 @@ public final class WorkspaceResolveService {
         Map<String, LockConflict> conflicts = new LinkedHashMap<>();
         for (LockPackage lockPackage : workspacePackages(workspace)) {
             selectedVersions.putIfAbsent(lockPackage.packageId(), new VersionOwner(lockPackage.version(), lockPackage.workspace().orElse("<workspace>")));
-            packages.put(packageKey(lockPackage), lockPackage);
+            String key = packageKey(lockPackage);
+            LockPackage existingPackage = packages.get(key);
+            packages.put(key, existingPackage == null ? lockPackage : merge(existingPackage, lockPackage));
         }
         for (MemberResolveOutput memberOutput : memberOutputs) {
             for (LockPackage lockPackage : memberOutput.lockfile().packages()) {
@@ -185,9 +187,10 @@ public final class WorkspaceResolveService {
                                     + ". Align dependency versions before running workspace resolve.");
                 }
 
-                String key = packageKey(lockPackage);
+                LockPackage memberPackage = withMember(lockPackage, memberOutput.member());
+                String key = packageKey(memberPackage);
                 LockPackage existingPackage = packages.get(key);
-                packages.put(key, existingPackage == null ? lockPackage : merge(existingPackage, lockPackage));
+                packages.put(key, existingPackage == null ? memberPackage : merge(existingPackage, memberPackage));
             }
             for (LockConflict conflict : memberOutput.lockfile().conflicts()) {
                 conflicts.putIfAbsent(conflictKey(conflict), conflict);
@@ -216,7 +219,8 @@ public final class WorkspaceResolveService {
                     Optional.empty(),
                     Optional.of(edge.to()),
                     Optional.of(target.config().build().output()),
-                    List.of()));
+                    List.of(),
+                    List.of(edge.from())));
         }
         return packages;
     }
@@ -237,6 +241,8 @@ public final class WorkspaceResolveService {
     private static LockPackage merge(LockPackage left, LockPackage right) {
         Set<String> dependencies = new LinkedHashSet<>(left.dependencies());
         dependencies.addAll(right.dependencies());
+        Set<String> members = new LinkedHashSet<>(left.members());
+        members.addAll(right.members());
         return new LockPackage(
                 left.packageId(),
                 left.version(),
@@ -247,7 +253,29 @@ public final class WorkspaceResolveService {
                 firstPresent(left.pom(), right.pom()),
                 firstPresent(left.jarSha256(), right.jarSha256()),
                 firstPresent(left.pomSha256(), right.pomSha256()),
-                List.copyOf(dependencies));
+                firstPresent(left.workspace(), right.workspace()),
+                firstPresent(left.workspaceOutput(), right.workspaceOutput()),
+                List.copyOf(dependencies),
+                List.copyOf(members));
+    }
+
+    private static LockPackage withMember(LockPackage lockPackage, String member) {
+        Set<String> members = new LinkedHashSet<>(lockPackage.members());
+        members.add(member);
+        return new LockPackage(
+                lockPackage.packageId(),
+                lockPackage.version(),
+                lockPackage.source(),
+                lockPackage.scope(),
+                lockPackage.direct(),
+                lockPackage.jar(),
+                lockPackage.pom(),
+                lockPackage.jarSha256(),
+                lockPackage.pomSha256(),
+                lockPackage.workspace(),
+                lockPackage.workspaceOutput(),
+                lockPackage.dependencies(),
+                List.copyOf(members));
     }
 
     private static Optional<String> firstPresent(Optional<String> left, Optional<String> right) {

@@ -30,9 +30,12 @@ final class WorkspaceClasspathServiceTest {
                         new WorkspaceProjectEdge("apps/worker", "modules/extra", "compile", "com.acme:extra")));
         Path coreOutput = tempDir.resolve("modules/core/target/classes").normalize();
         Path extraOutput = tempDir.resolve("modules/extra/target/classes").normalize();
-        Path fakeJar = tempDir.resolve("cache/org/example/tool/1.0.0/tool-1.0.0.jar");
-        Files.createDirectories(fakeJar.getParent());
-        Files.writeString(fakeJar, "");
+        Path coreHelperJar = tempDir.resolve("cache/org/example/core-helper/1.0.0/core-helper-1.0.0.jar");
+        Path workerHelperJar = tempDir.resolve("cache/org/example/worker-helper/1.0.0/worker-helper-1.0.0.jar");
+        Path legacyJar = tempDir.resolve("cache/org/example/legacy/1.0.0/legacy-1.0.0.jar");
+        createEmptyFile(coreHelperJar);
+        createEmptyFile(workerHelperJar);
+        createEmptyFile(legacyJar);
         ZoltLockfile lockfile = lockfileReader.read("""
                 version = 1
 
@@ -44,6 +47,7 @@ final class WorkspaceClasspathServiceTest {
                 direct = true
                 workspace = "modules/core"
                 workspaceOutput = "target/classes"
+                members = ["apps/api"]
                 dependencies = []
 
                 [[package]]
@@ -54,15 +58,36 @@ final class WorkspaceClasspathServiceTest {
                 direct = true
                 workspace = "modules/extra"
                 workspaceOutput = "target/classes"
+                members = ["apps/worker"]
                 dependencies = []
 
                 [[package]]
-                id = "org.example:tool"
+                id = "org.example:core-helper"
                 version = "1.0.0"
                 source = "maven-central"
                 scope = "compile"
                 direct = true
-                jar = "org/example/tool/1.0.0/tool-1.0.0.jar"
+                jar = "org/example/core-helper/1.0.0/core-helper-1.0.0.jar"
+                members = ["modules/core"]
+                dependencies = []
+
+                [[package]]
+                id = "org.example:worker-helper"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "org/example/worker-helper/1.0.0/worker-helper-1.0.0.jar"
+                members = ["apps/worker"]
+                dependencies = []
+
+                [[package]]
+                id = "org.example:legacy"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "org/example/legacy/1.0.0/legacy-1.0.0.jar"
                 dependencies = []
                 """);
 
@@ -71,10 +96,14 @@ final class WorkspaceClasspathServiceTest {
 
         assertTrue(apiClasspaths.compile().entries().contains(coreOutput));
         assertFalse(apiClasspaths.compile().entries().contains(extraOutput));
-        assertTrue(apiClasspaths.compile().entries().contains(fakeJar));
+        assertTrue(apiClasspaths.compile().entries().contains(coreHelperJar));
+        assertFalse(apiClasspaths.compile().entries().contains(workerHelperJar));
+        assertTrue(apiClasspaths.compile().entries().contains(legacyJar));
         assertTrue(workerClasspaths.compile().entries().contains(extraOutput));
         assertFalse(workerClasspaths.compile().entries().contains(coreOutput));
-        assertTrue(workerClasspaths.compile().entries().contains(fakeJar));
+        assertFalse(workerClasspaths.compile().entries().contains(coreHelperJar));
+        assertTrue(workerClasspaths.compile().entries().contains(workerHelperJar));
+        assertTrue(workerClasspaths.compile().entries().contains(legacyJar));
     }
 
     private Workspace workspace(
@@ -90,5 +119,10 @@ final class WorkspaceClasspathServiceTest {
                         .toList(),
                 edges,
                 members);
+    }
+
+    private static void createEmptyFile(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, "");
     }
 }

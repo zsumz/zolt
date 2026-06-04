@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.DependencyScope;
@@ -106,19 +107,54 @@ final class WorkspaceResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.COMPILE
                         && lockPackage.direct()
                         && lockPackage.workspace().orElseThrow().equals("modules/core")
-                        && lockPackage.workspaceOutput().orElseThrow().equals("target/classes")));
+                        && lockPackage.workspaceOutput().orElseThrow().equals("target/classes")
+                        && lockPackage.members().equals(List.of("apps/api"))));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))
                         && lockPackage.scope() == DependencyScope.COMPILE
-                        && lockPackage.direct()));
+                        && lockPackage.direct()
+                        && lockPackage.members().equals(List.of("apps/api"))));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib"))
                         && lockPackage.scope() == DependencyScope.COMPILE
-                        && lockPackage.direct()));
+                        && lockPackage.direct()
+                        && lockPackage.members().equals(List.of("apps/api", "modules/core"))));
 
         assertTrue(lockfileReader.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir).stream()
                 .anyMatch(classpathPackage -> classpathPackage.resolvedPackage().jarPath()
                         .equals(tempDir.resolve("modules/core/target/classes"))));
+    }
+
+    @Test
+    void mergesWorkspacePackageOwners() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "apps/worker", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("apps/worker", "worker", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", "");
+
+        ResolveResult result = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        LockPackage core = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.acme", "core")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("workspace", core.source());
+        assertEquals("modules/core", core.workspace().orElseThrow());
+        assertEquals("target/classes", core.workspaceOutput().orElseThrow());
+        assertEquals(List.of("apps/api", "apps/worker"), core.members());
     }
 
     @Test

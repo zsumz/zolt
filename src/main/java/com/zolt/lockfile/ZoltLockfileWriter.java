@@ -46,6 +46,11 @@ public final class ZoltLockfileWriter {
         lockPackage.pomSha256().ifPresent(value -> assignment(output, "pomSha256", value));
         lockPackage.workspace().ifPresent(value -> assignment(output, "workspace", value));
         lockPackage.workspaceOutput().ifPresent(value -> assignment(output, "workspaceOutput", value));
+        if (!lockPackage.members().isEmpty()) {
+            output.append("members = ");
+            stringArray(output, sortedStrings(lockPackage.members()));
+            output.append('\n');
+        }
         output.append("dependencies = ");
         stringArray(output, sortedStrings(lockPackage.dependencies()));
         output.append("\n\n");
