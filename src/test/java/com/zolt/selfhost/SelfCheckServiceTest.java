@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
+import com.zolt.build.JavaRunResult;
 import com.zolt.build.PackageResult;
+import com.zolt.build.RunPackageResult;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestRunResult;
 import com.zolt.doctor.SelfHostingCheckService;
@@ -57,20 +59,33 @@ final class SelfCheckServiceTest {
                             projectDirectory.resolve("target/demo-0.1.0.jar"),
                             46,
                             true);
+                },
+                (projectDirectory, config, cacheRoot, packageResult) -> {
+                    calls.add("run-package:" + packageResult.jarPath().getFileName());
+                    return new RunPackageResult(
+                            packageResult,
+                            new JavaRunResult("com.example.Main", "demo 0.1.0\n"));
                 });
 
         SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), true);
 
         assertTrue(result.ok());
-        assertEquals(List.of("resolve:true", "build:true", "test", "package:12"), calls);
+        assertEquals(List.of(
+                        "resolve:true",
+                        "build:true",
+                        "test",
+                        "package:12",
+                        "run-package:demo-0.1.0.jar"),
+                calls);
         assertEquals(List.of(
                         "doctor --self-hosting",
                         "resolve --locked",
                         "build",
                         "test",
-                        "package"),
+                        "package",
+                        "run packaged jar"),
                 result.steps().stream().map(SelfCheckResult.SelfCheckStep::name).toList());
-        assertTrue(result.steps().getLast().message().contains("target/demo-0.1.0.jar"));
+        assertEquals("printed demo 0.1.0", result.steps().getLast().message());
     }
 
     @Test
@@ -90,6 +105,9 @@ final class SelfCheckServiceTest {
                 },
                 (projectDirectory, config, buildResult) -> {
                     throw new AssertionError("package should not run");
+                },
+                (projectDirectory, config, cacheRoot, packageResult) -> {
+                    throw new AssertionError("run package should not run");
                 });
 
         SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), false);
@@ -98,6 +116,41 @@ final class SelfCheckServiceTest {
         assertEquals(1, result.steps().size());
         assertEquals("doctor --self-hosting", result.steps().getFirst().name());
         assertTrue(result.steps().getFirst().message().contains("JUnit Platform Console"));
+    }
+
+    @Test
+    void failsWhenPackagedApplicationDoesNotPrintVersion() throws IOException {
+        writeSelfHostingProject(true);
+        BuildResult buildResult = buildResult(tempDir, 12);
+        PackageResult packageResult = new PackageResult(
+                buildResult,
+                tempDir.resolve("target/demo-0.1.0.jar"),
+                46,
+                true);
+        SelfCheckService service = new SelfCheckService(
+                new ZoltTomlParser(),
+                new SelfHostingCheckService(),
+                (projectDirectory, config, cacheRoot, offline) ->
+                        new ResolveResult(3, 0, 0, projectDirectory.resolve("zolt.lock")),
+                (projectDirectory, config, cacheRoot, offline) -> buildResult,
+                (projectDirectory, config, cacheRoot) -> new TestRunResult(
+                        new TestCompileResult(
+                                buildResult,
+                                34,
+                                0,
+                                projectDirectory.resolve("target/test-classes"),
+                                ""),
+                        "Tests passed\n"),
+                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
+                        suppliedPackageResult,
+                        new JavaRunResult("com.example.Main", "usage\n")));
+
+        SelfCheckResult result = service.check(tempDir, tempDir.resolve("cache"), false);
+
+        assertFalse(result.ok());
+        assertEquals("run packaged jar", result.steps().getLast().name());
+        assertTrue(result.steps().getLast().message().contains("expected packaged application to print `demo 0.1.0`"));
     }
 
     private BuildResult buildResult(Path projectDirectory, int sourceCount) {

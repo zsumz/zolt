@@ -4,6 +4,8 @@ import com.zolt.build.BuildResult;
 import com.zolt.build.BuildService;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
+import com.zolt.build.RunPackageResult;
+import com.zolt.build.RunPackageService;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.SelfHostingCheckResult;
@@ -23,6 +25,7 @@ public final class SelfCheckService {
     private final ProjectBuilder projectBuilder;
     private final TestRunner testRunner;
     private final ProjectPackager projectPackager;
+    private final PackagedApplicationRunner packagedApplicationRunner;
 
     public SelfCheckService() {
         this(
@@ -35,7 +38,9 @@ public final class SelfCheckService {
                 (projectDirectory, config, cacheRoot) -> new TestRunService()
                         .runTests(projectDirectory, config, cacheRoot),
                 (projectDirectory, config, buildResult) -> new PackageService()
-                        .packageJar(projectDirectory, config, buildResult));
+                        .packageJar(projectDirectory, config, buildResult),
+                (projectDirectory, config, cacheRoot, packageResult) -> new RunPackageService()
+                        .runPackage(projectDirectory, config, cacheRoot, List.of("--version")));
     }
 
     SelfCheckService(
@@ -44,13 +49,15 @@ public final class SelfCheckService {
             LockedResolver lockedResolver,
             ProjectBuilder projectBuilder,
             TestRunner testRunner,
-            ProjectPackager projectPackager) {
+            ProjectPackager projectPackager,
+            PackagedApplicationRunner packagedApplicationRunner) {
         this.tomlParser = tomlParser;
         this.selfHostingCheckService = selfHostingCheckService;
         this.lockedResolver = lockedResolver;
         this.projectBuilder = projectBuilder;
         this.testRunner = testRunner;
         this.projectPackager = projectPackager;
+        this.packagedApplicationRunner = packagedApplicationRunner;
     }
 
     public SelfCheckResult check(Path projectDirectory, Path cacheRoot, boolean offline) {
@@ -110,14 +117,34 @@ public final class SelfCheckService {
             return new SelfCheckResult(steps);
         }
 
+        PackageResult packageResult;
         try {
-            PackageResult packageResult = projectPackager.packageJar(root, config, buildResult);
+            packageResult = projectPackager.packageJar(root, config, buildResult);
             steps.add(new SelfCheckResult.SelfCheckStep(
                     "package",
                     true,
                     "wrote " + packageResult.jarPath()));
         } catch (RuntimeException exception) {
             steps.add(failed("package", exception.getMessage()));
+            return new SelfCheckResult(steps);
+        }
+
+        try {
+            RunPackageResult runPackageResult = packagedApplicationRunner.run(root, config, cacheRoot, packageResult);
+            String expectedVersion = config.project().name() + " " + config.project().version();
+            String output = runPackageResult.javaRunResult().output();
+            if (!output.contains(expectedVersion)) {
+                steps.add(failed(
+                        "run packaged jar",
+                        "expected packaged application to print `" + expectedVersion + "` for --version"));
+                return new SelfCheckResult(steps);
+            }
+            steps.add(new SelfCheckResult.SelfCheckStep(
+                    "run packaged jar",
+                    true,
+                    "printed " + expectedVersion));
+        } catch (RuntimeException exception) {
+            steps.add(failed("run packaged jar", exception.getMessage()));
         }
         return new SelfCheckResult(steps);
     }
@@ -152,5 +179,10 @@ public final class SelfCheckService {
     @FunctionalInterface
     interface ProjectPackager {
         PackageResult packageJar(Path projectDirectory, ProjectConfig config, BuildResult buildResult);
+    }
+
+    @FunctionalInterface
+    interface PackagedApplicationRunner {
+        RunPackageResult run(Path projectDirectory, ProjectConfig config, Path cacheRoot, PackageResult packageResult);
     }
 }
