@@ -1056,13 +1056,21 @@ public final class ZoltCli implements Runnable {
                 if (result.hasMainClass()) {
                     spec.commandLine().getOut().println("Included Main-Class manifest entry");
                     spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
-                    spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
+                    if (result.mode() == PackageMode.SPRING_BOOT) {
+                        spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
+                    } else {
+                        spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
+                    }
                 } else {
                     spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
                 }
-                spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
-                result.runtimeClasspathPath().ifPresent(path ->
-                        spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
+                if (result.mode() == PackageMode.SPRING_BOOT) {
+                    spec.commandLine().getOut().println("Spring Boot jar: dependencies are nested under BOOT-INF/lib.");
+                } else {
+                    spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
+                    result.runtimeClasspathPath().ifPresent(path ->
+                            spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
+                }
                 spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
             } catch (BuildException
                     | JavacException

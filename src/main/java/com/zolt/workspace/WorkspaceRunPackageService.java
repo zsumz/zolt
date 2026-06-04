@@ -89,6 +89,17 @@ public final class WorkspaceRunPackageService {
             if (!jdkStatus.ok()) {
                 throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
             }
+            if (memberPackage.result().mode() == PackageMode.SPRING_BOOT) {
+                JavaRunResult javaRunResult = javaRunner.runJar(
+                        jdkStatus.java().orElseThrow(),
+                        memberPackage.result().jarPath(),
+                        mainClass,
+                        arguments);
+                results.add(new WorkspaceRunPackageResult.MemberRunPackageResult(
+                        memberPackage.member(),
+                        new RunPackageResult(memberPackage.result(), javaRunResult)));
+                continue;
+            }
             ClasspathSet classpaths = workspaceClasspathService.classpathsFor(
                     workspace,
                     lockfile,

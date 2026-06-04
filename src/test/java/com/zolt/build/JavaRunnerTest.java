@@ -56,6 +56,25 @@ final class JavaRunnerTest {
     }
 
     @Test
+    void runsJarWithArguments() {
+        List<List<String>> commands = new ArrayList<>();
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "boot\n");
+        });
+
+        JavaRunResult result = runner.runJar(
+                Path.of("java"),
+                Path.of("target/demo.jar"),
+                "com.example.Main",
+                List.of("one", "two"));
+
+        assertEquals("com.example.Main", result.mainClass());
+        assertEquals("boot\n", result.output());
+        assertEquals(List.of("java", "-jar", "target/demo.jar", "one", "two"), commands.getFirst());
+    }
+
+    @Test
     void nonZeroExitIncludesApplicationOutput() {
         JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(7, "boom\n"));
 

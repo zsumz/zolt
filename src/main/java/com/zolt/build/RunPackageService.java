@@ -6,6 +6,7 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
@@ -49,6 +50,19 @@ public final class RunPackageService {
         String mainClass = config.project().main().orElseThrow(() -> new RunPackageException(
                 "No main class is configured. Add [project].main to zolt.toml to run a packaged application."));
         PackageResult packageResult = packageService.packageJar(projectDirectory, config, cacheRoot);
+        JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
+        if (!jdkStatus.ok()) {
+            throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
+        }
+
+        if (packageResult.mode() == PackageMode.SPRING_BOOT) {
+            JavaRunResult javaRunResult = javaRunner.runJar(
+                    jdkStatus.java().orElseThrow(),
+                    packageResult.jarPath(),
+                    mainClass,
+                    arguments);
+            return new RunPackageResult(packageResult, javaRunResult);
+        }
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
@@ -56,10 +70,6 @@ public final class RunPackageService {
         runtimeEntries.add(packageResult.jarPath());
         runtimeEntries.addAll(classpaths.runtime().entries());
 
-        JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
-        if (!jdkStatus.ok()) {
-            throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
-        }
         JavaRunResult javaRunResult = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runtimeEntries),

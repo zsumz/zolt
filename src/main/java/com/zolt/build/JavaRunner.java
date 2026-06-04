@@ -39,6 +39,30 @@ public final class JavaRunner {
             Consumer<String> outputConsumer) {
         List<String> command = command(java, classpath, mainClass, arguments);
         ProcessResult result = processRunner.run(command, outputConsumer);
+        return result(mainClass, result);
+    }
+
+    public JavaRunResult runJar(
+            Path java,
+            Path jar,
+            String mainClass,
+            List<String> arguments) {
+        return runJar(java, jar, mainClass, arguments, ignored -> {
+        });
+    }
+
+    public JavaRunResult runJar(
+            Path java,
+            Path jar,
+            String mainClass,
+            List<String> arguments,
+            Consumer<String> outputConsumer) {
+        List<String> command = jarCommand(java, jar, arguments);
+        ProcessResult result = processRunner.run(command, outputConsumer);
+        return result(mainClass, result);
+    }
+
+    private static JavaRunResult result(String mainClass, ProcessResult result) {
         if (result.exitCode() != 0) {
             throw new JavaRunException(
                     "java exited with code "
@@ -65,6 +89,18 @@ public final class JavaRunner {
             command.add(joiner.toString());
         }
         command.add(mainClass);
+        command.addAll(arguments);
+        return List.copyOf(command);
+    }
+
+    private static List<String> jarCommand(
+            Path java,
+            Path jar,
+            List<String> arguments) {
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        command.add("-jar");
+        command.add(jar.normalize().toString());
         command.addAll(arguments);
         return List.copyOf(command);
     }
