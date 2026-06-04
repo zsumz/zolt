@@ -866,6 +866,13 @@ final class ZoltCliTest {
                     "testClasses": "%s",
                     "package": "%s"
                   },
+                  "dependencies": {
+                    "api": [],
+                    "implementation": [],
+                    "test": [],
+                    "annotationProcessors": [],
+                    "testAnnotationProcessors": []
+                  },
                   "classpaths": {
                     "compile": [
                       "%s"

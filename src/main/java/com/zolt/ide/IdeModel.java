@@ -11,6 +11,7 @@ public record IdeModel(
         List<SourceRoot> sourceRoots,
         List<ResourceRoot> resourceRoots,
         OutputInfo outputs,
+        DependencyInfo dependencies,
         ClasspathInfo classpaths,
         List<Diagnostic> diagnostics) {
     public IdeModel {
@@ -56,6 +57,28 @@ public record IdeModel(
             Path mainClasses,
             Path testClasses,
             Path packagePath) {
+    }
+
+    public record DependencyInfo(
+            List<DependencyDeclaration> api,
+            List<DependencyDeclaration> implementation,
+            List<DependencyDeclaration> test,
+            List<DependencyDeclaration> annotationProcessors,
+            List<DependencyDeclaration> testAnnotationProcessors) {
+        public DependencyInfo {
+            api = List.copyOf(api);
+            implementation = List.copyOf(implementation);
+            test = List.copyOf(test);
+            annotationProcessors = List.copyOf(annotationProcessors);
+            testAnnotationProcessors = List.copyOf(testAnnotationProcessors);
+        }
+    }
+
+    public record DependencyDeclaration(
+            String coordinate,
+            String version,
+            boolean managed,
+            String workspace) {
     }
 
     public record ClasspathInfo(

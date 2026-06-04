@@ -129,6 +129,32 @@ final class WorkspaceIdeModelServiceTest {
         assertTrue(json.contains("\"to\": \"modules/core\""));
         assertTrue(json.contains("\"scope\": \"compile\""));
         assertTrue(json.contains("\"coordinate\": \"com.acme:core\""));
+        assertTrue(json.contains("\"exported\": false"));
+    }
+
+    @Test
+    void exportsWorkspaceApiEdgesAsExported() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [api.dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        assertEquals(
+                List.of(new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)),
+                model.edges());
+
+        String json = new WorkspaceIdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"coordinate\": \"com.acme:core\""));
+        assertTrue(json.contains("\"exported\": true"));
     }
 
     private void workspace(String content) throws IOException {

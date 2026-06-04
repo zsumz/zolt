@@ -128,6 +128,62 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void exportsDependencyDeclarationsWithVisibility() throws IOException {
+        Path projectDir = tempDir.resolve("dependencies");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "dependencies"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [platforms]
+                "com.example:platform" = "1.0.0"
+
+                [api.dependencies]
+                "com.example:api-contract" = "1.0.0"
+                "com.example:managed-api" = {}
+                "com.example:workspace-api" = { workspace = "modules/api" }
+
+                [dependencies]
+                "com.example:impl" = "1.0.0"
+
+                [test.dependencies]
+                "org.junit.jupiter:junit-jupiter" = {}
+
+                [annotationProcessors]
+                "com.example:processor" = "1.0.0"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        assertEquals(List.of(
+                        new IdeModel.DependencyDeclaration("com.example:api-contract", "1.0.0", false, null),
+                        new IdeModel.DependencyDeclaration("com.example:managed-api", null, true, null),
+                        new IdeModel.DependencyDeclaration("com.example:workspace-api", null, false, "modules/api")),
+                model.dependencies().api());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("com.example:impl", "1.0.0", false, null)),
+                model.dependencies().implementation());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("org.junit.jupiter:junit-jupiter", null, true, null)),
+                model.dependencies().test());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("com.example:processor", "1.0.0", false, null)),
+                model.dependencies().annotationProcessors());
+
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"dependencies\": {"));
+        assertTrue(json.contains("\"api\": ["));
+        assertTrue(json.contains("\"implementation\": ["));
+        assertTrue(json.contains("\"coordinate\": \"com.example:workspace-api\""));
+        assertTrue(json.contains("\"workspace\": \"modules/api\""));
+        assertTrue(json.contains("\"managed\": true"));
+    }
+
+    @Test
     void writesStableDiagnosticsForEditorImportSnapshots() throws IOException {
         Path projectDir = tempDir.resolve("diagnostics");
         Files.createDirectories(projectDir);

@@ -17,7 +17,10 @@ import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public final class IdeModelService {
     private static final int SCHEMA_VERSION = 1;
@@ -69,6 +72,7 @@ public final class IdeModelService {
                 sourceRoots(root, config),
                 resourceRoots(root, config),
                 outputInfo(root, config),
+                dependencyInfo(config),
                 classpaths,
                 diagnostics);
     }
@@ -200,6 +204,52 @@ public final class IdeModelService {
                 root.resolve("target")
                         .resolve(config.project().name() + "-" + config.project().version() + ".jar")
                         .normalize());
+    }
+
+    private IdeModel.DependencyInfo dependencyInfo(ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.DependencyInfo(List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+        return new IdeModel.DependencyInfo(
+                dependencyDeclarations(
+                        config.apiDependencies(),
+                        config.managedApiDependencies(),
+                        config.workspaceApiDependencies()),
+                dependencyDeclarations(
+                        config.dependencies(),
+                        config.managedDependencies(),
+                        config.workspaceDependencies()),
+                dependencyDeclarations(
+                        config.testDependencies(),
+                        config.managedTestDependencies(),
+                        config.workspaceTestDependencies()),
+                dependencyDeclarations(
+                        config.annotationProcessors(),
+                        config.managedAnnotationProcessors(),
+                        Map.of()),
+                dependencyDeclarations(
+                        config.testAnnotationProcessors(),
+                        config.managedTestAnnotationProcessors(),
+                        Map.of()));
+    }
+
+    private static List<IdeModel.DependencyDeclaration> dependencyDeclarations(
+            Map<String, String> versioned,
+            Set<String> managed,
+            Map<String, String> workspace) {
+        List<IdeModel.DependencyDeclaration> declarations = new ArrayList<>();
+        for (Map.Entry<String, String> entry : versioned.entrySet()) {
+            declarations.add(new IdeModel.DependencyDeclaration(entry.getKey(), entry.getValue(), false, null));
+        }
+        for (String coordinate : managed) {
+            declarations.add(new IdeModel.DependencyDeclaration(coordinate, null, true, null));
+        }
+        for (Map.Entry<String, String> entry : workspace.entrySet()) {
+            declarations.add(new IdeModel.DependencyDeclaration(entry.getKey(), null, false, entry.getValue()));
+        }
+        return declarations.stream()
+                .sorted(Comparator.comparing(IdeModel.DependencyDeclaration::coordinate))
+                .toList();
     }
 
     private IdeModel.ClasspathInfo classpaths(

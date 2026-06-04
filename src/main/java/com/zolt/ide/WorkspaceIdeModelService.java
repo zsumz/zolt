@@ -78,7 +78,8 @@ public final class WorkspaceIdeModelService {
                     edge.from(),
                     edge.to(),
                     edge.scope(),
-                    edge.coordinate()));
+                    edge.coordinate(),
+                    edge.exported()));
         }
         return List.copyOf(edges);
     }

@@ -20,6 +20,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         outputs(json, model.outputs());
         comma(json);
+        dependencies(json, model.dependencies());
+        comma(json);
         classpaths(json, model.classpaths());
         comma(json);
         diagnostics(json, model.diagnostics());
@@ -104,6 +106,16 @@ public final class IdeModelJsonWriter {
         indent(json, 1).append("}");
     }
 
+    private static void dependencies(StringBuilder json, IdeModel.DependencyInfo dependencies) {
+        indent(json, 1).append("\"dependencies\": {\n");
+        dependencyArrayField(json, 2, "api", dependencies.api(), true);
+        dependencyArrayField(json, 2, "implementation", dependencies.implementation(), true);
+        dependencyArrayField(json, 2, "test", dependencies.test(), true);
+        dependencyArrayField(json, 2, "annotationProcessors", dependencies.annotationProcessors(), true);
+        dependencyArrayField(json, 2, "testAnnotationProcessors", dependencies.testAnnotationProcessors(), false);
+        indent(json, 1).append("}");
+    }
+
     private static void classpaths(StringBuilder json, IdeModel.ClasspathInfo classpaths) {
         indent(json, 1).append("\"classpaths\": {\n");
         pathArrayField(json, 2, "compile", classpaths.compile(), true);
@@ -180,6 +192,37 @@ public final class IdeModelJsonWriter {
             for (int index = 0; index < values.size(); index++) {
                 indent(json, level + 1);
                 string(json, jsonPath(values.get(index)));
+                if (index < values.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, level);
+        }
+        json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void dependencyArrayField(
+            StringBuilder json,
+            int level,
+            String name,
+            List<IdeModel.DependencyDeclaration> values,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": [");
+        if (!values.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < values.size(); index++) {
+                IdeModel.DependencyDeclaration dependency = values.get(index);
+                indent(json, level + 1).append("{\n");
+                stringField(json, level + 2, "coordinate", dependency.coordinate(), true);
+                stringField(json, level + 2, "version", dependency.version(), true);
+                field(json, level + 2, "managed", dependency.managed(), true);
+                stringField(json, level + 2, "workspace", dependency.workspace(), false);
+                indent(json, level + 1).append("}");
                 if (index < values.size() - 1) {
                     json.append(',');
                 }

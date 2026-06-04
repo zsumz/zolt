@@ -64,7 +64,8 @@ public final class WorkspaceIdeModelJsonWriter {
                 stringField(json, 3, "from", edge.from(), true);
                 stringField(json, 3, "to", edge.to(), true);
                 stringField(json, 3, "scope", edge.scope(), true);
-                stringField(json, 3, "coordinate", edge.coordinate(), false);
+                stringField(json, 3, "coordinate", edge.coordinate(), true);
+                field(json, 3, "exported", edge.exported(), false);
                 indent(json, 2).append("}");
                 if (index < edges.size() - 1) {
                     json.append(',');
@@ -156,6 +157,14 @@ public final class WorkspaceIdeModelJsonWriter {
     }
 
     private static void field(StringBuilder json, int level, String name, int value, boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": ").append(value);
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void field(StringBuilder json, int level, String name, boolean value, boolean trailingComma) {
         indent(json, level).append('"').append(name).append("\": ").append(value);
         if (trailingComma) {
             json.append(',');
