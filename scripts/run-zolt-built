@@ -6,6 +6,7 @@ cd "$ROOT"
 
 CACHE_ROOT="${ZOLT_CACHE_ROOT:-.zolt/cache}"
 JAR_PATH="${ZOLT_JAR:-}"
+RUNTIME_CLASSPATH_FILE="${ZOLT_RUNTIME_CLASSPATH_FILE:-}"
 
 if [[ -z "$JAR_PATH" ]]; then
   shopt -s nullglob
@@ -25,7 +26,27 @@ if [[ ! -f "$JAR_PATH" ]]; then
   exit 1
 fi
 
-runtime_cp="$(./gradlew -q run --args="classpath runtime --cache-root ${CACHE_ROOT}" --warning-mode all)"
+if [[ -z "$RUNTIME_CLASSPATH_FILE" ]]; then
+  RUNTIME_CLASSPATH_FILE="${JAR_PATH%.jar}.runtime-classpath"
+fi
+
+runtime_cp=""
+if [[ -f "$RUNTIME_CLASSPATH_FILE" ]]; then
+  while IFS= read -r entry || [[ -n "$entry" ]]; do
+    if [[ -z "$entry" ]]; then
+      continue
+    fi
+    if [[ -z "$runtime_cp" ]]; then
+      runtime_cp="$entry"
+    else
+      runtime_cp="${runtime_cp}:${entry}"
+    fi
+  done < "$RUNTIME_CLASSPATH_FILE"
+else
+  printf 'warning: runtime classpath sidecar not found at %s; falling back to Gradle bootstrap\n' "$RUNTIME_CLASSPATH_FILE" >&2
+  runtime_cp="$(./gradlew -q run --args="classpath runtime --cache-root ${CACHE_ROOT}" --warning-mode all)"
+fi
+
 if [[ -n "$runtime_cp" ]]; then
   classpath="${JAR_PATH}:${runtime_cp}"
 else

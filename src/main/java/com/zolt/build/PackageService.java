@@ -1,5 +1,9 @@
 package com.zolt.build;
 
+import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.classpath.ClasspathSet;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -7,8 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 
 public final class PackageService {
@@ -16,25 +22,49 @@ public final class PackageService {
 
     private final BuildService buildService;
     private final ManifestGenerator manifestGenerator;
+    private final ZoltLockfileReader lockfileReader;
+    private final ClasspathBuilder classpathBuilder;
 
     public PackageService() {
-        this(new BuildService(), new ManifestGenerator());
+        this(new BuildService(), new ManifestGenerator(), new ZoltLockfileReader(), new ClasspathBuilder());
     }
 
-    PackageService(BuildService buildService, ManifestGenerator manifestGenerator) {
+    PackageService(
+            BuildService buildService,
+            ManifestGenerator manifestGenerator,
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder) {
         this.buildService = buildService;
         this.manifestGenerator = manifestGenerator;
+        this.lockfileReader = lockfileReader;
+        this.classpathBuilder = classpathBuilder;
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
-        return packageJar(projectDirectory, config, buildResult);
+        return packageJar(projectDirectory, config, buildResult, cacheRoot);
+    }
+
+    public PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Path cacheRoot) {
+        return packageJar(projectDirectory, config, buildResult, Optional.of(cacheRoot));
     }
 
     public PackageResult packageJar(
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult) {
+        return packageJar(projectDirectory, config, buildResult, Optional.empty());
+    }
+
+    private PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Optional<Path> cacheRoot) {
         Path outputDirectory = buildResult.outputDirectory();
         if (!Files.isDirectory(outputDirectory)) {
             throw new PackageException(
@@ -46,6 +76,7 @@ public final class PackageService {
         Path jarPath = projectDirectory
                 .resolve("target")
                 .resolve(config.project().name() + "-" + config.project().version() + ".jar");
+        Path runtimeClasspathPath = runtimeClasspathPath(jarPath);
         GeneratedManifest manifest = manifestGenerator.generate(config);
 
         try {
@@ -58,7 +89,17 @@ public final class PackageService {
                     writeEntry(jarOutput, entryName(outputDirectory, file), Files.readAllBytes(file));
                 }
             }
-            return new PackageResult(buildResult, jarPath, files.size(), manifest.mainClass().isPresent());
+            Optional<Path> writtenRuntimeClasspathPath = Optional.empty();
+            if (cacheRoot.isPresent()) {
+                writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
+                writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
+            }
+            return new PackageResult(
+                    buildResult,
+                    jarPath,
+                    writtenRuntimeClasspathPath,
+                    files.size(),
+                    manifest.mainClass().isPresent());
         } catch (IOException exception) {
             throw new PackageException(
                     "Could not package jar at "
@@ -66,6 +107,29 @@ public final class PackageService {
                             + ". Check that target/ is writable and try again.",
                     exception);
         }
+    }
+
+    private void writeRuntimeClasspath(
+            Path projectDirectory,
+            Path cacheRoot,
+            Path runtimeClasspathPath) throws IOException {
+        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
+        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        String content = classpaths.runtime().entries().stream()
+                .map(Path::toString)
+                .collect(Collectors.joining("\n"));
+        if (!content.isEmpty()) {
+            content = content + "\n";
+        }
+        Files.writeString(runtimeClasspathPath, content);
+    }
+
+    private static Path runtimeClasspathPath(Path jarPath) {
+        String fileName = jarPath.getFileName().toString();
+        if (fileName.endsWith(".jar")) {
+            return jarPath.resolveSibling(fileName.substring(0, fileName.length() - 4) + ".runtime-classpath");
+        }
+        return jarPath.resolveSibling(fileName + ".runtime-classpath");
     }
 
     private static List<Path> compiledFiles(Path outputDirectory) throws IOException {

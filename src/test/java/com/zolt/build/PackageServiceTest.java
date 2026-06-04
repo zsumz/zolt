@@ -175,6 +175,12 @@ final class PackageServiceTest {
 
         PackageResult result = packageService.packageJar(projectDir, config(Optional.of("com.example.Main")), cacheRoot);
 
+        Path runtimeClasspathPath = projectDir.resolve("target/demo-0.1.0.runtime-classpath");
+        assertEquals(Optional.of(runtimeClasspathPath), result.runtimeClasspathPath());
+        String runtimeClasspath = Files.readString(runtimeClasspathPath);
+        assertTrue(runtimeClasspath.contains(dependencyJar.toString()));
+        assertFalse(runtimeClasspath.contains(processorJar.toString()));
+
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
             assertNotNull(jar.getEntry("com/example/Main.class"));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("com/example/lib/Lib.class")));

@@ -54,7 +54,7 @@ final class SelfCheckServiceTest {
                             "");
                     return new TestRunResult(compileResult, "Tests passed\n");
                 },
-                (projectDirectory, config, buildResult) -> {
+                (projectDirectory, config, buildResult, cacheRoot) -> {
                     calls.add("package:" + buildResult.sourceCount());
                     return new PackageResult(
                             buildResult,
@@ -111,7 +111,7 @@ final class SelfCheckServiceTest {
                 (projectDirectory, config, cacheRoot) -> {
                     throw new AssertionError("test should not run");
                 },
-                (projectDirectory, config, buildResult) -> {
+                (projectDirectory, config, buildResult, cacheRoot) -> {
                     throw new AssertionError("package should not run");
                 },
                 (projectDirectory, config, cacheRoot, packageResult) -> {
@@ -155,7 +155,7 @@ final class SelfCheckServiceTest {
                                 projectDirectory.resolve("target/test-classes"),
                                 ""),
                         "Tests passed\n"),
-                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, suppliedBuildResult, cacheRoot) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
                         new JavaRunResult("com.example.Main", "usage\n")),
@@ -203,7 +203,7 @@ final class SelfCheckServiceTest {
                                 projectDirectory.resolve("target/test-classes"),
                                 ""),
                         "Tests passed\n"),
-                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, suppliedBuildResult, cacheRoot) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
                         new JavaRunResult("com.example.Main", "demo 0.1.0\n")),
@@ -267,7 +267,7 @@ final class SelfCheckServiceTest {
                                 projectDirectory.resolve("target/test-classes"),
                                 ""),
                         "Tests passed\n"),
-                (projectDirectory, config, suppliedBuildResult) -> packageResult,
+                (projectDirectory, config, suppliedBuildResult, cacheRoot) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
                         new JavaRunResult("com.example.Main", "demo 0.1.0\n")),

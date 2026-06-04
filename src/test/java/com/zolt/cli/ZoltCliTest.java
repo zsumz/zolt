@@ -1874,8 +1874,11 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Run with: java -jar " + jarPath));
         assertTrue(result.stdout().contains("Run with dependencies: zolt run-package -- [args]"));
         assertTrue(result.stdout().contains("Thin jar: dependencies are not bundled."));
+        assertTrue(result.stdout().contains(
+                "Wrote runtime classpath to " + projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
         assertTrue(result.stdout().contains("Wrote jar to " + jarPath));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             assertNotNull(jar.getEntry("com/example/Main.class"));
             assertEquals(

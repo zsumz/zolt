@@ -43,8 +43,8 @@ public final class SelfCheckService {
                         .build(projectDirectory, config, cacheRoot, offline),
                 (projectDirectory, config, cacheRoot) -> new TestRunService()
                         .runTests(projectDirectory, config, cacheRoot),
-                (projectDirectory, config, buildResult) -> new PackageService()
-                        .packageJar(projectDirectory, config, buildResult),
+                (projectDirectory, config, buildResult, cacheRoot) -> new PackageService()
+                        .packageJar(projectDirectory, config, buildResult, cacheRoot),
                 (projectDirectory, config, cacheRoot, packageResult) -> new RunPackageService()
                         .runPackage(projectDirectory, config, cacheRoot, List.of("--version")),
                 (projectDirectory, config, cacheRoot, nativeImageExecutable) -> new NativeBuildService()
@@ -141,7 +141,7 @@ public final class SelfCheckService {
 
         PackageResult packageResult;
         try {
-            packageResult = projectPackager.packageJar(root, config, buildResult);
+            packageResult = projectPackager.packageJar(root, config, buildResult, cacheRoot);
             steps.add(new SelfCheckResult.SelfCheckStep(
                     "package",
                     true,
@@ -272,7 +272,7 @@ public final class SelfCheckService {
 
     @FunctionalInterface
     interface ProjectPackager {
-        PackageResult packageJar(Path projectDirectory, ProjectConfig config, BuildResult buildResult);
+        PackageResult packageJar(Path projectDirectory, ProjectConfig config, BuildResult buildResult, Path cacheRoot);
     }
 
     @FunctionalInterface

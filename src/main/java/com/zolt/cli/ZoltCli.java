@@ -1008,6 +1008,8 @@ public final class ZoltCli implements Runnable {
                     spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
                 }
                 spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
+                result.runtimeClasspathPath().ifPresent(path ->
+                        spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
                 spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
             } catch (BuildException
                     | JavacException
