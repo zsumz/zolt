@@ -22,3 +22,8 @@ source = "src/main/java"
 test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
+
+[build.metadata]
+buildInfo = true
+git = true
+reproducible = true
