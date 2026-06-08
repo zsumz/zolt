@@ -7,12 +7,16 @@ public record QuarkusPlan(
         Path projectDirectory,
         Path applicationClasses,
         String inputFingerprint,
+        QuarkusAugmentationState augmentationState,
         List<Path> runtimeClasspath,
         List<Path> deploymentClasspath,
         List<QuarkusPlanExtension> extensions) {
     public QuarkusPlan {
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusPlanException("Quarkus plan requires an input fingerprint.");
+        }
+        if (augmentationState == null) {
+            throw new QuarkusPlanException("Quarkus plan requires an augmentation metadata state.");
         }
         runtimeClasspath = List.copyOf(runtimeClasspath);
         deploymentClasspath = List.copyOf(deploymentClasspath);

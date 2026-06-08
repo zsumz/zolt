@@ -1214,6 +1214,7 @@ final class ZoltCliTest {
                 Status: inputs resolved; augmentation runner not implemented yet
                 Application classes: %s
                 Input fingerprint: %s
+                Augmentation metadata: missing (%s)
                 Runtime classpath entries: 1
                   %s
                 Deployment classpath entries: 1
@@ -1226,10 +1227,64 @@ final class ZoltCliTest {
                 """.formatted(
                 root.resolve("target/classes"),
                 inputFingerprint,
+                root.resolve("target/quarkus/zolt-augmentation.properties"),
                 runtimeJar,
                 deploymentJar,
                 runtimeJar,
                 deploymentJar), result.stdout());
+    }
+
+    @Test
+    void quarkusPlanReportsCurrentAugmentationMetadata() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeQuarkusPlanLockfile(projectDir);
+        Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
+        createJarWithTextEntry(
+                runtimeJar,
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0\n");
+        String fingerprint = quarkusInputFingerprint(execute(
+                "quarkus",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString()).stdout());
+        writeQuarkusAugmentationMetadata(projectDir, fingerprint);
+
+        CommandResult result = execute(
+                "quarkus",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Augmentation metadata: current"));
+        assertTrue(result.stdout().contains("recorded " + fingerprint));
+    }
+
+    @Test
+    void quarkusPlanReportsStaleAugmentationMetadata() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeQuarkusPlanLockfile(projectDir);
+        Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
+        createJarWithTextEntry(
+                runtimeJar,
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0\n");
+        writeQuarkusAugmentationMetadata(projectDir, "sha256:" + "0".repeat(64));
+
+        CommandResult result = execute(
+                "quarkus",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Augmentation metadata: stale"));
+        assertTrue(result.stdout().contains("recorded sha256:" + "0".repeat(64)));
     }
 
     @Test
@@ -3097,6 +3152,39 @@ final class ZoltCliTest {
                 .findFirst()
                 .orElseThrow()
                 .substring("Input fingerprint: ".length());
+    }
+
+    private static void writeQuarkusPlanLockfile(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar"
+                dependencies = []
+                """);
+    }
+
+    private static void writeQuarkusAugmentationMetadata(Path projectDir, String inputFingerprint) throws IOException {
+        Path metadata = projectDir.resolve("target/quarkus/zolt-augmentation.properties");
+        Files.createDirectories(metadata.getParent());
+        Files.writeString(metadata, """
+                version=1
+                inputFingerprint=%s
+                """.formatted(inputFingerprint));
     }
 
     private static final class TestRepository implements AutoCloseable {

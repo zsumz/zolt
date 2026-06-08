@@ -22,24 +22,28 @@ public final class QuarkusPlanService {
     private final ClasspathBuilder classpathBuilder;
     private final QuarkusExtensionMetadataReader metadataReader;
     private final QuarkusInputFingerprint inputFingerprint;
+    private final QuarkusAugmentationStateReader augmentationStateReader;
 
     public QuarkusPlanService() {
         this(
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new QuarkusExtensionMetadataReader(),
-                new QuarkusInputFingerprint());
+                new QuarkusInputFingerprint(),
+                new QuarkusAugmentationStateReader());
     }
 
     QuarkusPlanService(
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             QuarkusExtensionMetadataReader metadataReader,
-            QuarkusInputFingerprint inputFingerprint) {
+            QuarkusInputFingerprint inputFingerprint,
+            QuarkusAugmentationStateReader augmentationStateReader) {
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.metadataReader = metadataReader;
         this.inputFingerprint = inputFingerprint;
+        this.augmentationStateReader = augmentationStateReader;
     }
 
     public QuarkusPlan plan(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -55,10 +59,12 @@ public final class QuarkusPlanService {
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path applicationClasses = root.resolve(config.build().output()).normalize();
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        String fingerprint = inputFingerprint.fingerprint(applicationClasses, lockfile);
         return new QuarkusPlan(
                 root,
                 applicationClasses,
-                inputFingerprint.fingerprint(applicationClasses, lockfile),
+                fingerprint,
+                augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
                 extensions(lockfile, cacheRoot));
