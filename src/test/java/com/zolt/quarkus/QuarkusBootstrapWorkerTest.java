@@ -28,6 +28,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
+                new QuarkusProductionOutputVerifier(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -49,6 +50,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
+                new QuarkusProductionOutputVerifier(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
@@ -80,6 +82,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
+                new QuarkusProductionOutputVerifier(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -225,6 +228,12 @@ final class QuarkusBootstrapWorkerTest {
 
         @Override
         public Object createProductionApplication() {
+            try {
+                Files.createDirectories(packageDirectory.resolve("lib"));
+                Files.writeString(packageDirectory.resolve("quarkus-run.jar"), "runner", StandardCharsets.UTF_8);
+            } catch (IOException exception) {
+                throw new IllegalStateException("could not write fake Quarkus output", exception);
+            }
             return new WorkerAugmentResult(packageDirectory);
         }
     }

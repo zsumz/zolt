@@ -14,6 +14,7 @@ public final class QuarkusBootstrapWorker {
     private final QuarkusProductionApplicationCreator productionApplicationCreator;
     private final QuarkusProductionApplicationSummarizer productionApplicationSummarizer;
     private final QuarkusProductionOutputValidator productionOutputValidator;
+    private final QuarkusProductionOutputVerifier productionOutputVerifier;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
@@ -26,6 +27,7 @@ public final class QuarkusBootstrapWorker {
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
+                new QuarkusProductionOutputVerifier(),
                 System.err);
     }
 
@@ -38,6 +40,7 @@ public final class QuarkusBootstrapWorker {
             QuarkusProductionApplicationCreator productionApplicationCreator,
             QuarkusProductionApplicationSummarizer productionApplicationSummarizer,
             QuarkusProductionOutputValidator productionOutputValidator,
+            QuarkusProductionOutputVerifier productionOutputVerifier,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
@@ -63,6 +66,9 @@ public final class QuarkusBootstrapWorker {
         if (productionOutputValidator == null) {
             throw new QuarkusAugmentationException("Quarkus production output validator is required.");
         }
+        if (productionOutputVerifier == null) {
+            throw new QuarkusAugmentationException("Quarkus production output verifier is required.");
+        }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
@@ -74,6 +80,7 @@ public final class QuarkusBootstrapWorker {
         this.productionApplicationCreator = productionApplicationCreator;
         this.productionApplicationSummarizer = productionApplicationSummarizer;
         this.productionOutputValidator = productionOutputValidator;
+        this.productionOutputVerifier = productionOutputVerifier;
         this.err = err;
     }
 
@@ -100,6 +107,7 @@ public final class QuarkusBootstrapWorker {
             QuarkusProductionApplicationSummary productionSummary =
                     productionApplicationSummarizer.summarize(productionApplication);
             productionOutputValidator.validate(descriptor, productionSummary);
+            productionOutputVerifier.verify(descriptor, productionSummary);
             err.println("error: Quarkus runnable package output capture is not implemented yet. "
                     + "Descriptor was accepted at "
                     + descriptor.descriptorFile()
