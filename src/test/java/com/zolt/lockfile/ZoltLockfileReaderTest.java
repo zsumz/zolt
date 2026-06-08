@@ -54,7 +54,7 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
-    void readsProcessorScopes() {
+    void readsInternalToolingScopes() {
         ZoltLockfile lockfile = reader.read("""
                 version = 1
 
@@ -73,10 +73,19 @@ final class ZoltLockfileReaderTest {
                 scope = "test-processor"
                 direct = true
                 dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                dependencies = []
                 """);
 
         assertEquals(DependencyScope.PROCESSOR, lockfile.packages().get(0).scope());
         assertEquals(DependencyScope.TEST_PROCESSOR, lockfile.packages().get(1).scope());
+        assertEquals(DependencyScope.QUARKUS_DEPLOYMENT, lockfile.packages().get(2).scope());
     }
 
     @Test

@@ -16,6 +16,10 @@ import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusDeploymentArtifact;
+import com.zolt.quarkus.QuarkusExtensionMetadata;
+import com.zolt.quarkus.QuarkusExtensionMetadataReader;
+import com.zolt.quarkus.QuarkusMetadataException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -29,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.zip.ZipException;
 
 public final class ResolveService {
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
@@ -45,6 +50,7 @@ public final class ResolveService {
     private final DependencyGraphTraverserFactory graphTraverserFactory;
     private final VersionSelector versionSelector;
     private final ZoltLockfileWriter lockfileWriter;
+    private final QuarkusExtensionMetadataReader quarkusMetadataReader;
 
     public ResolveService() {
         this(
@@ -53,7 +59,8 @@ public final class ResolveService {
                 new RawPomParser(),
                 DependencyGraphTraverser::new,
                 new VersionSelector(),
-                new ZoltLockfileWriter());
+                new ZoltLockfileWriter(),
+                new QuarkusExtensionMetadataReader());
     }
 
     ResolveService(
@@ -62,13 +69,15 @@ public final class ResolveService {
             RawPomParser rawPomParser,
             DependencyGraphTraverserFactory graphTraverserFactory,
             VersionSelector versionSelector,
-            ZoltLockfileWriter lockfileWriter) {
+            ZoltLockfileWriter lockfileWriter,
+            QuarkusExtensionMetadataReader quarkusMetadataReader) {
         this.coordinateParser = coordinateParser;
         this.repositoryClient = repositoryClient;
         this.rawPomParser = rawPomParser;
         this.graphTraverserFactory = graphTraverserFactory;
         this.versionSelector = versionSelector;
         this.lockfileWriter = lockfileWriter;
+        this.quarkusMetadataReader = quarkusMetadataReader;
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -105,11 +114,20 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
         List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
-        DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
-        ResolutionGraph graph = traverser.traverse(directRequests);
-        VersionSelectionResult selection = versionSelector.select(directRequests, graph);
-        ZoltLockfile lockfile = lockfile(context, graph, selection, directRequests);
+        ResolutionState initial = resolveGraph(context, directRequests);
+        List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
+        allRequests.addAll(quarkusDeploymentRequests(context, initial.graph(), initial.selection(), directRequests));
+        ResolutionState resolved = allRequests.size() == directRequests.size()
+                ? initial
+                : resolveGraph(context, allRequests);
+        ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
         return new ResolveOutput(lockfile, context.downloadCount());
+    }
+
+    private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
+        DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
+        ResolutionGraph graph = traverser.traverse(requests);
+        return new ResolutionState(graph, versionSelector.select(requests, graph));
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {
@@ -374,6 +392,63 @@ public final class ResolveService {
         return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, packages, conflicts);
     }
 
+    private List<DependencyRequest> quarkusDeploymentRequests(
+            RepositoryContext context,
+            ResolutionGraph graph,
+            VersionSelectionResult selection,
+            List<DependencyRequest> directRequests) {
+        Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
+        Map<String, DependencyRequest> requests = new LinkedHashMap<>();
+        selection.selectedNodes().stream()
+                .sorted(Comparator.comparing(node -> node.packageId() + ":" + node.selectedVersion()))
+                .forEach(node -> {
+                    boolean runtimeExtensionCandidate = selectedScopes
+                            .getOrDefault(node.packageId(), List.of())
+                            .stream()
+                            .map(SelectedScope::scope)
+                            .anyMatch(scope -> scope.entersMainRuntimeClasspath() && scope.packagedByDefault());
+                    if (!runtimeExtensionCandidate) {
+                        return;
+                    }
+                    Coordinate coordinate = new Coordinate(
+                            node.packageId().groupId(),
+                            node.packageId().artifactId(),
+                            Optional.of(node.selectedVersion()));
+                    CachedArtifact jar = context.getJar(coordinate);
+                    Optional<QuarkusExtensionMetadata> metadata = quarkusMetadata(jar.cachePath());
+                    metadata.ifPresent(quarkusMetadata -> {
+                        QuarkusDeploymentArtifact artifact = quarkusMetadata.deploymentArtifact();
+                        if (artifact.classifier().isPresent() || !"jar".equals(artifact.type())) {
+                            throw new ResolveException(
+                                    "Quarkus extension "
+                                            + coordinate
+                                            + " declares deployment artifact "
+                                            + artifact
+                                            + ", but Zolt currently supports only jar deployment artifacts without classifiers. "
+                                            + "Remove that extension or wait for classifier/type-aware artifact resolution.");
+                        }
+                        DependencyRequest request = new DependencyRequest(
+                                new PackageId(artifact.groupId(), artifact.artifactId()),
+                                artifact.version(),
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                RequestOrigin.TRANSITIVE);
+                        requests.put(request.packageId() + ":" + request.requestedVersion() + ":" + request.scope(), request);
+                    });
+                });
+        return List.copyOf(requests.values());
+    }
+
+    private Optional<QuarkusExtensionMetadata> quarkusMetadata(Path jarPath) {
+        try {
+            return quarkusMetadataReader.readIfPresent(jarPath);
+        } catch (QuarkusMetadataException exception) {
+            if (exception.getCause() instanceof ZipException) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
     private Map<PackageId, List<SelectedScope>> selectedScopes(
             ResolutionGraph graph,
             VersionSelectionResult selection,
@@ -450,6 +525,9 @@ public final class ResolveService {
     }
 
     private record SelectedScope(DependencyScope scope, boolean direct) {
+    }
+
+    private record ResolutionState(ResolutionGraph graph, VersionSelectionResult selection) {
     }
 
     @FunctionalInterface

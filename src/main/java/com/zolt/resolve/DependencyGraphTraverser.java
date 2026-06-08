@@ -140,6 +140,9 @@ public final class DependencyGraphTraverser {
         if (parentScope == DependencyScope.TEST_PROCESSOR) {
             return Optional.of(DependencyScope.TEST_PROCESSOR);
         }
+        if (parentScope == DependencyScope.QUARKUS_DEPLOYMENT) {
+            return Optional.of(DependencyScope.QUARKUS_DEPLOYMENT);
+        }
         if (parentScope == DependencyScope.TEST) {
             return Optional.of(DependencyScope.TEST);
         }

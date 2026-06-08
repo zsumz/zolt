@@ -113,6 +113,22 @@ final class ClasspathBuilderTest {
     }
 
     @Test
+    void quarkusDeploymentDependenciesAreExcludedFromNormalClasspaths() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope(
+                "io.quarkus",
+                "quarkus-rest-deployment",
+                "3.33.0",
+                DependencyScope.QUARKUS_DEPLOYMENT)));
+
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+        assertFalse(DependencyScope.QUARKUS_DEPLOYMENT.packagedByDefault());
+    }
+
+    @Test
     void testClasspathIncludesRuntimeNeededForTests() {
         ClasspathSet classpaths = builder.build(List.of(
                 packageWithScope("com.example", "compile-lib", "1.0.0", DependencyScope.COMPILE),

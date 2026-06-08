@@ -16,6 +16,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -801,6 +804,104 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void quarkusRuntimeExtensionAddsDeploymentArtifactScope() {
+        addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-rest</artifactId>
+                  <version>3.33.0</version>
+                </project>
+                """, Map.of(
+                "META-INF/quarkus-extension.properties",
+                """
+                deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0
+                provides-capabilities=io.quarkus.rest
+                """));
+        addArtifact("io.quarkus", "quarkus-rest-deployment", "3.33.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-rest-deployment</artifactId>
+                  <version>3.33.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-core-deployment</artifactId>
+                      <version>3.33.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("io.quarkus", "quarkus-core-deployment", "3.33.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-core-deployment</artifactId>
+                  <version>3.33.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithDependencies(Map.of("io.quarkus:quarkus-rest", "3.33.0")),
+                cacheRoot);
+
+        assertEquals(3, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-rest"))
+                        && lockPackage.scope() == DependencyScope.COMPILE
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-rest-deployment"))
+                        && lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT
+                        && !lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-core-deployment"))
+                        && lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT
+                        && !lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(
+                cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar")),
+                classpaths.compile().entries());
+        assertEquals(List.of(
+                cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar")),
+                classpaths.runtime().entries());
+        assertTrue(classpaths.runtime().entries().stream()
+                .noneMatch(path -> path.toString().contains("deployment")));
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+    }
+
+    @Test
+    void quarkusDeploymentArtifactWithClassifierFailsClearly() {
+        addArtifact("io.quarkus", "quarkus-custom", "1.0.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-custom</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """, Map.of(
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-custom-deployment:deployment:jar:1.0.0\n"));
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(
+                        projectDir,
+                        configWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
+                        cacheRoot));
+
+        assertTrue(exception.getMessage().contains("declares deployment artifact"));
+        assertTrue(exception.getMessage().contains("currently supports only jar deployment artifacts without classifiers"));
+    }
+
+    @Test
     void selectedVersionKeepsAllParticipatingScopes() {
         addArtifact("com.example", "app", "1.0.0", """
                 <project>
@@ -1140,9 +1241,18 @@ final class ResolveServiceTest {
     }
 
     private void addArtifact(String groupId, String artifactId, String version, String pom) {
+        addArtifact(groupId, artifactId, version, pom, Map.of());
+    }
+
+    private void addArtifact(
+            String groupId,
+            String artifactId,
+            String version,
+            String pom,
+            Map<String, String> jarEntries) {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
-        responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
+        responses.put(base + ".jar", jarBytes(jarEntries));
     }
 
     private void addJUnitConsoleArtifact(String version) {
@@ -1158,6 +1268,22 @@ final class ResolveServiceTest {
     private void addPom(String groupId, String artifactId, String version, String pom) {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] jarBytes(Map<String, String> entries) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (JarOutputStream jar = new JarOutputStream(bytes)) {
+                for (Map.Entry<String, String> entry : entries.entrySet()) {
+                    jar.putNextEntry(new JarEntry(entry.getKey()));
+                    jar.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+                    jar.closeEntry();
+                }
+            }
+            return bytes.toByteArray();
+        } catch (IOException exception) {
+            throw new AssertionError("Could not create test jar bytes.", exception);
+        }
     }
 
     private void handle(HttpExchange exchange) throws IOException {

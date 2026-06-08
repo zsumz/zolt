@@ -54,18 +54,20 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
-    void writesProcessorScopeNames() {
+    void writesInternalToolingScopeNames() {
         ZoltLockfile lockfile = new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
                 List.of(
                         lockPackage("com.example", "processor", "1.0.0", DependencyScope.PROCESSOR, true, Optional.empty(), Optional.empty(), List.of()),
-                        lockPackage("com.example", "test-processor", "1.0.0", DependencyScope.TEST_PROCESSOR, true, Optional.empty(), Optional.empty(), List.of())),
+                        lockPackage("com.example", "test-processor", "1.0.0", DependencyScope.TEST_PROCESSOR, true, Optional.empty(), Optional.empty(), List.of()),
+                        lockPackage("io.quarkus", "quarkus-rest-deployment", "3.33.0", DependencyScope.QUARKUS_DEPLOYMENT, false, Optional.empty(), Optional.empty(), List.of())),
                 List.of());
 
         String output = writer.write(lockfile);
 
         assertTrue(output.contains("scope = \"processor\""));
         assertTrue(output.contains("scope = \"test-processor\""));
+        assertTrue(output.contains("scope = \"quarkus-deployment\""));
     }
 
     @Test
