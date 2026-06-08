@@ -1,0 +1,33 @@
+package com.zolt.quarkus;
+
+import java.nio.file.Path;
+
+public final class QuarkusPlanFormatter {
+    public String format(QuarkusPlan plan) {
+        StringBuilder output = new StringBuilder();
+        output.append("Quarkus augmentation plan\n");
+        output.append("Status: ");
+        if (plan.hasDeploymentInputs()) {
+            output.append("inputs resolved; augmentation runner not implemented yet\n");
+        } else {
+            output.append("not ready\n");
+        }
+        output.append("Application classes: ").append(plan.applicationClasses()).append('\n');
+        classpath(output, "Runtime classpath entries", plan.runtimeClasspath());
+        classpath(output, "Deployment classpath entries", plan.deploymentClasspath());
+        output.append("Next: ");
+        if (plan.hasDeploymentInputs()) {
+            output.append("implement the Zolt-owned Quarkus augmentation runner with these inputs.\n");
+        } else {
+            output.append("add a Quarkus extension dependency, run `zolt resolve`, then run `zolt quarkus plan` again.\n");
+        }
+        return output.toString();
+    }
+
+    private static void classpath(StringBuilder output, String label, java.util.List<Path> entries) {
+        output.append(label).append(": ").append(entries.size()).append('\n');
+        for (Path entry : entries) {
+            output.append("  ").append(entry).append('\n');
+        }
+    }
+}
