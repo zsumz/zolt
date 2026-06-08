@@ -29,12 +29,18 @@ final class QuarkusBootstrapDescriptorWriterTest {
         assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties"), descriptor.descriptorFile());
         assertEquals(projectDir.resolve("target/quarkus/runtime-classpath.txt"), descriptor.runtimeClasspathFile());
         assertEquals(projectDir.resolve("target/quarkus/deployment-classpath.txt"), descriptor.deploymentClasspathFile());
+        assertEquals(projectDir.resolve("target/quarkus/platform-properties.txt"), descriptor.platformPropertiesFile());
         assertEquals(projectDir.resolve("target/quarkus/application-model.properties"), descriptor.applicationModelFile());
         assertEquals("io.quarkus.bootstrap.app.QuarkusBootstrap", descriptor.bootstrapClass());
         assertEquals("io.quarkus.bootstrap.app.AugmentAction", descriptor.augmentActionClass());
         assertEquals(request.applicationArtifact(), descriptor.applicationArtifact());
         assertEquals(request.runtimeClasspath(), descriptor.runtimeClasspath());
         assertEquals(request.deploymentClasspath(), descriptor.deploymentClasspath());
+        assertEquals(
+                request.platformPropertiesArtifacts().stream()
+                        .map(QuarkusPlatformPropertiesArtifact::path)
+                        .toList(),
+                descriptor.platformPropertiesFiles());
         assertEquals(request.bootstrapDependencies(), descriptor.bootstrapDependencies());
         assertEquals("""
                 version=1
@@ -48,6 +54,7 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 packageDirectory=%s
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                platformPropertiesFile=%s
                 applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
@@ -57,6 +64,7 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 projectDir.resolve("target/quarkus-app"),
                 projectDir.resolve("target/quarkus/runtime-classpath.txt"),
                 projectDir.resolve("target/quarkus/deployment-classpath.txt"),
+                projectDir.resolve("target/quarkus/platform-properties.txt"),
                 projectDir.resolve("target/quarkus/application-model.properties"),
                 request.inputFingerprint()), Files.readString(descriptor.descriptorFile()));
         assertEquals("""
@@ -99,6 +107,11 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 """.formatted(
                 projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
                 Files.readString(descriptor.deploymentClasspathFile()));
+        assertEquals("""
+                %s
+                """.formatted(
+                projectDir.resolve(".zolt/cache/io/quarkus/platform/quarkus-bom-quarkus-platform-properties.properties")),
+                Files.readString(descriptor.platformPropertiesFile()));
     }
 
     @Test
@@ -126,6 +139,10 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of(new QuarkusPlatformPropertiesArtifact(
+                        new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                        "3.33.0",
+                        projectDir.resolve(".zolt/cache/io/quarkus/platform/quarkus-bom-quarkus-platform-properties.properties"))),
                 List.of(
                         new QuarkusBootstrapDependency(
                                 new PackageId("io.quarkus", "quarkus-rest"),

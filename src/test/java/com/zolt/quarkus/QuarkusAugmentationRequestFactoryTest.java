@@ -30,6 +30,7 @@ final class QuarkusAugmentationRequestFactoryTest {
         assertEquals(plan.augmentationState().metadataPath(), request.metadataPath());
         assertEquals(plan.runtimeClasspath(), request.runtimeClasspath());
         assertEquals(plan.deploymentClasspath(), request.deploymentClasspath());
+        assertEquals(plan.platformPropertiesArtifacts(), request.platformPropertiesArtifacts());
         assertEquals(plan.bootstrapDependencies(), request.bootstrapDependencies());
         assertEquals(plan.extensions(), request.extensions());
     }
@@ -62,6 +63,7 @@ final class QuarkusAugmentationRequestFactoryTest {
 
         assertThrows(UnsupportedOperationException.class, () -> request.runtimeClasspath().add(Path.of("other")));
         assertThrows(UnsupportedOperationException.class, () -> request.deploymentClasspath().add(Path.of("other")));
+        assertThrows(UnsupportedOperationException.class, () -> request.platformPropertiesArtifacts().clear());
         assertThrows(UnsupportedOperationException.class, () -> request.bootstrapDependencies().clear());
         assertThrows(UnsupportedOperationException.class, () -> request.extensions().clear());
     }
@@ -88,11 +90,19 @@ final class QuarkusAugmentationRequestFactoryTest {
                 new QuarkusAugmentationState(
                         Path.of("/repo/target/quarkus/zolt-augmentation.properties"),
                         QuarkusAugmentationState.Status.MISSING,
-                        Optional.empty()),
+                Optional.empty()),
                 List.of(Path.of("/repo/.zolt/cache/io/quarkus/quarkus-rest.jar")),
                 deploymentClasspath,
+                platformPropertiesArtifacts(),
                 bootstrapDependencies(deploymentClasspath),
                 extensions);
+    }
+
+    private static List<QuarkusPlatformPropertiesArtifact> platformPropertiesArtifacts() {
+        return List.of(new QuarkusPlatformPropertiesArtifact(
+                new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                "3.33.0",
+                Path.of("/repo/.zolt/cache/io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties")));
     }
 
     private static List<QuarkusBootstrapDependency> bootstrapDependencies(List<Path> deploymentClasspath) {

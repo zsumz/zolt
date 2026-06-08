@@ -20,18 +20,20 @@ public final class QuarkusBootstrapDescriptorWriter {
         Path descriptorFile = augmentationDirectory.resolve("zolt-bootstrap.properties");
         Path runtimeClasspathFile = augmentationDirectory.resolve("runtime-classpath.txt");
         Path deploymentClasspathFile = augmentationDirectory.resolve("deployment-classpath.txt");
+        Path platformPropertiesFile = augmentationDirectory.resolve("platform-properties.txt");
         Path applicationModelFile = augmentationDirectory.resolve("application-model.properties");
         try {
             Files.createDirectories(augmentationDirectory);
             writeClasspath(runtimeClasspathFile, request.runtimeClasspath());
             writeClasspath(deploymentClasspathFile, request.deploymentClasspath());
+            writePlatformProperties(platformPropertiesFile, request.platformPropertiesArtifacts());
             Files.writeString(
                     applicationModelFile,
                     applicationModel(request.applicationArtifact(), request.bootstrapDependencies()),
                     StandardCharsets.UTF_8);
             Files.writeString(
                     descriptorFile,
-                    descriptor(request, runtimeClasspathFile, deploymentClasspathFile, applicationModelFile),
+                    descriptor(request, runtimeClasspathFile, deploymentClasspathFile, platformPropertiesFile, applicationModelFile),
                     StandardCharsets.UTF_8);
         } catch (IOException exception) {
             throw new QuarkusAugmentationException(
@@ -44,6 +46,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 descriptorFile,
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                platformPropertiesFile,
                 applicationModelFile,
                 BOOTSTRAP_CLASS,
                 AUGMENT_ACTION_CLASS,
@@ -56,6 +59,10 @@ public final class QuarkusBootstrapDescriptorWriter {
                 request.applicationArtifact(),
                 request.runtimeClasspath(),
                 request.deploymentClasspath(),
+                request.platformPropertiesArtifacts().stream()
+                        .map(QuarkusPlatformPropertiesArtifact::path)
+                        .sorted()
+                        .toList(),
                 sortedDependencies(request.bootstrapDependencies()));
     }
 
@@ -63,6 +70,7 @@ public final class QuarkusBootstrapDescriptorWriter {
             QuarkusAugmentationRequest request,
             Path runtimeClasspathFile,
             Path deploymentClasspathFile,
+            Path platformPropertiesFile,
             Path applicationModelFile) {
         return """
                 version=1
@@ -76,6 +84,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 packageDirectory=%s
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                platformPropertiesFile=%s
                 applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
@@ -88,6 +97,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 request.outputLayout().packageDirectory(),
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                platformPropertiesFile,
                 applicationModelFile,
                 request.inputFingerprint());
     }
@@ -96,6 +106,18 @@ public final class QuarkusBootstrapDescriptorWriter {
         StringBuilder output = new StringBuilder();
         for (Path entry : entries) {
             output.append(entry).append('\n');
+        }
+        Files.writeString(path, output.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void writePlatformProperties(
+            Path path,
+            List<QuarkusPlatformPropertiesArtifact> artifacts) throws IOException {
+        StringBuilder output = new StringBuilder();
+        for (QuarkusPlatformPropertiesArtifact artifact : artifacts.stream()
+                .sorted(Comparator.comparing(candidate -> candidate.packageId() + ":" + candidate.version() + ":" + candidate.path()))
+                .toList()) {
+            output.append(artifact.path()).append('\n');
         }
         Files.writeString(path, output.toString(), StandardCharsets.UTF_8);
     }

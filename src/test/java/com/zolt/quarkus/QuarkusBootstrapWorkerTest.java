@@ -175,7 +175,7 @@ final class QuarkusBootstrapWorkerTest {
         }
 
         public WorkerCuratedApplication bootstrap() {
-            return new WorkerCuratedApplication(augmentationDirectory.resolveSibling("quarkus-app"));
+            return new WorkerCuratedApplication(augmentationDirectory.resolve("quarkus-app"));
         }
 
         public static final class Builder {
@@ -286,7 +286,9 @@ final class QuarkusBootstrapWorkerTest {
     private static QuarkusApplicationModelFactory modelFactory() {
         return new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 FakeApplicationModelBuilder.class.getName(),
-                FakeResolvedDependencyBuilder.class.getName()));
+                FakeResolvedDependencyBuilder.class.getName(),
+                FakePlatformImports.class.getName(),
+                FakePlatformImportsImpl.class.getName()));
     }
 
     public static final class FakeApplicationModelBuilder {
@@ -351,6 +353,14 @@ final class QuarkusBootstrapWorkerTest {
 
         public FakeResolvedDependencyBuilder setDeploymentCp() {
             return this;
+        }
+    }
+
+    public interface FakePlatformImports {
+    }
+
+    public static final class FakePlatformImportsImpl implements FakePlatformImports {
+        public void setPlatformProperties(java.util.Map<String, String> ignored) {
         }
     }
 

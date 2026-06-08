@@ -22,6 +22,7 @@ public final class QuarkusAugmentationRequestFactory {
                 plan.augmentationState().metadataPath(),
                 plan.runtimeClasspath(),
                 plan.deploymentClasspath(),
+                plan.platformPropertiesArtifacts(),
                 plan.bootstrapDependencies(),
                 plan.extensions());
     }

@@ -127,6 +127,7 @@ public final class ResolveService {
                     initial.selection(),
                     directRequests,
                     managedVersions));
+            allRequests.addAll(context.projectPlatformPropertiesRequests());
         }
         ResolutionState resolved = allRequests.size() == directRequests.size()
                 ? initial
@@ -504,7 +505,11 @@ public final class ResolveService {
                 + ":"
                 + request.artifactDescriptor()
                         .flatMap(ArtifactDescriptor::classifier)
-                        .orElse("");
+                        .orElse("")
+                + ":"
+                + request.artifactDescriptor()
+                        .map(ArtifactDescriptor::extension)
+                        .orElse("jar");
     }
 
     private Optional<QuarkusExtensionMetadata> quarkusMetadata(Path jarPath) {
@@ -555,19 +560,23 @@ public final class ResolveService {
                 node.packageId().artifactId(),
                 Optional.of(node.selectedVersion()));
         CachedArtifact pom = context.getPom(coordinate);
-        CachedArtifact jar = selectedScope.artifactDescriptor()
-                .map(context::getArtifact)
-                .orElseGet(() -> context.getJar(coordinate));
+        ArtifactDescriptor descriptor = selectedScope.artifactDescriptor()
+                .orElseGet(() -> ArtifactDescriptor.jar(coordinate));
+        CachedArtifact artifact = context.getArtifact(descriptor);
+        boolean jarArtifact = "jar".equals(descriptor.extension());
         return new LockPackage(
                 node.packageId(),
                 node.selectedVersion(),
                 "maven-central",
                 selectedScope.scope(),
                 selectedScope.direct(),
-                Optional.of(jar.repositoryPath()),
+                jarArtifact ? Optional.of(artifact.repositoryPath()) : Optional.empty(),
                 Optional.of(pom.repositoryPath()),
-                Optional.of(sha256(jar.bytes())),
+                jarArtifact ? Optional.of(sha256(artifact.bytes())) : Optional.empty(),
                 Optional.of(sha256(pom.bytes())),
+                jarArtifact ? Optional.empty() : Optional.of(artifact.repositoryPath()),
+                jarArtifact ? Optional.empty() : Optional.of(descriptor.extension()),
+                jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
                 dependenciesFor(node, graph));
     }
 
@@ -706,6 +715,41 @@ public final class ResolveService {
                         }
                     });
             return versions;
+        }
+
+        List<DependencyRequest> projectPlatformPropertiesRequests() {
+            List<DependencyRequest> requests = new ArrayList<>();
+            config.platforms().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(platform -> {
+                        Coordinate coordinate = coordinateParser.parse(platform.getKey() + ":" + platform.getValue());
+                        EffectiveRawPom pom = effectivePom(coordinate, List.of());
+                        for (RawPomDependency dependency : pom.dependencyManagement()) {
+                            if (dependency.classifier().isPresent()) {
+                                continue;
+                            }
+                            RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
+                            if (!interpolated.type().filter("properties"::equals).isPresent()
+                                    || interpolated.version().isEmpty()) {
+                                continue;
+                            }
+                            PackageId packageId = new PackageId(interpolated.groupId(), interpolated.artifactId());
+                            Optional<String> version = interpolated.version();
+                            requests.add(new DependencyRequest(
+                                    packageId,
+                                    version.orElseThrow(),
+                                    DependencyScope.QUARKUS_DEPLOYMENT,
+                                    RequestOrigin.TRANSITIVE,
+                                    Optional.of(new ArtifactDescriptor(
+                                            new Coordinate(
+                                                    packageId.groupId(),
+                                                    packageId.artifactId(),
+                                                    version),
+                                            Optional.empty(),
+                                            "properties"))));
+                        }
+                    });
+            return List.copyOf(requests);
         }
 
         private EffectiveRawPom effectivePom(Coordinate coordinate, List<String> importStack) {

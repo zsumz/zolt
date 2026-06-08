@@ -148,6 +148,36 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsNonJarArtifactFields() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "io.quarkus.platform:quarkus-bom-quarkus-platform-properties"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                pom = "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.pom"
+                pomSha256 = "pom-checksum"
+                artifact = "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties"
+                artifactType = "properties"
+                artifactSha256 = "properties-checksum"
+                dependencies = []
+                """);
+
+        LockPackage lockPackage = lockfile.packages().getFirst();
+
+        assertTrue(lockPackage.jar().isEmpty());
+        assertEquals("properties", lockPackage.artifactType().orElseThrow());
+        assertEquals(
+                "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties",
+                lockPackage.artifact().orElseThrow());
+        assertEquals("properties-checksum", lockPackage.artifactSha256().orElseThrow());
+        assertEquals(List.of(), reader.classpathPackages(lockfile));
+    }
+
+    @Test
     void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() {
         ZoltLockfile lockfile = reader.read("""
                 version = 1

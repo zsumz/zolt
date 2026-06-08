@@ -30,7 +30,7 @@ final class QuarkusBootstrapPreparerTest {
         FakeBootstrap bootstrap = (FakeBootstrap) handle.bootstrap();
         assertEquals(Path.of("/repo/target/classes"), bootstrap.applicationRoot());
         assertEquals(Path.of("/repo"), bootstrap.projectRoot());
-        assertEquals(Path.of("/repo/target/quarkus"), bootstrap.targetDirectory());
+        assertEquals(Path.of("/repo/target"), bootstrap.targetDirectory());
         assertEquals(FakeBootstrap.Mode.PROD, bootstrap.mode());
         assertSame(model, bootstrap.existingModel());
     }
@@ -84,6 +84,7 @@ final class QuarkusBootstrapPreparerTest {
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
                 Path.of("/repo/target/quarkus/deployment-classpath.txt"),
+                Path.of("/repo/target/quarkus/platform-properties.txt"),
                 Path.of("/repo/target/quarkus/application-model.properties"),
                 FakeBootstrap.class.getName(),
                 FakeAugmentAction.class.getName(),
@@ -97,6 +98,7 @@ final class QuarkusBootstrapPreparerTest {
                         new PackageId("com.example", "demo"),
                         "1.0.0",
                         Path.of("/repo/target/classes")),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());

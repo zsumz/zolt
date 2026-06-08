@@ -137,6 +137,7 @@ final class RunServiceTest {
                 augmentationDirectory.resolve("zolt-bootstrap.properties"),
                 augmentationDirectory.resolve("runtime-classpath.txt"),
                 augmentationDirectory.resolve("deployment-classpath.txt"),
+                augmentationDirectory.resolve("platform-properties.txt"),
                 augmentationDirectory.resolve("application-model.properties"),
                 "io.quarkus.bootstrap.app.QuarkusBootstrap",
                 "io.quarkus.bootstrap.app.AugmentAction",
@@ -150,6 +151,7 @@ final class RunServiceTest {
                         new PackageId("com.example", "demo"),
                         "1.0.0",
                         projectDir.resolve("target/classes")),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());

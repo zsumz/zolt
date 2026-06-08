@@ -118,6 +118,7 @@ final class QuarkusBuildAugmentationServiceTest {
                 augmentationState(),
                 runtimeClasspath(),
                 deploymentClasspath(),
+                platformPropertiesArtifacts(),
                 bootstrapDependencies(),
                 List.of(extension()));
     }
@@ -133,6 +134,7 @@ final class QuarkusBuildAugmentationServiceTest {
                 Path.of("/repo/target/quarkus/zolt-augmentation.properties"),
                 runtimeClasspath(),
                 deploymentClasspath(),
+                platformPropertiesArtifacts(),
                 bootstrapDependencies(),
                 List.of(extension()));
     }
@@ -157,6 +159,7 @@ final class QuarkusBuildAugmentationServiceTest {
                 request.outputLayout().augmentationDirectory().resolve("bootstrap.properties"),
                 request.outputLayout().augmentationDirectory().resolve("runtime-classpath.txt"),
                 request.outputLayout().augmentationDirectory().resolve("deployment-classpath.txt"),
+                request.outputLayout().augmentationDirectory().resolve("platform-properties.txt"),
                 request.outputLayout().augmentationDirectory().resolve("application-model.properties"),
                 "io.quarkus.bootstrap.app.QuarkusBootstrap",
                 "io.quarkus.bootstrap.app.AugmentAction",
@@ -169,6 +172,9 @@ final class QuarkusBuildAugmentationServiceTest {
                 request.applicationArtifact(),
                 request.runtimeClasspath(),
                 request.deploymentClasspath(),
+                request.platformPropertiesArtifacts().stream()
+                        .map(QuarkusPlatformPropertiesArtifact::path)
+                        .toList(),
                 request.bootstrapDependencies());
     }
 
@@ -197,6 +203,13 @@ final class QuarkusBuildAugmentationServiceTest {
     private static List<Path> deploymentClasspath() {
         return List.of(Path.of(
                 "/cache/io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar"));
+    }
+
+    private static List<QuarkusPlatformPropertiesArtifact> platformPropertiesArtifacts() {
+        return List.of(new QuarkusPlatformPropertiesArtifact(
+                new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                "3.33.0",
+                Path.of("/cache/io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties")));
     }
 
     private static List<QuarkusBootstrapDependency> bootstrapDependencies() {

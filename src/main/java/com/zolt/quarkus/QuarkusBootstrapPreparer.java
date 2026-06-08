@@ -25,7 +25,7 @@ public final class QuarkusBootstrapPreparer {
             Object builder = bootstrapClass.getMethod("builder").invoke(null);
             builderClass.getMethod("setApplicationRoot", Path.class).invoke(builder, descriptor.applicationClasses());
             builderClass.getMethod("setProjectRoot", Path.class).invoke(builder, descriptor.projectDirectory());
-            builderClass.getMethod("setTargetDirectory", Path.class).invoke(builder, descriptor.augmentationDirectory());
+            builderClass.getMethod("setTargetDirectory", Path.class).invoke(builder, targetDirectory(descriptor));
             existingModelSetter(builderClass, applicationModel.applicationModel().getClass())
                     .invoke(builder, applicationModel.applicationModel());
             setMode(builderClass, api.modeClass(), builder);
@@ -71,6 +71,15 @@ public final class QuarkusBootstrapPreparer {
             }
         }
         throw new NoSuchMethodException("setExistingModel(" + applicationModelClass.getName() + ")");
+    }
+
+    private static Path targetDirectory(QuarkusBootstrapDescriptor descriptor) {
+        Path parent = descriptor.packageDirectory().getParent();
+        if (parent == null) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus package directory " + descriptor.packageDirectory() + " does not have a parent target directory.");
+        }
+        return parent;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

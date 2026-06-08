@@ -40,11 +40,13 @@ public final class QuarkusBootstrapDescriptorReader {
         String augmentActionClass = required(properties, "augmentActionClass", descriptorFile);
         Path runtimeClasspathFile = path(properties, "runtimeClasspathFile", descriptorFile);
         Path deploymentClasspathFile = path(properties, "deploymentClasspathFile", descriptorFile);
+        Path platformPropertiesFile = optionalPath(properties, "platformPropertiesFile");
         Path applicationModelFile = path(properties, "applicationModelFile", descriptorFile);
         return new QuarkusBootstrapDescriptor(
                 descriptorFile,
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                platformPropertiesFile,
                 applicationModelFile,
                 bootstrapClass,
                 augmentActionClass,
@@ -57,6 +59,7 @@ public final class QuarkusBootstrapDescriptorReader {
                 applicationArtifact(applicationModelFile, descriptorFile),
                 classpath(runtimeClasspathFile, "runtime", descriptorFile),
                 classpath(deploymentClasspathFile, "deployment", descriptorFile),
+                platformProperties(platformPropertiesFile, descriptorFile),
                 applicationModelDependencies(applicationModelFile, descriptorFile));
     }
 
@@ -96,6 +99,11 @@ public final class QuarkusBootstrapDescriptorReader {
         return Path.of(required(properties, key, descriptorFile));
     }
 
+    private static Path optionalPath(Map<String, String> properties, String key) {
+        String value = properties.get(key);
+        return value == null || value.isBlank() ? Path.of("") : Path.of(value);
+    }
+
     private static List<Path> classpath(Path classpathFile, String label, Path descriptorFile) {
         try {
             return Files.readAllLines(classpathFile, StandardCharsets.UTF_8).stream()
@@ -108,6 +116,26 @@ public final class QuarkusBootstrapDescriptorReader {
                             + label
                             + " classpath file "
                             + classpathFile
+                            + " referenced by "
+                            + descriptorFile
+                            + ". Run Quarkus augmentation planning again and check that target/ is readable.",
+                    exception);
+        }
+    }
+
+    private static List<Path> platformProperties(Path platformPropertiesFile, Path descriptorFile) {
+        if (platformPropertiesFile.toString().isBlank()) {
+            return List.of();
+        }
+        try {
+            return Files.readAllLines(platformPropertiesFile, StandardCharsets.UTF_8).stream()
+                    .filter(line -> !line.isBlank())
+                    .map(Path::of)
+                    .toList();
+        } catch (IOException exception) {
+            throw new QuarkusAugmentationException(
+                    "Could not read Quarkus platform properties file "
+                            + platformPropertiesFile
                             + " referenced by "
                             + descriptorFile
                             + ". Run Quarkus augmentation planning again and check that target/ is readable.",

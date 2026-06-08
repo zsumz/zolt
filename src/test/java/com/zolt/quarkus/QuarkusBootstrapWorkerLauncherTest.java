@@ -157,6 +157,7 @@ final class QuarkusBootstrapWorkerLauncherTest {
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
                 Path.of("/repo/target/quarkus/deployment-classpath.txt"),
+                Path.of("/repo/target/quarkus/platform-properties.txt"),
                 Path.of("/repo/target/quarkus/application-model.properties"),
                 QuarkusBootstrapDescriptorWriter.BOOTSTRAP_CLASS,
                 QuarkusBootstrapDescriptorWriter.AUGMENT_ACTION_CLASS,
@@ -174,6 +175,7 @@ final class QuarkusBootstrapWorkerLauncherTest {
                 List.of(
                         Path.of("/cache/quarkus-core-deployment.jar"),
                         Path.of("/cache/quarkus-bootstrap-core.jar")),
+                List.of(),
                 List.of());
     }
 }

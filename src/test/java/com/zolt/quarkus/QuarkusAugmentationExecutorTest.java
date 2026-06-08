@@ -153,6 +153,7 @@ final class QuarkusAugmentationExecutorTest {
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of(),
                 List.of(
                         new QuarkusBootstrapDependency(
                                 new PackageId("io.quarkus", "quarkus-rest"),

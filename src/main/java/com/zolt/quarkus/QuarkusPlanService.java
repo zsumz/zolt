@@ -59,8 +59,9 @@ public final class QuarkusPlanService {
             Path cacheRoot) {
         requireEnabled(config);
         Path root = projectDirectory.toAbsolutePath().normalize();
+        Path cache = cacheRoot.toAbsolutePath().normalize();
         Path applicationClasses = root.resolve(config.build().output()).normalize();
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cache));
         String fingerprint = inputFingerprint.fingerprint(applicationClasses, lockfile);
         return new QuarkusPlan(
                 root,
@@ -75,8 +76,9 @@ public final class QuarkusPlanService {
                 augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
-                bootstrapDependencies(lockfile, cacheRoot),
-                extensions(lockfile, cacheRoot));
+                platformPropertiesArtifacts(lockfile, cache),
+                bootstrapDependencies(lockfile, cache),
+                extensions(lockfile, cache));
     }
 
     private static QuarkusOutputLayout outputLayout(Path projectRoot) {
@@ -119,6 +121,22 @@ public final class QuarkusPlanService {
                         cacheRoot.resolve(lockPackage.jar().orElseThrow()),
                         lockPackage.direct()))
                 .sorted(Comparator.comparing(QuarkusPlanService::bootstrapDependencyKey))
+                .toList();
+    }
+
+    private static List<QuarkusPlatformPropertiesArtifact> platformPropertiesArtifacts(
+            ZoltLockfile lockfile,
+            Path cacheRoot) {
+        return lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT)
+                .filter(lockPackage -> lockPackage.artifact().isPresent())
+                .filter(lockPackage -> lockPackage.artifactType().filter("properties"::equals).isPresent())
+                .map(lockPackage -> new QuarkusPlatformPropertiesArtifact(
+                        lockPackage.packageId(),
+                        lockPackage.version(),
+                        cacheRoot.resolve(lockPackage.artifact().orElseThrow())))
+                .sorted(Comparator.comparing(artifact ->
+                        artifact.packageId() + ":" + artifact.version() + ":" + artifact.path()))
                 .toList();
     }
 

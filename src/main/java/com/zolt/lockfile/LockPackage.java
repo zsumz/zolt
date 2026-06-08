@@ -15,6 +15,9 @@ public record LockPackage(
         Optional<String> pom,
         Optional<String> jarSha256,
         Optional<String> pomSha256,
+        Optional<String> artifact,
+        Optional<String> artifactType,
+        Optional<String> artifactSha256,
         Optional<String> workspace,
         Optional<String> workspaceOutput,
         List<String> dependencies,
@@ -25,6 +28,9 @@ public record LockPackage(
         pom = pom == null ? Optional.empty() : pom;
         jarSha256 = jarSha256 == null ? Optional.empty() : jarSha256;
         pomSha256 = pomSha256 == null ? Optional.empty() : pomSha256;
+        artifact = artifact == null ? Optional.empty() : artifact;
+        artifactType = artifactType == null ? Optional.empty() : artifactType;
+        artifactSha256 = artifactSha256 == null ? Optional.empty() : artifactSha256;
         workspace = workspace == null ? Optional.empty() : workspace;
         workspaceOutput = workspaceOutput == null ? Optional.empty() : workspaceOutput;
         dependencies = List.copyOf(dependencies);
@@ -55,6 +61,43 @@ public record LockPackage(
                 pomSha256,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                List.of(),
+                List.of());
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            Optional<String> artifact,
+            Optional<String> artifactType,
+            Optional<String> artifactSha256,
+            List<String> dependencies) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                artifact,
+                artifactType,
+                artifactSha256,
+                Optional.empty(),
+                Optional.empty(),
                 dependencies,
                 List.of(),
                 List.of());
@@ -83,6 +126,9 @@ public record LockPackage(
                 pom,
                 jarSha256,
                 pomSha256,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
                 workspace,
                 workspaceOutput,
                 dependencies,
@@ -114,10 +160,48 @@ public record LockPackage(
                 pom,
                 jarSha256,
                 pomSha256,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
                 workspace,
                 workspaceOutput,
                 dependencies,
                 members,
                 List.of());
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            Optional<String> workspace,
+            Optional<String> workspaceOutput,
+            List<String> dependencies,
+            List<String> members,
+            List<String> exportedBy) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                workspace,
+                workspaceOutput,
+                dependencies,
+                members,
+                exportedBy);
     }
 }

@@ -108,6 +108,7 @@ final class QuarkusProductionOutputValidatorTest {
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
                 Path.of("/repo/target/quarkus/deployment-classpath.txt"),
+                Path.of("/repo/target/quarkus/platform-properties.txt"),
                 Path.of("/repo/target/quarkus/application-model.properties"),
                 "io.quarkus.bootstrap.app.QuarkusBootstrap",
                 "io.quarkus.bootstrap.app.AugmentAction",
@@ -121,6 +122,7 @@ final class QuarkusProductionOutputValidatorTest {
                         new PackageId("com.example", "demo"),
                         "1.0.0",
                         Path.of("/repo/target/classes")),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());

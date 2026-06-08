@@ -94,6 +94,7 @@ final class QuarkusProductionOutputVerifierTest {
                 projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"),
                 projectDirectory.resolve("target/quarkus/runtime-classpath.txt"),
                 projectDirectory.resolve("target/quarkus/deployment-classpath.txt"),
+                projectDirectory.resolve("target/quarkus/platform-properties.txt"),
                 projectDirectory.resolve("target/quarkus/application-model.properties"),
                 "io.quarkus.bootstrap.app.QuarkusBootstrap",
                 "io.quarkus.bootstrap.app.AugmentAction",
@@ -107,6 +108,7 @@ final class QuarkusProductionOutputVerifierTest {
                         new PackageId("com.example", "demo"),
                         "1.0.0",
                         projectDirectory.resolve("target/classes")),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());

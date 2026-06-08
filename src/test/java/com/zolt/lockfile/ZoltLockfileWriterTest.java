@@ -97,6 +97,37 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
+    void writesNonJarArtifactFields() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(new LockPackage(
+                        new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                        "3.33.0",
+                        "maven-central",
+                        DependencyScope.QUARKUS_DEPLOYMENT,
+                        false,
+                        Optional.empty(),
+                        Optional.of("io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.pom"),
+                        Optional.empty(),
+                        Optional.of("pom-checksum"),
+                        Optional.of("io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties"),
+                        Optional.of("properties"),
+                        Optional.of("properties-checksum"),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of(),
+                        List.of(),
+                        List.of())),
+                List.of());
+
+        String output = writer.write(lockfile);
+
+        assertTrue(output.contains("artifact = \"io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties\""));
+        assertTrue(output.contains("artifactType = \"properties\""));
+        assertTrue(output.contains("artifactSha256 = \"properties-checksum\""));
+    }
+
+    @Test
     void writesPackageMembersDeterministically() {
         ZoltLockfile lockfile = new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,

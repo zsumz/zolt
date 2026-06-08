@@ -8,17 +8,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class QuarkusApplicationModelFactoryTest {
+    @TempDir
+    private Path tempDir;
+
     @Test
     void buildsApplicationModelFromDescriptorDependencies() {
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
-                FakeApplicationModelBuilder.class.getName(),
-                FakeResolvedDependencyBuilder.class.getName()));
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApi());
 
         QuarkusApplicationModelHandle handle = factory.create(descriptor());
 
@@ -53,10 +58,32 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     @Test
+    void addsPlatformPropertiesToApplicationModel() throws IOException {
+        Path platformProperties = tempDir.resolve("quarkus-platform.properties");
+        Files.writeString(platformProperties, """
+                platform.quarkus.native.builder-image=quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21
+                zolt.example=true
+                """);
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApi());
+
+        QuarkusApplicationModelHandle handle = factory.create(descriptor(List.of(platformProperties)));
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        FakePlatformImportsImpl platformImports =
+                assertInstanceOf(FakePlatformImportsImpl.class, model.platformImports());
+        assertEquals(
+                "quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21",
+                platformImports.properties().get("platform.quarkus.native.builder-image"));
+        assertEquals("true", platformImports.properties().get("zolt.example"));
+    }
+
+    @Test
     void rejectsMissingApplicationModelClasses() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 "missing.ApplicationModelBuilder",
-                FakeResolvedDependencyBuilder.class.getName()));
+                FakeResolvedDependencyBuilder.class.getName(),
+                FakePlatformImports.class.getName(),
+                FakePlatformImportsImpl.class.getName()));
 
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -70,7 +97,9 @@ final class QuarkusApplicationModelFactoryTest {
     void rejectsIncompatibleApplicationModelApi() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 IncompatibleApplicationModelBuilder.class.getName(),
-                FakeResolvedDependencyBuilder.class.getName()));
+                FakeResolvedDependencyBuilder.class.getName(),
+                FakePlatformImports.class.getName(),
+                FakePlatformImportsImpl.class.getName()));
 
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -81,10 +110,15 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     private static QuarkusBootstrapDescriptor descriptor() {
+        return descriptor(List.of());
+    }
+
+    private static QuarkusBootstrapDescriptor descriptor(List<Path> platformPropertiesFiles) {
         return new QuarkusBootstrapDescriptor(
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
                 Path.of("/repo/target/quarkus/deployment-classpath.txt"),
+                Path.of("/repo/target/quarkus/platform-properties.txt"),
                 Path.of("/repo/target/quarkus/application-model.properties"),
                 QuarkusBootstrapDescriptorWriter.BOOTSTRAP_CLASS,
                 QuarkusBootstrapDescriptorWriter.AUGMENT_ACTION_CLASS,
@@ -100,6 +134,7 @@ final class QuarkusApplicationModelFactoryTest {
                         Path.of("/repo/target/classes")),
                 List.of(Path.of("/cache/quarkus-rest.jar")),
                 List.of(Path.of("/cache/quarkus-rest-deployment.jar")),
+                platformPropertiesFiles,
                 List.of(
                         new QuarkusBootstrapDependency(
                                 new PackageId("io.quarkus", "quarkus-rest"),
@@ -115,12 +150,26 @@ final class QuarkusApplicationModelFactoryTest {
                                 false)));
     }
 
+    private static QuarkusApplicationModelApi fakeApi() {
+        return new QuarkusApplicationModelApi(
+                FakeApplicationModelBuilder.class.getName(),
+                FakeResolvedDependencyBuilder.class.getName(),
+                FakePlatformImports.class.getName(),
+                FakePlatformImportsImpl.class.getName());
+    }
+
     public static final class FakeApplicationModelBuilder {
         private FakeResolvedDependencyBuilder appArtifact;
+        private FakePlatformImports platformImports;
         private final List<FakeResolvedDependencyBuilder> dependencies = new ArrayList<>();
 
         public FakeApplicationModelBuilder setAppArtifact(FakeResolvedDependencyBuilder appArtifact) {
             this.appArtifact = appArtifact;
+            return this;
+        }
+
+        public FakeApplicationModelBuilder setPlatformImports(FakePlatformImports platformImports) {
+            this.platformImports = platformImports;
             return this;
         }
 
@@ -130,7 +179,7 @@ final class QuarkusApplicationModelFactoryTest {
         }
 
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(appArtifact, List.copyOf(dependencies));
+            return new FakeApplicationModel(appArtifact, platformImports, List.copyOf(dependencies));
         }
     }
 
@@ -140,7 +189,22 @@ final class QuarkusApplicationModelFactoryTest {
         }
 
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(null, List.of());
+            return new FakeApplicationModel(null, null, List.of());
+        }
+    }
+
+    public interface FakePlatformImports {
+    }
+
+    public static final class FakePlatformImportsImpl implements FakePlatformImports {
+        private Map<String, String> properties = Map.of();
+
+        public void setPlatformProperties(Map<String, String> properties) {
+            this.properties = Map.copyOf(properties);
+        }
+
+        Map<String, String> properties() {
+            return properties;
         }
     }
 
@@ -253,6 +317,7 @@ final class QuarkusApplicationModelFactoryTest {
 
     public record FakeApplicationModel(
             FakeResolvedDependencyBuilder appArtifact,
+            FakePlatformImports platformImports,
             List<FakeResolvedDependencyBuilder> dependencies) {
     }
 }

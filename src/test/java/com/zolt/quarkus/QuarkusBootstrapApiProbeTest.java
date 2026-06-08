@@ -49,6 +49,7 @@ final class QuarkusBootstrapApiProbeTest {
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
                 Path.of("/repo/target/quarkus/deployment-classpath.txt"),
+                Path.of("/repo/target/quarkus/platform-properties.txt"),
                 Path.of("/repo/target/quarkus/application-model.properties"),
                 bootstrapClass,
                 augmentActionClass,
@@ -64,6 +65,7 @@ final class QuarkusBootstrapApiProbeTest {
                         Path.of("/repo/target/classes")),
                 List.of(Path.of("/cache/quarkus-rest.jar")),
                 List.of(Path.of("/cache/quarkus-core-deployment.jar")),
+                List.of(),
                 List.of());
     }
 

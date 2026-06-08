@@ -173,6 +173,10 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of(new QuarkusPlatformPropertiesArtifact(
+                        new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                        "3.33.0",
+                        projectDir.resolve(".zolt/cache/io/quarkus/platform/quarkus-bom-quarkus-platform-properties.properties"))),
                 List.of(
                         new QuarkusBootstrapDependency(
                                 new PackageId("io.quarkus", "quarkus-rest"),

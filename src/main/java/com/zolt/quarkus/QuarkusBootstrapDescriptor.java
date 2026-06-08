@@ -7,6 +7,7 @@ public record QuarkusBootstrapDescriptor(
         Path descriptorFile,
         Path runtimeClasspathFile,
         Path deploymentClasspathFile,
+        Path platformPropertiesFile,
         Path applicationModelFile,
         String bootstrapClass,
         String augmentActionClass,
@@ -19,6 +20,7 @@ public record QuarkusBootstrapDescriptor(
         QuarkusApplicationArtifact applicationArtifact,
         List<Path> runtimeClasspath,
         List<Path> deploymentClasspath,
+        List<Path> platformPropertiesFiles,
         List<QuarkusBootstrapDependency> bootstrapDependencies) {
     public QuarkusBootstrapDescriptor {
         if (descriptorFile == null) {
@@ -29,6 +31,9 @@ public record QuarkusBootstrapDescriptor(
         }
         if (deploymentClasspathFile == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap deployment classpath file is required.");
+        }
+        if (platformPropertiesFile == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap platform properties file is required.");
         }
         if (applicationModelFile == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap application model file is required.");
@@ -66,11 +71,15 @@ public record QuarkusBootstrapDescriptor(
         if (deploymentClasspath == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap deployment classpath is required.");
         }
+        if (platformPropertiesFiles == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap platform properties files are required.");
+        }
         if (bootstrapDependencies == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap dependencies are required.");
         }
         runtimeClasspath = List.copyOf(runtimeClasspath);
         deploymentClasspath = List.copyOf(deploymentClasspath);
+        platformPropertiesFiles = List.copyOf(platformPropertiesFiles);
         bootstrapDependencies = List.copyOf(bootstrapDependencies);
     }
 }

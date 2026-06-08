@@ -14,6 +14,7 @@ public record QuarkusAugmentationRequest(
         Path metadataPath,
         List<Path> runtimeClasspath,
         List<Path> deploymentClasspath,
+        List<QuarkusPlatformPropertiesArtifact> platformPropertiesArtifacts,
         List<QuarkusBootstrapDependency> bootstrapDependencies,
         List<QuarkusPlanExtension> extensions) {
     public QuarkusAugmentationRequest {
@@ -46,6 +47,9 @@ public record QuarkusAugmentationRequest(
         }
         runtimeClasspath = List.copyOf(runtimeClasspath);
         deploymentClasspath = List.copyOf(deploymentClasspath);
+        platformPropertiesArtifacts = platformPropertiesArtifacts == null
+                ? List.of()
+                : List.copyOf(platformPropertiesArtifacts);
         bootstrapDependencies = bootstrapDependencies == null ? List.of() : List.copyOf(bootstrapDependencies);
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
     }

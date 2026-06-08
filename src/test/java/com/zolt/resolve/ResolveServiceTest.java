@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
@@ -1112,6 +1113,60 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void quarkusPlatformPropertiesArtifactIsResolvedFromPlatformBom() {
+        addPom("io.quarkus.platform", "quarkus-bom", "3.33.0", """
+                <project>
+                  <groupId>io.quarkus.platform</groupId>
+                  <artifactId>quarkus-bom</artifactId>
+                  <version>3.33.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>io.quarkus.platform</groupId>
+                        <artifactId>quarkus-bom-quarkus-platform-properties</artifactId>
+                        <version>3.33.0</version>
+                        <type>properties</type>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addArtifact(
+                "io.quarkus.platform",
+                "quarkus-bom-quarkus-platform-properties",
+                "3.33.0",
+                "properties",
+                """
+                platform.quarkus.native.builder-image=builder
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                quarkusPlatformConfigWithDependencies(Map.of()),
+                cacheRoot);
+
+        assertEquals(1, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        LockPackage properties = lockfile.packages().getFirst();
+        assertEquals(
+                new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
+                properties.packageId());
+        assertEquals(DependencyScope.QUARKUS_DEPLOYMENT, properties.scope());
+        assertTrue(properties.jar().isEmpty());
+        assertEquals("properties", properties.artifactType().orElseThrow());
+        assertEquals(
+                "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties",
+                properties.artifact().orElseThrow());
+        assertEquals(List.of(), new ClasspathBuilder()
+                .build(lockfileReader.classpathPackages(lockfile, cacheRoot))
+                .quarkusDeployment()
+                .entries());
+    }
+
+    @Test
     void quarkusRuntimeExtensionDoesNotAddDeploymentArtifactScopeUnlessEnabled() {
         addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """
                 <project>
@@ -1587,6 +1642,23 @@ final class ResolveServiceTest {
             Map<String, String> jarEntries) {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + "-" + classifier + ".jar", jarBytes(jarEntries));
+    }
+
+    private void addArtifact(
+            String groupId,
+            String artifactId,
+            String version,
+            String extension,
+            String content) {
+        String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        responses.put(base + ".pom", """
+                <project>
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <version>%s</version>
+                </project>
+                """.formatted(groupId, artifactId, version).getBytes(StandardCharsets.UTF_8));
+        responses.put(base + "." + extension, content.getBytes(StandardCharsets.UTF_8));
     }
 
     private void addJUnitConsoleArtifact(String version) {
