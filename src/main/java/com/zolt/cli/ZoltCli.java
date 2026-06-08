@@ -51,6 +51,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.quarkus.QuarkusAugmentationRequestFactory;
 import com.zolt.quarkus.QuarkusPlan;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.QuarkusPlanFormatter;
@@ -795,16 +796,7 @@ public final class ZoltCli implements Runnable {
                     ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
                     QuarkusPlan plan = new QuarkusPlanService().plan(workingDirectory, config, cacheRoot);
                     printAndFlush(spec, new QuarkusPlanFormatter().format(plan));
-                    if (!plan.hasDeploymentInputs()) {
-                        throw new QuarkusPlanException(
-                                "No Quarkus deployment artifacts were found in zolt.lock. "
-                                        + "Add a Quarkus extension dependency, run `zolt resolve`, then run `zolt quarkus plan` again.");
-                    }
-                    if (!plan.allExtensionDeploymentsResolved()) {
-                        throw new QuarkusPlanException(
-                                "Some Quarkus runtime extensions do not have matching deployment artifacts in zolt.lock. "
-                                        + "Run `zolt resolve`, then run `zolt quarkus plan` again.");
-                    }
+                    new QuarkusAugmentationRequestFactory().create(plan);
                 } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
