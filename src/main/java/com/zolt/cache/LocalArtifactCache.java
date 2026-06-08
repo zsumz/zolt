@@ -1,5 +1,6 @@
 package com.zolt.cache;
 
+import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.MavenRepositoryPathBuilder;
 import com.zolt.maven.RepositoryArtifact;
@@ -33,6 +34,10 @@ public final class LocalArtifactCache {
         return cachePath(pathBuilder.jarPath(coordinate));
     }
 
+    public Path artifactPath(ArtifactDescriptor descriptor) {
+        return cachePath(pathBuilder.artifactPath(descriptor));
+    }
+
     public CachedArtifact getOrFetchPom(Coordinate coordinate, ArtifactFetcher fetcher) {
         return getOrFetch(coordinate, pathBuilder.pomPath(coordinate), fetcher);
     }
@@ -41,12 +46,20 @@ public final class LocalArtifactCache {
         return getOrFetch(coordinate, pathBuilder.jarPath(coordinate), fetcher);
     }
 
+    public CachedArtifact getOrFetchArtifact(ArtifactDescriptor descriptor, ArtifactFetcher fetcher) {
+        return getOrFetch(descriptor.coordinate(), pathBuilder.artifactPath(descriptor), fetcher);
+    }
+
     public CachedArtifact getCachedPom(Coordinate coordinate) {
         return getCached(coordinate, pathBuilder.pomPath(coordinate), "POM");
     }
 
     public CachedArtifact getCachedJar(Coordinate coordinate) {
         return getCached(coordinate, pathBuilder.jarPath(coordinate), "JAR");
+    }
+
+    public CachedArtifact getCachedArtifact(ArtifactDescriptor descriptor, String artifactKind) {
+        return getCached(descriptor.coordinate(), pathBuilder.artifactPath(descriptor), artifactKind);
     }
 
     private CachedArtifact getOrFetch(Coordinate coordinate, String repositoryPath, ArtifactFetcher fetcher) {

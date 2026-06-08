@@ -13,6 +13,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,24 @@ final class MavenRepositoryClientTest {
 
         RepositoryArtifact artifact = client.fetchJar(baseUri, coordinate);
 
+        assertArrayEquals(jarBytes, artifact.bytes());
+    }
+
+    @Test
+    void fetchesClassifierArtifact() {
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+        responses.put(
+                "/maven2/io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                jarBytes);
+
+        RepositoryArtifact artifact = client.fetchArtifact(
+                baseUri,
+                ArtifactDescriptor.jar(coordinate, Optional.of("deployment")));
+
+        assertEquals(
+                "io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                artifact.path());
         assertArrayEquals(jarBytes, artifact.bytes());
     }
 

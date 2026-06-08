@@ -6,6 +6,7 @@ import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileWriter;
+import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
@@ -418,20 +419,26 @@ public final class ResolveService {
                     Optional<QuarkusExtensionMetadata> metadata = quarkusMetadata(jar.cachePath());
                     metadata.ifPresent(quarkusMetadata -> {
                         QuarkusDeploymentArtifact artifact = quarkusMetadata.deploymentArtifact();
-                        if (artifact.classifier().isPresent() || !"jar".equals(artifact.type())) {
+                        if (!"jar".equals(artifact.type())) {
                             throw new ResolveException(
                                     "Quarkus extension "
                                             + coordinate
                                             + " declares deployment artifact "
                                             + artifact
-                                            + ", but Zolt currently supports only jar deployment artifacts without classifiers. "
-                                            + "Remove that extension or wait for classifier/type-aware artifact resolution.");
+                                            + ", but Zolt currently supports only jar deployment artifacts. "
+                                            + "Remove that extension or wait for type-aware artifact resolution.");
                         }
                         DependencyRequest request = new DependencyRequest(
                                 new PackageId(artifact.groupId(), artifact.artifactId()),
                                 artifact.version(),
                                 DependencyScope.QUARKUS_DEPLOYMENT,
-                                RequestOrigin.TRANSITIVE);
+                                RequestOrigin.TRANSITIVE,
+                                Optional.of(ArtifactDescriptor.jar(
+                                        new Coordinate(
+                                                artifact.groupId(),
+                                                artifact.artifactId(),
+                                                Optional.of(artifact.version())),
+                                        artifact.classifier())));
                         requests.put(request.packageId() + ":" + request.requestedVersion() + ":" + request.scope(), request);
                     });
                 });
@@ -458,17 +465,15 @@ public final class ResolveService {
         allRequests.addAll(directRequests);
         allRequests.addAll(graph.edges().stream().map(ResolutionEdge::request).toList());
         for (PackageNode node : selection.selectedNodes()) {
-            List<SelectedScope> scopes = allRequests.stream()
+            Map<DependencyScope, SelectedScope> scopesByScope = new LinkedHashMap<>();
+            allRequests.stream()
                     .filter(request -> request.packageId().equals(node.packageId()))
-                    .collect(java.util.stream.Collectors.groupingBy(
-                            DependencyRequest::scope,
-                            java.util.stream.Collectors.reducing(
-                                    false,
-                                    DependencyRequest::direct,
-                                    Boolean::logicalOr)))
-                    .entrySet()
+                    .forEach(request -> scopesByScope.merge(
+                            request.scope(),
+                            new SelectedScope(request.scope(), request.direct(), request.artifactDescriptor()),
+                            SelectedScope::merge));
+            List<SelectedScope> scopes = scopesByScope.values()
                     .stream()
-                    .map(entry -> new SelectedScope(entry.getKey(), entry.getValue()))
                     .sorted(Comparator.comparing(selectedScope -> selectedScope.scope().lockfileName()))
                     .toList();
             if (!scopes.isEmpty()) {
@@ -488,7 +493,9 @@ public final class ResolveService {
                 node.packageId().artifactId(),
                 Optional.of(node.selectedVersion()));
         CachedArtifact pom = context.getPom(coordinate);
-        CachedArtifact jar = context.getJar(coordinate);
+        CachedArtifact jar = selectedScope.artifactDescriptor()
+                .map(context::getArtifact)
+                .orElseGet(() -> context.getJar(coordinate));
         return new LockPackage(
                 node.packageId(),
                 node.selectedVersion(),
@@ -524,7 +531,24 @@ public final class ResolveService {
         }
     }
 
-    private record SelectedScope(DependencyScope scope, boolean direct) {
+    private record SelectedScope(
+            DependencyScope scope,
+            boolean direct,
+            Optional<ArtifactDescriptor> artifactDescriptor) {
+        SelectedScope(DependencyScope scope, boolean direct) {
+            this(scope, direct, Optional.empty());
+        }
+
+        SelectedScope {
+            artifactDescriptor = artifactDescriptor == null ? Optional.empty() : artifactDescriptor;
+        }
+
+        SelectedScope merge(SelectedScope other) {
+            return new SelectedScope(
+                    scope,
+                    direct || other.direct,
+                    artifactDescriptor.isPresent() ? artifactDescriptor : other.artifactDescriptor);
+        }
     }
 
     private record ResolutionState(ResolutionGraph graph, VersionSelectionResult selection) {
@@ -576,6 +600,20 @@ public final class ResolveService {
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchJar(coordinate, requested ->
                     repositoryClient.fetchJar(repositoryUri(), requested));
+            if (!cached) {
+                downloadCount++;
+            }
+            return artifact;
+        }
+
+        CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
+            if (offline) {
+                return cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
+            }
+            Path before = cache.artifactPath(descriptor);
+            boolean cached = java.nio.file.Files.isRegularFile(before);
+            CachedArtifact artifact = cache.getOrFetchArtifact(descriptor, requested ->
+                    repositoryClient.fetchArtifact(repositoryUri(), descriptor));
             if (!cached) {
                 downloadCount++;
             }

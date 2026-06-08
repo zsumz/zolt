@@ -876,7 +876,7 @@ final class ResolveServiceTest {
     }
 
     @Test
-    void quarkusDeploymentArtifactWithClassifierFailsClearly() {
+    void quarkusDeploymentArtifactWithClassifierResolvesClassifierJarPath() {
         addArtifact("io.quarkus", "quarkus-custom", "1.0.0", """
                 <project>
                   <groupId>io.quarkus</groupId>
@@ -886,6 +886,43 @@ final class ResolveServiceTest {
                 """, Map.of(
                 "META-INF/quarkus-extension.properties",
                 "deployment-artifact=io.quarkus:quarkus-custom-deployment:deployment:jar:1.0.0\n"));
+        addArtifact("io.quarkus", "quarkus-custom-deployment", "1.0.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-custom-deployment</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        addClassifierJar("io.quarkus", "quarkus-custom-deployment", "1.0.0", "deployment", Map.of());
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
+                cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-custom-deployment"))
+                        && lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT
+                        && lockPackage.jar().orElseThrow().equals(
+                                "io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar")));
+    }
+
+    @Test
+    void quarkusDeploymentArtifactWithUnsupportedTypeFailsClearly() {
+        addArtifact("io.quarkus", "quarkus-custom", "1.0.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-custom</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """, Map.of(
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-custom-deployment::zip:1.0.0\n"));
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
         createDirectory(projectDir);
@@ -898,7 +935,7 @@ final class ResolveServiceTest {
                         cacheRoot));
 
         assertTrue(exception.getMessage().contains("declares deployment artifact"));
-        assertTrue(exception.getMessage().contains("currently supports only jar deployment artifacts without classifiers"));
+        assertTrue(exception.getMessage().contains("currently supports only jar deployment artifacts"));
     }
 
     @Test
@@ -1253,6 +1290,16 @@ final class ResolveServiceTest {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
         responses.put(base + ".jar", jarBytes(jarEntries));
+    }
+
+    private void addClassifierJar(
+            String groupId,
+            String artifactId,
+            String version,
+            String classifier,
+            Map<String, String> jarEntries) {
+        String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        responses.put(base + "-" + classifier + ".jar", jarBytes(jarEntries));
     }
 
     private void addJUnitConsoleArtifact(String version) {

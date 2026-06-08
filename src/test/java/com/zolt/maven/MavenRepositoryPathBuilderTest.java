@@ -3,6 +3,7 @@ package com.zolt.maven;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class MavenRepositoryPathBuilderTest {
@@ -25,6 +26,15 @@ final class MavenRepositoryPathBuilderTest {
         assertEquals(
                 "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar",
                 paths.jarPath(coordinate));
+    }
+
+    @Test
+    void buildsClassifierArtifactPath() {
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+
+        assertEquals(
+                "io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                paths.artifactPath(ArtifactDescriptor.jar(coordinate, Optional.of("deployment"))));
     }
 
     @Test

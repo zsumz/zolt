@@ -27,7 +27,11 @@ public final class MavenRepositoryClient {
     }
 
     public RepositoryArtifact fetchJar(URI repositoryBaseUri, Coordinate coordinate) {
-        return fetch(repositoryBaseUri, coordinate, pathBuilder.jarPath(coordinate));
+        return fetchArtifact(repositoryBaseUri, ArtifactDescriptor.jar(coordinate));
+    }
+
+    public RepositoryArtifact fetchArtifact(URI repositoryBaseUri, ArtifactDescriptor descriptor) {
+        return fetch(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor));
     }
 
     private RepositoryArtifact fetch(URI repositoryBaseUri, Coordinate coordinate, String path) {

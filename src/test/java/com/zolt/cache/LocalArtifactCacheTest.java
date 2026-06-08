@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.RepositoryArtifact;
@@ -14,6 +15,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -75,6 +77,33 @@ final class LocalArtifactCacheTest {
         });
 
         assertEquals(1, fetchCount.get());
+        assertArrayEquals(first.bytes(), second.bytes());
+    }
+
+    @Test
+    void repeatedClassifierArtifactFetchUsesCachedArtifact() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(coordinate, Optional.of("deployment"));
+        AtomicInteger fetchCount = new AtomicInteger();
+        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+
+        CachedArtifact first = cache.getOrFetchArtifact(descriptor, requested -> {
+            fetchCount.incrementAndGet();
+            return new RepositoryArtifact(
+                    requested,
+                    "io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                    URI.create("https://repo.example/quarkus-custom-deployment-1.0.0-deployment.jar"),
+                    jarBytes);
+        });
+        CachedArtifact second = cache.getOrFetchArtifact(descriptor, requested -> {
+            throw new AssertionError("cache should avoid the second fetch");
+        });
+
+        assertEquals(1, fetchCount.get());
+        assertEquals(
+                tempDir.resolve("io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar"),
+                first.cachePath());
         assertArrayEquals(first.bytes(), second.bytes());
     }
 
