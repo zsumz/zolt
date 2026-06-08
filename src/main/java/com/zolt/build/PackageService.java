@@ -8,6 +8,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolveService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,20 +41,23 @@ public final class PackageService {
             "spring-boot-loader");
 
     private final BuildService buildService;
+    private final ResolveService resolveService;
     private final ManifestGenerator manifestGenerator;
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
 
     public PackageService() {
-        this(new BuildService(), new ManifestGenerator(), new ZoltLockfileReader(), new ClasspathBuilder());
+        this(new BuildService(), new ResolveService(), new ManifestGenerator(), new ZoltLockfileReader(), new ClasspathBuilder());
     }
 
     PackageService(
             BuildService buildService,
+            ResolveService resolveService,
             ManifestGenerator manifestGenerator,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder) {
         this.buildService = buildService;
+        this.resolveService = resolveService;
         this.manifestGenerator = manifestGenerator;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
@@ -62,8 +66,36 @@ public final class PackageService {
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
+        refreshPackageToolingIfNeeded(projectDirectory, config, cacheRoot);
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
         return packageJar(projectDirectory, config, buildResult, cacheRoot);
+    }
+
+    private void refreshPackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
+            return;
+        }
+        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return;
+        }
+        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        if (containsSpringBootLoader(lockfile) || !canResolveSpringBootLoader(config)) {
+            return;
+        }
+        resolveService.resolve(projectDirectory, config, cacheRoot);
+    }
+
+    private static boolean containsSpringBootLoader(ZoltLockfile lockfile) {
+        return lockfile.packages().stream()
+                .anyMatch(lockPackage -> lockPackage.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)
+                        && lockPackage.scope().entersMainRuntimeClasspath());
+    }
+
+    private static boolean canResolveSpringBootLoader(ProjectConfig config) {
+        return !config.platforms().isEmpty()
+                || config.dependencies().containsKey(SPRING_BOOT_LOADER_PACKAGE.toString())
+                || config.apiDependencies().containsKey(SPRING_BOOT_LOADER_PACKAGE.toString());
     }
 
     public PackageResult packageJar(

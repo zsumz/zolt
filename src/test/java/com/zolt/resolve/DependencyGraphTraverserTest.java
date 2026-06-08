@@ -143,6 +143,33 @@ final class DependencyGraphTraverserTest {
     }
 
     @Test
+    void expandsSamePackageVersionSeparatelyPerScope() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:main-root:1.0.0", pom("com.example", "main-root", "1.0.0", List.of(
+                dependency("com.example", "shared", "1.0.0"))));
+        source.put("com.example:test-root:1.0.0", pom("com.example", "test-root", "1.0.0", List.of(
+                dependency("com.example", "shared", "1.0.0"))));
+        source.put("com.example:shared:1.0.0", pom("com.example", "shared", "1.0.0", List.of(
+                dependency("com.example", "shared-child", "1.0.0"))));
+        source.put("com.example:shared-child:1.0.0", pom("com.example", "shared-child", "1.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(source).traverse(List.of(
+                direct("com.example", "main-root", "1.0.0"),
+                directTest("com.example", "test-root", "1.0.0")));
+
+        assertEquals(List.of(
+                "com.example:main-root:1.0.0",
+                "com.example:test-root:1.0.0",
+                "com.example:shared:1.0.0",
+                "com.example:shared-child:1.0.0"), nodeStrings(graph));
+        assertEquals(List.of(DependencyScope.COMPILE, DependencyScope.TEST), graph.edges().stream()
+                .filter(edge -> edge.to().packageId().equals(new PackageId("com.example", "shared-child")))
+                .map(edge -> edge.request().scope())
+                .toList());
+        assertEquals(2, source.loadCount("com.example:shared:1.0.0"));
+    }
+
+    @Test
     void appliesExclusionOnlyThroughDeclaringEdge() {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
         source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(

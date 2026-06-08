@@ -15,6 +15,7 @@ central = "https://repo.maven.apache.org/maven2"
 "org.springframework.boot:spring-boot-starter-webmvc" = {}
 
 [test.dependencies]
+"org.springframework.boot:spring-boot-starter-test" = {}
 
 [build]
 source = "src/main/java"

@@ -43,7 +43,7 @@ public final class DependencyGraphTraverser {
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
         SequencedMap<NodeKey, PackageNode> nodes = new LinkedHashMap<>();
         List<ResolutionEdge> edges = new ArrayList<>();
-        Set<NodeKey> visited = new TreeSet<>();
+        Set<VisitKey> visited = new TreeSet<>();
         ArrayDeque<TraversalItem> queue = new ArrayDeque<>();
 
         directRequests.stream()
@@ -63,7 +63,7 @@ public final class DependencyGraphTraverser {
                     item.request(),
                     item.decision())));
 
-            if (!visited.add(nodeKey)) {
+            if (!visited.add(VisitKey.from(node, item.request().scope()))) {
                 continue;
             }
 
@@ -179,6 +179,25 @@ public final class DependencyGraphTraverser {
                 return packageCompared;
             }
             return version.compareTo(other.version);
+        }
+    }
+
+    private record VisitKey(PackageId packageId, String version, DependencyScope scope) implements Comparable<VisitKey> {
+        static VisitKey from(PackageNode node, DependencyScope scope) {
+            return new VisitKey(node.packageId(), node.selectedVersion(), scope);
+        }
+
+        @Override
+        public int compareTo(VisitKey other) {
+            int packageCompared = packageId.toString().compareTo(other.packageId.toString());
+            if (packageCompared != 0) {
+                return packageCompared;
+            }
+            int versionCompared = version.compareTo(other.version);
+            if (versionCompared != 0) {
+                return versionCompared;
+            }
+            return scope.compareTo(other.scope);
         }
     }
 
