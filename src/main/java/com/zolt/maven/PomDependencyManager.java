@@ -30,8 +30,8 @@ public final class PomDependencyManager {
                 interpolated.groupId(),
                 interpolated.artifactId(),
                 managed.version(),
-                interpolated.scope(),
-                interpolated.type(),
+                interpolated.scope().or(managed::scope),
+                interpolated.type().or(managed::type),
                 interpolated.classifier(),
                 interpolated.optional(),
                 interpolated.exclusions());

@@ -37,7 +37,7 @@ final class QuarkusExtensionMetadataReaderTest {
                 QuarkusExtensionMetadataReader.METADATA_PATH,
                 """
                 deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0
-                parent-first-artifacts=org.jboss.logmanager:jboss-logmanager::jar
+                parent-first-artifacts=org.jboss.logmanager:jboss-logmanager::jar,org.jacoco:org.jacoco.agent:runtime
                 runner-parent-first-artifacts=io.quarkus:quarkus-bootstrap-runner::jar
                 excluded-artifacts=com.example:legacy-api
                 lesser-priority-artifacts=com.example:shadowed-lib::jar
@@ -62,6 +62,14 @@ final class QuarkusExtensionMetadataReaderTest {
                         Optional.empty(),
                         Optional.of("jar")),
                 metadata.parentFirstArtifacts().getFirst());
+        assertEquals(
+                new QuarkusArtifactKey(
+                        "org.jacoco",
+                        "org.jacoco.agent",
+                        Optional.of("runtime"),
+                        Optional.of("jar")),
+                metadata.parentFirstArtifacts().get(1));
+        assertEquals("org.jacoco:org.jacoco.agent:runtime:jar", metadata.parentFirstArtifacts().get(1).toString());
         assertEquals(
                 "io.quarkus:quarkus-bootstrap-runner::jar",
                 metadata.runnerParentFirstArtifacts().getFirst().toString());

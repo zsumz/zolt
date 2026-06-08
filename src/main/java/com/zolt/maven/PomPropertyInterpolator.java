@@ -78,6 +78,17 @@ public final class PomPropertyInterpolator {
         properties.put("project.version", pom.version());
         properties.put("pom.version", pom.version());
         properties.put("version", pom.version());
+        pom.rawPom().parent().ifPresent(parent -> {
+            properties.put("project.parent.groupId", parent.groupId());
+            properties.put("pom.parent.groupId", parent.groupId());
+            properties.put("parent.groupId", parent.groupId());
+            properties.put("project.parent.artifactId", parent.artifactId());
+            properties.put("pom.parent.artifactId", parent.artifactId());
+            properties.put("parent.artifactId", parent.artifactId());
+            properties.put("project.parent.version", parent.version());
+            properties.put("pom.parent.version", parent.version());
+            properties.put("parent.version", parent.version());
+        });
         return properties;
     }
 }

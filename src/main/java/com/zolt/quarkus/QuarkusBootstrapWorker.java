@@ -126,6 +126,9 @@ public final class QuarkusBootstrapWorker {
             return 0;
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());
+            if (exception.getCause() != null) {
+                exception.getCause().printStackTrace(err);
+            }
             return 1;
         }
     }

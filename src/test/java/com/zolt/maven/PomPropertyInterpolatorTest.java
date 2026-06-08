@@ -51,6 +51,32 @@ final class PomPropertyInterpolatorTest {
     }
 
     @Test
+    void supportsProjectParentCoordinates() {
+        RawPom parent = parser.parse("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>parent</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        RawPom child = parser.parse("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>app</artifactId>
+                </project>
+                """);
+        EffectiveRawPom pom = new ParentPomResolver(coordinate -> parent).resolve(child);
+
+        assertEquals("com.example", interpolator.interpolate("${project.parent.groupId}", pom));
+        assertEquals("parent", interpolator.interpolate("${project.parent.artifactId}", pom));
+        assertEquals("1.0.0", interpolator.interpolate("${project.parent.version}", pom));
+    }
+
+    @Test
     void supportsCustomPropertiesFromParentAndChild() {
         RawPom parent = parser.parse("""
                 <project>

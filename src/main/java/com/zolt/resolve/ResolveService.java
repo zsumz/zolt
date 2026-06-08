@@ -11,12 +11,14 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
+import com.zolt.maven.PomInterpolationException;
 import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusArtifactKey;
 import com.zolt.quarkus.QuarkusDeploymentArtifact;
 import com.zolt.quarkus.QuarkusExtensionMetadata;
 import com.zolt.quarkus.QuarkusExtensionMetadataReader;
@@ -114,11 +116,17 @@ public final class ResolveService {
 
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
-        List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
+        Map<PackageId, String> managedVersions = context.projectManagedVersions();
+        List<DependencyRequest> directRequests = directRequests(config, managedVersions);
         ResolutionState initial = resolveGraph(context, directRequests);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         if (config.frameworkSettings().quarkus().enabled()) {
-            allRequests.addAll(quarkusDeploymentRequests(context, initial.graph(), initial.selection(), directRequests));
+            allRequests.addAll(quarkusDeploymentRequests(
+                    context,
+                    initial.graph(),
+                    initial.selection(),
+                    directRequests,
+                    managedVersions));
         }
         ResolutionState resolved = allRequests.size() == directRequests.size()
                 ? initial
@@ -399,8 +407,10 @@ public final class ResolveService {
             RepositoryContext context,
             ResolutionGraph graph,
             VersionSelectionResult selection,
-            List<DependencyRequest> directRequests) {
+            List<DependencyRequest> directRequests,
+            Map<PackageId, String> managedVersions) {
         Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
+        Map<PackageId, String> selectedVersions = selectedVersions(selection);
         Map<String, DependencyRequest> requests = new LinkedHashMap<>();
         selection.selectedNodes().stream()
                 .sorted(Comparator.comparing(node -> node.packageId() + ":" + node.selectedVersion()))
@@ -440,11 +450,61 @@ public final class ResolveService {
                                                 artifact.groupId(),
                                                 artifact.artifactId(),
                                                 Optional.of(artifact.version())),
-                                        artifact.classifier())));
-                        requests.put(request.packageId() + ":" + request.requestedVersion() + ":" + request.scope(), request);
+                                                artifact.classifier())));
+                        requests.put(requestKey(request), request);
+                        for (QuarkusArtifactKey artifactKey : quarkusMetadata.parentFirstArtifacts()) {
+                            parentFirstDeploymentRequest(artifactKey, selectedVersions, managedVersions)
+                                    .ifPresent(parentFirstRequest -> requests.put(requestKey(parentFirstRequest), parentFirstRequest));
+                        }
+                        for (QuarkusArtifactKey artifactKey : quarkusMetadata.runnerParentFirstArtifacts()) {
+                            parentFirstDeploymentRequest(artifactKey, selectedVersions, managedVersions)
+                                    .ifPresent(parentFirstRequest -> requests.put(requestKey(parentFirstRequest), parentFirstRequest));
+                        }
                     });
                 });
         return List.copyOf(requests.values());
+    }
+
+    private static Map<PackageId, String> selectedVersions(VersionSelectionResult selection) {
+        Map<PackageId, String> versions = new LinkedHashMap<>();
+        for (PackageNode node : selection.selectedNodes()) {
+            versions.put(node.packageId(), node.selectedVersion());
+        }
+        return versions;
+    }
+
+    private static Optional<DependencyRequest> parentFirstDeploymentRequest(
+            QuarkusArtifactKey artifactKey,
+            Map<PackageId, String> selectedVersions,
+            Map<PackageId, String> managedVersions) {
+        if (artifactKey.type().isPresent() && !"jar".equals(artifactKey.type().orElseThrow())) {
+            return Optional.empty();
+        }
+        PackageId packageId = new PackageId(artifactKey.groupId(), artifactKey.artifactId());
+        String version = selectedVersions.getOrDefault(packageId, managedVersions.get(packageId));
+        if (version == null || version.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(new DependencyRequest(
+                packageId,
+                version,
+                DependencyScope.QUARKUS_DEPLOYMENT,
+                RequestOrigin.TRANSITIVE,
+                Optional.of(ArtifactDescriptor.jar(
+                        new Coordinate(packageId.groupId(), packageId.artifactId(), Optional.of(version)),
+                        artifactKey.classifier()))));
+    }
+
+    private static String requestKey(DependencyRequest request) {
+        return request.packageId()
+                + ":"
+                + request.requestedVersion()
+                + ":"
+                + request.scope()
+                + ":"
+                + request.artifactDescriptor()
+                        .flatMap(ArtifactDescriptor::classifier)
+                        .orElse("");
     }
 
     private Optional<QuarkusExtensionMetadata> quarkusMetadata(Path jarPath) {
@@ -752,8 +812,8 @@ public final class ResolveService {
                     dependencies.add(dependency);
                     continue;
                 }
-                RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
-                if (isImportedBom(interpolated)) {
+                if (isImportedBom(dependency)) {
+                    RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
                     Coordinate bomCoordinate = new Coordinate(
                             interpolated.groupId(),
                             interpolated.artifactId(),
@@ -768,11 +828,14 @@ public final class ResolveService {
                                             + pom.rawPom().artifactId()
                                             + " is missing a version. Add a version before resolving."))));
                     EffectiveRawPom imported = effectivePom(bomCoordinate, importStack);
-                    dependencies.addAll(imported.dependencyManagement().stream()
-                            .map(importedDependency -> importedDependency.classifier().isPresent()
-                                    ? importedDependency
-                                    : interpolator.interpolateDependency(importedDependency, imported))
-                            .toList());
+                    for (RawPomDependency importedDependency : imported.dependencyManagement()) {
+                        if (importedDependency.classifier().isPresent()) {
+                            dependencies.add(importedDependency);
+                            continue;
+                        }
+                        interpolateImportedManagedDependency(importedDependency, imported)
+                                .ifPresent(dependencies::add);
+                    }
                 } else {
                     dependencies.add(dependency);
                 }
@@ -783,6 +846,19 @@ public final class ResolveService {
         private static boolean isImportedBom(RawPomDependency dependency) {
             return dependency.type().filter("pom"::equals).isPresent()
                     && dependency.scope().filter("import"::equals).isPresent();
+        }
+
+        private Optional<RawPomDependency> interpolateImportedManagedDependency(
+                RawPomDependency dependency,
+                EffectiveRawPom imported) {
+            try {
+                return Optional.of(interpolator.interpolateDependency(dependency, imported));
+            } catch (PomInterpolationException exception) {
+                if (dependency.scope().map(scope -> scope.equals("test") || scope.equals("provided")).orElse(false)) {
+                    return Optional.empty();
+                }
+                throw exception;
+            }
         }
 
         private static boolean managedJarDependency(RawPomDependency dependency) {

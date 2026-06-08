@@ -196,6 +196,38 @@ final class PomDependencyManagerTest {
     }
 
     @Test
+    void managedScopeAppliesWhenDependencyDoesNotDeclareScope() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>junit</groupId>
+                        <artifactId>junit</artifactId>
+                        <version>4.13.2</version>
+                        <scope>test</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>junit</groupId>
+                      <artifactId>junit</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals("4.13.2", dependency.version().orElseThrow());
+        assertEquals("test", dependency.scope().orElseThrow());
+    }
+
+    @Test
     void unmatchedDependencyRemainsVersionlessForLaterErrorHandling() {
         EffectiveRawPom pom = effective("""
                 <project>

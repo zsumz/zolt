@@ -31,6 +31,13 @@ public record QuarkusArtifactKey(
                     Optional.empty(),
                     Optional.empty());
         }
+        if (parts.length == 3) {
+            return new QuarkusArtifactKey(
+                    requiredPart(parts[0], "groupId", propertyName),
+                    requiredPart(parts[1], "artifactId", propertyName),
+                    Optional.of(requiredPart(parts[2], "classifier", propertyName)),
+                    Optional.of("jar"));
+        }
         if (parts.length == 4) {
             return new QuarkusArtifactKey(
                     requiredPart(parts[0], "groupId", propertyName),
@@ -43,7 +50,7 @@ public record QuarkusArtifactKey(
                         + value
                         + "` in `"
                         + propertyName
-                        + "`. Use `group:artifact` or `group:artifact:classifier:type`.");
+                        + "`. Use `group:artifact`, `group:artifact:classifier`, or `group:artifact:classifier:type`.");
     }
 
     private static String requireValue(String value, String propertyName) {
