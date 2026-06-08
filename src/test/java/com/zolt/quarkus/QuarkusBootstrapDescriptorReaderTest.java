@@ -1,0 +1,147 @@
+package com.zolt.quarkus;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.project.QuarkusPackageMode;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class QuarkusBootstrapDescriptorReaderTest {
+    @TempDir
+    private Path projectDir;
+
+    private final QuarkusBootstrapDescriptorWriter writer = new QuarkusBootstrapDescriptorWriter();
+    private final QuarkusBootstrapDescriptorReader reader = new QuarkusBootstrapDescriptorReader();
+
+    @Test
+    void readsDescriptorWrittenByWriter() {
+        QuarkusAugmentationRequest request = request();
+        QuarkusBootstrapDescriptor written = writer.write(request);
+
+        QuarkusBootstrapDescriptor read = reader.read(written.descriptorFile());
+
+        assertEquals(written, read);
+    }
+
+    @Test
+    void rejectsUnsupportedVersion() throws IOException {
+        Path descriptor = descriptorPath();
+        Files.createDirectories(descriptor.getParent());
+        Files.writeString(descriptor, "version=2\n");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Unsupported Quarkus bootstrap descriptor"));
+        assertTrue(exception.getMessage().contains("Run Quarkus augmentation planning again"));
+    }
+
+    @Test
+    void rejectsMissingRequiredField() throws IOException {
+        Path descriptor = descriptorPath();
+        Files.createDirectories(descriptor.getParent());
+        Files.writeString(descriptor, """
+                version=1
+                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
+                """);
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Missing required field `augmentActionClass`"));
+    }
+
+    @Test
+    void rejectsMissingClasspathFile() throws IOException {
+        Path descriptor = descriptorPath();
+        Files.createDirectories(descriptor.getParent());
+        Files.writeString(descriptor, """
+                version=1
+                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
+                augmentActionClass=io.quarkus.bootstrap.app.AugmentAction
+                mode=prod
+                package=fast-jar
+                projectDirectory=%s
+                applicationClasses=%s
+                augmentationDirectory=%s
+                packageDirectory=%s
+                runtimeClasspathFile=%s
+                deploymentClasspathFile=%s
+                inputFingerprint=%s
+                """.formatted(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/quarkus"),
+                projectDir.resolve("target/quarkus-app"),
+                projectDir.resolve("target/quarkus/runtime-classpath.txt"),
+                projectDir.resolve("target/quarkus/missing-deployment-classpath.txt"),
+                "sha256:" + "1".repeat(64)));
+        Files.writeString(projectDir.resolve("target/quarkus/runtime-classpath.txt"), "");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Could not read Quarkus deployment classpath file"));
+        assertTrue(exception.getMessage().contains("referenced by"));
+    }
+
+    @Test
+    void preservesBackslashesInPathValues() throws IOException {
+        Path descriptor = descriptorPath();
+        Files.createDirectories(descriptor.getParent());
+        Path runtimeClasspath = projectDir.resolve("target/quarkus/runtime-classpath.txt");
+        Path deploymentClasspath = projectDir.resolve("target/quarkus/deployment-classpath.txt");
+        Files.writeString(runtimeClasspath, "");
+        Files.writeString(deploymentClasspath, "");
+        Files.writeString(descriptor, """
+                version=1
+                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
+                augmentActionClass=io.quarkus.bootstrap.app.AugmentAction
+                mode=prod
+                package=fast-jar
+                projectDirectory=C:\\repo\\app
+                applicationClasses=C:\\repo\\app\\target\\classes
+                augmentationDirectory=C:\\repo\\app\\target\\quarkus
+                packageDirectory=C:\\repo\\app\\target\\quarkus-app
+                runtimeClasspathFile=%s
+                deploymentClasspathFile=%s
+                inputFingerprint=%s
+                """.formatted(
+                runtimeClasspath,
+                deploymentClasspath,
+                "sha256:" + "1".repeat(64)));
+
+        QuarkusBootstrapDescriptor read = reader.read(descriptor);
+
+        assertEquals("C:\\repo\\app", read.projectDirectory().toString());
+        assertEquals("C:\\repo\\app\\target\\classes", read.applicationClasses().toString());
+    }
+
+    private Path descriptorPath() {
+        return projectDir.resolve("target/quarkus/zolt-bootstrap.properties");
+    }
+
+    private QuarkusAugmentationRequest request() {
+        return new QuarkusAugmentationRequest(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                QuarkusPackageMode.FAST_JAR,
+                new QuarkusOutputLayout(
+                        projectDir.resolve("target/quarkus"),
+                        projectDir.resolve("target/quarkus-app")),
+                "sha256:" + "1".repeat(64),
+                projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
+                List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
+                List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of());
+    }
+}

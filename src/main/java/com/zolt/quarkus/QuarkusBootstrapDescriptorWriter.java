@@ -7,6 +7,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 public final class QuarkusBootstrapDescriptorWriter {
+    public static final String BOOTSTRAP_CLASS = "io.quarkus.bootstrap.app.QuarkusBootstrap";
+    public static final String AUGMENT_ACTION_CLASS = "io.quarkus.bootstrap.app.AugmentAction";
+
     public QuarkusBootstrapDescriptor write(QuarkusAugmentationRequest request) {
         if (request == null) {
             throw new QuarkusAugmentationException("Quarkus augmentation request is required.");
@@ -35,6 +38,8 @@ public final class QuarkusBootstrapDescriptorWriter {
                 descriptorFile,
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                BOOTSTRAP_CLASS,
+                AUGMENT_ACTION_CLASS,
                 request.projectDirectory(),
                 request.applicationClasses(),
                 augmentationDirectory,
@@ -51,8 +56,8 @@ public final class QuarkusBootstrapDescriptorWriter {
             Path deploymentClasspathFile) {
         return """
                 version=1
-                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
-                augmentActionClass=io.quarkus.bootstrap.app.AugmentAction
+                bootstrapClass=%s
+                augmentActionClass=%s
                 mode=prod
                 package=%s
                 projectDirectory=%s
@@ -63,6 +68,8 @@ public final class QuarkusBootstrapDescriptorWriter {
                 deploymentClasspathFile=%s
                 inputFingerprint=%s
                 """.formatted(
+                BOOTSTRAP_CLASS,
+                AUGMENT_ACTION_CLASS,
                 request.packageMode().configValue(),
                 request.projectDirectory(),
                 request.applicationClasses(),

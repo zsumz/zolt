@@ -7,6 +7,8 @@ public record QuarkusBootstrapDescriptor(
         Path descriptorFile,
         Path runtimeClasspathFile,
         Path deploymentClasspathFile,
+        String bootstrapClass,
+        String augmentActionClass,
         Path projectDirectory,
         Path applicationClasses,
         Path augmentationDirectory,
@@ -24,6 +26,12 @@ public record QuarkusBootstrapDescriptor(
         }
         if (deploymentClasspathFile == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap deployment classpath file is required.");
+        }
+        if (bootstrapClass == null || bootstrapClass.isBlank()) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap class is required.");
+        }
+        if (augmentActionClass == null || augmentActionClass.isBlank()) {
+            throw new QuarkusAugmentationException("Quarkus augment action class is required.");
         }
         if (projectDirectory == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap project directory is required.");

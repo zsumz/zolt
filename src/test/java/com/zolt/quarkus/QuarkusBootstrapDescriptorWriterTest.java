@@ -27,6 +27,8 @@ final class QuarkusBootstrapDescriptorWriterTest {
         assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties"), descriptor.descriptorFile());
         assertEquals(projectDir.resolve("target/quarkus/runtime-classpath.txt"), descriptor.runtimeClasspathFile());
         assertEquals(projectDir.resolve("target/quarkus/deployment-classpath.txt"), descriptor.deploymentClasspathFile());
+        assertEquals("io.quarkus.bootstrap.app.QuarkusBootstrap", descriptor.bootstrapClass());
+        assertEquals("io.quarkus.bootstrap.app.AugmentAction", descriptor.augmentActionClass());
         assertEquals(request.runtimeClasspath(), descriptor.runtimeClasspath());
         assertEquals(request.deploymentClasspath(), descriptor.deploymentClasspath());
         assertEquals("""
