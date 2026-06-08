@@ -2,22 +2,37 @@ package com.zolt.quarkus;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public final class QuarkusPlanService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
+    private final QuarkusExtensionMetadataReader metadataReader;
 
     public QuarkusPlanService() {
-        this(new ZoltLockfileReader(), new ClasspathBuilder());
+        this(new ZoltLockfileReader(), new ClasspathBuilder(), new QuarkusExtensionMetadataReader());
     }
 
-    QuarkusPlanService(ZoltLockfileReader lockfileReader, ClasspathBuilder classpathBuilder) {
+    QuarkusPlanService(
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder,
+            QuarkusExtensionMetadataReader metadataReader) {
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
+        this.metadataReader = metadataReader;
     }
 
     public QuarkusPlan plan(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -36,6 +51,65 @@ public final class QuarkusPlanService {
                 root,
                 root.resolve(config.build().output()).normalize(),
                 classpaths.runtime().entries(),
-                classpaths.quarkusDeployment().entries());
+                classpaths.quarkusDeployment().entries(),
+                extensions(lockfile, cacheRoot));
+    }
+
+    private List<QuarkusPlanExtension> extensions(ZoltLockfile lockfile, Path cacheRoot) {
+        Map<String, LockPackage> deploymentPackages = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT)
+                .collect(Collectors.toMap(
+                        QuarkusPlanService::deploymentKey,
+                        Function.identity(),
+                        (left, ignored) -> left));
+        return lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.jar().isPresent())
+                .filter(lockPackage -> lockPackage.scope().entersMainRuntimeClasspath())
+                .flatMap(lockPackage -> extension(lockPackage, cacheRoot, deploymentPackages).stream())
+                .sorted(Comparator.comparing(extension -> extension.runtimePackage().toString()))
+                .toList();
+    }
+
+    private Optional<QuarkusPlanExtension> extension(
+            LockPackage runtimePackage,
+            Path cacheRoot,
+            Map<String, LockPackage> deploymentPackages) {
+        Path runtimePath = cacheRoot.resolve(runtimePackage.jar().orElseThrow());
+        if (!Files.isRegularFile(runtimePath)) {
+            return Optional.empty();
+        }
+        Optional<QuarkusExtensionMetadata> metadata = metadata(runtimePath);
+        if (metadata.isEmpty()) {
+            return Optional.empty();
+        }
+        QuarkusDeploymentArtifact deploymentArtifact = metadata.orElseThrow().deploymentArtifact();
+        Optional<Path> deploymentPath = Optional.ofNullable(deploymentPackages.get(deploymentKey(deploymentArtifact)))
+                .flatMap(LockPackage::jar)
+                .map(cacheRoot::resolve);
+        return Optional.of(new QuarkusPlanExtension(
+                runtimePackage.packageId(),
+                runtimePath,
+                deploymentArtifact,
+                deploymentPath));
+    }
+
+    private Optional<QuarkusExtensionMetadata> metadata(Path runtimePath) {
+        try {
+            return metadataReader.readIfPresent(runtimePath);
+        } catch (QuarkusMetadataException exception) {
+            throw new QuarkusPlanException(exception.getMessage());
+        }
+    }
+
+    private static String deploymentKey(LockPackage lockPackage) {
+        return deploymentKey(lockPackage.packageId(), lockPackage.version());
+    }
+
+    private static String deploymentKey(QuarkusDeploymentArtifact artifact) {
+        return deploymentKey(new PackageId(artifact.groupId(), artifact.artifactId()), artifact.version());
+    }
+
+    private static String deploymentKey(PackageId packageId, String version) {
+        return packageId + ":" + version;
     }
 }

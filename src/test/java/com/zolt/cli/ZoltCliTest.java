@@ -1190,6 +1190,14 @@ final class ZoltCliTest {
                 jar = "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar"
                 dependencies = []
                 """);
+        Path root = projectDir.toAbsolutePath().normalize();
+        Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
+        Path deploymentJar = cacheRoot.resolve(
+                "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar");
+        createJarWithTextEntry(
+                runtimeJar,
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0\n");
 
         CommandResult result = execute(
                 "quarkus",
@@ -1197,10 +1205,6 @@ final class ZoltCliTest {
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString());
 
-        Path root = projectDir.toAbsolutePath().normalize();
-        Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
-        Path deploymentJar = cacheRoot.resolve(
-                "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar");
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertEquals("""
@@ -1211,9 +1215,15 @@ final class ZoltCliTest {
                   %s
                 Deployment classpath entries: 1
                   %s
+                Quarkus extensions: 1
+                  io.quarkus:quarkus-rest -> io.quarkus:quarkus-rest-deployment:3.33.0
+                    runtime jar: %s
+                    deployment jar: %s
                 Next: implement the Zolt-owned Quarkus augmentation runner with these inputs.
                 """.formatted(
                 root.resolve("target/classes"),
+                runtimeJar,
+                deploymentJar,
                 runtimeJar,
                 deploymentJar), result.stdout());
     }
@@ -1247,6 +1257,51 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Deployment classpath entries: 0"));
         assertTrue(result.stderr().contains("No Quarkus deployment artifacts were found in zolt.lock"));
         assertTrue(result.stderr().contains("run `zolt resolve`"));
+    }
+
+    @Test
+    void quarkusPlanFailsWhenRuntimeExtensionDeploymentIsMissingFromLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-arc-deployment"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-arc-deployment/3.33.0/quarkus-arc-deployment-3.33.0.jar"
+                dependencies = []
+                """);
+        Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
+        createJarWithTextEntry(
+                runtimeJar,
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0\n");
+
+        CommandResult result = execute(
+                "quarkus",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("io.quarkus:quarkus-rest -> io.quarkus:quarkus-rest-deployment:3.33.0"));
+        assertTrue(result.stdout().contains("deployment jar: missing from zolt.lock"));
+        assertTrue(result.stderr().contains("matching deployment artifacts"));
+        assertTrue(result.stderr().contains("Run `zolt resolve`"));
     }
 
     @Test
@@ -2987,10 +3042,14 @@ final class ZoltCliTest {
     }
 
     private static void createJarWithEntry(Path jar, String entryName) throws IOException {
+        createJarWithTextEntry(jar, entryName, "\0");
+    }
+
+    private static void createJarWithTextEntry(Path jar, String entryName, String text) throws IOException {
         Files.createDirectories(jar.getParent());
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
             output.putNextEntry(new JarEntry(entryName));
-            output.write(new byte[] {0});
+            output.write(text.getBytes(StandardCharsets.UTF_8));
             output.closeEntry();
         }
     }

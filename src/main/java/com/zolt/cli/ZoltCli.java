@@ -800,6 +800,11 @@ public final class ZoltCli implements Runnable {
                                 "No Quarkus deployment artifacts were found in zolt.lock. "
                                         + "Add a Quarkus extension dependency, run `zolt resolve`, then run `zolt quarkus plan` again.");
                     }
+                    if (!plan.allExtensionDeploymentsResolved()) {
+                        throw new QuarkusPlanException(
+                                "Some Quarkus runtime extensions do not have matching deployment artifacts in zolt.lock. "
+                                        + "Run `zolt resolve`, then run `zolt quarkus plan` again.");
+                    }
                 } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);

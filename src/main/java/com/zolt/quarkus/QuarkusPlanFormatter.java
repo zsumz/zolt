@@ -15,6 +15,20 @@ public final class QuarkusPlanFormatter {
         output.append("Application classes: ").append(plan.applicationClasses()).append('\n');
         classpath(output, "Runtime classpath entries", plan.runtimeClasspath());
         classpath(output, "Deployment classpath entries", plan.deploymentClasspath());
+        output.append("Quarkus extensions: ").append(plan.extensions().size()).append('\n');
+        for (QuarkusPlanExtension extension : plan.extensions()) {
+            output.append("  ")
+                    .append(extension.runtimePackage())
+                    .append(" -> ")
+                    .append(extension.deploymentArtifact())
+                    .append('\n');
+            output.append("    runtime jar: ").append(extension.runtimeArtifact()).append('\n');
+            output.append("    deployment jar: ")
+                    .append(extension.deploymentArtifactPath()
+                            .map(Path::toString)
+                            .orElse("missing from zolt.lock"))
+                    .append('\n');
+        }
         output.append("Next: ");
         if (plan.hasDeploymentInputs()) {
             output.append("implement the Zolt-owned Quarkus augmentation runner with these inputs.\n");
