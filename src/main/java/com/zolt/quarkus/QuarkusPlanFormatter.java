@@ -13,6 +13,7 @@ public final class QuarkusPlanFormatter {
             output.append("not ready\n");
         }
         output.append("Application classes: ").append(plan.applicationClasses()).append('\n');
+        output.append("Input fingerprint: ").append(plan.inputFingerprint()).append('\n');
         classpath(output, "Runtime classpath entries", plan.runtimeClasspath());
         classpath(output, "Deployment classpath entries", plan.deploymentClasspath());
         output.append("Quarkus extensions: ").append(plan.extensions().size()).append('\n');

@@ -1207,10 +1207,13 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
+        String inputFingerprint = quarkusInputFingerprint(result.stdout());
+        assertTrue(inputFingerprint.matches("sha256:[0-9a-f]{64}"));
         assertEquals("""
                 Quarkus augmentation plan
                 Status: inputs resolved; augmentation runner not implemented yet
                 Application classes: %s
+                Input fingerprint: %s
                 Runtime classpath entries: 1
                   %s
                 Deployment classpath entries: 1
@@ -1222,6 +1225,7 @@ final class ZoltCliTest {
                 Next: implement the Zolt-owned Quarkus augmentation runner with these inputs.
                 """.formatted(
                 root.resolve("target/classes"),
+                inputFingerprint,
                 runtimeJar,
                 deploymentJar,
                 runtimeJar,
@@ -3085,6 +3089,14 @@ final class ZoltCliTest {
 
     private static String jsonPath(Path path) {
         return path.toString().replace('\\', '/');
+    }
+
+    private static String quarkusInputFingerprint(String output) {
+        return output.lines()
+                .filter(line -> line.startsWith("Input fingerprint: "))
+                .findFirst()
+                .orElseThrow()
+                .substring("Input fingerprint: ".length());
     }
 
     private static final class TestRepository implements AutoCloseable {

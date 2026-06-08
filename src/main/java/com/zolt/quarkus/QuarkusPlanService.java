@@ -21,18 +21,25 @@ public final class QuarkusPlanService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final QuarkusExtensionMetadataReader metadataReader;
+    private final QuarkusInputFingerprint inputFingerprint;
 
     public QuarkusPlanService() {
-        this(new ZoltLockfileReader(), new ClasspathBuilder(), new QuarkusExtensionMetadataReader());
+        this(
+                new ZoltLockfileReader(),
+                new ClasspathBuilder(),
+                new QuarkusExtensionMetadataReader(),
+                new QuarkusInputFingerprint());
     }
 
     QuarkusPlanService(
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
-            QuarkusExtensionMetadataReader metadataReader) {
+            QuarkusExtensionMetadataReader metadataReader,
+            QuarkusInputFingerprint inputFingerprint) {
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.metadataReader = metadataReader;
+        this.inputFingerprint = inputFingerprint;
     }
 
     public QuarkusPlan plan(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -46,10 +53,12 @@ public final class QuarkusPlanService {
             ZoltLockfile lockfile,
             Path cacheRoot) {
         Path root = projectDirectory.toAbsolutePath().normalize();
+        Path applicationClasses = root.resolve(config.build().output()).normalize();
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
         return new QuarkusPlan(
                 root,
-                root.resolve(config.build().output()).normalize(),
+                applicationClasses,
+                inputFingerprint.fingerprint(applicationClasses, lockfile),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
                 extensions(lockfile, cacheRoot));
