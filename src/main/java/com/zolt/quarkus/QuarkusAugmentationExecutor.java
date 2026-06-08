@@ -36,7 +36,7 @@ public final class QuarkusAugmentationExecutor {
         }
         prepareOutput(request);
         QuarkusBootstrapDescriptor descriptor = descriptorWriter.write(request);
-        augmentor.augment(request);
+        augmentor.augment(request, descriptor);
         metadataWriter.write(request.projectDirectory(), request.inputFingerprint());
         return new QuarkusAugmentationResult(
                 request.outputLayout().augmentationDirectory(),

@@ -21,12 +21,17 @@ final class QuarkusAugmentationExecutorTest {
     @Test
     void preparesOutputRunsAugmentorThenWritesCurrentMetadata() {
         AtomicReference<QuarkusAugmentationRequest> seenRequest = new AtomicReference<>();
+        AtomicReference<QuarkusBootstrapDescriptor> seenDescriptor = new AtomicReference<>();
         QuarkusAugmentationRequest request = request();
-        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor(seenRequest::set);
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((augmentRequest, descriptor) -> {
+            seenRequest.set(augmentRequest);
+            seenDescriptor.set(descriptor);
+        });
 
         QuarkusAugmentationResult result = executor.augment(request);
 
         assertSame(request, seenRequest.get());
+        assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties"), seenDescriptor.get().descriptorFile());
         assertTrue(Files.isDirectory(projectDir.resolve("target/quarkus")));
         assertEquals(projectDir.resolve("target/quarkus"), result.augmentationDirectory());
         assertEquals(projectDir.resolve("target/quarkus/zolt-augmentation.properties"), result.metadataPath());
@@ -42,7 +47,7 @@ final class QuarkusAugmentationExecutorTest {
     @Test
     void doesNotWriteMetadataWhenAugmentorFails() {
         QuarkusAugmentationRequest request = request();
-        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor(ignored -> {
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) -> {
             throw new QuarkusAugmentationException("augmentation failed");
         });
 
@@ -67,7 +72,7 @@ final class QuarkusAugmentationExecutorTest {
 
     @Test
     void requiresRequest() {
-        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor(ignored -> {
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) -> {
         });
 
         QuarkusAugmentationException exception = assertThrows(

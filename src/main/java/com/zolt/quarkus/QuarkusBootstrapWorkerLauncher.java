@@ -1,0 +1,109 @@
+package com.zolt.quarkus;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.StringJoiner;
+
+public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
+    private final String pathSeparator;
+    private final List<Path> workerClasspath;
+    private final Path javaExecutable;
+    private final ProcessRunner processRunner;
+
+    public QuarkusBootstrapWorkerLauncher(
+            Path javaExecutable,
+            List<Path> workerClasspath) {
+        this(java.io.File.pathSeparator, javaExecutable, workerClasspath, QuarkusBootstrapWorkerLauncher::runProcess);
+    }
+
+    QuarkusBootstrapWorkerLauncher(
+            String pathSeparator,
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            ProcessRunner processRunner) {
+        if (pathSeparator == null || pathSeparator.isBlank()) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker path separator is required.");
+        }
+        if (javaExecutable == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker Java executable is required.");
+        }
+        if (workerClasspath == null || workerClasspath.isEmpty()) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker classpath is required.");
+        }
+        if (processRunner == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker process runner is required.");
+        }
+        this.pathSeparator = pathSeparator;
+        this.javaExecutable = javaExecutable;
+        this.workerClasspath = List.copyOf(workerClasspath);
+        this.processRunner = processRunner;
+    }
+
+    @Override
+    public void augment(QuarkusAugmentationRequest request, QuarkusBootstrapDescriptor descriptor) {
+        if (descriptor == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap descriptor is required.");
+        }
+        ProcessResult result = processRunner.run(command(descriptor));
+        if (result.exitCode() != 0) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus bootstrap worker failed with exit code "
+                            + result.exitCode()
+                            + ". Fix the Quarkus augmentation inputs and try again.\n"
+                            + result.output().stripTrailing());
+        }
+    }
+
+    List<String> command(QuarkusBootstrapDescriptor descriptor) {
+        if (descriptor == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap descriptor is required.");
+        }
+        List<String> command = new ArrayList<>();
+        command.add(javaExecutable.toString());
+        command.add("-classpath");
+        command.add(joinedClasspath(descriptor));
+        command.add(QuarkusBootstrapWorker.MAIN_CLASS);
+        command.add(descriptor.descriptorFile().toString());
+        return List.copyOf(command);
+    }
+
+    private String joinedClasspath(QuarkusBootstrapDescriptor descriptor) {
+        StringJoiner joiner = new StringJoiner(pathSeparator);
+        for (Path entry : workerClasspath) {
+            joiner.add(entry.normalize().toString());
+        }
+        for (Path entry : descriptor.deploymentClasspath()) {
+            joiner.add(entry.normalize().toString());
+        }
+        return joiner.toString();
+    }
+
+    private static ProcessResult runProcess(List<String> command) {
+        try {
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+            return new ProcessResult(exitCode, output);
+        } catch (IOException exception) {
+            throw new QuarkusAugmentationException(
+                    "Could not run Quarkus bootstrap worker. Check that the configured JDK is installed and readable.",
+                    exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker was interrupted. Try again.", exception);
+        }
+    }
+
+    @FunctionalInterface
+    interface ProcessRunner {
+        ProcessResult run(List<String> command);
+    }
+
+    record ProcessResult(int exitCode, String output) {
+    }
+}
