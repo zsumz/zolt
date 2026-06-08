@@ -7,22 +7,28 @@ public final class QuarkusBootstrapWorker {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusBootstrapWorker";
 
     private final QuarkusBootstrapDescriptorReader descriptorReader;
+    private final QuarkusBootstrapApiProbe apiProbe;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
-        this(new QuarkusBootstrapDescriptorReader(), System.err);
+        this(new QuarkusBootstrapDescriptorReader(), new QuarkusBootstrapApiProbe(), System.err);
     }
 
     QuarkusBootstrapWorker(
             QuarkusBootstrapDescriptorReader descriptorReader,
+            QuarkusBootstrapApiProbe apiProbe,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
+        }
+        if (apiProbe == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap API probe is required.");
         }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
         this.descriptorReader = descriptorReader;
+        this.apiProbe = apiProbe;
         this.err = err;
     }
 
@@ -41,9 +47,13 @@ public final class QuarkusBootstrapWorker {
 
         try {
             QuarkusBootstrapDescriptor descriptor = descriptorReader.read(Path.of(args[0]));
-            err.println("error: Quarkus bootstrap invocation is not implemented yet. "
+            QuarkusBootstrapApi api = apiProbe.probe(descriptor);
+            err.println("error: Quarkus bootstrap ApplicationModel invocation is not implemented yet. "
                     + "Descriptor was accepted at "
                     + descriptor.descriptorFile()
+                    + " and "
+                    + api.bootstrapClass()
+                    + " was found."
                     + ".");
             return 3;
         } catch (QuarkusAugmentationException exception) {
