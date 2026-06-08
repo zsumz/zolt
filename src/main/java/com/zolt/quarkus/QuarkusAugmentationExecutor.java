@@ -5,22 +5,28 @@ import java.nio.file.Files;
 
 public final class QuarkusAugmentationExecutor {
     private final QuarkusAugmentor augmentor;
+    private final QuarkusBootstrapDescriptorWriter descriptorWriter;
     private final QuarkusAugmentationMetadataWriter metadataWriter;
 
     public QuarkusAugmentationExecutor(QuarkusAugmentor augmentor) {
-        this(augmentor, new QuarkusAugmentationMetadataWriter());
+        this(augmentor, new QuarkusBootstrapDescriptorWriter(), new QuarkusAugmentationMetadataWriter());
     }
 
     QuarkusAugmentationExecutor(
             QuarkusAugmentor augmentor,
+            QuarkusBootstrapDescriptorWriter descriptorWriter,
             QuarkusAugmentationMetadataWriter metadataWriter) {
         if (augmentor == null) {
             throw new QuarkusAugmentationException("Quarkus augmentor is required.");
+        }
+        if (descriptorWriter == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap descriptor writer is required.");
         }
         if (metadataWriter == null) {
             throw new QuarkusAugmentationException("Quarkus augmentation metadata writer is required.");
         }
         this.augmentor = augmentor;
+        this.descriptorWriter = descriptorWriter;
         this.metadataWriter = metadataWriter;
     }
 
@@ -29,11 +35,13 @@ public final class QuarkusAugmentationExecutor {
             throw new QuarkusAugmentationException("Quarkus augmentation request is required.");
         }
         prepareOutput(request);
+        QuarkusBootstrapDescriptor descriptor = descriptorWriter.write(request);
         augmentor.augment(request);
         metadataWriter.write(request.projectDirectory(), request.inputFingerprint());
         return new QuarkusAugmentationResult(
                 request.outputLayout().augmentationDirectory(),
                 request.metadataPath(),
+                descriptor,
                 request.inputFingerprint());
     }
 

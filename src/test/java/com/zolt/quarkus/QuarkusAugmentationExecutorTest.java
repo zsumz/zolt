@@ -30,6 +30,9 @@ final class QuarkusAugmentationExecutorTest {
         assertTrue(Files.isDirectory(projectDir.resolve("target/quarkus")));
         assertEquals(projectDir.resolve("target/quarkus"), result.augmentationDirectory());
         assertEquals(projectDir.resolve("target/quarkus/zolt-augmentation.properties"), result.metadataPath());
+        assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties"), result.bootstrapDescriptor().descriptorFile());
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/runtime-classpath.txt")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/deployment-classpath.txt")));
         assertEquals(request.inputFingerprint(), result.inputFingerprint());
         QuarkusAugmentationState state = new QuarkusAugmentationStateReader()
                 .read(projectDir, request.inputFingerprint());
@@ -49,6 +52,7 @@ final class QuarkusAugmentationExecutorTest {
 
         assertEquals("augmentation failed", exception.getMessage());
         assertTrue(Files.isDirectory(projectDir.resolve("target/quarkus")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/zolt-bootstrap.properties")));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
     }
 

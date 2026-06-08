@@ -5,6 +5,7 @@ import java.nio.file.Path;
 public record QuarkusAugmentationResult(
         Path augmentationDirectory,
         Path metadataPath,
+        QuarkusBootstrapDescriptor bootstrapDescriptor,
         String inputFingerprint) {
     public QuarkusAugmentationResult {
         if (augmentationDirectory == null) {
@@ -12,6 +13,9 @@ public record QuarkusAugmentationResult(
         }
         if (metadataPath == null) {
             throw new QuarkusAugmentationException("Quarkus augmentation result requires a metadata path.");
+        }
+        if (bootstrapDescriptor == null) {
+            throw new QuarkusAugmentationException("Quarkus augmentation result requires a bootstrap descriptor.");
         }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus augmentation result requires an input fingerprint.");
