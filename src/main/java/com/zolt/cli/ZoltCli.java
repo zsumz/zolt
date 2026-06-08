@@ -963,6 +963,8 @@ public final class ZoltCli implements Runnable {
                     | JavacException
                     | ResourceCopyException
                     | RunException
+                    | QuarkusAugmentationException
+                    | QuarkusPlanException
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
