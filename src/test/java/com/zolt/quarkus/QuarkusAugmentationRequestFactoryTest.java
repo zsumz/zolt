@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.QuarkusPackageMode;
+import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,6 +29,7 @@ final class QuarkusAugmentationRequestFactoryTest {
         assertEquals(plan.augmentationState().metadataPath(), request.metadataPath());
         assertEquals(plan.runtimeClasspath(), request.runtimeClasspath());
         assertEquals(plan.deploymentClasspath(), request.deploymentClasspath());
+        assertEquals(plan.bootstrapDependencies(), request.bootstrapDependencies());
         assertEquals(plan.extensions(), request.extensions());
     }
 
@@ -59,6 +61,7 @@ final class QuarkusAugmentationRequestFactoryTest {
 
         assertThrows(UnsupportedOperationException.class, () -> request.runtimeClasspath().add(Path.of("other")));
         assertThrows(UnsupportedOperationException.class, () -> request.deploymentClasspath().add(Path.of("other")));
+        assertThrows(UnsupportedOperationException.class, () -> request.bootstrapDependencies().clear());
         assertThrows(UnsupportedOperationException.class, () -> request.extensions().clear());
     }
 
@@ -83,7 +86,27 @@ final class QuarkusAugmentationRequestFactoryTest {
                         Optional.empty()),
                 List.of(Path.of("/repo/.zolt/cache/io/quarkus/quarkus-rest.jar")),
                 deploymentClasspath,
+                bootstrapDependencies(deploymentClasspath),
                 extensions);
+    }
+
+    private static List<QuarkusBootstrapDependency> bootstrapDependencies(List<Path> deploymentClasspath) {
+        List<QuarkusBootstrapDependency> dependencies = new java.util.ArrayList<>();
+        dependencies.add(new QuarkusBootstrapDependency(
+                new PackageId("io.quarkus", "quarkus-rest"),
+                "3.33.0",
+                DependencyScope.COMPILE,
+                Path.of("/repo/.zolt/cache/io/quarkus/quarkus-rest.jar"),
+                true));
+        for (Path path : deploymentClasspath) {
+            dependencies.add(new QuarkusBootstrapDependency(
+                    new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                    "3.33.0",
+                    DependencyScope.QUARKUS_DEPLOYMENT,
+                    path,
+                    false));
+        }
+        return List.copyOf(dependencies);
     }
 
     private static QuarkusPlanExtension extensionWithDeployment() {

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.QuarkusPackageMode;
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,6 +77,7 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 packageDirectory=%s
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
                 projectDir,
@@ -83,8 +86,13 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 projectDir.resolve("target/quarkus-app"),
                 projectDir.resolve("target/quarkus/runtime-classpath.txt"),
                 projectDir.resolve("target/quarkus/missing-deployment-classpath.txt"),
+                projectDir.resolve("target/quarkus/application-model.properties"),
                 "sha256:" + "1".repeat(64)));
         Files.writeString(projectDir.resolve("target/quarkus/runtime-classpath.txt"), "");
+        Files.writeString(projectDir.resolve("target/quarkus/application-model.properties"), """
+                version=1
+                dependencyCount=0
+                """);
 
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -100,8 +108,13 @@ final class QuarkusBootstrapDescriptorReaderTest {
         Files.createDirectories(descriptor.getParent());
         Path runtimeClasspath = projectDir.resolve("target/quarkus/runtime-classpath.txt");
         Path deploymentClasspath = projectDir.resolve("target/quarkus/deployment-classpath.txt");
+        Path applicationModel = projectDir.resolve("target/quarkus/application-model.properties");
         Files.writeString(runtimeClasspath, "");
         Files.writeString(deploymentClasspath, "");
+        Files.writeString(applicationModel, """
+                version=1
+                dependencyCount=0
+                """);
         Files.writeString(descriptor, """
                 version=1
                 bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
@@ -114,10 +127,12 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 packageDirectory=C:\\repo\\app\\target\\quarkus-app
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
                 runtimeClasspath,
                 deploymentClasspath,
+                applicationModel,
                 "sha256:" + "1".repeat(64)));
 
         QuarkusBootstrapDescriptor read = reader.read(descriptor);
@@ -142,6 +157,19 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest"),
+                                "3.33.0",
+                                DependencyScope.COMPILE,
+                                projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar"),
+                                true),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                                "3.33.0",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar"),
+                                false)),
                 List.of());
     }
 }

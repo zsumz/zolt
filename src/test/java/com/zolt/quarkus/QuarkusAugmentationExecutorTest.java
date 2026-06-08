@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.QuarkusPackageMode;
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -38,6 +40,7 @@ final class QuarkusAugmentationExecutorTest {
         assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties"), result.bootstrapDescriptor().descriptorFile());
         assertTrue(Files.exists(projectDir.resolve("target/quarkus/runtime-classpath.txt")));
         assertTrue(Files.exists(projectDir.resolve("target/quarkus/deployment-classpath.txt")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/application-model.properties")));
         assertEquals(request.inputFingerprint(), result.inputFingerprint());
         QuarkusAugmentationState state = new QuarkusAugmentationStateReader()
                 .read(projectDir, request.inputFingerprint());
@@ -94,6 +97,19 @@ final class QuarkusAugmentationExecutorTest {
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
+                List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest"),
+                                "3.33.0",
+                                DependencyScope.COMPILE,
+                                projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar"),
+                                true),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                                "3.33.0",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar"),
+                                false)),
                 List.of());
     }
 }

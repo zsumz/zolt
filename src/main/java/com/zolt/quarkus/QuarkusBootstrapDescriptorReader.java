@@ -1,10 +1,14 @@
 package com.zolt.quarkus;
 
+import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.PackageId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,10 +40,12 @@ public final class QuarkusBootstrapDescriptorReader {
         String augmentActionClass = required(properties, "augmentActionClass", descriptorFile);
         Path runtimeClasspathFile = path(properties, "runtimeClasspathFile", descriptorFile);
         Path deploymentClasspathFile = path(properties, "deploymentClasspathFile", descriptorFile);
+        Path applicationModelFile = path(properties, "applicationModelFile", descriptorFile);
         return new QuarkusBootstrapDescriptor(
                 descriptorFile,
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                applicationModelFile,
                 bootstrapClass,
                 augmentActionClass,
                 path(properties, "projectDirectory", descriptorFile),
@@ -49,7 +55,8 @@ public final class QuarkusBootstrapDescriptorReader {
                 required(properties, "package", descriptorFile),
                 required(properties, "inputFingerprint", descriptorFile),
                 classpath(runtimeClasspathFile, "runtime", descriptorFile),
-                classpath(deploymentClasspathFile, "deployment", descriptorFile));
+                classpath(deploymentClasspathFile, "deployment", descriptorFile),
+                applicationModel(applicationModelFile, descriptorFile));
     }
 
     private static Map<String, String> properties(Path descriptorFile) throws IOException {
@@ -103,6 +110,100 @@ public final class QuarkusBootstrapDescriptorReader {
                             + " referenced by "
                             + descriptorFile
                             + ". Run Quarkus augmentation planning again and check that target/ is readable.",
+                    exception);
+        }
+    }
+
+    private static List<QuarkusBootstrapDependency> applicationModel(Path applicationModelFile, Path descriptorFile) {
+        Map<String, String> properties;
+        try {
+            properties = properties(applicationModelFile);
+        } catch (IOException exception) {
+            throw new QuarkusAugmentationException(
+                    "Could not read Quarkus application model file "
+                            + applicationModelFile
+                            + " referenced by "
+                            + descriptorFile
+                            + ". Run Quarkus augmentation planning again and check that target/ is readable.",
+                    exception);
+        }
+        if (!"1".equals(properties.get("version"))) {
+            throw new QuarkusAugmentationException(
+                    "Unsupported Quarkus application model file "
+                            + applicationModelFile
+                            + " referenced by "
+                            + descriptorFile
+                            + ". Run Quarkus augmentation planning again.");
+        }
+        int dependencyCount = intValue(properties, "dependencyCount", applicationModelFile);
+        List<QuarkusBootstrapDependency> dependencies = new ArrayList<>();
+        for (int index = 0; index < dependencyCount; index++) {
+            dependencies.add(dependency(properties, index, applicationModelFile));
+        }
+        return List.copyOf(dependencies);
+    }
+
+    private static QuarkusBootstrapDependency dependency(
+            Map<String, String> properties,
+            int index,
+            Path applicationModelFile) {
+        String prefix = "dependency." + index + ".";
+        return new QuarkusBootstrapDependency(
+                new PackageId(
+                        required(properties, prefix + "groupId", applicationModelFile),
+                        required(properties, prefix + "artifactId", applicationModelFile)),
+                required(properties, prefix + "version", applicationModelFile),
+                scope(required(properties, prefix + "scope", applicationModelFile), applicationModelFile),
+                path(properties, prefix + "path", applicationModelFile),
+                booleanValue(properties, prefix + "direct", applicationModelFile));
+    }
+
+    private static int intValue(Map<String, String> properties, String key, Path file) {
+        String value = required(properties, key, file);
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new QuarkusAugmentationException(
+                    "Invalid Quarkus application model at "
+                            + file
+                            + ". Field `"
+                            + key
+                            + "` must be an integer.",
+                    exception);
+        }
+    }
+
+    private static boolean booleanValue(Map<String, String> properties, String key, Path file) {
+        String value = required(properties, key, file);
+        if ("true".equals(value)) {
+            return true;
+        }
+        if ("false".equals(value)) {
+            return false;
+        }
+        throw new QuarkusAugmentationException(
+                "Invalid Quarkus application model at "
+                        + file
+                        + ". Field `"
+                        + key
+                        + "` must be true or false.");
+    }
+
+    private static DependencyScope scope(String value, Path applicationModelFile) {
+        for (DependencyScope scope : DependencyScope.values()) {
+            if (scope.lockfileName().equals(value)) {
+                return scope;
+            }
+        }
+        try {
+            return DependencyScope.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new QuarkusAugmentationException(
+                    "Invalid Quarkus application model at "
+                            + applicationModelFile
+                            + ". Unsupported scope `"
+                            + value
+                            + "`.",
                     exception);
         }
     }

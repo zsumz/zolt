@@ -71,6 +71,7 @@ public final class QuarkusPlanService {
                 augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
+                bootstrapDependencies(lockfile, cacheRoot),
                 extensions(lockfile, cacheRoot));
     }
 
@@ -100,6 +101,31 @@ public final class QuarkusPlanService {
                 .flatMap(lockPackage -> extension(lockPackage, cacheRoot, deploymentPackages).stream())
                 .sorted(Comparator.comparing(extension -> extension.runtimePackage().toString()))
                 .toList();
+    }
+
+    private static List<QuarkusBootstrapDependency> bootstrapDependencies(ZoltLockfile lockfile, Path cacheRoot) {
+        return lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.jar().isPresent())
+                .filter(lockPackage -> lockPackage.scope().entersMainRuntimeClasspath()
+                        || lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT)
+                .map(lockPackage -> new QuarkusBootstrapDependency(
+                        lockPackage.packageId(),
+                        lockPackage.version(),
+                        lockPackage.scope(),
+                        cacheRoot.resolve(lockPackage.jar().orElseThrow()),
+                        lockPackage.direct()))
+                .sorted(Comparator.comparing(QuarkusPlanService::bootstrapDependencyKey))
+                .toList();
+    }
+
+    private static String bootstrapDependencyKey(QuarkusBootstrapDependency dependency) {
+        return dependency.scope().lockfileName()
+                + ":"
+                + dependency.packageId()
+                + ":"
+                + dependency.version()
+                + ":"
+                + dependency.path();
     }
 
     private Optional<QuarkusPlanExtension> extension(

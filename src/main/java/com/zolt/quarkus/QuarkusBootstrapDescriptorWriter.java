@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 
 public final class QuarkusBootstrapDescriptorWriter {
@@ -19,13 +20,18 @@ public final class QuarkusBootstrapDescriptorWriter {
         Path descriptorFile = augmentationDirectory.resolve("zolt-bootstrap.properties");
         Path runtimeClasspathFile = augmentationDirectory.resolve("runtime-classpath.txt");
         Path deploymentClasspathFile = augmentationDirectory.resolve("deployment-classpath.txt");
+        Path applicationModelFile = augmentationDirectory.resolve("application-model.properties");
         try {
             Files.createDirectories(augmentationDirectory);
             writeClasspath(runtimeClasspathFile, request.runtimeClasspath());
             writeClasspath(deploymentClasspathFile, request.deploymentClasspath());
             Files.writeString(
+                    applicationModelFile,
+                    applicationModel(request.bootstrapDependencies()),
+                    StandardCharsets.UTF_8);
+            Files.writeString(
                     descriptorFile,
-                    descriptor(request, runtimeClasspathFile, deploymentClasspathFile),
+                    descriptor(request, runtimeClasspathFile, deploymentClasspathFile, applicationModelFile),
                     StandardCharsets.UTF_8);
         } catch (IOException exception) {
             throw new QuarkusAugmentationException(
@@ -38,6 +44,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 descriptorFile,
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                applicationModelFile,
                 BOOTSTRAP_CLASS,
                 AUGMENT_ACTION_CLASS,
                 request.projectDirectory(),
@@ -47,13 +54,15 @@ public final class QuarkusBootstrapDescriptorWriter {
                 request.packageMode().configValue(),
                 request.inputFingerprint(),
                 request.runtimeClasspath(),
-                request.deploymentClasspath());
+                request.deploymentClasspath(),
+                sortedDependencies(request.bootstrapDependencies()));
     }
 
     private static String descriptor(
             QuarkusAugmentationRequest request,
             Path runtimeClasspathFile,
-            Path deploymentClasspathFile) {
+            Path deploymentClasspathFile,
+            Path applicationModelFile) {
         return """
                 version=1
                 bootstrapClass=%s
@@ -66,6 +75,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 packageDirectory=%s
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
                 BOOTSTRAP_CLASS,
@@ -77,6 +87,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 request.outputLayout().packageDirectory(),
                 runtimeClasspathFile,
                 deploymentClasspathFile,
+                applicationModelFile,
                 request.inputFingerprint());
     }
 
@@ -86,5 +97,41 @@ public final class QuarkusBootstrapDescriptorWriter {
             output.append(entry).append('\n');
         }
         Files.writeString(path, output.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static String applicationModel(List<QuarkusBootstrapDependency> dependencies) {
+        List<QuarkusBootstrapDependency> sortedDependencies = sortedDependencies(dependencies);
+        StringBuilder output = new StringBuilder();
+        output.append("version=1\n");
+        output.append("dependencyCount=").append(sortedDependencies.size()).append('\n');
+        for (int index = 0; index < sortedDependencies.size(); index++) {
+            QuarkusBootstrapDependency dependency = sortedDependencies.get(index);
+            String prefix = "dependency." + index + ".";
+            output.append(prefix).append("groupId=").append(dependency.packageId().groupId()).append('\n');
+            output.append(prefix).append("artifactId=").append(dependency.packageId().artifactId()).append('\n');
+            output.append(prefix).append("version=").append(dependency.version()).append('\n');
+            output.append(prefix).append("classifier=").append(dependency.classifier()).append('\n');
+            output.append(prefix).append("type=").append(dependency.type()).append('\n');
+            output.append(prefix).append("scope=").append(dependency.scope().lockfileName()).append('\n');
+            output.append(prefix).append("path=").append(dependency.path()).append('\n');
+            output.append(prefix).append("direct=").append(dependency.direct()).append('\n');
+        }
+        return output.toString();
+    }
+
+    private static List<QuarkusBootstrapDependency> sortedDependencies(List<QuarkusBootstrapDependency> dependencies) {
+        return dependencies.stream()
+                .sorted(Comparator.comparing(QuarkusBootstrapDescriptorWriter::dependencyKey))
+                .toList();
+    }
+
+    private static String dependencyKey(QuarkusBootstrapDependency dependency) {
+        return dependency.scope().lockfileName()
+                + ":"
+                + dependency.packageId()
+                + ":"
+                + dependency.version()
+                + ":"
+                + dependency.path();
     }
 }

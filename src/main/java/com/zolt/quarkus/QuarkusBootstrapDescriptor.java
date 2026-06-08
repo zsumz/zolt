@@ -7,6 +7,7 @@ public record QuarkusBootstrapDescriptor(
         Path descriptorFile,
         Path runtimeClasspathFile,
         Path deploymentClasspathFile,
+        Path applicationModelFile,
         String bootstrapClass,
         String augmentActionClass,
         Path projectDirectory,
@@ -16,7 +17,8 @@ public record QuarkusBootstrapDescriptor(
         String packageMode,
         String inputFingerprint,
         List<Path> runtimeClasspath,
-        List<Path> deploymentClasspath) {
+        List<Path> deploymentClasspath,
+        List<QuarkusBootstrapDependency> bootstrapDependencies) {
     public QuarkusBootstrapDescriptor {
         if (descriptorFile == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor file is required.");
@@ -26,6 +28,9 @@ public record QuarkusBootstrapDescriptor(
         }
         if (deploymentClasspathFile == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap deployment classpath file is required.");
+        }
+        if (applicationModelFile == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap application model file is required.");
         }
         if (bootstrapClass == null || bootstrapClass.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus bootstrap class is required.");
@@ -57,7 +62,11 @@ public record QuarkusBootstrapDescriptor(
         if (deploymentClasspath == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap deployment classpath is required.");
         }
+        if (bootstrapDependencies == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap dependencies are required.");
+        }
         runtimeClasspath = List.copyOf(runtimeClasspath);
         deploymentClasspath = List.copyOf(deploymentClasspath);
+        bootstrapDependencies = List.copyOf(bootstrapDependencies);
     }
 }

@@ -45,6 +45,7 @@ final class QuarkusBootstrapWorkerTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("ApplicationModel invocation is not implemented yet"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
 
     @Test
@@ -66,8 +67,24 @@ final class QuarkusBootstrapWorkerTest {
         Files.createDirectories(augmentationDirectory);
         Path runtimeClasspathFile = augmentationDirectory.resolve("runtime-classpath.txt");
         Path deploymentClasspathFile = augmentationDirectory.resolve("deployment-classpath.txt");
+        Path applicationModelFile = augmentationDirectory.resolve("application-model.properties");
         Files.writeString(runtimeClasspathFile, "", StandardCharsets.UTF_8);
         Files.writeString(deploymentClasspathFile, "", StandardCharsets.UTF_8);
+        Files.writeString(
+                applicationModelFile,
+                """
+                version=1
+                dependencyCount=1
+                dependency.0.groupId=io.quarkus
+                dependency.0.artifactId=quarkus-rest
+                dependency.0.version=3.33.0
+                dependency.0.classifier=
+                dependency.0.type=jar
+                dependency.0.scope=compile
+                dependency.0.path=%s
+                dependency.0.direct=true
+                """.formatted(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
+                StandardCharsets.UTF_8);
         Path descriptorFile = augmentationDirectory.resolve("zolt-bootstrap.properties");
         Files.writeString(
                 descriptorFile,
@@ -83,6 +100,7 @@ final class QuarkusBootstrapWorkerTest {
                 packageDirectory=%s
                 runtimeClasspathFile=%s
                 deploymentClasspathFile=%s
+                applicationModelFile=%s
                 inputFingerprint=%s
                 """.formatted(
                         WorkerBootstrap.class.getName(),
@@ -93,6 +111,7 @@ final class QuarkusBootstrapWorkerTest {
                         projectDir.resolve("target/quarkus-app"),
                         runtimeClasspathFile,
                         deploymentClasspathFile,
+                        applicationModelFile,
                         "sha256:" + "1".repeat(64)),
                 StandardCharsets.UTF_8);
         return descriptorFile;

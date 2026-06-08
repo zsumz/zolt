@@ -53,7 +53,9 @@ public final class QuarkusBootstrapWorker {
                     + descriptor.descriptorFile()
                     + " and "
                     + api.bootstrapClass()
-                    + " was found."
+                    + " was found with "
+                    + descriptor.bootstrapDependencies().size()
+                    + " model dependencies."
                     + ".");
             return 3;
         } catch (QuarkusAugmentationException exception) {
