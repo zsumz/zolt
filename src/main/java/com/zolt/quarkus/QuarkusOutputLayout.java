@@ -13,4 +13,11 @@ public record QuarkusOutputLayout(
             throw new QuarkusPlanException("Quarkus output layout requires a package directory.");
         }
     }
+
+    public static QuarkusOutputLayout forProject(Path projectRoot) {
+        Path root = projectRoot.toAbsolutePath().normalize();
+        return new QuarkusOutputLayout(
+                root.resolve("target/quarkus").normalize(),
+                root.resolve("target/quarkus-app").normalize());
+    }
 }

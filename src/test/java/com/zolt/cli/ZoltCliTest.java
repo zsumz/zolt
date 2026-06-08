@@ -2798,6 +2798,32 @@ final class ZoltCliTest {
     }
 
     @Test
+    void cleanDeletesQuarkusOutputLayoutWhenEnabled() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("output = \"target/classes\"", "output = \"out/main\"")
+                        .replace("testOutput = \"target/test-classes\"", "testOutput = \"out/test\""));
+        enableQuarkus(projectDir);
+        Files.createDirectories(projectDir.resolve("out/main"));
+        Files.writeString(projectDir.resolve("out/main/Main.class"), "compiled");
+        Files.createDirectories(projectDir.resolve("target/quarkus"));
+        Files.writeString(projectDir.resolve("target/quarkus/zolt-augmentation.properties"), "metadata");
+        Files.createDirectories(projectDir.resolve("target/quarkus-app"));
+        Files.writeString(projectDir.resolve("target/quarkus-app/quarkus-run.jar"), "jar");
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 3 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve("out/main")));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus")));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus-app")));
+    }
+
+    @Test
     void cleanHandlesMissingTargetCleanly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

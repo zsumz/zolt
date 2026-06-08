@@ -2,6 +2,8 @@ package com.zolt.build;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusOutputLayout;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +23,21 @@ public final class CleanService {
     public CleanResult clean(Path projectDirectory, BuildSettings settings, CompilerSettings compilerSettings) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         Set<Path> targets = cleanTargets(projectRoot, settings, compilerSettings);
+        return cleanTargets(targets);
+    }
+
+    public CleanResult clean(Path projectDirectory, ProjectConfig config) {
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Set<Path> targets = cleanTargets(projectRoot, config.build(), config.compilerSettings());
+        if (config.frameworkSettings().quarkus().enabled()) {
+            QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(projectRoot);
+            targets.add(outputLayout.augmentationDirectory());
+            targets.add(outputLayout.packageDirectory());
+        }
+        return cleanTargets(targets);
+    }
+
+    private static CleanResult cleanTargets(Set<Path> targets) {
         ArrayList<Path> deleted = new ArrayList<>();
         for (Path target : targets) {
             if (!Files.exists(target)) {

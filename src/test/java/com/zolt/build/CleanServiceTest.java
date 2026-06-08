@@ -7,9 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.FrameworkSettings;
+import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -69,6 +76,40 @@ final class CleanServiceTest {
     }
 
     @Test
+    void deletesQuarkusOutputsWhenFrameworkIsEnabled() throws IOException {
+        file("out/main/Main.class");
+        file("out-test/test/MainTest.class");
+        file("target/quarkus/zolt-augmentation.properties");
+        file("target/quarkus-app/quarkus-run.jar");
+
+        CleanResult result = cleanService.clean(
+                projectDir,
+                config(new BuildSettings("src/main/java", "src/test/java", "out/main", "out-test/test"), true));
+
+        assertEquals(4, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve("out/main")));
+        assertFalse(Files.exists(projectDir.resolve("out-test/test")));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus")));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus-app")));
+    }
+
+    @Test
+    void leavesQuarkusOutputsWhenFrameworkIsDisabled() throws IOException {
+        file("out/main/Main.class");
+        file("target/quarkus/zolt-augmentation.properties");
+        file("target/quarkus-app/quarkus-run.jar");
+
+        CleanResult result = cleanService.clean(
+                projectDir,
+                config(new BuildSettings("src/main/java", "src/test/java", "out/main", "out-test/test"), false));
+
+        assertEquals(1, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve("out/main")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
+    }
+
+    @Test
     void missingOutputDirectoriesAreCleanNoOp() {
         CleanResult result = cleanService.clean(projectDir, BuildSettings.defaults());
 
@@ -100,5 +141,16 @@ final class CleanServiceTest {
         Path file = projectDir.resolve(path);
         Files.createDirectories(file.getParent());
         Files.writeString(file, "x");
+    }
+
+    private static ProjectConfig config(BuildSettings buildSettings, boolean quarkusEnabled) {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                buildSettings)
+                .withFrameworkSettings(new FrameworkSettings(
+                        new QuarkusSettings(quarkusEnabled, QuarkusPackageMode.FAST_JAR)));
     }
 }

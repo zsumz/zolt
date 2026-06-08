@@ -1518,10 +1518,7 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                CleanResult result = new CleanService().clean(
-                        workingDirectory,
-                        config.build(),
-                        config.compilerSettings());
+                CleanResult result = new CleanService().clean(workingDirectory, config);
                 if (result.deletedPaths().isEmpty()) {
                     spec.commandLine().getOut().println("Nothing to clean");
                     return;

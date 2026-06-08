@@ -75,9 +75,7 @@ public final class QuarkusPlanService {
     }
 
     private static QuarkusOutputLayout outputLayout(Path projectRoot) {
-        return new QuarkusOutputLayout(
-                projectRoot.resolve("target/quarkus").normalize(),
-                projectRoot.resolve("target/quarkus-app").normalize());
+        return QuarkusOutputLayout.forProject(projectRoot);
     }
 
     private static void requireEnabled(ProjectConfig config) {
