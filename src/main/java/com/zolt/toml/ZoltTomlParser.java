@@ -1,6 +1,7 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
@@ -39,7 +40,8 @@ public final class ZoltTomlParser {
             "package",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
-    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput");
+    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
+    private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
     private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
     private static final Set<String> PACKAGE_KEYS = Set.of("mode");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
@@ -190,11 +192,26 @@ public final class ZoltTomlParser {
         }
 
         validateKeys("build", buildTable, BUILD_KEYS);
+        BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(buildTable, "metadata"));
         return new BuildSettings(
                 stringOrDefault(buildTable, "build", "source", defaults.source()),
                 stringOrDefault(buildTable, "build", "test", defaults.test()),
                 stringOrDefault(buildTable, "build", "output", defaults.output()),
-                stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()));
+                stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()),
+                defaults.testSources(),
+                metadata);
+    }
+
+    private static BuildMetadataSettings parseBuildMetadata(TomlTable metadataTable) {
+        BuildMetadataSettings defaults = BuildMetadataSettings.defaults();
+        if (metadataTable == null) {
+            return defaults;
+        }
+        validateKeys("build.metadata", metadataTable, BUILD_METADATA_KEYS);
+        return new BuildMetadataSettings(
+                booleanOrDefault(metadataTable, "build.metadata", "buildInfo", defaults.buildInfo()),
+                booleanOrDefault(metadataTable, "build.metadata", "git", defaults.git()),
+                booleanOrDefault(metadataTable, "build.metadata", "reproducible", defaults.reproducible()));
     }
 
     private static BuildSettings parseTestSources(TomlTable testTable, BuildSettings build) {
@@ -211,7 +228,8 @@ public final class ZoltTomlParser {
                 build.test(),
                 build.output(),
                 build.testOutput(),
-                stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()));
+                stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
+                build.metadata());
     }
 
     private static CompilerSettings parseCompiler(TomlTable compilerTable) {
@@ -337,6 +355,18 @@ public final class ZoltTomlParser {
         }
         if (value.isBlank()) {
             return defaultValue;
+        }
+        return value;
+    }
+
+    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof Boolean value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
         }
         return value;
     }

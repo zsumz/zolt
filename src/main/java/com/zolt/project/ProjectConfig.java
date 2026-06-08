@@ -419,6 +419,36 @@ public record ProjectConfig(
         return Map.of("central", MAVEN_CENTRAL);
     }
 
+    public ProjectConfig withBuildSettings(BuildSettings build) {
+        return new ProjectConfig(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings);
+    }
+
     public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
         return new ProjectConfig(
                 project,

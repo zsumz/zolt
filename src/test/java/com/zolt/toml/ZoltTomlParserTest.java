@@ -395,6 +395,46 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesBuildMetadataSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "boot"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [build.metadata]
+                buildInfo = true
+                git = true
+                reproducible = true
+                """);
+
+        assertTrue(config.build().metadata().buildInfo());
+        assertTrue(config.build().metadata().git());
+        assertTrue(config.build().metadata().reproducible());
+    }
+
+    @Test
+    void rejectsMalformedBuildMetadataSetting() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [build.metadata]
+                        buildInfo = "yes"
+                        """));
+
+        assertEquals(
+                "Invalid value for [build.metadata].buildInfo in zolt.toml. Use true or false.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsUnknownPackageMode() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

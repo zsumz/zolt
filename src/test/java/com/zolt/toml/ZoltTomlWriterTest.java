@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
@@ -356,6 +357,27 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesBuildMetadataSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        new BuildMetadataSettings(true, true, true)));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[build.metadata]\n"));
+        assertTrue(toml.contains("buildInfo = true"));
+        assertTrue(toml.contains("git = true"));
+        assertTrue(toml.contains("reproducible = true"));
+        assertEquals(original.build().metadata(), parsed.build().metadata());
+    }
+
+    @Test
     void preservesCompilerSettingsWhenEditingDependencies() {
         ProjectConfig config = configWithCompilerSettings();
         config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
@@ -376,6 +398,24 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(writer.write(config));
 
         assertEquals(config.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void preservesBuildMetadataSettingsWhenEditingDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        new BuildMetadataSettings(true, false, true)));
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.build().metadata(), parsed.build().metadata());
     }
 
     @Test

@@ -19,6 +19,7 @@ public final class BuildService {
     private final ClasspathBuilder classpathBuilder;
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
+    private final BuildMetadataGenerator buildMetadataGenerator;
     private final JdkDetector jdkDetector;
     private final JavacRunner javacRunner;
 
@@ -29,6 +30,7 @@ public final class BuildService {
                 new ClasspathBuilder(),
                 new SourceDiscoverer(),
                 new ResourceCopier(),
+                new BuildMetadataGenerator(),
                 new JdkDetector(),
                 new JavacRunner());
     }
@@ -39,6 +41,7 @@ public final class BuildService {
             ClasspathBuilder classpathBuilder,
             SourceDiscoverer sourceDiscoverer,
             ResourceCopier resourceCopier,
+            BuildMetadataGenerator buildMetadataGenerator,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.resolveService = resolveService;
@@ -46,6 +49,7 @@ public final class BuildService {
         this.classpathBuilder = classpathBuilder;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
+        this.buildMetadataGenerator = buildMetadataGenerator;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
     }
@@ -90,10 +94,11 @@ public final class BuildService {
                 classpaths.processor(),
                 generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources()));
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
+        BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),
-                resourceResult.copiedCount(),
+                resourceResult.copiedCount() + metadataResult.generatedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output());
     }

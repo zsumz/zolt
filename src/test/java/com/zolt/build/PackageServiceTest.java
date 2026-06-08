@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -89,6 +90,34 @@ final class PackageServiceTest {
                     "config/app.properties"), jar.stream().map(JarEntry::getName).toList());
             assertEquals("[]\n", readEntry(jar, "META-INF/native-image/reflect-config.json"));
             assertEquals("name=demo\n", readEntry(jar, "config/app.properties"));
+        }
+    }
+
+    @Test
+    void packagesGeneratedBuildInfoMetadata() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(buildSettingsWithMetadata(new BuildMetadataSettings(true, false, true)));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(2, result.entryCount());
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("""
+                    build.artifact=demo
+                    build.group=com.example
+                    build.name=demo
+                    build.time=1970-01-01T00:00:00Z
+                    build.version=0.1.0
+                    """, readEntry(jar, "META-INF/build-info.properties"));
         }
     }
 
@@ -259,6 +288,7 @@ final class PackageServiceTest {
                 """);
         source("src/main/resources/application.properties", "server.port=0\n");
         ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(buildSettingsWithMetadata(new BuildMetadataSettings(true, false, true)))
                 .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
 
         PackageResult result = packageService.packageJar(projectDir, config, cacheRoot);
@@ -287,6 +317,13 @@ final class PackageServiceTest {
             assertNotNull(jar.getEntry("org/springframework/boot/loader/launch/"));
             assertNotNull(jar.getEntry("BOOT-INF/classes/com/example/Main.class"));
             assertEquals("server.port=0\n", readEntry(jar, "BOOT-INF/classes/application.properties"));
+            assertEquals("""
+                    build.artifact=demo
+                    build.group=com.example
+                    build.name=demo
+                    build.time=1970-01-01T00:00:00Z
+                    build.version=0.1.0
+                    """, readEntry(jar, "BOOT-INF/classes/META-INF/build-info.properties"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/runtime-lib-1.0.0.jar"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/spring-boot-4.0.6.jar"));
             assertEquals(1, jar.stream()
@@ -396,6 +433,16 @@ final class PackageServiceTest {
                 Map.of(),
                 Map.of(),
                 BuildSettings.defaults());
+    }
+
+    private static BuildSettings buildSettingsWithMetadata(BuildMetadataSettings metadataSettings) {
+        return new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                "target/classes",
+                "target/test-classes",
+                List.of("src/test/java"),
+                metadataSettings);
     }
 
     private void source(String path, String content) throws IOException {

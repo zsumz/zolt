@@ -7,9 +7,20 @@ public record BuildSettings(
         String test,
         String output,
         String testOutput,
-        List<String> testSources) {
+        List<String> testSources,
+        BuildMetadataSettings metadata) {
     public BuildSettings {
         testSources = testSources == null ? List.of(test) : List.copyOf(testSources);
+        metadata = metadata == null ? BuildMetadataSettings.defaults() : metadata;
+    }
+
+    public BuildSettings(
+            String source,
+            String test,
+            String output,
+            String testOutput,
+            List<String> testSources) {
+        this(source, test, output, testOutput, testSources, BuildMetadataSettings.defaults());
     }
 
     public BuildSettings(
@@ -17,7 +28,7 @@ public record BuildSettings(
             String test,
             String output,
             String testOutput) {
-        this(source, test, output, testOutput, List.of(test));
+        this(source, test, output, testOutput, List.of(test), BuildMetadataSettings.defaults());
     }
 
     public static BuildSettings defaults() {

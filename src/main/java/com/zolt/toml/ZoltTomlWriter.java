@@ -1,6 +1,7 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
@@ -88,6 +89,7 @@ public final class ZoltTomlWriter {
                 config.managedTestAnnotationProcessors());
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
+        writeBuildMetadata(toml, config.build().metadata());
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
         writeNative(toml, config.nativeSettings());
@@ -760,6 +762,16 @@ public final class ZoltTomlWriter {
         writeAssignment(toml, "testOutput", build.testOutput());
     }
 
+    private static void writeBuildMetadata(StringBuilder toml, BuildMetadataSettings metadata) {
+        if (metadata == null || metadata.equals(BuildMetadataSettings.defaults())) {
+            return;
+        }
+        toml.append("\n[build.metadata]\n");
+        writeAssignment(toml, "buildInfo", metadata.buildInfo());
+        writeAssignment(toml, "git", metadata.git());
+        writeAssignment(toml, "reproducible", metadata.reproducible());
+    }
+
     private static void writeTestSources(StringBuilder toml, BuildSettings build) {
         if (build.testSources().equals(List.of(build.test()))) {
             return;
@@ -861,6 +873,10 @@ public final class ZoltTomlWriter {
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
         toml.append(key).append(" = ").append(quote(value)).append('\n');
+    }
+
+    private static void writeAssignment(StringBuilder toml, String key, boolean value) {
+        toml.append(key).append(" = ").append(value).append('\n');
     }
 
     private static void writeStringArray(StringBuilder toml, String key, List<String> values) {

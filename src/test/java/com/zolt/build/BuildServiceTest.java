@@ -3,6 +3,7 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,30 @@ final class BuildServiceTest {
                 "target/generated/sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
+    }
+
+    @Test
+    void generatesReproducibleBuildInfoMetadata() throws IOException {
+        writeLockfile("version = 1\n");
+        ProjectConfig config = config().withBuildSettings(new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                "target/classes",
+                "target/test-classes",
+                List.of("src/test/java"),
+                new BuildMetadataSettings(true, false, true)));
+
+        BuildResult result = buildService.build(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(0, result.sourceCount());
+        assertEquals(1, result.resourceCount());
+        assertEquals("""
+                build.artifact=demo
+                build.group=com.example
+                build.name=demo
+                build.time=1970-01-01T00:00:00Z
+                build.version=0.1.0
+                """, Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")));
     }
 
     private static ProjectConfig config() {
