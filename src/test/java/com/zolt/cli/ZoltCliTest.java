@@ -1824,6 +1824,25 @@ final class ZoltCliTest {
     }
 
     @Test
+    void buildRunsQuarkusAugmentationWhenFrameworkIsEnabled() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Compiled 0 main source files"));
+        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
+        assertTrue(result.stderr().contains("No Quarkus deployment artifacts were found in zolt.lock"));
+        assertTrue(result.stderr().contains("run `zolt resolve`"));
+    }
+
+    @Test
     void buildWorkspaceCompilesMembersInDependencyOrder() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");

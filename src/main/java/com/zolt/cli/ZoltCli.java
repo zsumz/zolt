@@ -51,7 +51,10 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusAugmentationRequestFactory;
+import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.quarkus.QuarkusPlan;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.QuarkusPlanFormatter;
@@ -860,9 +863,18 @@ public final class ZoltCli implements Runnable {
                 }
                 spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
                 spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
+                Optional<QuarkusAugmentationResult> quarkusResult =
+                        new QuarkusBuildAugmentationService().augmentIfEnabled(workingDirectory, config, cacheRoot);
+                if (quarkusResult.isPresent()) {
+                    spec.commandLine().getOut().println(
+                            "Ran Quarkus augmentation; runner jar "
+                                    + quarkusResult.orElseThrow().workerResult().runnerJar());
+                }
             } catch (BuildException
                     | ArtifactCacheException
                     | JavacException
+                    | QuarkusAugmentationException
+                    | QuarkusPlanException
                     | ResourceCopyException
                     | SourceDiscoveryException
                     | LockfileReadException
