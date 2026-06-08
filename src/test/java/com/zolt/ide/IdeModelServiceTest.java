@@ -155,6 +155,9 @@ final class IdeModelServiceTest {
                 [provided.dependencies]
                 "jakarta.servlet:jakarta.servlet-api" = "6.1.0"
 
+                [dev.dependencies]
+                "org.springframework.boot:spring-boot-devtools" = {}
+
                 [test.dependencies]
                 "org.junit.jupiter:junit-jupiter" = {}
 
@@ -180,6 +183,9 @@ final class IdeModelServiceTest {
                 List.of(new IdeModel.DependencyDeclaration("jakarta.servlet:jakarta.servlet-api", "6.1.0", false, null)),
                 model.dependencies().provided());
         assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("org.springframework.boot:spring-boot-devtools", null, true, null)),
+                model.dependencies().dev());
+        assertEquals(
                 List.of(new IdeModel.DependencyDeclaration("org.junit.jupiter:junit-jupiter", null, true, null)),
                 model.dependencies().test());
         assertEquals(
@@ -192,6 +198,7 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"implementation\": ["));
         assertTrue(json.contains("\"runtime\": ["));
         assertTrue(json.contains("\"provided\": ["));
+        assertTrue(json.contains("\"dev\": ["));
         assertTrue(json.contains("\"coordinate\": \"com.example:workspace-api\""));
         assertTrue(json.contains("\"workspace\": \"modules/api\""));
         assertTrue(json.contains("\"managed\": true"));

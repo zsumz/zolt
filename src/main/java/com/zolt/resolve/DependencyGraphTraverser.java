@@ -146,6 +146,9 @@ public final class DependencyGraphTraverser {
         if (parentScope == DependencyScope.RUNTIME) {
             return Optional.of(DependencyScope.RUNTIME);
         }
+        if (parentScope == DependencyScope.DEV) {
+            return Optional.of(DependencyScope.DEV);
+        }
         if (parentScope == DependencyScope.COMPILE) {
             return Optional.of(dependencyScope);
         }

@@ -120,12 +120,18 @@ final class ZoltTomlParserTest {
                 [provided.dependencies]
                 "jakarta.servlet:jakarta.servlet-api" = "6.1.0"
                 "com.acme:managed-container-api" = {}
+
+                [dev.dependencies]
+                "org.springframework.boot:spring-boot-devtools" = {}
+                "com.acme:local-tool" = "1.0.0"
                 """);
 
         assertEquals("2.0.17", config.runtimeDependencies().get("org.slf4j:slf4j-simple"));
         assertTrue(config.managedRuntimeDependencies().contains("com.h2database:h2"));
         assertEquals("6.1.0", config.providedDependencies().get("jakarta.servlet:jakarta.servlet-api"));
         assertTrue(config.managedProvidedDependencies().contains("com.acme:managed-container-api"));
+        assertEquals("1.0.0", config.devDependencies().get("com.acme:local-tool"));
+        assertTrue(config.managedDevDependencies().contains("org.springframework.boot:spring-boot-devtools"));
     }
 
     @Test
@@ -171,6 +177,29 @@ final class ZoltTomlParserTest {
 
         assertEquals(
                 "Dependency com.h2database:h2 is declared in both [runtime.dependencies] and [provided.dependencies]. Keep it in one section.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicateDevAndRuntimeDependencyCoordinate() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "web"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [runtime.dependencies]
+                        "org.springframework.boot:spring-boot-devtools" = "4.0.6"
+
+                        [dev.dependencies]
+                        "org.springframework.boot:spring-boot-devtools" = "4.0.6"
+                        """));
+
+        assertEquals(
+                "Dependency org.springframework.boot:spring-boot-devtools is declared in both [runtime.dependencies] and [dev.dependencies]. Keep it in one section.",
                 exception.getMessage());
     }
 

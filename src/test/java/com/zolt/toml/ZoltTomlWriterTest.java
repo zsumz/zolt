@@ -196,6 +196,42 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesDevDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("web", "com.acme", "com.acme.Main");
+        config = writer.addManagedDependency(config, DependencySection.DEV, "org.springframework.boot:spring-boot-devtools");
+        config = writer.addDependency(config, DependencySection.DEV, "com.acme:local-tool", "1.0.0");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[dev.dependencies]\n\"com.acme:local-tool\" = \"1.0.0\""));
+        assertTrue(toml.contains("\"org.springframework.boot:spring-boot-devtools\" = {}"));
+        assertEquals("1.0.0", parsed.devDependencies().get("com.acme:local-tool"));
+        assertTrue(parsed.managedDevDependencies().contains("org.springframework.boot:spring-boot-devtools"));
+    }
+
+    @Test
+    void editingDevDependencyRemovesConflictingRuntimeDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [runtime.dependencies]
+                "com.acme:local-tool" = "1.0.0"
+                """);
+
+        config = writer.addDependency(config, DependencySection.DEV, "com.acme:local-tool", "2.0.0");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertTrue(parsed.runtimeDependencies().isEmpty());
+        assertEquals("2.0.0", parsed.devDependencies().get("com.acme:local-tool"));
+    }
+
+    @Test
     void editingMainDependencyRemovesConflictingApiDependency() {
         ProjectConfig config = parser.parse("""
                 [project]

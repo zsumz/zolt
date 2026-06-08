@@ -5,6 +5,7 @@ public enum DependencySection {
     API,
     RUNTIME,
     PROVIDED,
+    DEV,
     TEST,
     PROCESSOR,
     TEST_PROCESSOR

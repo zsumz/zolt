@@ -274,7 +274,7 @@ public final class PackageService {
             Path cacheRoot,
             Path runtimeClasspathPath) throws IOException {
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = classpathBuilder.build(packagedClasspathPackages(lockfile, cacheRoot));
         String content = classpaths.runtime().entries().stream()
                 .map(Path::toString)
                 .collect(Collectors.joining("\n"));
@@ -286,7 +286,7 @@ public final class PackageService {
 
     private List<RuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
         Map<String, RuntimeJar> runtimeJars = new LinkedHashMap<>();
-        lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        packagedClasspathPackages(lockfile, cacheRoot).stream()
                 .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
                 .sorted(Comparator.comparing(PackageService::classpathSortKey))
                 .map(dependency -> new RuntimeJar(
@@ -295,6 +295,12 @@ public final class PackageService {
                         dependency.resolvedPackage().jarPath()))
                 .forEach(runtimeJar -> runtimeJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
         return List.copyOf(runtimeJars.values());
+    }
+
+    private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
+        return lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+                .filter(dependency -> dependency.scope().packagedByDefault())
+                .toList();
     }
 
     private static String classpathSortKey(ResolvedClasspathPackage dependency) {

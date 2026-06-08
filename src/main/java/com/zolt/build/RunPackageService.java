@@ -65,7 +65,9 @@ public final class RunPackageService {
         }
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+                .filter(dependency -> dependency.scope().packagedByDefault())
+                .toList());
         List<Path> runtimeEntries = new ArrayList<>();
         runtimeEntries.add(packageResult.jarPath());
         runtimeEntries.addAll(classpaths.runtime().entries());

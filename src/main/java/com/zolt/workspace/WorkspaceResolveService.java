@@ -131,6 +131,8 @@ public final class WorkspaceResolveService {
                 config.managedRuntimeDependencies(),
                 config.providedDependencies(),
                 config.managedProvidedDependencies(),
+                config.devDependencies(),
+                config.managedDevDependencies(),
                 config.testDependencies(),
                 config.managedTestDependencies(),
                 config.workspaceTestDependencies(),

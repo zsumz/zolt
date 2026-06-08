@@ -51,7 +51,9 @@ public final class NativeBuildService {
                 cacheRoot);
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+                .filter(dependency -> dependency.scope().packagedByDefault())
+                .toList());
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
         Path outputDirectory = projectDirectory.resolve(nativeSettings.output());
         NativeImageResult nativeImageResult = nativeImageRunner.build(new NativeImageRequest(

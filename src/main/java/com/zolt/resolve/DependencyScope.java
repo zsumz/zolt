@@ -3,6 +3,7 @@ package com.zolt.resolve;
 public enum DependencyScope {
     COMPILE(true, true, false, false, false, true, "compile"),
     RUNTIME(false, true, false, false, false, true, "runtime"),
+    DEV(false, true, false, false, false, false, "dev"),
     TEST(false, false, true, false, false, false, "test"),
     PROVIDED(true, false, false, false, false, false, "provided"),
     PROCESSOR(false, false, false, true, false, false, "processor"),

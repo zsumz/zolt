@@ -31,6 +31,7 @@ public final class ZoltTomlParser {
             "dependencies",
             "runtime",
             "provided",
+            "dev",
             "annotationProcessors",
             "test",
             "build",
@@ -112,11 +113,21 @@ public final class ZoltTomlParser {
                     "provided.dependencies",
                     false);
         }
+        TomlTable devTable = optionalTable(result, "dev");
+        DependencyDeclarations devDependencies = DependencyDeclarations.empty();
+        if (devTable != null) {
+            validateKeys("dev", devTable, Set.of("dependencies"));
+            devDependencies = dependencyDeclarations(
+                    optionalTable(devTable, "dependencies"),
+                    "dev.dependencies",
+                    false);
+        }
         validateNoDuplicateMainDependencyCoordinates(
                 apiDependencies,
                 dependencies,
                 runtimeDependencies,
-                providedDependencies);
+                providedDependencies,
+                devDependencies);
         DependencyDeclarations annotationProcessors = dependencyDeclarations(
                 optionalTable(result, "annotationProcessors"),
                 "annotationProcessors",
@@ -157,6 +168,8 @@ public final class ZoltTomlParser {
                 runtimeDependencies.managed(),
                 providedDependencies.versioned(),
                 providedDependencies.managed(),
+                devDependencies.versioned(),
+                devDependencies.managed(),
                 testDependencies.versioned(),
                 testDependencies.managed(),
                 testDependencies.workspace(),
@@ -406,12 +419,14 @@ public final class ZoltTomlParser {
             DependencyDeclarations apiDependencies,
             DependencyDeclarations implementationDependencies,
             DependencyDeclarations runtimeDependencies,
-            DependencyDeclarations providedDependencies) {
+            DependencyDeclarations providedDependencies,
+            DependencyDeclarations devDependencies) {
         Map<String, String> sections = new LinkedHashMap<>();
         addCoordinates(sections, apiDependencies, "api.dependencies");
         addCoordinates(sections, implementationDependencies, "dependencies");
         addCoordinates(sections, runtimeDependencies, "runtime.dependencies");
         addCoordinates(sections, providedDependencies, "provided.dependencies");
+        addCoordinates(sections, devDependencies, "dev.dependencies");
     }
 
     private static void addCoordinates(

@@ -401,6 +401,27 @@ final class ZoltCliTest {
     }
 
     @Test
+    void addAddsDevDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--managed",
+                "dev",
+                "org.springframework.boot:spring-boot-devtools");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency org.springframework.boot:spring-boot-devtools with a platform-managed version to [dev.dependencies]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[dev.dependencies]\n\"org.springframework.boot:spring-boot-devtools\" = {}"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void addAddsProcessorDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -476,6 +497,7 @@ final class ZoltCliTest {
         assertTrue(result.stderr().contains("zolt add api group:artifact"));
         assertTrue(result.stderr().contains("zolt add runtime group:artifact"));
         assertTrue(result.stderr().contains("zolt add provided group:artifact"));
+        assertTrue(result.stderr().contains("zolt add dev group:artifact"));
         assertTrue(result.stderr().contains("zolt add processor group:artifact"));
         assertTrue(result.stderr().contains("zolt add test-processor group:artifact"));
     }
@@ -1233,6 +1255,7 @@ final class ZoltCliTest {
                     "implementation": [],
                     "runtime": [],
                     "provided": [],
+                    "dev": [],
                     "test": [],
                     "annotationProcessors": [],
                     "testAnnotationProcessors": []

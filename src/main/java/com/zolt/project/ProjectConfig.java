@@ -17,6 +17,8 @@ public record ProjectConfig(
         Set<String> managedRuntimeDependencies,
         Map<String, String> providedDependencies,
         Set<String> managedProvidedDependencies,
+        Map<String, String> devDependencies,
+        Set<String> managedDevDependencies,
         Map<String, String> testDependencies,
         Set<String> managedTestDependencies,
         Map<String, String> workspaceTestDependencies,
@@ -43,6 +45,8 @@ public record ProjectConfig(
         managedRuntimeDependencies = Set.copyOf(managedRuntimeDependencies);
         providedDependencies = Map.copyOf(providedDependencies);
         managedProvidedDependencies = Set.copyOf(managedProvidedDependencies);
+        devDependencies = Map.copyOf(devDependencies);
+        managedDevDependencies = Set.copyOf(managedDevDependencies);
         testDependencies = Map.copyOf(testDependencies);
         managedTestDependencies = Set.copyOf(managedTestDependencies);
         workspaceTestDependencies = Map.copyOf(workspaceTestDependencies);
@@ -53,6 +57,61 @@ public record ProjectConfig(
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
         packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
+            Map<String, String> devDependencies,
+            Set<String> managedDevDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            BuildSettings build,
+            NativeSettings nativeSettings,
+            CompilerSettings compilerSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                PackageSettings.defaults());
     }
 
     public ProjectConfig(
@@ -93,6 +152,8 @@ public record ProjectConfig(
                 managedRuntimeDependencies,
                 providedDependencies,
                 managedProvidedDependencies,
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -141,6 +202,8 @@ public record ProjectConfig(
                 Set.of(),
                 Map.of(),
                 Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -179,6 +242,8 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 Map.of(),
+                Map.of(),
+                Set.of(),
                 Map.of(),
                 Set.of(),
                 Map.of(),
@@ -256,6 +321,8 @@ public record ProjectConfig(
                 Set.of(),
                 Map.of(),
                 Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -325,6 +392,8 @@ public record ProjectConfig(
                 Set.of(),
                 Map.of(),
                 Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 Set.of(),
                 Map.of(),
@@ -365,6 +434,8 @@ public record ProjectConfig(
                 managedRuntimeDependencies,
                 providedDependencies,
                 managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,

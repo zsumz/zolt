@@ -1,6 +1,7 @@
 package com.zolt.classpath;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
@@ -28,6 +29,17 @@ final class ClasspathBuilderTest {
         Path jar = jar("runtime-lib", "1.0.0");
         assertEquals(List.of(), classpaths.compile().entries());
         assertEquals(List.of(jar), classpaths.runtime().entries());
+    }
+
+    @Test
+    void devDependenciesAreIncludedOnRuntimeClasspathButNotPackaged() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "dev-lib", "1.0.0", DependencyScope.DEV)));
+
+        Path jar = jar("dev-lib", "1.0.0");
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(jar), classpaths.runtime().entries());
+        assertEquals(List.of(jar), classpaths.test().entries());
+        assertFalse(DependencyScope.DEV.packagedByDefault());
     }
 
     @Test

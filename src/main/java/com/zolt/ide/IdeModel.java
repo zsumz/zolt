@@ -64,6 +64,7 @@ public record IdeModel(
             List<DependencyDeclaration> implementation,
             List<DependencyDeclaration> runtime,
             List<DependencyDeclaration> provided,
+            List<DependencyDeclaration> dev,
             List<DependencyDeclaration> test,
             List<DependencyDeclaration> annotationProcessors,
             List<DependencyDeclaration> testAnnotationProcessors) {
@@ -72,6 +73,7 @@ public record IdeModel(
             implementation = List.copyOf(implementation);
             runtime = List.copyOf(runtime);
             provided = List.copyOf(provided);
+            dev = List.copyOf(dev);
             test = List.copyOf(test);
             annotationProcessors = List.copyOf(annotationProcessors);
             testAnnotationProcessors = List.copyOf(testAnnotationProcessors);

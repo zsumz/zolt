@@ -533,6 +533,54 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void directDevDependenciesAndTransitivesUseDevScope() {
+        addArtifact("com.example", "devtools", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>devtools</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>dev-helper</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "dev-helper", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>dev-helper</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, devConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "devtools"))
+                        && lockPackage.scope() == DependencyScope.DEV
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "dev-helper"))
+                        && lockPackage.scope() == DependencyScope.DEV
+                        && !lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(
+                cacheRoot.resolve("com/example/dev-helper/1.0.0/dev-helper-1.0.0.jar"),
+                cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar")),
+                classpaths.runtime().entries());
+    }
+
+    @Test
     void springBootPackageModeFailsClearlyWithoutManagedLoaderVersion() {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
@@ -982,6 +1030,38 @@ final class ResolveServiceTest {
                 Map.of("com.example:runtime-tool", "1.0.0"),
                 Set.of(),
                 Map.of("jakarta.servlet:jakarta.servlet-api", "6.1.0"),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null,
+                null,
+                null);
+    }
+
+    private ProjectConfig devConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of("com.example:devtools", "1.0.0"),
                 Set.of(),
                 Map.of(),
                 Set.of(),

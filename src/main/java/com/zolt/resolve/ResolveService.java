@@ -201,6 +201,23 @@ public final class ResolveService {
                     DependencyScope.PROVIDED,
                     RequestOrigin.DIRECT));
         }
+        for (Map.Entry<String, String> dependency : config.devDependencies().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.DEV,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedDevDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("dev.dependencies", packageId, projectManagedVersions),
+                    DependencyScope.DEV,
+                    RequestOrigin.DIRECT));
+        }
         for (Map.Entry<String, String> dependency : config.testDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(new DependencyRequest(

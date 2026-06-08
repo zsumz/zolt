@@ -185,10 +185,12 @@ final class PackageServiceTest {
         Path loaderJar = cacheRoot.resolve(
                 "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar");
         Path dependencyJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path devJar = cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar");
         Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         createJarWithEntry(springBootJar, "org/springframework/boot/SpringApplication.class");
         createJarWithEntry(loaderJar, "org/springframework/boot/loader/launch/JarLauncher.class");
         createJarWithEntry(dependencyJar, "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(devJar, "com/example/dev/DevTools.class");
         createJarWithEntry(processorJar, "com/example/processor/Processor.class");
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
@@ -227,6 +229,15 @@ final class PackageServiceTest {
                 scope = "compile"
                 direct = false
                 jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
                 dependencies = []
 
                 [[package]]
@@ -285,6 +296,8 @@ final class PackageServiceTest {
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
                     "BOOT-INF/lib/spring-boot-loader-4.0.6.jar")));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "BOOT-INF/lib/devtools-1.0.0.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
                     "BOOT-INF/lib/processor-1.0.0.jar")));
         }
     }
@@ -316,8 +329,10 @@ final class PackageServiceTest {
     void doesNotBundleDependencyOrProcessorJarContents() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path dependencyJar = cacheRoot.resolve("com/example/lib/1.0.0/lib-1.0.0.jar");
+        Path devJar = cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar");
         Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         createJarWithEntry(dependencyJar, "com/example/lib/Lib.class");
+        createJarWithEntry(devJar, "com/example/dev/DevTools.class");
         createJarWithEntry(processorJar, "com/example/processor/Processor.class");
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
@@ -329,6 +344,15 @@ final class PackageServiceTest {
                 scope = "compile"
                 direct = true
                 jar = "com/example/lib/1.0.0/lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
                 dependencies = []
 
                 [[package]]
@@ -355,6 +379,7 @@ final class PackageServiceTest {
         assertEquals(Optional.of(runtimeClasspathPath), result.runtimeClasspathPath());
         String runtimeClasspath = Files.readString(runtimeClasspathPath);
         assertTrue(runtimeClasspath.contains(dependencyJar.toString()));
+        assertFalse(runtimeClasspath.contains(devJar.toString()));
         assertFalse(runtimeClasspath.contains(processorJar.toString()));
 
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
