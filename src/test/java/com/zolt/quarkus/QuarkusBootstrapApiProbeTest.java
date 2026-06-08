@@ -21,6 +21,7 @@ final class QuarkusBootstrapApiProbeTest {
         assertEquals(ValidBootstrap.class.getName(), api.bootstrapClass());
         assertEquals(ValidAugmentAction.class.getName(), api.augmentActionClass());
         assertEquals(ValidBootstrap.Builder.class.getName(), api.builderClass());
+        assertEquals(ValidBootstrap.Mode.class.getName(), api.modeClass());
     }
 
     @Test
@@ -67,6 +68,10 @@ final class QuarkusBootstrapApiProbeTest {
     }
 
     public static final class ValidBootstrap {
+        public enum Mode {
+            PROD
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -75,6 +80,9 @@ final class QuarkusBootstrapApiProbeTest {
         }
 
         public static final class Builder {
+            public Builder setMode(Mode ignored) {
+                return this;
+            }
         }
     }
 

@@ -12,9 +12,15 @@ public final class QuarkusBootstrapApiProbe {
             Class<?> bootstrapClass = Class.forName(descriptor.bootstrapClass());
             Class<?> augmentActionClass = Class.forName(descriptor.augmentActionClass());
             Object builder = bootstrapClass.getMethod("builder").invoke(null);
+            Class<?> modeClass = Class.forName(descriptor.bootstrapClass() + "$Mode");
+            builder.getClass().getMethod("setMode", modeClass);
             bootstrapClass.getMethod("bootstrap");
             augmentActionClass.getMethod("createProductionApplication");
-            return new QuarkusBootstrapApi(bootstrapClass.getName(), augmentActionClass.getName(), builder.getClass().getName());
+            return new QuarkusBootstrapApi(
+                    bootstrapClass.getName(),
+                    augmentActionClass.getName(),
+                    builder.getClass().getName(),
+                    modeClass.getName());
         } catch (ClassNotFoundException exception) {
             throw new QuarkusAugmentationException(
                     "Quarkus bootstrap worker classpath is missing "

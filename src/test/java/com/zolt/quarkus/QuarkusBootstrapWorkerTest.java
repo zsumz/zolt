@@ -23,6 +23,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
+                new QuarkusBootstrapPreparer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -39,6 +40,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
+                new QuarkusBootstrapPreparer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
@@ -47,6 +49,7 @@ final class QuarkusBootstrapWorkerTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("augmentation invocation is not implemented yet"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("was prepared"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
@@ -58,6 +61,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
+                new QuarkusBootstrapPreparer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -130,6 +134,10 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     public static final class WorkerBootstrap {
+        public enum Mode {
+            PROD
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -138,6 +146,29 @@ final class QuarkusBootstrapWorkerTest {
         }
 
         public static final class Builder {
+            public Builder setApplicationRoot(Path ignored) {
+                return this;
+            }
+
+            public Builder setProjectRoot(Path ignored) {
+                return this;
+            }
+
+            public Builder setTargetDirectory(Path ignored) {
+                return this;
+            }
+
+            public Builder setMode(Mode ignored) {
+                return this;
+            }
+
+            public Builder setExistingModel(FakeApplicationModel ignored) {
+                return this;
+            }
+
+            public WorkerBootstrap build() {
+                return new WorkerBootstrap();
+            }
         }
     }
 
