@@ -19,6 +19,7 @@ final class QuarkusBootstrapWorkerTest {
     @Test
     void requiresDescriptorArgument() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
@@ -29,6 +30,8 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
                 new QuarkusProductionOutputVerifier(),
+                new QuarkusBootstrapWorkerResultCodec(),
+                new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -38,9 +41,10 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     @Test
-    void createsProductionApplicationThenFailsHonestlyUntilOutputCaptureExists() throws IOException {
+    void createsProductionApplicationAndEmitsVerifiedOutputResult() throws IOException {
         Path descriptorFile = writeDescriptor();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
@@ -51,28 +55,27 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
                 new QuarkusProductionOutputVerifier(),
+                new QuarkusBootstrapWorkerResultCodec(),
+                new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
 
-        assertEquals(3, exitCode);
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("runnable package output capture is not implemented yet"));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerCuratedApplication.class.getName()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerAugmentResult.class.getName()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 artifact results"));
-        assertTrue(err.toString(StandardCharsets.UTF_8)
-                .contains("jar " + projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
-        assertTrue(err.toString(StandardCharsets.UTF_8)
-                .contains("using libraries at " + projectDir.resolve("target/quarkus-app/lib")));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
+        assertEquals(0, exitCode);
+        QuarkusBootstrapWorkerResult result = new QuarkusBootstrapWorkerResultCodec()
+                .parse(out.toString(StandardCharsets.UTF_8))
+                .orElseThrow();
+        assertEquals("sha256:" + "1".repeat(64), result.inputFingerprint());
+        assertEquals(projectDir.resolve("target/quarkus-app"), result.packageDirectory());
+        assertEquals(projectDir.resolve("target/quarkus-app/quarkus-run.jar"), result.runnerJar());
+        assertEquals(projectDir.resolve("target/quarkus-app/lib"), result.libraryDirectory());
+        assertEquals(1, result.artifactResultCount());
     }
 
     @Test
     void reportsDescriptorReadErrors() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
@@ -83,6 +86,8 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
                 new QuarkusProductionOutputVerifier(),
+                new QuarkusBootstrapWorkerResultCodec(),
+                new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});

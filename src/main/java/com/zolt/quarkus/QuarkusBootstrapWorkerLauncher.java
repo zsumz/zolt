@@ -12,6 +12,7 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
     private final List<Path> workerClasspath;
     private final Path javaExecutable;
     private final ProcessRunner processRunner;
+    private final QuarkusBootstrapWorkerResultCodec resultCodec;
 
     public QuarkusBootstrapWorkerLauncher(
             Path javaExecutable,
@@ -24,6 +25,15 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
             Path javaExecutable,
             List<Path> workerClasspath,
             ProcessRunner processRunner) {
+        this(pathSeparator, javaExecutable, workerClasspath, processRunner, new QuarkusBootstrapWorkerResultCodec());
+    }
+
+    QuarkusBootstrapWorkerLauncher(
+            String pathSeparator,
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            ProcessRunner processRunner,
+            QuarkusBootstrapWorkerResultCodec resultCodec) {
         if (pathSeparator == null || pathSeparator.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker path separator is required.");
         }
@@ -36,10 +46,14 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
         if (processRunner == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker process runner is required.");
         }
+        if (resultCodec == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker result codec is required.");
+        }
         this.pathSeparator = pathSeparator;
         this.javaExecutable = javaExecutable;
         this.workerClasspath = List.copyOf(workerClasspath);
         this.processRunner = processRunner;
+        this.resultCodec = resultCodec;
     }
 
     @Override
@@ -54,6 +68,34 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
                             + result.exitCode()
                             + ". Fix the Quarkus augmentation inputs and try again.\n"
                             + result.output().stripTrailing());
+        }
+        QuarkusBootstrapWorkerResult workerResult = resultCodec.parse(result.output())
+                .orElseThrow(() -> new QuarkusAugmentationException(
+                        "Quarkus bootstrap worker completed without a Zolt success marker. "
+                                + "Update Zolt or rerun with a clean Quarkus output directory."));
+        validateWorkerResult(descriptor, workerResult);
+    }
+
+    private static void validateWorkerResult(
+            QuarkusBootstrapDescriptor descriptor,
+            QuarkusBootstrapWorkerResult workerResult) {
+        if (!descriptor.inputFingerprint().equals(workerResult.inputFingerprint())) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus bootstrap worker result fingerprint "
+                            + workerResult.inputFingerprint()
+                            + " did not match expected fingerprint "
+                            + descriptor.inputFingerprint()
+                            + ". Rerun zolt build after refreshing Quarkus augmentation inputs.");
+        }
+        Path expectedPackageDirectory = descriptor.packageDirectory().toAbsolutePath().normalize();
+        Path actualPackageDirectory = workerResult.packageDirectory().toAbsolutePath().normalize();
+        if (!expectedPackageDirectory.equals(actualPackageDirectory)) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus bootstrap worker result package directory "
+                            + actualPackageDirectory
+                            + " did not match expected package directory "
+                            + expectedPackageDirectory
+                            + ". Check the Quarkus package output layout.");
         }
     }
 

@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.resolve.PackageId;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,18 @@ final class QuarkusBootstrapWorkerLauncherTest {
     }
 
     @Test
+    void succeedsWhenWorkerEmitsMatchingResultMarker() {
+        QuarkusBootstrapDescriptor descriptor = descriptor();
+        QuarkusBootstrapWorkerLauncher launcher = new QuarkusBootstrapWorkerLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(0, workerOutput(descriptor)));
+
+        launcher.augment(null, descriptor);
+    }
+
+    @Test
     void failsWhenWorkerProcessFails() {
         QuarkusBootstrapWorkerLauncher launcher = new QuarkusBootstrapWorkerLauncher(
                 ":",
@@ -44,6 +59,67 @@ final class QuarkusBootstrapWorkerLauncherTest {
     }
 
     @Test
+    void rejectsSuccessfulWorkerWithoutResultMarker() {
+        QuarkusBootstrapWorkerLauncher launcher = new QuarkusBootstrapWorkerLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(0, "plain output\n"));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> launcher.augment(null, descriptor()));
+
+        assertTrue(exception.getMessage().contains("without a Zolt success marker"));
+    }
+
+    @Test
+    void rejectsWorkerResultWithUnexpectedFingerprint() {
+        QuarkusBootstrapDescriptor descriptor = descriptor();
+        QuarkusBootstrapWorkerLauncher launcher = new QuarkusBootstrapWorkerLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(
+                        0,
+                        workerOutput(new QuarkusBootstrapWorkerResult(
+                                "sha256:" + "2".repeat(64),
+                                descriptor.packageDirectory(),
+                                descriptor.packageDirectory().resolve("quarkus-run.jar"),
+                                descriptor.packageDirectory().resolve("lib"),
+                                1))));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> launcher.augment(null, descriptor));
+
+        assertTrue(exception.getMessage().contains("did not match expected fingerprint"));
+    }
+
+    @Test
+    void rejectsWorkerResultWithUnexpectedPackageDirectory() {
+        QuarkusBootstrapDescriptor descriptor = descriptor();
+        QuarkusBootstrapWorkerLauncher launcher = new QuarkusBootstrapWorkerLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(
+                        0,
+                        workerOutput(new QuarkusBootstrapWorkerResult(
+                                descriptor.inputFingerprint(),
+                                Path.of("/repo/target/other-quarkus-app"),
+                                Path.of("/repo/target/other-quarkus-app/quarkus-run.jar"),
+                                Path.of("/repo/target/other-quarkus-app/lib"),
+                                1))));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> launcher.augment(null, descriptor));
+
+        assertTrue(exception.getMessage().contains("did not match expected package directory"));
+    }
+
+    @Test
     void requiresWorkerClasspath() {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -54,6 +130,23 @@ final class QuarkusBootstrapWorkerLauncherTest {
                         command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(0, "")));
 
         assertTrue(exception.getMessage().contains("worker classpath is required"));
+    }
+
+    private static String workerOutput(QuarkusBootstrapDescriptor descriptor) {
+        return workerOutput(new QuarkusBootstrapWorkerResult(
+                descriptor.inputFingerprint(),
+                descriptor.packageDirectory(),
+                descriptor.packageDirectory().resolve("quarkus-run.jar"),
+                descriptor.packageDirectory().resolve("lib"),
+                1));
+    }
+
+    private static String workerOutput(QuarkusBootstrapWorkerResult result) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        new QuarkusBootstrapWorkerResultCodec().write(
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                result);
+        return output.toString(StandardCharsets.UTF_8);
     }
 
     private static QuarkusBootstrapDescriptor descriptor() {

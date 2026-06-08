@@ -15,6 +15,8 @@ public final class QuarkusBootstrapWorker {
     private final QuarkusProductionApplicationSummarizer productionApplicationSummarizer;
     private final QuarkusProductionOutputValidator productionOutputValidator;
     private final QuarkusProductionOutputVerifier productionOutputVerifier;
+    private final QuarkusBootstrapWorkerResultCodec resultCodec;
+    private final PrintStream out;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
@@ -28,6 +30,8 @@ public final class QuarkusBootstrapWorker {
                 new QuarkusProductionApplicationSummarizer(),
                 new QuarkusProductionOutputValidator(),
                 new QuarkusProductionOutputVerifier(),
+                new QuarkusBootstrapWorkerResultCodec(),
+                System.out,
                 System.err);
     }
 
@@ -41,6 +45,8 @@ public final class QuarkusBootstrapWorker {
             QuarkusProductionApplicationSummarizer productionApplicationSummarizer,
             QuarkusProductionOutputValidator productionOutputValidator,
             QuarkusProductionOutputVerifier productionOutputVerifier,
+            QuarkusBootstrapWorkerResultCodec resultCodec,
+            PrintStream out,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
@@ -69,6 +75,12 @@ public final class QuarkusBootstrapWorker {
         if (productionOutputVerifier == null) {
             throw new QuarkusAugmentationException("Quarkus production output verifier is required.");
         }
+        if (resultCodec == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker result codec is required.");
+        }
+        if (out == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker output stream is required.");
+        }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
@@ -81,6 +93,8 @@ public final class QuarkusBootstrapWorker {
         this.productionApplicationSummarizer = productionApplicationSummarizer;
         this.productionOutputValidator = productionOutputValidator;
         this.productionOutputVerifier = productionOutputVerifier;
+        this.resultCodec = resultCodec;
+        this.out = out;
         this.err = err;
     }
 
@@ -108,38 +122,22 @@ public final class QuarkusBootstrapWorker {
                     productionApplicationSummarizer.summarize(productionApplication);
             productionOutputValidator.validate(descriptor, productionSummary);
             productionOutputVerifier.verify(descriptor, productionSummary);
-            err.println("error: Quarkus runnable package output capture is not implemented yet. "
-                    + "Descriptor was accepted at "
-                    + descriptor.descriptorFile()
-                    + " and "
-                    + bootstrap.bootstrapClass()
-                    + " produced "
-                    + curatedApplication.curatedApplicationClass()
-                    + " with "
-                    + applicationModel.applicationModelClass()
-                    + " and "
-                    + applicationModel.dependencyCount()
-                    + " model dependencies, producing "
-                    + productionApplication.augmentResultClass()
-                    + " with "
-                    + productionSummary.artifactResultCount()
-                    + " artifact results and "
-                    + jarOutput(productionSummary)
-                    + ".");
-            return 3;
+            resultCodec.write(out, result(descriptor, productionSummary));
+            return 0;
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());
             return 1;
         }
     }
 
-    private static String jarOutput(QuarkusProductionApplicationSummary productionSummary) {
-        if (!productionSummary.hasJar()) {
-            return "no jar result";
-        }
-        if (productionSummary.libraryDirectory() == null) {
-            return "jar " + productionSummary.jarPath();
-        }
-        return "jar " + productionSummary.jarPath() + " using libraries at " + productionSummary.libraryDirectory();
+    private static QuarkusBootstrapWorkerResult result(
+            QuarkusBootstrapDescriptor descriptor,
+            QuarkusProductionApplicationSummary productionSummary) {
+        return new QuarkusBootstrapWorkerResult(
+                descriptor.inputFingerprint(),
+                descriptor.packageDirectory(),
+                productionSummary.jarPath(),
+                productionSummary.libraryDirectory(),
+                productionSummary.artifactResultCount());
     }
 }
