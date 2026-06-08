@@ -67,6 +67,10 @@ public final class QuarkusPlanService {
                 applicationClasses,
                 config.frameworkSettings().quarkus().packageMode(),
                 outputLayout(root),
+                new QuarkusApplicationArtifact(
+                        new PackageId(config.project().group(), config.project().name()),
+                        config.project().version(),
+                        applicationClasses),
                 fingerprint,
                 augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),

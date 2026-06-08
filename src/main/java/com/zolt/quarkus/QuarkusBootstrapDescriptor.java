@@ -16,6 +16,7 @@ public record QuarkusBootstrapDescriptor(
         Path packageDirectory,
         String packageMode,
         String inputFingerprint,
+        QuarkusApplicationArtifact applicationArtifact,
         List<Path> runtimeClasspath,
         List<Path> deploymentClasspath,
         List<QuarkusBootstrapDependency> bootstrapDependencies) {
@@ -55,6 +56,9 @@ public record QuarkusBootstrapDescriptor(
         }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus bootstrap input fingerprint is required.");
+        }
+        if (applicationArtifact == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap application artifact is required.");
         }
         if (runtimeClasspath == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap runtime classpath is required.");

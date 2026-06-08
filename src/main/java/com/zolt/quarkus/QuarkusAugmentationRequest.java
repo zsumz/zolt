@@ -9,6 +9,7 @@ public record QuarkusAugmentationRequest(
         Path applicationClasses,
         QuarkusPackageMode packageMode,
         QuarkusOutputLayout outputLayout,
+        QuarkusApplicationArtifact applicationArtifact,
         String inputFingerprint,
         Path metadataPath,
         List<Path> runtimeClasspath,
@@ -27,6 +28,9 @@ public record QuarkusAugmentationRequest(
         }
         if (outputLayout == null) {
             throw new QuarkusPlanException("Quarkus augmentation request requires an output layout.");
+        }
+        if (applicationArtifact == null) {
+            throw new QuarkusPlanException("Quarkus augmentation request requires an application artifact.");
         }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusPlanException("Quarkus augmentation request requires an input fingerprint.");

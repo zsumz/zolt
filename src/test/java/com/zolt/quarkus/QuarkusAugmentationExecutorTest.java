@@ -93,6 +93,10 @@ final class QuarkusAugmentationExecutorTest {
                 new QuarkusOutputLayout(
                         projectDir.resolve("target/quarkus"),
                         projectDir.resolve("target/quarkus-app")),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        projectDir.resolve("target/classes")),
                 "sha256:" + "1".repeat(64),
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),

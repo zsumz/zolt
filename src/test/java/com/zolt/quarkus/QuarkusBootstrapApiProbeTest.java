@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.resolve.PackageId;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,10 @@ final class QuarkusBootstrapApiProbeTest {
                 Path.of("/repo/target/quarkus-app"),
                 "fast-jar",
                 "sha256:" + "1".repeat(64),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        Path.of("/repo/target/classes")),
                 List.of(Path.of("/cache/quarkus-rest.jar")),
                 List.of(Path.of("/cache/quarkus-core-deployment.jar")),
                 List.of());

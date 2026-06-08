@@ -22,6 +22,7 @@ final class QuarkusBootstrapWorkerTest {
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
+                modelFactory(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -31,20 +32,22 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     @Test
-    void probesBootstrapApiThenFailsHonestlyUntilApplicationModelInvocationExists() throws IOException {
+    void buildsApplicationModelThenFailsHonestlyUntilAugmentationInvocationExists() throws IOException {
         Path descriptorFile = writeDescriptor();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
+                modelFactory(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
 
         assertEquals(3, exitCode);
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ApplicationModel invocation is not implemented yet"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("augmentation invocation is not implemented yet"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
 
@@ -54,6 +57,7 @@ final class QuarkusBootstrapWorkerTest {
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
                 new QuarkusBootstrapDescriptorReader(),
                 new QuarkusBootstrapApiProbe(),
+                modelFactory(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -74,6 +78,12 @@ final class QuarkusBootstrapWorkerTest {
                 applicationModelFile,
                 """
                 version=1
+                application.groupId=com.example
+                application.artifactId=demo
+                application.version=1.0.0
+                application.classifier=
+                application.type=jar
+                application.path=%s
                 dependencyCount=1
                 dependency.0.groupId=io.quarkus
                 dependency.0.artifactId=quarkus-rest
@@ -83,7 +93,9 @@ final class QuarkusBootstrapWorkerTest {
                 dependency.0.scope=compile
                 dependency.0.path=%s
                 dependency.0.direct=true
-                """.formatted(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
+                """.formatted(
+                        projectDir.resolve("target/classes"),
+                        projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),
                 StandardCharsets.UTF_8);
         Path descriptorFile = augmentationDirectory.resolve("zolt-bootstrap.properties");
         Files.writeString(
@@ -131,5 +143,81 @@ final class QuarkusBootstrapWorkerTest {
 
     public interface WorkerAugmentAction {
         Object createProductionApplication();
+    }
+
+    private static QuarkusApplicationModelFactory modelFactory() {
+        return new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
+                FakeApplicationModelBuilder.class.getName(),
+                FakeResolvedDependencyBuilder.class.getName()));
+    }
+
+    public static final class FakeApplicationModelBuilder {
+        private FakeResolvedDependencyBuilder appArtifact;
+        private final java.util.List<FakeResolvedDependencyBuilder> dependencies = new java.util.ArrayList<>();
+
+        public FakeApplicationModelBuilder setAppArtifact(FakeResolvedDependencyBuilder appArtifact) {
+            this.appArtifact = appArtifact;
+            return this;
+        }
+
+        public FakeApplicationModelBuilder addDependency(FakeResolvedDependencyBuilder dependency) {
+            dependencies.add(dependency);
+            return this;
+        }
+
+        public FakeApplicationModel build() {
+            return new FakeApplicationModel(appArtifact, java.util.List.copyOf(dependencies));
+        }
+    }
+
+    public static final class FakeResolvedDependencyBuilder {
+        public static FakeResolvedDependencyBuilder newInstance() {
+            return new FakeResolvedDependencyBuilder();
+        }
+
+        public FakeResolvedDependencyBuilder setGroupId(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setArtifactId(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setVersion(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setClassifier(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setType(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setScope(String ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setResolvedPath(Path ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setDirect(boolean ignored) {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setRuntimeCp() {
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setDeploymentCp() {
+            return this;
+        }
+    }
+
+    public record FakeApplicationModel(
+            FakeResolvedDependencyBuilder appArtifact,
+            java.util.List<FakeResolvedDependencyBuilder> dependencies) {
     }
 }

@@ -8,15 +8,21 @@ public final class QuarkusBootstrapWorker {
 
     private final QuarkusBootstrapDescriptorReader descriptorReader;
     private final QuarkusBootstrapApiProbe apiProbe;
+    private final QuarkusApplicationModelFactory applicationModelFactory;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
-        this(new QuarkusBootstrapDescriptorReader(), new QuarkusBootstrapApiProbe(), System.err);
+        this(
+                new QuarkusBootstrapDescriptorReader(),
+                new QuarkusBootstrapApiProbe(),
+                new QuarkusApplicationModelFactory(),
+                System.err);
     }
 
     QuarkusBootstrapWorker(
             QuarkusBootstrapDescriptorReader descriptorReader,
             QuarkusBootstrapApiProbe apiProbe,
+            QuarkusApplicationModelFactory applicationModelFactory,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
@@ -24,11 +30,15 @@ public final class QuarkusBootstrapWorker {
         if (apiProbe == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap API probe is required.");
         }
+        if (applicationModelFactory == null) {
+            throw new QuarkusAugmentationException("Quarkus application model factory is required.");
+        }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
         this.descriptorReader = descriptorReader;
         this.apiProbe = apiProbe;
+        this.applicationModelFactory = applicationModelFactory;
         this.err = err;
     }
 
@@ -48,13 +58,16 @@ public final class QuarkusBootstrapWorker {
         try {
             QuarkusBootstrapDescriptor descriptor = descriptorReader.read(Path.of(args[0]));
             QuarkusBootstrapApi api = apiProbe.probe(descriptor);
-            err.println("error: Quarkus bootstrap ApplicationModel invocation is not implemented yet. "
+            QuarkusApplicationModelHandle applicationModel = applicationModelFactory.create(descriptor);
+            err.println("error: Quarkus augmentation invocation is not implemented yet. "
                     + "Descriptor was accepted at "
                     + descriptor.descriptorFile()
                     + " and "
                     + api.bootstrapClass()
-                    + " was found with "
-                    + descriptor.bootstrapDependencies().size()
+                    + " was found. "
+                    + applicationModel.applicationModelClass()
+                    + " was built with "
+                    + applicationModel.dependencyCount()
                     + " model dependencies."
                     + ".");
             return 3;

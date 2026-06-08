@@ -17,6 +17,7 @@ public final class QuarkusAugmentationRequestFactory {
                 plan.applicationClasses(),
                 plan.packageMode(),
                 plan.outputLayout(),
+                plan.applicationArtifact(),
                 plan.inputFingerprint(),
                 plan.augmentationState().metadataPath(),
                 plan.runtimeClasspath(),

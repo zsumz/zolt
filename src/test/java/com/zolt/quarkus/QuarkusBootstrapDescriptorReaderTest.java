@@ -91,8 +91,14 @@ final class QuarkusBootstrapDescriptorReaderTest {
         Files.writeString(projectDir.resolve("target/quarkus/runtime-classpath.txt"), "");
         Files.writeString(projectDir.resolve("target/quarkus/application-model.properties"), """
                 version=1
+                application.groupId=com.example
+                application.artifactId=demo
+                application.version=1.0.0
+                application.classifier=
+                application.type=jar
+                application.path=%s
                 dependencyCount=0
-                """);
+                """.formatted(projectDir.resolve("target/classes")));
 
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -113,6 +119,12 @@ final class QuarkusBootstrapDescriptorReaderTest {
         Files.writeString(deploymentClasspath, "");
         Files.writeString(applicationModel, """
                 version=1
+                application.groupId=com.example
+                application.artifactId=demo
+                application.version=1.0.0
+                application.classifier=
+                application.type=jar
+                application.path=C:\\repo\\app\\target\\classes
                 dependencyCount=0
                 """);
         Files.writeString(descriptor, """
@@ -153,6 +165,10 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 new QuarkusOutputLayout(
                         projectDir.resolve("target/quarkus"),
                         projectDir.resolve("target/quarkus-app")),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        projectDir.resolve("target/classes")),
                 "sha256:" + "1".repeat(64),
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),

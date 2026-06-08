@@ -54,9 +54,10 @@ public final class QuarkusBootstrapDescriptorReader {
                 path(properties, "packageDirectory", descriptorFile),
                 required(properties, "package", descriptorFile),
                 required(properties, "inputFingerprint", descriptorFile),
+                applicationArtifact(applicationModelFile, descriptorFile),
                 classpath(runtimeClasspathFile, "runtime", descriptorFile),
                 classpath(deploymentClasspathFile, "deployment", descriptorFile),
-                applicationModel(applicationModelFile, descriptorFile));
+                applicationModelDependencies(applicationModelFile, descriptorFile));
     }
 
     private static Map<String, String> properties(Path descriptorFile) throws IOException {
@@ -114,7 +115,29 @@ public final class QuarkusBootstrapDescriptorReader {
         }
     }
 
-    private static List<QuarkusBootstrapDependency> applicationModel(Path applicationModelFile, Path descriptorFile) {
+    private static QuarkusApplicationArtifact applicationArtifact(Path applicationModelFile, Path descriptorFile) {
+        Map<String, String> properties = applicationModelProperties(applicationModelFile, descriptorFile);
+        return new QuarkusApplicationArtifact(
+                new PackageId(
+                        required(properties, "application.groupId", applicationModelFile),
+                        required(properties, "application.artifactId", applicationModelFile)),
+                required(properties, "application.version", applicationModelFile),
+                path(properties, "application.path", applicationModelFile));
+    }
+
+    private static List<QuarkusBootstrapDependency> applicationModelDependencies(
+            Path applicationModelFile,
+            Path descriptorFile) {
+        Map<String, String> properties = applicationModelProperties(applicationModelFile, descriptorFile);
+        int dependencyCount = intValue(properties, "dependencyCount", applicationModelFile);
+        List<QuarkusBootstrapDependency> dependencies = new ArrayList<>();
+        for (int index = 0; index < dependencyCount; index++) {
+            dependencies.add(dependency(properties, index, applicationModelFile));
+        }
+        return List.copyOf(dependencies);
+    }
+
+    private static Map<String, String> applicationModelProperties(Path applicationModelFile, Path descriptorFile) {
         Map<String, String> properties;
         try {
             properties = properties(applicationModelFile);
@@ -135,12 +158,7 @@ public final class QuarkusBootstrapDescriptorReader {
                             + descriptorFile
                             + ". Run Quarkus augmentation planning again.");
         }
-        int dependencyCount = intValue(properties, "dependencyCount", applicationModelFile);
-        List<QuarkusBootstrapDependency> dependencies = new ArrayList<>();
-        for (int index = 0; index < dependencyCount; index++) {
-            dependencies.add(dependency(properties, index, applicationModelFile));
-        }
-        return List.copyOf(dependencies);
+        return properties;
     }
 
     private static QuarkusBootstrapDependency dependency(

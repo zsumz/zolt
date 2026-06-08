@@ -25,6 +25,7 @@ final class QuarkusAugmentationRequestFactoryTest {
         assertEquals(plan.applicationClasses(), request.applicationClasses());
         assertEquals(QuarkusPackageMode.FAST_JAR, request.packageMode());
         assertEquals(plan.outputLayout(), request.outputLayout());
+        assertEquals(plan.applicationArtifact(), request.applicationArtifact());
         assertEquals(plan.inputFingerprint(), request.inputFingerprint());
         assertEquals(plan.augmentationState().metadataPath(), request.metadataPath());
         assertEquals(plan.runtimeClasspath(), request.runtimeClasspath());
@@ -79,6 +80,10 @@ final class QuarkusAugmentationRequestFactoryTest {
                 Path.of("/repo/target/classes"),
                 QuarkusPackageMode.FAST_JAR,
                 new QuarkusOutputLayout(Path.of("/repo/target/quarkus"), Path.of("/repo/target/quarkus-app")),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        Path.of("/repo/target/classes")),
                 "sha256:" + "1".repeat(64),
                 new QuarkusAugmentationState(
                         Path.of("/repo/target/quarkus/zolt-augmentation.properties"),

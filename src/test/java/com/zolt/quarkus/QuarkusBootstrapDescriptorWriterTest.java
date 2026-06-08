@@ -32,6 +32,7 @@ final class QuarkusBootstrapDescriptorWriterTest {
         assertEquals(projectDir.resolve("target/quarkus/application-model.properties"), descriptor.applicationModelFile());
         assertEquals("io.quarkus.bootstrap.app.QuarkusBootstrap", descriptor.bootstrapClass());
         assertEquals("io.quarkus.bootstrap.app.AugmentAction", descriptor.augmentActionClass());
+        assertEquals(request.applicationArtifact(), descriptor.applicationArtifact());
         assertEquals(request.runtimeClasspath(), descriptor.runtimeClasspath());
         assertEquals(request.deploymentClasspath(), descriptor.deploymentClasspath());
         assertEquals(request.bootstrapDependencies(), descriptor.bootstrapDependencies());
@@ -60,6 +61,12 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 request.inputFingerprint()), Files.readString(descriptor.descriptorFile()));
         assertEquals("""
                 version=1
+                application.groupId=com.example
+                application.artifactId=demo
+                application.version=1.0.0
+                application.classifier=
+                application.type=jar
+                application.path=%s
                 dependencyCount=2
                 dependency.0.groupId=io.quarkus
                 dependency.0.artifactId=quarkus-rest
@@ -78,6 +85,7 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 dependency.1.path=%s
                 dependency.1.direct=false
                 """.formatted(
+                projectDir.resolve("target/classes"),
                 projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar"),
                 projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar")),
                 Files.readString(descriptor.applicationModelFile()));
@@ -110,6 +118,10 @@ final class QuarkusBootstrapDescriptorWriterTest {
                 new QuarkusOutputLayout(
                         projectDir.resolve("target/quarkus"),
                         projectDir.resolve("target/quarkus-app")),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        projectDir.resolve("target/classes")),
                 "sha256:" + "1".repeat(64),
                 projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
                 List.of(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar")),

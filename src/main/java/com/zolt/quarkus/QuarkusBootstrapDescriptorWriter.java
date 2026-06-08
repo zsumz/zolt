@@ -27,7 +27,7 @@ public final class QuarkusBootstrapDescriptorWriter {
             writeClasspath(deploymentClasspathFile, request.deploymentClasspath());
             Files.writeString(
                     applicationModelFile,
-                    applicationModel(request.bootstrapDependencies()),
+                    applicationModel(request.applicationArtifact(), request.bootstrapDependencies()),
                     StandardCharsets.UTF_8);
             Files.writeString(
                     descriptorFile,
@@ -53,6 +53,7 @@ public final class QuarkusBootstrapDescriptorWriter {
                 request.outputLayout().packageDirectory(),
                 request.packageMode().configValue(),
                 request.inputFingerprint(),
+                request.applicationArtifact(),
                 request.runtimeClasspath(),
                 request.deploymentClasspath(),
                 sortedDependencies(request.bootstrapDependencies()));
@@ -99,10 +100,18 @@ public final class QuarkusBootstrapDescriptorWriter {
         Files.writeString(path, output.toString(), StandardCharsets.UTF_8);
     }
 
-    private static String applicationModel(List<QuarkusBootstrapDependency> dependencies) {
+    private static String applicationModel(
+            QuarkusApplicationArtifact applicationArtifact,
+            List<QuarkusBootstrapDependency> dependencies) {
         List<QuarkusBootstrapDependency> sortedDependencies = sortedDependencies(dependencies);
         StringBuilder output = new StringBuilder();
         output.append("version=1\n");
+        output.append("application.groupId=").append(applicationArtifact.packageId().groupId()).append('\n');
+        output.append("application.artifactId=").append(applicationArtifact.packageId().artifactId()).append('\n');
+        output.append("application.version=").append(applicationArtifact.version()).append('\n');
+        output.append("application.classifier=").append(applicationArtifact.classifier()).append('\n');
+        output.append("application.type=").append(applicationArtifact.type()).append('\n');
+        output.append("application.path=").append(applicationArtifact.path()).append('\n');
         output.append("dependencyCount=").append(sortedDependencies.size()).append('\n');
         for (int index = 0; index < sortedDependencies.size(); index++) {
             QuarkusBootstrapDependency dependency = sortedDependencies.get(index);
