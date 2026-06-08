@@ -36,12 +36,14 @@ public final class ZoltTomlParser {
             "annotationProcessors",
             "test",
             "build",
+            "resources",
             "compiler",
             "package",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
+    private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
     private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
     private static final Set<String> PACKAGE_KEYS = Set.of("mode");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
@@ -152,6 +154,7 @@ public final class ZoltTomlParser {
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         build = parseTestSources(testTable, build);
+        build = parseResourceRoots(optionalTable(result, "resources"), build);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
@@ -199,6 +202,8 @@ public final class ZoltTomlParser {
                 stringOrDefault(buildTable, "build", "output", defaults.output()),
                 stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()),
                 defaults.testSources(),
+                defaults.resourceRoots(),
+                defaults.testResourceRoots(),
                 metadata);
     }
 
@@ -229,6 +234,24 @@ public final class ZoltTomlParser {
                 build.output(),
                 build.testOutput(),
                 stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
+                build.resourceRoots(),
+                build.testResourceRoots(),
+                build.metadata());
+    }
+
+    private static BuildSettings parseResourceRoots(TomlTable resourcesTable, BuildSettings build) {
+        if (resourcesTable == null) {
+            return build;
+        }
+        validateKeys("resources", resourcesTable, RESOURCES_KEYS);
+        return new BuildSettings(
+                build.source(),
+                build.test(),
+                build.output(),
+                build.testOutput(),
+                build.testSources(),
+                stringListOrDefault(resourcesTable, "resources", "main", build.resourceRoots()),
+                stringListOrDefault(resourcesTable, "resources", "test", build.testResourceRoots()),
                 build.metadata());
     }
 

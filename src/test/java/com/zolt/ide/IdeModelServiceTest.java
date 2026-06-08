@@ -128,6 +128,34 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void exportsConfiguredResourceRootsDeterministically() throws IOException {
+        Path projectDir = tempDir.resolve("resource-roots");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "resource-roots"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [resources]
+                main = ["src/main/resources", "target/generated/resources"]
+                test = ["src/test/resources", "target/generated/test-resources"]
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        assertEquals(List.of(
+                new IdeModel.ResourceRoot("main-resources", "main", root.resolve("src/main/resources")),
+                new IdeModel.ResourceRoot("main-resources-2", "main", root.resolve("target/generated/resources")),
+                new IdeModel.ResourceRoot("test-resources", "test", root.resolve("src/test/resources")),
+                new IdeModel.ResourceRoot("test-resources-2", "test", root.resolve("target/generated/test-resources"))),
+                model.resourceRoots());
+    }
+
+    @Test
     void exportsDependencyDeclarationsWithVisibility() throws IOException {
         Path projectDir = tempDir.resolve("dependencies");
         Files.createDirectories(projectDir);

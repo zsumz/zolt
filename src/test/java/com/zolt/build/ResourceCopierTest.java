@@ -2,8 +2,10 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,6 +41,52 @@ final class ResourceCopierTest {
 
         assertEquals(List.of(fixture), result.copiedResources());
         assertEquals("fixture\n", Files.readString(projectDir.resolve("target/test-classes/fixtures/input.txt")));
+    }
+
+    @Test
+    void copiesConfiguredGeneratedResourceRoots() throws IOException {
+        Path app = resource("src/main/resources/application.properties", "name=demo\n");
+        Path generatedCss = resource("target/generated/resources/static/app.css", "body {}\n");
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of("src/main/resources", "target/generated/resources"),
+                List.of("src/test/resources", "target/generated/test-resources"));
+
+        ResourceCopyResult main = copier.copyMainResources(projectDir, settings);
+
+        assertEquals(List.of(app, generatedCss), main.copiedResources());
+        assertEquals("name=demo\n", Files.readString(projectDir.resolve("target/classes/application.properties")));
+        assertEquals("body {}\n", Files.readString(projectDir.resolve("target/classes/static/app.css")));
+    }
+
+    @Test
+    void duplicateConfiguredResourceOutputPathsFailClearly() throws IOException {
+        resource("src/main/resources/application.properties", "name=source\n");
+        resource("target/generated/resources/application.properties", "name=generated\n");
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of("src/main/resources", "target/generated/resources"),
+                List.of("src/test/resources"));
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, settings));
+
+        assertEquals(
+                "Duplicate resource path `application.properties` from configured resource roots. Remove one copy or choose a distinct output path.",
+                exception.getMessage());
+    }
+
+    @Test
+    void absoluteConfiguredResourceRootsFailClearly() {
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of(projectDir.resolve("outside").toString()),
+                List.of("src/test/resources"));
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, settings));
+
+        assertTrue(exception.getMessage().contains("Invalid resource root `"));
+        assertTrue(exception.getMessage().contains("Use a project-relative path under the project directory."));
     }
 
     @Test
@@ -81,5 +129,19 @@ final class ResourceCopierTest {
         Files.createDirectories(resource.getParent());
         Files.writeString(resource, content);
         return resource.normalize();
+    }
+
+    private static BuildSettings buildSettingsWithResourceRoots(
+            List<String> resourceRoots,
+            List<String> testResourceRoots) {
+        return new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                "target/classes",
+                "target/test-classes",
+                List.of("src/test/java"),
+                resourceRoots,
+                testResourceRoots,
+                BuildMetadataSettings.defaults());
     }
 }

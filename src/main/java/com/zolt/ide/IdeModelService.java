@@ -24,8 +24,6 @@ import java.util.Set;
 
 public final class IdeModelService {
     private static final int SCHEMA_VERSION = 1;
-    private static final Path MAIN_RESOURCES = Path.of("src/main/resources");
-    private static final Path TEST_RESOURCES = Path.of("src/test/resources");
 
     private final ZoltTomlParser tomlParser;
     private final ZoltLockfileReader lockfileReader;
@@ -212,9 +210,23 @@ public final class IdeModelService {
         if (config == null) {
             return List.of();
         }
-        return List.of(
-                new IdeModel.ResourceRoot("main-resources", "main", root.resolve(MAIN_RESOURCES).normalize()),
-                new IdeModel.ResourceRoot("test-resources", "test", root.resolve(TEST_RESOURCES).normalize()));
+        BuildSettings settings = config.build();
+        List<IdeModel.ResourceRoot> roots = new ArrayList<>();
+        addResourceRoots(roots, root, "main", settings.resourceRoots());
+        addResourceRoots(roots, root, "test", settings.testResourceRoots());
+        return List.copyOf(roots);
+    }
+
+    private static void addResourceRoots(
+            List<IdeModel.ResourceRoot> roots,
+            Path root,
+            String kind,
+            List<String> configuredRoots) {
+        String idPrefix = kind + "-resources";
+        for (int index = 0; index < configuredRoots.size(); index++) {
+            String id = index == 0 ? idPrefix : idPrefix + "-" + (index + 1);
+            roots.add(new IdeModel.ResourceRoot(id, kind, root.resolve(configuredRoots.get(index)).normalize()));
+        }
     }
 
     private IdeModel.OutputInfo outputInfo(Path root, ProjectConfig config) {

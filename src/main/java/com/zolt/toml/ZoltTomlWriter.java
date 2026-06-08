@@ -90,6 +90,7 @@ public final class ZoltTomlWriter {
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
         writeBuildMetadata(toml, config.build().metadata());
+        writeResources(toml, config.build());
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
         writeNative(toml, config.nativeSettings());
@@ -779,6 +780,17 @@ public final class ZoltTomlWriter {
         toml.append("[test.sources]\n");
         writeStringArray(toml, "java", build.testSources());
         toml.append('\n');
+    }
+
+    private static void writeResources(StringBuilder toml, BuildSettings build) {
+        BuildSettings defaults = BuildSettings.defaults();
+        if (build.resourceRoots().equals(defaults.resourceRoots())
+                && build.testResourceRoots().equals(defaults.testResourceRoots())) {
+            return;
+        }
+        toml.append("\n[resources]\n");
+        writeStringArray(toml, "main", build.resourceRoots());
+        writeStringArray(toml, "test", build.testResourceRoots());
     }
 
     private static void writeCompiler(StringBuilder toml, CompilerSettings compilerSettings) {

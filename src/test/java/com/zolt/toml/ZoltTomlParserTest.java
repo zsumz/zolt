@@ -535,6 +535,48 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesExplicitResourceRoots() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [resources]
+                main = ["src/main/resources", "target/generated/resources"]
+                test = ["src/test/resources", "target/generated/test-resources"]
+                """);
+
+        assertEquals(
+                List.of("src/main/resources", "target/generated/resources"),
+                config.build().resourceRoots());
+        assertEquals(
+                List.of("src/test/resources", "target/generated/test-resources"),
+                config.build().testResourceRoots());
+    }
+
+    @Test
+    void rejectsMalformedResourceRoots() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [resources]
+                        main = "src/main/resources"
+                        """));
+
+        assertEquals(
+                "Invalid value for [resources].main in zolt.toml. Use an array of strings.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsMalformedJavaTestSourceRoots() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

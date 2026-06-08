@@ -5,68 +5,95 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
 public final class ResourceCopier {
-    private static final Path MAIN_RESOURCES = Path.of("src/main/resources");
-    private static final Path TEST_RESOURCES = Path.of("src/test/resources");
     private static final Set<String> OUTPUT_DIRECTORY_NAMES = Set.of("target", "build");
 
     public ResourceCopyResult copyMainResources(Path projectDirectory, BuildSettings settings) {
         return copyResources(
-                projectDirectory.resolve(MAIN_RESOURCES).normalize(),
-                projectDirectory.resolve(settings.output()).normalize(),
+                settings.resourceRoots(),
+                projectDirectory.toAbsolutePath().normalize().resolve(settings.output()).normalize(),
                 projectDirectory,
                 settings);
     }
 
     public ResourceCopyResult copyTestResources(Path projectDirectory, BuildSettings settings) {
         return copyResources(
-                projectDirectory.resolve(TEST_RESOURCES).normalize(),
-                projectDirectory.resolve(settings.testOutput()).normalize(),
+                settings.testResourceRoots(),
+                projectDirectory.toAbsolutePath().normalize().resolve(settings.testOutput()).normalize(),
                 projectDirectory,
                 settings);
     }
 
     private static ResourceCopyResult copyResources(
-            Path resourceRoot,
+            List<String> configuredRoots,
             Path outputDirectory,
             Path projectDirectory,
             BuildSettings settings) {
-        if (!Files.isDirectory(resourceRoot)) {
-            return new ResourceCopyResult(List.of());
-        }
-
-        Path mainOutput = projectDirectory.resolve(settings.output()).normalize();
-        Path testOutput = projectDirectory.resolve(settings.testOutput()).normalize();
-        try (Stream<Path> paths = Files.walk(resourceRoot)) {
-            List<Path> resources = paths
-                    .filter(Files::isRegularFile)
-                    .map(Path::normalize)
-                    .filter(path -> !path.getFileName().toString().endsWith(".java"))
-                    .filter(path -> !path.startsWith(mainOutput))
-                    .filter(path -> !path.startsWith(testOutput))
-                    .filter(path -> !startsWithOutputDirectorySegment(resourceRoot.relativize(path)))
-                    .sorted()
-                    .toList();
-
-            for (Path resource : resources) {
-                Path target = outputDirectory.resolve(resourceRoot.relativize(resource)).normalize();
-                Files.createDirectories(target.getParent());
-                Files.copy(resource, target, StandardCopyOption.REPLACE_EXISTING);
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Path mainOutput = projectRoot.resolve(settings.output()).normalize();
+        Path testOutput = projectRoot.resolve(settings.testOutput()).normalize();
+        List<Path> copiedResources = new ArrayList<>();
+        Set<Path> targetRelativePaths = new HashSet<>();
+        for (String configuredRoot : configuredRoots) {
+            Path resourceRoot = resourceRoot(projectDirectory, configuredRoot);
+            if (!Files.isDirectory(resourceRoot)) {
+                continue;
             }
-            return new ResourceCopyResult(resources);
-        } catch (IOException exception) {
-            throw new ResourceCopyException(
-                    "Could not copy resources from "
-                            + resourceRoot
-                            + " to "
-                            + outputDirectory
-                            + ". Check that the project directories are readable and writable.",
-                    exception);
+
+            try (Stream<Path> paths = Files.walk(resourceRoot)) {
+                List<Path> resources = paths
+                        .filter(Files::isRegularFile)
+                        .map(Path::normalize)
+                        .filter(path -> !path.getFileName().toString().endsWith(".java"))
+                        .filter(path -> !path.startsWith(mainOutput))
+                        .filter(path -> !path.startsWith(testOutput))
+                        .filter(path -> !startsWithOutputDirectorySegment(resourceRoot.relativize(path)))
+                        .sorted()
+                        .toList();
+
+                for (Path resource : resources) {
+                    Path relativePath = resourceRoot.relativize(resource).normalize();
+                    if (!targetRelativePaths.add(relativePath)) {
+                        throw new ResourceCopyException(
+                                "Duplicate resource path `"
+                                        + relativePath.toString().replace('\\', '/')
+                                        + "` from configured resource roots. Remove one copy or choose a distinct output path.");
+                    }
+                    Path target = outputDirectory.resolve(relativePath).normalize();
+                    Files.createDirectories(target.getParent());
+                    Files.copy(resource, target, StandardCopyOption.REPLACE_EXISTING);
+                    copiedResources.add(resource);
+                }
+            } catch (IOException exception) {
+                throw new ResourceCopyException(
+                        "Could not copy resources from "
+                                + resourceRoot
+                                + " to "
+                                + outputDirectory
+                                + ". Check that the project directories are readable and writable.",
+                        exception);
+            }
         }
+        return new ResourceCopyResult(copiedResources);
+    }
+
+    private static Path resourceRoot(Path projectDirectory, String configuredRoot) {
+        Path configured = Path.of(configuredRoot);
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Path path = projectRoot.resolve(configured).normalize();
+        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
+            throw new ResourceCopyException(
+                    "Invalid resource root `"
+                            + configuredRoot
+                            + "`. Use a project-relative path under the project directory.");
+        }
+        return path;
     }
 
     private static boolean startsWithOutputDirectorySegment(Path relativePath) {

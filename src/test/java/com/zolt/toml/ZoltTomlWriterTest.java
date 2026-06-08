@@ -378,6 +378,29 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesResourceRootsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        List.of("src/main/resources", "target/generated/resources"),
+                        List.of("src/test/resources", "target/generated/test-resources"),
+                        BuildMetadataSettings.defaults()));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[resources]\n"));
+        assertTrue(toml.contains("main = [\"src/main/resources\", \"target/generated/resources\"]"));
+        assertTrue(toml.contains("test = [\"src/test/resources\", \"target/generated/test-resources\"]"));
+        assertEquals(original.build().resourceRoots(), parsed.build().resourceRoots());
+        assertEquals(original.build().testResourceRoots(), parsed.build().testResourceRoots());
+    }
+
+    @Test
     void preservesCompilerSettingsWhenEditingDependencies() {
         ProjectConfig config = configWithCompilerSettings();
         config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
@@ -416,6 +439,27 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(writer.write(config));
 
         assertEquals(config.build().metadata(), parsed.build().metadata());
+    }
+
+    @Test
+    void preservesResourceRootsWhenEditingDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        List.of("src/main/resources", "target/generated/resources"),
+                        List.of("src/test/resources"),
+                        BuildMetadataSettings.defaults()));
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.build().resourceRoots(), parsed.build().resourceRoots());
+        assertEquals(config.build().testResourceRoots(), parsed.build().testResourceRoots());
     }
 
     @Test
