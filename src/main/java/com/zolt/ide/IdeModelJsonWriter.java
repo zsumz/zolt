@@ -24,6 +24,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         classpaths(json, model.classpaths());
         comma(json);
+        frameworks(json, model.frameworks());
+        comma(json);
         diagnostics(json, model.diagnostics());
         json.append("\n}\n");
         return json.toString();
@@ -125,6 +127,29 @@ public final class IdeModelJsonWriter {
         pathArrayField(json, 2, "runtime", classpaths.runtime(), true);
         pathArrayField(json, 2, "test", classpaths.test(), false);
         indent(json, 1).append("}");
+    }
+
+    private static void frameworks(StringBuilder json, IdeModel.FrameworkInfo frameworks) {
+        indent(json, 1).append("\"frameworks\": {\n");
+        quarkus(json, frameworks.quarkus());
+        indent(json, 1).append("}");
+    }
+
+    private static void quarkus(StringBuilder json, IdeModel.QuarkusInfo quarkus) {
+        indent(json, 2).append("\"quarkus\": {\n");
+        field(json, 3, "enabled", quarkus.enabled(), true);
+        stringField(json, 3, "packageMode", quarkus.packageMode(), true);
+        stringField(json, 3, "augmentationStatus", quarkus.augmentationStatus(), true);
+        stringField(json, 3, "inputFingerprint", quarkus.inputFingerprint(), true);
+        stringField(json, 3, "recordedInputFingerprint", quarkus.recordedInputFingerprint(), true);
+        pathField(json, 3, "augmentationMetadata", quarkus.augmentationMetadata(), true);
+        pathField(json, 3, "augmentationDirectory", quarkus.augmentationDirectory(), true);
+        pathField(json, 3, "packageDirectory", quarkus.packageDirectory(), true);
+        pathField(json, 3, "runnerJar", quarkus.runnerJar(), true);
+        pathField(json, 3, "generatedBytecodeJar", quarkus.generatedBytecodeJar(), true);
+        pathField(json, 3, "transformedBytecodeJar", quarkus.transformedBytecodeJar(), true);
+        pathArrayField(json, 3, "deploymentClasspath", quarkus.deploymentClasspath(), false);
+        indent(json, 2).append("}\n");
     }
 
     private static void diagnostics(StringBuilder json, List<IdeModel.Diagnostic> diagnostics) {

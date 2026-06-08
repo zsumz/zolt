@@ -3,6 +3,7 @@ package com.zolt.ide;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.quarkus.QuarkusAugmentationMetadataWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -252,5 +253,75 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"compile\": []"));
         assertTrue(json.contains("\"runtime\": []"));
         assertTrue(json.contains("\"test\": []"));
+    }
+
+    @Test
+    void exportsQuarkusFrameworkStateWithMissingAugmentationDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-missing");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "quarkus-missing"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        IdeModel.QuarkusInfo quarkus = model.frameworks().quarkus();
+        assertTrue(quarkus.enabled());
+        assertEquals("fast-jar", quarkus.packageMode());
+        assertEquals("missing", quarkus.augmentationStatus());
+        assertEquals(root.resolve("target/quarkus"), quarkus.augmentationDirectory());
+        assertEquals(root.resolve("target/quarkus-app"), quarkus.packageDirectory());
+        assertEquals(root.resolve("target/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
+        assertEquals(root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"), quarkus.generatedBytecodeJar());
+        assertEquals(root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"), quarkus.transformedBytecodeJar());
+        assertEquals(List.of(), quarkus.deploymentClasspath());
+        assertEquals("QUARKUS_AUGMENTATION_MISSING", model.diagnostics().getFirst().code());
+
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"frameworks\": {"));
+        assertTrue(json.contains("\"quarkus\": {"));
+        assertTrue(json.contains("\"augmentationStatus\": \"missing\""));
+        assertTrue(json.contains("\"generatedBytecodeJar\": \""));
+        assertTrue(json.contains("\"deploymentClasspath\": []"));
+    }
+
+    @Test
+    void exportsCurrentQuarkusFrameworkStateWithoutAugmentationDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-current");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "quarkus-current"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        IdeModel missingModel = service.export(projectDir, tempDir.resolve("cache"));
+        new QuarkusAugmentationMetadataWriter().write(
+                projectDir.toAbsolutePath().normalize(),
+                missingModel.frameworks().quarkus().inputFingerprint());
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        assertEquals("current", model.frameworks().quarkus().augmentationStatus());
+        assertEquals(
+                model.frameworks().quarkus().inputFingerprint(),
+                model.frameworks().quarkus().recordedInputFingerprint());
+        assertEquals(List.of(), model.diagnostics());
     }
 }

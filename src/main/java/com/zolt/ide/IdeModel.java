@@ -13,6 +13,7 @@ public record IdeModel(
         OutputInfo outputs,
         DependencyInfo dependencies,
         ClasspathInfo classpaths,
+        FrameworkInfo frameworks,
         List<Diagnostic> diagnostics) {
     public IdeModel {
         sourceRoots = List.copyOf(sourceRoots);
@@ -95,6 +96,28 @@ public record IdeModel(
             compile = List.copyOf(compile);
             runtime = List.copyOf(runtime);
             test = List.copyOf(test);
+        }
+    }
+
+    public record FrameworkInfo(
+            QuarkusInfo quarkus) {
+    }
+
+    public record QuarkusInfo(
+            boolean enabled,
+            String packageMode,
+            String augmentationStatus,
+            String inputFingerprint,
+            String recordedInputFingerprint,
+            Path augmentationMetadata,
+            Path augmentationDirectory,
+            Path packageDirectory,
+            Path runnerJar,
+            Path generatedBytecodeJar,
+            Path transformedBytecodeJar,
+            List<Path> deploymentClasspath) {
+        public QuarkusInfo {
+            deploymentClasspath = List.copyOf(deploymentClasspath);
         }
     }
 

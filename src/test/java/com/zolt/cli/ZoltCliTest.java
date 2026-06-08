@@ -1521,6 +1521,22 @@ final class ZoltCliTest {
                       "%s"
                     ]
                   },
+                  "frameworks": {
+                    "quarkus": {
+                      "enabled": false,
+                      "packageMode": null,
+                      "augmentationStatus": "disabled",
+                      "inputFingerprint": null,
+                      "recordedInputFingerprint": null,
+                      "augmentationMetadata": null,
+                      "augmentationDirectory": null,
+                      "packageDirectory": null,
+                      "runnerJar": null,
+                      "generatedBytecodeJar": null,
+                      "transformedBytecodeJar": null,
+                      "deploymentClasspath": []
+                    }
+                  },
                   "diagnostics": []
                 }
                 """.formatted(
