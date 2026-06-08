@@ -13,6 +13,7 @@ public final class QuarkusPlanFormatter {
             output.append("not ready\n");
         }
         output.append("Application classes: ").append(plan.applicationClasses()).append('\n');
+        output.append("Package target: ").append(plan.packageMode().configValue()).append('\n');
         output.append("Input fingerprint: ").append(plan.inputFingerprint()).append('\n');
         output.append("Augmentation metadata: ")
                 .append(plan.augmentationState().status().label())

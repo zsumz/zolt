@@ -1214,6 +1214,7 @@ final class ZoltCliTest {
                 Quarkus augmentation plan
                 Status: inputs resolved; augmentation runner not implemented yet
                 Application classes: %s
+                Package target: fast-jar
                 Input fingerprint: %s
                 Augmentation metadata: missing (%s)
                 Runtime classpath entries: 1

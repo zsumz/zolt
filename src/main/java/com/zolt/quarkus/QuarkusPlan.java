@@ -1,17 +1,22 @@
 package com.zolt.quarkus;
 
+import com.zolt.project.QuarkusPackageMode;
 import java.nio.file.Path;
 import java.util.List;
 
 public record QuarkusPlan(
         Path projectDirectory,
         Path applicationClasses,
+        QuarkusPackageMode packageMode,
         String inputFingerprint,
         QuarkusAugmentationState augmentationState,
         List<Path> runtimeClasspath,
         List<Path> deploymentClasspath,
         List<QuarkusPlanExtension> extensions) {
     public QuarkusPlan {
+        if (packageMode == null) {
+            throw new QuarkusPlanException("Quarkus plan requires a package mode.");
+        }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusPlanException("Quarkus plan requires an input fingerprint.");
         }

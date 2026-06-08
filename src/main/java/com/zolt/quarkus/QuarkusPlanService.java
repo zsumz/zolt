@@ -65,6 +65,7 @@ public final class QuarkusPlanService {
         return new QuarkusPlan(
                 root,
                 applicationClasses,
+                config.frameworkSettings().quarkus().packageMode(),
                 fingerprint,
                 augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),
