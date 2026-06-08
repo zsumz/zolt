@@ -27,6 +27,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
+                new QuarkusProductionOutputValidator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -47,6 +48,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
+                new QuarkusProductionOutputValidator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
@@ -59,9 +61,9 @@ final class QuarkusBootstrapWorkerTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerAugmentResult.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 artifact results"));
         assertTrue(err.toString(StandardCharsets.UTF_8)
-                .contains("jar /repo/target/quarkus-app/quarkus-run.jar"));
+                .contains("jar " + projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
         assertTrue(err.toString(StandardCharsets.UTF_8)
-                .contains("using libraries at /repo/target/quarkus-app/lib"));
+                .contains("using libraries at " + projectDir.resolve("target/quarkus-app/lib")));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
@@ -77,6 +79,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
                 new QuarkusProductionApplicationSummarizer(),
+                new QuarkusProductionOutputValidator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -157,11 +160,19 @@ final class QuarkusBootstrapWorkerTest {
             return new Builder();
         }
 
+        private final Path augmentationDirectory;
+
+        WorkerBootstrap(Path augmentationDirectory) {
+            this.augmentationDirectory = augmentationDirectory;
+        }
+
         public WorkerCuratedApplication bootstrap() {
-            return new WorkerCuratedApplication();
+            return new WorkerCuratedApplication(augmentationDirectory.resolveSibling("quarkus-app"));
         }
 
         public static final class Builder {
+            private Path targetDirectory;
+
             public Builder setApplicationRoot(Path ignored) {
                 return this;
             }
@@ -170,7 +181,8 @@ final class QuarkusBootstrapWorkerTest {
                 return this;
             }
 
-            public Builder setTargetDirectory(Path ignored) {
+            public Builder setTargetDirectory(Path targetDirectory) {
+                this.targetDirectory = targetDirectory;
                 return this;
             }
 
@@ -183,7 +195,7 @@ final class QuarkusBootstrapWorkerTest {
             }
 
             public WorkerBootstrap build() {
-                return new WorkerBootstrap();
+                return new WorkerBootstrap(targetDirectory);
             }
         }
     }
@@ -193,25 +205,43 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     public static final class WorkerCuratedApplication {
+        private final Path packageDirectory;
+
+        WorkerCuratedApplication(Path packageDirectory) {
+            this.packageDirectory = packageDirectory;
+        }
+
         public WorkerAugmentAction createAugmentor() {
-            return new WorkerAugmentActionImpl();
+            return new WorkerAugmentActionImpl(packageDirectory);
         }
     }
 
     public static final class WorkerAugmentActionImpl implements WorkerAugmentAction {
+        private final Path packageDirectory;
+
+        WorkerAugmentActionImpl(Path packageDirectory) {
+            this.packageDirectory = packageDirectory;
+        }
+
         @Override
         public Object createProductionApplication() {
-            return new WorkerAugmentResult();
+            return new WorkerAugmentResult(packageDirectory);
         }
     }
 
     public static final class WorkerAugmentResult {
+        private final Path packageDirectory;
+
+        WorkerAugmentResult(Path packageDirectory) {
+            this.packageDirectory = packageDirectory;
+        }
+
         public java.util.List<Object> getResults() {
             return java.util.List.of(new Object());
         }
 
         public WorkerJarResult getJar() {
-            return new WorkerJarResult();
+            return new WorkerJarResult(packageDirectory);
         }
 
         public Path getNativeResult() {
@@ -220,12 +250,18 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     public static final class WorkerJarResult {
+        private final Path packageDirectory;
+
+        WorkerJarResult(Path packageDirectory) {
+            this.packageDirectory = packageDirectory;
+        }
+
         public Path getPath() {
-            return Path.of("/repo/target/quarkus-app/quarkus-run.jar");
+            return packageDirectory.resolve("quarkus-run.jar");
         }
 
         public Path getLibraryDir() {
-            return Path.of("/repo/target/quarkus-app/lib");
+            return packageDirectory.resolve("lib");
         }
 
         public boolean isUberJar() {
