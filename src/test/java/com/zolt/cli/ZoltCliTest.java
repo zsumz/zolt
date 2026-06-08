@@ -2642,7 +2642,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unsupported package mode `war`"));
-        assertTrue(result.stderr().contains("thin, spring-boot, uber"));
+        assertTrue(result.stderr().contains("thin, spring-boot, quarkus, uber"));
     }
 
     @Test

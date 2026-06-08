@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 public enum PackageMode {
     THIN("thin"),
     SPRING_BOOT("spring-boot"),
+    QUARKUS("quarkus"),
     UBER("uber");
 
     private final String configValue;

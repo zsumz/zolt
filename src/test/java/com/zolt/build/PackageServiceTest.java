@@ -6,12 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
+import com.zolt.quarkus.QuarkusApplicationArtifact;
+import com.zolt.quarkus.QuarkusAugmentationResult;
+import com.zolt.quarkus.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.QuarkusBootstrapWorkerResult;
+import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolveService;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -205,6 +216,75 @@ final class PackageServiceTest {
         assertTrue(exception.getMessage().contains("Package mode `uber` is not implemented yet"));
         assertTrue(exception.getMessage().contains("Use `zolt package --mode thin`"));
         assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
+    void quarkusPackageModeReturnsAugmentedRunnerJar() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        Path packageDirectory = projectDir.resolve("target/quarkus-app");
+        Path runnerJar = packageDirectory.resolve("quarkus-run.jar");
+        createJarWithEntry(runnerJar, "io/quarkus/bootstrap/runner/QuarkusEntryPoint.class");
+        Files.createDirectories(packageDirectory.resolve("app"));
+        Files.writeString(packageDirectory.resolve("app/app.jar"), "app\n");
+        boolean[] augmented = new boolean[1];
+        PackageService service = new PackageService(
+                new BuildService(),
+                new ResolveService(),
+                new ManifestGenerator(),
+                new ZoltLockfileReader(),
+                new ClasspathBuilder(),
+                (projectDirectory, config, cacheRoot) -> {
+                    augmented[0] = true;
+                    return Optional.of(quarkusResult(packageDirectory, runnerJar));
+                });
+        ProjectConfig config = config(Optional.empty())
+                .withPackageSettings(new PackageSettings(PackageMode.QUARKUS))
+                .withFrameworkSettings(new FrameworkSettings(new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
+
+        PackageResult result = service.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(PackageMode.QUARKUS, result.mode());
+        assertEquals(runnerJar, result.jarPath());
+        assertEquals(2, result.entryCount());
+        assertTrue(result.hasMainClass());
+        assertTrue(augmented[0]);
+    }
+
+    @Test
+    void quarkusPackageModeRequiresEnabledFramework() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        PackageService service = new PackageService(
+                new BuildService(),
+                new ResolveService(),
+                new ManifestGenerator(),
+                new ZoltLockfileReader(),
+                new ClasspathBuilder(),
+                (projectDirectory, config, cacheRoot) -> Optional.empty());
+        ProjectConfig config = config(Optional.empty())
+                .withPackageSettings(new PackageSettings(PackageMode.QUARKUS));
+
+        PackageException exception = assertThrows(
+                PackageException.class,
+                () -> service.packageJar(projectDir, config, projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("[framework.quarkus] enabled = true"));
+        assertTrue(exception.getMessage().contains("zolt package --mode quarkus"));
     }
 
     @Test
@@ -466,6 +546,45 @@ final class PackageServiceTest {
 
     private void writeLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+    }
+
+    private QuarkusAugmentationResult quarkusResult(Path packageDirectory, Path runnerJar) {
+        return new QuarkusAugmentationResult(
+                projectDir.resolve("target/quarkus"),
+                projectDir.resolve("target/quarkus/augmentation-metadata.toml"),
+                quarkusDescriptor(packageDirectory),
+                "fingerprint",
+                new QuarkusBootstrapWorkerResult(
+                        "fingerprint",
+                        packageDirectory,
+                        runnerJar,
+                        packageDirectory.resolve("lib"),
+                        1));
+    }
+
+    private QuarkusBootstrapDescriptor quarkusDescriptor(Path packageDirectory) {
+        return new QuarkusBootstrapDescriptor(
+                projectDir.resolve("target/quarkus/bootstrap.toml"),
+                projectDir.resolve("target/quarkus/runtime-classpath.txt"),
+                projectDir.resolve("target/quarkus/deployment-classpath.txt"),
+                projectDir.resolve("target/quarkus/platform-properties.txt"),
+                projectDir.resolve("target/quarkus/application-model.txt"),
+                "io.quarkus.bootstrap.app.QuarkusBootstrap",
+                "create-production-application",
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/quarkus"),
+                packageDirectory,
+                "fast-jar",
+                "fingerprint",
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "0.1.0",
+                        projectDir.resolve("target/classes")),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     private static void createJarWithEntry(Path jarPath, String entryName) throws IOException {

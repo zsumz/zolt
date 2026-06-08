@@ -396,6 +396,22 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesQuarkusPackageMode() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "quarkus-app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "quarkus"
+                """);
+
+        assertEquals(PackageMode.QUARKUS, config.packageSettings().mode());
+    }
+
+    @Test
     void parsesQuarkusFrameworkSettings() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -483,7 +499,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Unsupported package mode `war` in zolt.toml. Supported package modes are: thin, spring-boot, uber.",
+                "Unsupported package mode `war` in zolt.toml. Supported package modes are: thin, spring-boot, quarkus, uber.",
                 exception.getMessage());
     }
 

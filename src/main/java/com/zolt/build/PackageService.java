@@ -7,6 +7,8 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusAugmentationResult;
+import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveService;
 import java.io.ByteArrayOutputStream;
@@ -47,9 +49,16 @@ public final class PackageService {
     private final ManifestGenerator manifestGenerator;
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
+    private final QuarkusBuildAugmenter quarkusBuildAugmenter;
 
     public PackageService() {
-        this(new BuildService(), new ResolveService(), new ManifestGenerator(), new ZoltLockfileReader(), new ClasspathBuilder());
+        this(
+                new BuildService(),
+                new ResolveService(),
+                new ManifestGenerator(),
+                new ZoltLockfileReader(),
+                new ClasspathBuilder(),
+                new QuarkusBuildAugmentationService()::augmentIfEnabled);
     }
 
     PackageService(
@@ -57,12 +66,14 @@ public final class PackageService {
             ResolveService resolveService,
             ManifestGenerator manifestGenerator,
             ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder) {
+            ClasspathBuilder classpathBuilder,
+            QuarkusBuildAugmenter quarkusBuildAugmenter) {
         this.buildService = buildService;
         this.resolveService = resolveService;
         this.manifestGenerator = manifestGenerator;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
+        this.quarkusBuildAugmenter = quarkusBuildAugmenter;
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -133,6 +144,12 @@ public final class PackageService {
                     buildResult,
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")));
+            case QUARKUS -> packageQuarkusFastJar(
+                    projectDirectory,
+                    config,
+                    buildResult,
+                    cacheRoot.orElseThrow(() -> new PackageException(
+                            "Quarkus package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode quarkus` for now; workspace Quarkus packaging is not wired yet.")));
             case UBER -> throw unsupportedPackageMode(mode);
         };
     }
@@ -236,6 +253,42 @@ public final class PackageService {
         }
     }
 
+    private PackageResult packageQuarkusFastJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Path cacheRoot) {
+        Optional<QuarkusAugmentationResult> result = quarkusBuildAugmenter.augmentIfEnabled(
+                projectDirectory,
+                config,
+                cacheRoot);
+        QuarkusAugmentationResult augmentationResult = result.orElseThrow(() -> new PackageException(
+                "Quarkus package mode requires [framework.quarkus] enabled = true in zolt.toml. "
+                        + "Enable Quarkus, run `zolt resolve`, then retry `zolt package --mode quarkus`."));
+        Path runnerJar = augmentationResult.workerResult().runnerJar();
+        if (!Files.isRegularFile(runnerJar)) {
+            throw new PackageException(
+                    "Quarkus package mode expected a runner jar at "
+                            + runnerJar
+                            + ". Run `zolt build` and check the Quarkus augmentation output.");
+        }
+        try {
+            return new PackageResult(
+                    buildResult,
+                    PackageMode.QUARKUS,
+                    runnerJar,
+                    Optional.empty(),
+                    compiledFiles(augmentationResult.workerResult().packageDirectory()).size(),
+                    true);
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not inspect Quarkus package directory at "
+                            + augmentationResult.workerResult().packageDirectory()
+                            + ". Check that target/quarkus-app is readable and retry.",
+                    exception);
+        }
+    }
+
     private static void ensureSupportedPackageMode(PackageMode mode) {
         if (mode != PackageMode.UBER) {
             return;
@@ -247,9 +300,17 @@ public final class PackageService {
         return new PackageException(
                 "Package mode `"
                         + mode.configValue()
-                        + "` is not implemented yet. Use `zolt package --mode thin` or set [package].mode = \"thin\" "
+                        + "` is not implemented yet. Use `zolt package --mode thin`, `zolt package --mode spring-boot`, or `zolt package --mode quarkus` "
                         + "until uber jar support lands"
                         + ".");
+    }
+
+    @FunctionalInterface
+    interface QuarkusBuildAugmenter {
+        Optional<QuarkusAugmentationResult> augmentIfEnabled(
+                Path projectDirectory,
+                ProjectConfig config,
+                Path cacheRoot);
     }
 
     private Path requireOutputDirectory(BuildResult buildResult) {
