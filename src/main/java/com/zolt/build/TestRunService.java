@@ -15,6 +15,8 @@ import java.util.StringJoiner;
 
 public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
+    private static final String JBOSS_LOG_MANAGER_PROPERTY =
+            "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
     private final TestCompileService testCompileService;
     private final ZoltLockfileReader lockfileReader;
@@ -91,6 +93,7 @@ public final class TestRunService {
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runnerClasspath),
                 CONSOLE_MAIN_CLASS,
+                jvmArguments(runnerClasspath),
                 List.of(
                         "execute",
                         "--disable-banner",
@@ -111,5 +114,17 @@ public final class TestRunService {
     private static boolean isConsoleJar(Path path) {
         String name = path.getFileName() == null ? "" : path.getFileName().toString();
         return name.startsWith("junit-platform-console") && name.endsWith(".jar");
+    }
+
+    private static List<String> jvmArguments(List<Path> runnerClasspath) {
+        if (runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar)) {
+            return List.of(JBOSS_LOG_MANAGER_PROPERTY);
+        }
+        return List.of();
+    }
+
+    private static boolean isJbossLogManagerJar(Path path) {
+        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+        return name.startsWith("jboss-logmanager-") && name.endsWith(".jar");
     }
 }

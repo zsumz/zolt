@@ -97,6 +97,26 @@ final class TestRunServiceTest {
     }
 
     @Test
+    void configuresJbossLogManagerWhenPresentOnTestClasspath() throws IOException {
+        writeConsoleAndJbossLogManagerLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        service.runTests(projectDir, config(), projectDir.resolve("cache"));
+
+        List<String> command = commands.getFirst();
+        assertEquals("-Djava.util.logging.manager=org.jboss.logmanager.LogManager", command.get(1));
+        assertTrue(command.indexOf("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
+                < command.indexOf("-classpath"));
+        assertTrue(command.stream().anyMatch(value -> value.contains("jboss-logmanager-3.1.2.Final.jar")));
+    }
+
+    @Test
     void missingConsoleJarProducesActionableError() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
@@ -148,6 +168,30 @@ final class TestRunServiceTest {
                 scope = "test"
                 direct = true
                 jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+    }
+
+    private void writeConsoleAndJbossLogManagerLockfile() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.jboss.logmanager:jboss-logmanager"
+                version = "3.1.2.Final"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/jboss/logmanager/jboss-logmanager/3.1.2.Final/jboss-logmanager-3.1.2.Final.jar"
                 dependencies = []
                 """);
     }

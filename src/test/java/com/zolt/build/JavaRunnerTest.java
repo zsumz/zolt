@@ -36,6 +36,30 @@ final class JavaRunnerTest {
     }
 
     @Test
+    void placesJvmArgumentsBeforeClasspathAndMainClass() {
+        List<List<String>> commands = new ArrayList<>();
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "hello\n");
+        });
+
+        runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of("-Ddemo=true"),
+                List.of("run"));
+
+        assertEquals(List.of(
+                "java",
+                "-Ddemo=true",
+                "-classpath",
+                "target/classes",
+                "com.example.Main",
+                "run"), commands.getFirst());
+    }
+
+    @Test
     void streamsOutputAndStillReturnsCapturedOutput() {
         List<String> streamed = new ArrayList<>();
         JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> {

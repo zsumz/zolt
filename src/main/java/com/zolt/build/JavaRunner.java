@@ -35,9 +35,29 @@ public final class JavaRunner {
             Path java,
             Classpath classpath,
             String mainClass,
+            List<String> jvmArguments,
+            List<String> arguments) {
+        return run(java, classpath, mainClass, jvmArguments, arguments, ignored -> {
+        });
+    }
+
+    public JavaRunResult run(
+            Path java,
+            Classpath classpath,
+            String mainClass,
             List<String> arguments,
             Consumer<String> outputConsumer) {
-        List<String> command = command(java, classpath, mainClass, arguments);
+        return run(java, classpath, mainClass, List.of(), arguments, outputConsumer);
+    }
+
+    public JavaRunResult run(
+            Path java,
+            Classpath classpath,
+            String mainClass,
+            List<String> jvmArguments,
+            List<String> arguments,
+            Consumer<String> outputConsumer) {
+        List<String> command = command(java, classpath, mainClass, jvmArguments, arguments);
         ProcessResult result = processRunner.run(command, outputConsumer);
         return result(mainClass, result);
     }
@@ -77,9 +97,11 @@ public final class JavaRunner {
             Path java,
             Classpath classpath,
             String mainClass,
+            List<String> jvmArguments,
             List<String> arguments) {
         List<String> command = new ArrayList<>();
         command.add(java.toString());
+        command.addAll(jvmArguments);
         if (!classpath.entries().isEmpty()) {
             command.add("-classpath");
             StringJoiner joiner = new StringJoiner(pathSeparator);
