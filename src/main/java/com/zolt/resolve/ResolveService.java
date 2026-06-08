@@ -117,7 +117,9 @@ public final class ResolveService {
         List<DependencyRequest> directRequests = directRequests(config, context.projectManagedVersions());
         ResolutionState initial = resolveGraph(context, directRequests);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
-        allRequests.addAll(quarkusDeploymentRequests(context, initial.graph(), initial.selection(), directRequests));
+        if (config.frameworkSettings().quarkus().enabled()) {
+            allRequests.addAll(quarkusDeploymentRequests(context, initial.graph(), initial.selection(), directRequests));
+        }
         ResolutionState resolved = allRequests.size() == directRequests.size()
                 ? initial
                 : resolveGraph(context, allRequests);

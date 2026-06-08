@@ -12,10 +12,13 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -844,7 +847,7 @@ final class ResolveServiceTest {
 
         ResolveResult result = resolveService.resolve(
                 projectDir,
-                configWithDependencies(Map.of("io.quarkus:quarkus-rest", "3.33.0")),
+                quarkusConfigWithDependencies(Map.of("io.quarkus:quarkus-rest", "3.33.0")),
                 cacheRoot);
 
         assertEquals(3, result.resolvedCount());
@@ -876,6 +879,32 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void quarkusRuntimeExtensionDoesNotAddDeploymentArtifactScopeUnlessEnabled() {
+        addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-rest</artifactId>
+                  <version>3.33.0</version>
+                </project>
+                """, Map.of(
+                "META-INF/quarkus-extension.properties",
+                "deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.0\n"));
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithDependencies(Map.of("io.quarkus:quarkus-rest", "3.33.0")),
+                cacheRoot);
+
+        assertEquals(1, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT));
+    }
+
+    @Test
     void quarkusDeploymentArtifactWithClassifierResolvesClassifierJarPath() {
         addArtifact("io.quarkus", "quarkus-custom", "1.0.0", """
                 <project>
@@ -900,7 +929,7 @@ final class ResolveServiceTest {
 
         ResolveResult result = resolveService.resolve(
                 projectDir,
-                configWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
+                quarkusConfigWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
                 cacheRoot);
 
         assertEquals(2, result.resolvedCount());
@@ -931,7 +960,7 @@ final class ResolveServiceTest {
                 ResolveException.class,
                 () -> resolveService.resolve(
                         projectDir,
-                        configWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
+                        quarkusConfigWithDependencies(Map.of("io.quarkus:quarkus-custom", "1.0.0")),
                         cacheRoot));
 
         assertTrue(exception.getMessage().contains("declares deployment artifact"));
@@ -1117,6 +1146,12 @@ final class ResolveServiceTest {
                 dependencies,
                 Map.of(),
                 BuildSettings.defaults());
+    }
+
+    private ProjectConfig quarkusConfigWithDependencies(Map<String, String> dependencies) {
+        return configWithDependencies(dependencies)
+                .withFrameworkSettings(new FrameworkSettings(
+                        new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
     }
 
     private ProjectConfig configWithTestDependencies(Map<String, String> testDependencies) {

@@ -47,6 +47,7 @@ public final class QuarkusPlanService {
     }
 
     public QuarkusPlan plan(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        requireEnabled(config);
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         return plan(projectDirectory, config, lockfile, cacheRoot);
     }
@@ -56,6 +57,7 @@ public final class QuarkusPlanService {
             ProjectConfig config,
             ZoltLockfile lockfile,
             Path cacheRoot) {
+        requireEnabled(config);
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path applicationClasses = root.resolve(config.build().output()).normalize();
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
@@ -68,6 +70,15 @@ public final class QuarkusPlanService {
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
                 extensions(lockfile, cacheRoot));
+    }
+
+    private static void requireEnabled(ProjectConfig config) {
+        if (!config.frameworkSettings().quarkus().enabled()) {
+            throw new QuarkusPlanException(
+                    "Quarkus is not enabled for this project. "
+                            + "Add `[framework.quarkus] enabled = true` to zolt.toml, "
+                            + "run `zolt resolve`, then run `zolt quarkus plan` again.");
+        }
     }
 
     private List<QuarkusPlanExtension> extensions(ZoltLockfile lockfile, Path cacheRoot) {

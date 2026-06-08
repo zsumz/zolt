@@ -1169,6 +1169,7 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
 
@@ -1235,10 +1236,29 @@ final class ZoltCliTest {
     }
 
     @Test
+    void quarkusPlanFailsWhenFrameworkIsNotEnabled() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "quarkus",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(1, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Quarkus is not enabled for this project"));
+        assertTrue(result.stderr().contains("[framework.quarkus] enabled = true"));
+    }
+
+    @Test
     void quarkusPlanReportsCurrentAugmentationMetadata() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
         writeQuarkusPlanLockfile(projectDir);
         Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
         createJarWithTextEntry(
@@ -1268,6 +1288,7 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
         writeQuarkusPlanLockfile(projectDir);
         Path runtimeJar = cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar");
         createJarWithTextEntry(
@@ -1292,6 +1313,7 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
 
@@ -1323,6 +1345,7 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        enableQuarkus(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
 
@@ -2974,6 +2997,15 @@ final class ZoltCliTest {
                 testOutput = "target/test-classes"
                 """);
         Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
+    }
+
+    private static void enableQuarkus(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
     }
 
     private static void writeProjectConfigWithoutMain(Path projectDir, String repositoryUrl) throws IOException {
