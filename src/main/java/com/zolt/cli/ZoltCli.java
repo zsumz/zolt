@@ -634,7 +634,8 @@ public final class ZoltCli implements Runnable {
             RUNTIME("runtime"),
             TEST("test"),
             PROCESSOR("processor"),
-            TEST_PROCESSOR("test-processor");
+            TEST_PROCESSOR("test-processor"),
+            QUARKUS_DEPLOYMENT("quarkus-deployment");
 
             private final String label;
 
@@ -650,13 +651,13 @@ public final class ZoltCli implements Runnable {
                 }
                 throw new ClasspathCommandException(
                         "Unknown classpath kind `" + value
-                                + "`. Use compile, runtime, test, processor, or test-processor.");
+                                + "`. Use compile, runtime, test, processor, test-processor, or quarkus-deployment.");
             }
         }
 
         @Parameters(
                 index = "0",
-                paramLabel = "compile|runtime|test|processor|test-processor",
+                paramLabel = "compile|runtime|test|processor|test-processor|quarkus-deployment",
                 description = "Classpath kind to print.")
         private String kind;
 
@@ -682,6 +683,7 @@ public final class ZoltCli implements Runnable {
                     case TEST -> classpaths.test();
                     case PROCESSOR -> classpaths.processor();
                     case TEST_PROCESSOR -> classpaths.testProcessor();
+                    case QUARKUS_DEPLOYMENT -> classpaths.quarkusDeployment();
                 });
                 printAndFlush(spec, output);
             } catch (ClasspathCommandException | LockfileReadException exception) {

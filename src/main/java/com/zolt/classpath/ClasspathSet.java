@@ -7,5 +7,6 @@ public record ClasspathSet(
         Classpath runtime,
         Classpath test,
         Classpath processor,
-        Classpath testProcessor) {
+        Classpath testProcessor,
+        Classpath quarkusDeployment) {
 }

@@ -1070,6 +1070,15 @@ final class ZoltCliTest {
                 direct = true
                 jar = "com/example/test-processor-lib/1.0.0/test-processor-lib-1.0.0.jar"
                 dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar"
+                dependencies = []
                 """);
 
         Path compileJar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
@@ -1078,6 +1087,8 @@ final class ZoltCliTest {
         Path processorJar = cacheRoot.resolve("com/example/processor-lib/1.0.0/processor-lib-1.0.0.jar");
         Path testProcessorJar = cacheRoot.resolve(
                 "com/example/test-processor-lib/1.0.0/test-processor-lib-1.0.0.jar");
+        Path quarkusDeploymentJar = cacheRoot.resolve(
+                "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar");
 
         CommandResult compile = execute(
                 "classpath",
@@ -1104,6 +1115,11 @@ final class ZoltCliTest {
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test-processor");
+        CommandResult quarkusDeployment = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "quarkus-deployment");
 
         assertEquals(0, compile.exitCode());
         assertEquals(compileJar + System.lineSeparator(), compile.stdout());
@@ -1119,6 +1135,8 @@ final class ZoltCliTest {
         assertEquals(processorJar + System.lineSeparator(), processor.stdout());
         assertEquals(0, testProcessor.exitCode());
         assertEquals(testProcessorJar + System.lineSeparator(), testProcessor.stdout());
+        assertEquals(0, quarkusDeployment.exitCode());
+        assertEquals(quarkusDeploymentJar + System.lineSeparator(), quarkusDeployment.stdout());
     }
 
     @Test
@@ -1131,7 +1149,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unknown classpath kind `processor-test`"));
-        assertTrue(result.stderr().contains("compile, runtime, test, processor, or test-processor"));
+        assertTrue(result.stderr().contains("compile, runtime, test, processor, test-processor, or quarkus-deployment"));
     }
 
     @Test

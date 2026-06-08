@@ -58,7 +58,8 @@ public final class WorkspaceClasspathService {
                 runtimeClasspaths.runtime(),
                 runtimeClasspaths.test(),
                 compileClasspaths.processor(),
-                compileClasspaths.testProcessor());
+                compileClasspaths.testProcessor(),
+                runtimeClasspaths.quarkusDeployment());
     }
 
     private static List<LockPackage> compileClasspathPackagesFor(

@@ -18,7 +18,8 @@ public final class ClasspathBuilder {
                 classpath(sorted, scope -> scope.entersMainRuntimeClasspath()),
                 classpath(sorted, scope -> scope.entersMainRuntimeClasspath() || scope.entersTestClasspath()),
                 classpath(sorted, scope -> scope.entersMainProcessorClasspath()),
-                classpath(sorted, scope -> scope.entersTestProcessorClasspath()));
+                classpath(sorted, scope -> scope.entersTestProcessorClasspath()),
+                classpath(sorted, scope -> scope == DependencyScope.QUARKUS_DEPLOYMENT));
     }
 
     private static Classpath classpath(
