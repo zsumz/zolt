@@ -10,6 +10,7 @@ public final class QuarkusBootstrapWorker {
     private final QuarkusBootstrapApiProbe apiProbe;
     private final QuarkusApplicationModelFactory applicationModelFactory;
     private final QuarkusBootstrapPreparer bootstrapPreparer;
+    private final QuarkusCuratedApplicationInvoker curatedApplicationInvoker;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
@@ -18,6 +19,7 @@ public final class QuarkusBootstrapWorker {
                 new QuarkusBootstrapApiProbe(),
                 new QuarkusApplicationModelFactory(),
                 new QuarkusBootstrapPreparer(),
+                new QuarkusCuratedApplicationInvoker(),
                 System.err);
     }
 
@@ -26,6 +28,7 @@ public final class QuarkusBootstrapWorker {
             QuarkusBootstrapApiProbe apiProbe,
             QuarkusApplicationModelFactory applicationModelFactory,
             QuarkusBootstrapPreparer bootstrapPreparer,
+            QuarkusCuratedApplicationInvoker curatedApplicationInvoker,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
@@ -39,6 +42,9 @@ public final class QuarkusBootstrapWorker {
         if (bootstrapPreparer == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap preparer is required.");
         }
+        if (curatedApplicationInvoker == null) {
+            throw new QuarkusAugmentationException("Quarkus curated application invoker is required.");
+        }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
@@ -46,6 +52,7 @@ public final class QuarkusBootstrapWorker {
         this.apiProbe = apiProbe;
         this.applicationModelFactory = applicationModelFactory;
         this.bootstrapPreparer = bootstrapPreparer;
+        this.curatedApplicationInvoker = curatedApplicationInvoker;
         this.err = err;
     }
 
@@ -67,12 +74,15 @@ public final class QuarkusBootstrapWorker {
             QuarkusBootstrapApi api = apiProbe.probe(descriptor);
             QuarkusApplicationModelHandle applicationModel = applicationModelFactory.create(descriptor);
             QuarkusBootstrapHandle bootstrap = bootstrapPreparer.prepare(descriptor, api, applicationModel);
-            err.println("error: Quarkus augmentation invocation is not implemented yet. "
+            QuarkusCuratedApplicationHandle curatedApplication = curatedApplicationInvoker.invoke(bootstrap);
+            err.println("error: Quarkus production application creation is not implemented yet. "
                     + "Descriptor was accepted at "
                     + descriptor.descriptorFile()
                     + " and "
                     + bootstrap.bootstrapClass()
-                    + " was prepared with "
+                    + " produced "
+                    + curatedApplication.curatedApplicationClass()
+                    + " with "
                     + applicationModel.applicationModelClass()
                     + " and "
                     + applicationModel.dependencyCount()

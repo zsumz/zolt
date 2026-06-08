@@ -24,6 +24,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
+                new QuarkusCuratedApplicationInvoker(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -41,15 +42,16 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
+                new QuarkusCuratedApplicationInvoker(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
 
         assertEquals(3, exitCode);
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("augmentation invocation is not implemented yet"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("production application creation is not implemented yet"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("was prepared"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerCuratedApplication.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
@@ -62,6 +64,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapApiProbe(),
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
+                new QuarkusCuratedApplicationInvoker(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -142,7 +145,8 @@ final class QuarkusBootstrapWorkerTest {
             return new Builder();
         }
 
-        public void bootstrap() {
+        public WorkerCuratedApplication bootstrap() {
+            return new WorkerCuratedApplication();
         }
 
         public static final class Builder {
@@ -174,6 +178,12 @@ final class QuarkusBootstrapWorkerTest {
 
     public interface WorkerAugmentAction {
         Object createProductionApplication();
+    }
+
+    public static final class WorkerCuratedApplication {
+        public WorkerAugmentAction createAugmentor() {
+            return () -> new Object();
+        }
     }
 
     private static QuarkusApplicationModelFactory modelFactory() {
