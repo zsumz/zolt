@@ -36,13 +36,15 @@ public final class QuarkusAugmentationExecutor {
         }
         prepareOutput(request);
         QuarkusBootstrapDescriptor descriptor = descriptorWriter.write(request);
-        augmentor.augment(request, descriptor);
+        QuarkusBootstrapWorkerResult workerResult = augmentor.augment(request, descriptor);
+        validateWorkerResult(request, workerResult);
         metadataWriter.write(request.projectDirectory(), request.inputFingerprint());
         return new QuarkusAugmentationResult(
                 request.outputLayout().augmentationDirectory(),
                 request.metadataPath(),
                 descriptor,
-                request.inputFingerprint());
+                request.inputFingerprint(),
+                workerResult);
     }
 
     private static void prepareOutput(QuarkusAugmentationRequest request) {
@@ -54,6 +56,36 @@ public final class QuarkusAugmentationExecutor {
                             + request.outputLayout().augmentationDirectory()
                             + ". Check that target/ is writable and try again.",
                     exception);
+        }
+    }
+
+    private static void validateWorkerResult(
+            QuarkusAugmentationRequest request,
+            QuarkusBootstrapWorkerResult workerResult) {
+        if (workerResult == null) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus augmentor did not return a verified worker result. "
+                            + "Update Zolt or rerun with a clean Quarkus output directory.");
+        }
+        if (!request.inputFingerprint().equals(workerResult.inputFingerprint())) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus worker result fingerprint "
+                            + workerResult.inputFingerprint()
+                            + " did not match expected fingerprint "
+                            + request.inputFingerprint()
+                            + ". Rerun zolt build after refreshing Quarkus augmentation inputs.");
+        }
+        if (!request.outputLayout()
+                .packageDirectory()
+                .toAbsolutePath()
+                .normalize()
+                .equals(workerResult.packageDirectory().toAbsolutePath().normalize())) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus worker result package directory "
+                            + workerResult.packageDirectory().toAbsolutePath().normalize()
+                            + " did not match expected package directory "
+                            + request.outputLayout().packageDirectory().toAbsolutePath().normalize()
+                            + ". Check the Quarkus package output layout.");
         }
     }
 }

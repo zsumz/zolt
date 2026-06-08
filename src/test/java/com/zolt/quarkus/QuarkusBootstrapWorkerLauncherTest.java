@@ -39,7 +39,10 @@ final class QuarkusBootstrapWorkerLauncherTest {
                 List.of(Path.of("/zolt/zolt.jar")),
                 command -> new QuarkusBootstrapWorkerLauncher.ProcessResult(0, workerOutput(descriptor)));
 
-        launcher.augment(null, descriptor);
+        QuarkusBootstrapWorkerResult result = launcher.augment(null, descriptor);
+
+        assertEquals(descriptor.inputFingerprint(), result.inputFingerprint());
+        assertEquals(descriptor.packageDirectory(), result.packageDirectory());
     }
 
     @Test

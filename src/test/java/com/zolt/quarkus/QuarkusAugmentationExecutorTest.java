@@ -28,6 +28,7 @@ final class QuarkusAugmentationExecutorTest {
         QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((augmentRequest, descriptor) -> {
             seenRequest.set(augmentRequest);
             seenDescriptor.set(descriptor);
+            return workerResult(augmentRequest);
         });
 
         QuarkusAugmentationResult result = executor.augment(request);
@@ -42,6 +43,7 @@ final class QuarkusAugmentationExecutorTest {
         assertTrue(Files.exists(projectDir.resolve("target/quarkus/deployment-classpath.txt")));
         assertTrue(Files.exists(projectDir.resolve("target/quarkus/application-model.properties")));
         assertEquals(request.inputFingerprint(), result.inputFingerprint());
+        assertEquals(workerResult(request), result.workerResult());
         QuarkusAugmentationState state = new QuarkusAugmentationStateReader()
                 .read(projectDir, request.inputFingerprint());
         assertEquals(QuarkusAugmentationState.Status.CURRENT, state.status());
@@ -65,6 +67,57 @@ final class QuarkusAugmentationExecutorTest {
     }
 
     @Test
+    void doesNotWriteMetadataWhenAugmentorReturnsNoWorkerResult() {
+        QuarkusAugmentationRequest request = request();
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) -> null);
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> executor.augment(request));
+
+        assertTrue(exception.getMessage().contains("did not return a verified worker result"));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
+    }
+
+    @Test
+    void doesNotWriteMetadataWhenWorkerResultFingerprintDoesNotMatch() {
+        QuarkusAugmentationRequest request = request();
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) ->
+                new QuarkusBootstrapWorkerResult(
+                        "sha256:" + "2".repeat(64),
+                        request.outputLayout().packageDirectory(),
+                        request.outputLayout().packageDirectory().resolve("quarkus-run.jar"),
+                        request.outputLayout().packageDirectory().resolve("lib"),
+                        1));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> executor.augment(request));
+
+        assertTrue(exception.getMessage().contains("did not match expected fingerprint"));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
+    }
+
+    @Test
+    void doesNotWriteMetadataWhenWorkerResultPackageDirectoryDoesNotMatch() {
+        QuarkusAugmentationRequest request = request();
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) ->
+                new QuarkusBootstrapWorkerResult(
+                        request.inputFingerprint(),
+                        projectDir.resolve("target/other-quarkus-app"),
+                        projectDir.resolve("target/other-quarkus-app/quarkus-run.jar"),
+                        projectDir.resolve("target/other-quarkus-app/lib"),
+                        1));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> executor.augment(request));
+
+        assertTrue(exception.getMessage().contains("did not match expected package directory"));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
+    }
+
+    @Test
     void requiresAugmentor() {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -75,8 +128,7 @@ final class QuarkusAugmentationExecutorTest {
 
     @Test
     void requiresRequest() {
-        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) -> {
-        });
+        QuarkusAugmentationExecutor executor = new QuarkusAugmentationExecutor((ignored, descriptor) -> workerResult(ignored));
 
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
@@ -115,5 +167,14 @@ final class QuarkusAugmentationExecutorTest {
                                 projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar"),
                                 false)),
                 List.of());
+    }
+
+    private static QuarkusBootstrapWorkerResult workerResult(QuarkusAugmentationRequest request) {
+        return new QuarkusBootstrapWorkerResult(
+                request.inputFingerprint(),
+                request.outputLayout().packageDirectory(),
+                request.outputLayout().packageDirectory().resolve("quarkus-run.jar"),
+                request.outputLayout().packageDirectory().resolve("lib"),
+                1);
     }
 }

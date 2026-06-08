@@ -6,7 +6,8 @@ public record QuarkusAugmentationResult(
         Path augmentationDirectory,
         Path metadataPath,
         QuarkusBootstrapDescriptor bootstrapDescriptor,
-        String inputFingerprint) {
+        String inputFingerprint,
+        QuarkusBootstrapWorkerResult workerResult) {
     public QuarkusAugmentationResult {
         if (augmentationDirectory == null) {
             throw new QuarkusAugmentationException("Quarkus augmentation result requires an augmentation directory.");
@@ -19,6 +20,9 @@ public record QuarkusAugmentationResult(
         }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus augmentation result requires an input fingerprint.");
+        }
+        if (workerResult == null) {
+            throw new QuarkusAugmentationException("Quarkus augmentation result requires a worker result.");
         }
     }
 }

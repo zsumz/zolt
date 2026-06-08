@@ -57,7 +57,7 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
     }
 
     @Override
-    public void augment(QuarkusAugmentationRequest request, QuarkusBootstrapDescriptor descriptor) {
+    public QuarkusBootstrapWorkerResult augment(QuarkusAugmentationRequest request, QuarkusBootstrapDescriptor descriptor) {
         if (descriptor == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor is required.");
         }
@@ -74,6 +74,7 @@ public final class QuarkusBootstrapWorkerLauncher implements QuarkusAugmentor {
                         "Quarkus bootstrap worker completed without a Zolt success marker. "
                                 + "Update Zolt or rerun with a clean Quarkus output directory."));
         validateWorkerResult(descriptor, workerResult);
+        return workerResult;
     }
 
     private static void validateWorkerResult(
