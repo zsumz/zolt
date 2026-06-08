@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.QuarkusPackageMode;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -395,6 +396,38 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesQuarkusFrameworkSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "quarkus-app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
+
+        assertTrue(config.frameworkSettings().quarkus().enabled());
+        assertEquals(QuarkusPackageMode.FAST_JAR, config.frameworkSettings().quarkus().packageMode());
+    }
+
+    @Test
+    void defaultsQuarkusFrameworkSettingsWhenOmitted() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "plain-app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+
+        assertFalse(config.frameworkSettings().quarkus().enabled());
+        assertEquals(QuarkusPackageMode.FAST_JAR, config.frameworkSettings().quarkus().packageMode());
+    }
+
+    @Test
     void parsesBuildMetadataSettings() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -471,6 +504,46 @@ final class ZoltTomlParserTest {
 
         assertEquals(
                 "Unknown field [package].classifier in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnknownQuarkusPackageMode() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [framework.quarkus]
+                        package = "legacy-jar"
+                        """));
+
+        assertEquals(
+                "Unsupported Quarkus package mode `legacy-jar` in zolt.toml. Supported Quarkus package modes are: fast-jar.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnknownQuarkusFrameworkField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [framework.quarkus]
+                        devMode = true
+                        """));
+
+        assertEquals(
+                "Unknown field [framework.quarkus].devMode in zolt.toml. Remove it or check the spelling.",
                 exception.getMessage());
     }
 

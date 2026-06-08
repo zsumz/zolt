@@ -4,11 +4,13 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -93,6 +95,7 @@ public final class ZoltTomlWriter {
         writeResources(toml, config.build());
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
+        writeFramework(toml, config.frameworkSettings());
         writeNative(toml, config.nativeSettings());
         return toml.toString();
     }
@@ -742,7 +745,8 @@ public final class ZoltTomlWriter {
                 config.build(),
                 config.nativeSettings(),
                 config.compilerSettings(),
-                config.packageSettings());
+                config.packageSettings(),
+                config.frameworkSettings());
     }
 
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
@@ -809,6 +813,18 @@ public final class ZoltTomlWriter {
         }
         toml.append("\n[package]\n");
         writeAssignment(toml, "mode", packageSettings.mode().configValue());
+    }
+
+    private static void writeFramework(StringBuilder toml, FrameworkSettings frameworkSettings) {
+        if (frameworkSettings == null || frameworkSettings.equals(FrameworkSettings.defaults())) {
+            return;
+        }
+        QuarkusSettings quarkus = frameworkSettings.quarkus();
+        if (!quarkus.equals(QuarkusSettings.defaults())) {
+            toml.append("\n[framework.quarkus]\n");
+            writeAssignment(toml, "enabled", quarkus.enabled());
+            writeAssignment(toml, "package", quarkus.packageMode().configValue());
+        }
     }
 
     private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {

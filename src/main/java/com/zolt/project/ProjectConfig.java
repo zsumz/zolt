@@ -29,7 +29,8 @@ public record ProjectConfig(
         BuildSettings build,
         NativeSettings nativeSettings,
         CompilerSettings compilerSettings,
-        PackageSettings packageSettings) {
+        PackageSettings packageSettings,
+        FrameworkSettings frameworkSettings) {
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
@@ -57,6 +58,64 @@ public record ProjectConfig(
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
         packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
+        frameworkSettings = frameworkSettings == null ? FrameworkSettings.defaults() : frameworkSettings;
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
+            Map<String, String> devDependencies,
+            Set<String> managedDevDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            BuildSettings build,
+            NativeSettings nativeSettings,
+            CompilerSettings compilerSettings,
+            PackageSettings packageSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings,
+                FrameworkSettings.defaults());
     }
 
     public ProjectConfig(
@@ -214,7 +273,8 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings);
+                packageSettings,
+                FrameworkSettings.defaults());
     }
 
     public ProjectConfig(
@@ -446,7 +506,8 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings);
+                packageSettings,
+                frameworkSettings);
     }
 
     public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
@@ -476,6 +537,38 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings);
+                packageSettings,
+                frameworkSettings);
+    }
+
+    public ProjectConfig withFrameworkSettings(FrameworkSettings frameworkSettings) {
+        return new ProjectConfig(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings,
+                frameworkSettings);
     }
 }

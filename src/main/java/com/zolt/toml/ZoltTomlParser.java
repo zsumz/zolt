@@ -3,11 +3,14 @@ package com.zolt.toml;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -39,6 +42,7 @@ public final class ZoltTomlParser {
             "resources",
             "compiler",
             "package",
+            "framework",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
@@ -46,6 +50,8 @@ public final class ZoltTomlParser {
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
     private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
     private static final Set<String> PACKAGE_KEYS = Set.of("mode");
+    private static final Set<String> FRAMEWORK_KEYS = Set.of("quarkus");
+    private static final Set<String> QUARKUS_KEYS = Set.of("enabled", "package");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
 
     public ProjectConfig parse(Path path) {
@@ -157,6 +163,7 @@ public final class ZoltTomlParser {
         build = parseResourceRoots(optionalTable(result, "resources"), build);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
+        FrameworkSettings frameworkSettings = parseFramework(optionalTable(result, "framework"));
         NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
 
         return new ProjectConfig(
@@ -185,7 +192,8 @@ public final class ZoltTomlParser {
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings);
+                packageSettings,
+                frameworkSettings);
     }
 
     private static BuildSettings parseBuild(TomlTable buildTable) {
@@ -293,6 +301,43 @@ public final class ZoltTomlParser {
                         + "` in zolt.toml. Supported package modes are: "
                         + PackageMode.supportedValues()
                         + ".")));
+    }
+
+    private static FrameworkSettings parseFramework(TomlTable frameworkTable) {
+        if (frameworkTable == null) {
+            return FrameworkSettings.defaults();
+        }
+
+        validateKeys("framework", frameworkTable, FRAMEWORK_KEYS);
+        return new FrameworkSettings(parseQuarkus(optionalTable(frameworkTable, "quarkus")));
+    }
+
+    private static QuarkusSettings parseQuarkus(TomlTable quarkusTable) {
+        QuarkusSettings defaults = QuarkusSettings.defaults();
+        if (quarkusTable == null) {
+            return defaults;
+        }
+
+        validateKeys("framework.quarkus", quarkusTable, QUARKUS_KEYS);
+        boolean enabled = booleanOrDefault(quarkusTable, "framework.quarkus", "enabled", defaults.enabled());
+        Object rawPackage = quarkusTable.get(List.of("package"));
+        if (rawPackage == null) {
+            return new QuarkusSettings(enabled, defaults.packageMode());
+        }
+        if (!(rawPackage instanceof String packageMode) || packageMode.isBlank()) {
+            throw new ZoltConfigException(
+                    "Invalid value for [framework.quarkus].package in zolt.toml. Use one of: "
+                            + QuarkusPackageMode.supportedValues()
+                            + ".");
+        }
+        return new QuarkusSettings(
+                enabled,
+                QuarkusPackageMode.fromConfigValue(packageMode).orElseThrow(() -> new ZoltConfigException(
+                        "Unsupported Quarkus package mode `"
+                                + packageMode
+                                + "` in zolt.toml. Supported Quarkus package modes are: "
+                                + QuarkusPackageMode.supportedValues()
+                                + ".")));
     }
 
     private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {

@@ -8,11 +8,14 @@ import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -357,6 +360,21 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesQuarkusFrameworkSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withFrameworkSettings(new FrameworkSettings(
+                        new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[framework.quarkus]\n"));
+        assertTrue(toml.contains("enabled = true"));
+        assertTrue(toml.contains("package = \"fast-jar\""));
+        assertEquals(original.frameworkSettings(), parsed.frameworkSettings());
+    }
+
+    @Test
     void writesBuildMetadataSettingsWhenConfigured() {
         ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
                 .withBuildSettings(new BuildSettings(
@@ -421,6 +439,20 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(writer.write(config));
 
         assertEquals(config.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void preservesFrameworkSettingsWhenEditingDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withFrameworkSettings(new FrameworkSettings(
+                        new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
+        config = config.withBuildSettings(BuildSettings.defaults());
+        config = writer.addDependency(config, DependencySection.MAIN, "io.quarkus:quarkus-rest", "3.28.2");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "io.quarkus:quarkus-junit5");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.frameworkSettings(), parsed.frameworkSettings());
     }
 
     @Test
