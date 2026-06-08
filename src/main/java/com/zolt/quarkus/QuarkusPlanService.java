@@ -66,11 +66,18 @@ public final class QuarkusPlanService {
                 root,
                 applicationClasses,
                 config.frameworkSettings().quarkus().packageMode(),
+                outputLayout(root),
                 fingerprint,
                 augmentationStateReader.read(root, fingerprint),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
                 extensions(lockfile, cacheRoot));
+    }
+
+    private static QuarkusOutputLayout outputLayout(Path projectRoot) {
+        return new QuarkusOutputLayout(
+                projectRoot.resolve("target/quarkus").normalize(),
+                projectRoot.resolve("target/quarkus-app").normalize());
     }
 
     private static void requireEnabled(ProjectConfig config) {

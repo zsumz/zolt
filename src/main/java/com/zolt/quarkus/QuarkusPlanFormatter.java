@@ -14,6 +14,8 @@ public final class QuarkusPlanFormatter {
         }
         output.append("Application classes: ").append(plan.applicationClasses()).append('\n');
         output.append("Package target: ").append(plan.packageMode().configValue()).append('\n');
+        output.append("Augmentation output: ").append(plan.outputLayout().augmentationDirectory()).append('\n');
+        output.append("Package output: ").append(plan.outputLayout().packageDirectory()).append('\n');
         output.append("Input fingerprint: ").append(plan.inputFingerprint()).append('\n');
         output.append("Augmentation metadata: ")
                 .append(plan.augmentationState().status().label())

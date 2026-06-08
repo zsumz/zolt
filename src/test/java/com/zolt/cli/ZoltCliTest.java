@@ -1215,6 +1215,8 @@ final class ZoltCliTest {
                 Status: inputs resolved; augmentation runner not implemented yet
                 Application classes: %s
                 Package target: fast-jar
+                Augmentation output: %s
+                Package output: %s
                 Input fingerprint: %s
                 Augmentation metadata: missing (%s)
                 Runtime classpath entries: 1
@@ -1228,6 +1230,8 @@ final class ZoltCliTest {
                 Next: implement the Zolt-owned Quarkus augmentation runner with these inputs.
                 """.formatted(
                 root.resolve("target/classes"),
+                root.resolve("target/quarkus"),
+                root.resolve("target/quarkus-app"),
                 inputFingerprint,
                 root.resolve("target/quarkus/zolt-augmentation.properties"),
                 runtimeJar,

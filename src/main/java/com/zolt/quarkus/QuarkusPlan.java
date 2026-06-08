@@ -8,6 +8,7 @@ public record QuarkusPlan(
         Path projectDirectory,
         Path applicationClasses,
         QuarkusPackageMode packageMode,
+        QuarkusOutputLayout outputLayout,
         String inputFingerprint,
         QuarkusAugmentationState augmentationState,
         List<Path> runtimeClasspath,
@@ -16,6 +17,9 @@ public record QuarkusPlan(
     public QuarkusPlan {
         if (packageMode == null) {
             throw new QuarkusPlanException("Quarkus plan requires a package mode.");
+        }
+        if (outputLayout == null) {
+            throw new QuarkusPlanException("Quarkus plan requires an output layout.");
         }
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusPlanException("Quarkus plan requires an input fingerprint.");
