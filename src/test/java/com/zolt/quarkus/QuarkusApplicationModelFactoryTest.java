@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -78,6 +80,70 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     @Test
+    void mergesRuntimeAndDeploymentEntriesForSameArtifactKey() {
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApi());
+
+        QuarkusApplicationModelHandle handle = factory.create(descriptor(
+                List.of(),
+                List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.smallrye.common", "smallrye-common-os"),
+                                "2.13.4",
+                                DependencyScope.COMPILE,
+                                Path.of("/cache/smallrye-common-os.jar"),
+                                false),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.smallrye.common", "smallrye-common-os"),
+                                "2.13.4",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                Path.of("/cache/smallrye-common-os.jar"),
+                                false))));
+
+        assertEquals(1, handle.dependencyCount());
+        assertEquals(1, handle.runtimeDependencyCount());
+        assertEquals(1, handle.deploymentDependencyCount());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        FakeResolvedDependencyBuilder dependency = model.dependencies().get(0);
+        assertEquals("io.smallrye.common", dependency.groupId());
+        assertEquals("smallrye-common-os", dependency.artifactId());
+        assertTrue(dependency.runtimeClasspath());
+        assertTrue(dependency.deploymentClasspath());
+    }
+
+    @Test
+    void addsClassLoadingArtifactsFromRuntimeExtensionMetadata() throws IOException {
+        Path quarkusCore = tempDir.resolve("quarkus-core.jar");
+        writeJar(
+                quarkusCore,
+                QuarkusExtensionMetadataReader.METADATA_PATH,
+                """
+                deployment-artifact=io.quarkus:quarkus-core-deployment:3.33.2
+                parent-first-artifacts=io.quarkus:quarkus-bootstrap-runner::jar
+                runner-parent-first-artifacts=io.quarkus:quarkus-bootstrap-runner::jar
+                """);
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
+
+        QuarkusApplicationModelHandle handle = factory.create(descriptor(
+                List.of(),
+                List.of(new QuarkusBootstrapDependency(
+                        new PackageId("io.quarkus", "quarkus-bootstrap-runner"),
+                        "3.33.2",
+                        DependencyScope.COMPILE,
+                        Path.of("/cache/quarkus-bootstrap-runner.jar"),
+                        false)),
+                List.of(quarkusCore),
+                List.of()));
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        assertEquals(
+                List.of(new FakeArtifactKey("io.quarkus", "quarkus-bootstrap-runner", "", "jar")),
+                model.parentFirstArtifacts());
+        assertEquals(
+                List.of(new FakeArtifactKey("io.quarkus", "quarkus-bootstrap-runner", "", "jar")),
+                model.runnerParentFirstArtifacts());
+    }
+
+    @Test
     void rejectsMissingApplicationModelClasses() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 "missing.ApplicationModelBuilder",
@@ -114,6 +180,38 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     private static QuarkusBootstrapDescriptor descriptor(List<Path> platformPropertiesFiles) {
+        return descriptor(
+                platformPropertiesFiles,
+                List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest"),
+                                "3.33.0",
+                                DependencyScope.COMPILE,
+                                Path.of("/cache/quarkus-rest.jar"),
+                                true),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                                "3.33.0",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                Path.of("/cache/quarkus-rest-deployment.jar"),
+                                false)));
+    }
+
+    private static QuarkusBootstrapDescriptor descriptor(
+            List<Path> platformPropertiesFiles,
+            List<QuarkusBootstrapDependency> bootstrapDependencies) {
+        return descriptor(
+                platformPropertiesFiles,
+                bootstrapDependencies,
+                List.of(Path.of("/cache/quarkus-rest.jar")),
+                List.of(Path.of("/cache/quarkus-rest-deployment.jar")));
+    }
+
+    private static QuarkusBootstrapDescriptor descriptor(
+            List<Path> platformPropertiesFiles,
+            List<QuarkusBootstrapDependency> bootstrapDependencies,
+            List<Path> runtimeClasspath,
+            List<Path> deploymentClasspath) {
         return new QuarkusBootstrapDescriptor(
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/runtime-classpath.txt"),
@@ -132,22 +230,10 @@ final class QuarkusApplicationModelFactoryTest {
                         new PackageId("com.example", "demo"),
                         "1.0.0",
                         Path.of("/repo/target/classes")),
-                List.of(Path.of("/cache/quarkus-rest.jar")),
-                List.of(Path.of("/cache/quarkus-rest-deployment.jar")),
+                runtimeClasspath,
+                deploymentClasspath,
                 platformPropertiesFiles,
-                List.of(
-                        new QuarkusBootstrapDependency(
-                                new PackageId("io.quarkus", "quarkus-rest"),
-                                "3.33.0",
-                                DependencyScope.COMPILE,
-                                Path.of("/cache/quarkus-rest.jar"),
-                                true),
-                        new QuarkusBootstrapDependency(
-                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
-                                "3.33.0",
-                                DependencyScope.QUARKUS_DEPLOYMENT,
-                                Path.of("/cache/quarkus-rest-deployment.jar"),
-                                false)));
+                bootstrapDependencies);
     }
 
     private static QuarkusApplicationModelApi fakeApi() {
@@ -158,10 +244,29 @@ final class QuarkusApplicationModelFactoryTest {
                 FakePlatformImportsImpl.class.getName());
     }
 
+    private static QuarkusApplicationModelApi fakeApiWithArtifactKey() {
+        return new QuarkusApplicationModelApi(
+                FakeApplicationModelBuilder.class.getName(),
+                FakeResolvedDependencyBuilder.class.getName(),
+                FakePlatformImports.class.getName(),
+                FakePlatformImportsImpl.class.getName(),
+                FakeArtifactKey.class.getName());
+    }
+
+    private static void writeJar(Path jarPath, String entryName, String content) throws IOException {
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
+            output.putNextEntry(new JarEntry(entryName));
+            output.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.closeEntry();
+        }
+    }
+
     public static final class FakeApplicationModelBuilder {
         private FakeResolvedDependencyBuilder appArtifact;
         private FakePlatformImports platformImports;
         private final List<FakeResolvedDependencyBuilder> dependencies = new ArrayList<>();
+        private final List<FakeArtifactKey> parentFirstArtifacts = new ArrayList<>();
+        private final List<FakeArtifactKey> runnerParentFirstArtifacts = new ArrayList<>();
 
         public FakeApplicationModelBuilder setAppArtifact(FakeResolvedDependencyBuilder appArtifact) {
             this.appArtifact = appArtifact;
@@ -178,8 +283,23 @@ final class QuarkusApplicationModelFactoryTest {
             return this;
         }
 
+        public FakeApplicationModelBuilder addParentFirstArtifact(FakeArtifactKey artifactKey) {
+            parentFirstArtifacts.add(artifactKey);
+            return this;
+        }
+
+        public FakeApplicationModelBuilder addRunnerParentFirstArtifact(FakeArtifactKey artifactKey) {
+            runnerParentFirstArtifacts.add(artifactKey);
+            return this;
+        }
+
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(appArtifact, platformImports, List.copyOf(dependencies));
+            return new FakeApplicationModel(
+                    appArtifact,
+                    platformImports,
+                    List.copyOf(dependencies),
+                    List.copyOf(parentFirstArtifacts),
+                    List.copyOf(runnerParentFirstArtifacts));
         }
     }
 
@@ -189,7 +309,13 @@ final class QuarkusApplicationModelFactoryTest {
         }
 
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(null, null, List.of());
+            return new FakeApplicationModel(null, null, List.of(), List.of(), List.of());
+        }
+    }
+
+    public record FakeArtifactKey(String groupId, String artifactId, String classifier, String type) {
+        public static FakeArtifactKey of(String groupId, String artifactId, String classifier, String type) {
+            return new FakeArtifactKey(groupId, artifactId, classifier, type);
         }
     }
 
@@ -318,6 +444,8 @@ final class QuarkusApplicationModelFactoryTest {
     public record FakeApplicationModel(
             FakeResolvedDependencyBuilder appArtifact,
             FakePlatformImports platformImports,
-            List<FakeResolvedDependencyBuilder> dependencies) {
+            List<FakeResolvedDependencyBuilder> dependencies,
+            List<FakeArtifactKey> parentFirstArtifacts,
+            List<FakeArtifactKey> runnerParentFirstArtifacts) {
     }
 }

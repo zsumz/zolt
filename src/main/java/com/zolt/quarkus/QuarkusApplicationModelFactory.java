@@ -7,20 +7,32 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 public final class QuarkusApplicationModelFactory {
     private final QuarkusApplicationModelApi api;
+    private final QuarkusExtensionMetadataReader metadataReader;
 
     public QuarkusApplicationModelFactory() {
-        this(QuarkusApplicationModelApi.DEFAULT);
+        this(QuarkusApplicationModelApi.DEFAULT, new QuarkusExtensionMetadataReader());
     }
 
     QuarkusApplicationModelFactory(QuarkusApplicationModelApi api) {
+        this(api, new QuarkusExtensionMetadataReader());
+    }
+
+    QuarkusApplicationModelFactory(
+            QuarkusApplicationModelApi api,
+            QuarkusExtensionMetadataReader metadataReader) {
         if (api == null) {
             throw new QuarkusAugmentationException("Quarkus application model API is required.");
         }
+        if (metadataReader == null) {
+            throw new QuarkusAugmentationException("Quarkus extension metadata reader is required.");
+        }
         this.api = api;
+        this.metadataReader = metadataReader;
     }
 
     public QuarkusApplicationModelHandle create(QuarkusBootstrapDescriptor descriptor) {
@@ -42,24 +54,36 @@ public final class QuarkusApplicationModelFactory {
                     .getMethod("setAppArtifact", resolvedDependencyBuilderClass)
                     .invoke(modelBuilder, appArtifact);
             setPlatformImports(applicationModelBuilderClass, modelBuilder, descriptor);
+            Map<DependencyKey, DependencyBuilderState> dependencyBuilders = new LinkedHashMap<>();
             for (QuarkusBootstrapDependency dependency : descriptor.bootstrapDependencies()) {
-                Object dependencyBuilder = dependencyBuilder(
-                        resolvedDependencyBuilderClass,
-                        dependency,
-                        dependency.scope(),
-                        dependency.direct(),
-                        dependency.path());
+                DependencyKey key = DependencyKey.from(dependency);
+                DependencyBuilderState state = dependencyBuilders.get(key);
+                if (state == null) {
+                    state = new DependencyBuilderState(dependencyBuilder(
+                            resolvedDependencyBuilderClass,
+                            dependency,
+                            dependency.scope(),
+                            dependency.direct(),
+                            dependency.path()));
+                    dependencyBuilders.put(key, state);
+                } else {
+                    markDependency(resolvedDependencyBuilderClass, state.builder(), dependency.scope(), dependency.direct());
+                }
+                state.include(dependency.scope());
+            }
+            for (DependencyBuilderState state : dependencyBuilders.values()) {
                 applicationModelBuilderClass
                         .getMethod("addDependency", resolvedDependencyBuilderClass)
-                        .invoke(modelBuilder, dependencyBuilder);
+                        .invoke(modelBuilder, state.builder());
             }
+            setClassLoadingArtifacts(applicationModelBuilderClass, modelBuilder, descriptor);
             Object applicationModel = applicationModelBuilderClass.getMethod("build").invoke(modelBuilder);
             return new QuarkusApplicationModelHandle(
                     applicationModel,
                     applicationModel.getClass().getName(),
-                    descriptor.bootstrapDependencies().size(),
-                    runtimeDependencyCount(descriptor),
-                    deploymentDependencyCount(descriptor));
+                    dependencyBuilders.size(),
+                    runtimeDependencyCount(dependencyBuilders),
+                    deploymentDependencyCount(dependencyBuilders));
         } catch (ClassNotFoundException exception) {
             throw new QuarkusAugmentationException(
                     "Quarkus application model classes are missing from the bootstrap worker classpath. "
@@ -79,6 +103,8 @@ public final class QuarkusApplicationModelFactory {
             throw new QuarkusAugmentationException(
                     "Could not read Quarkus platform properties. Run `zolt resolve`, then run `zolt build` again.",
                     exception);
+        } catch (QuarkusMetadataException exception) {
+            throw new QuarkusAugmentationException(exception.getMessage(), exception);
         } catch (InvocationTargetException exception) {
             throw new QuarkusAugmentationException(
                     "Quarkus application model creation failed. Check the Quarkus augmentation inputs.",
@@ -88,6 +114,50 @@ public final class QuarkusApplicationModelFactory {
                     "Could not create Quarkus application model. Check the Quarkus deployment classpath.",
                     exception);
         }
+    }
+
+    private void setClassLoadingArtifacts(
+            Class<?> applicationModelBuilderClass,
+            Object modelBuilder,
+            QuarkusBootstrapDescriptor descriptor)
+            throws ReflectiveOperationException {
+        Class<?> artifactKeyClass = null;
+        for (Path runtimeArtifact : descriptor.runtimeClasspath()) {
+            if (!Files.isRegularFile(runtimeArtifact)) {
+                continue;
+            }
+            Optional<QuarkusExtensionMetadata> metadata = metadataReader.readIfPresent(runtimeArtifact);
+            if (metadata.isEmpty()) {
+                continue;
+            }
+            if (artifactKeyClass == null) {
+                artifactKeyClass = Class.forName(api.artifactKeyClass());
+            }
+            for (QuarkusArtifactKey artifactKey : metadata.orElseThrow().parentFirstArtifacts()) {
+                applicationModelBuilderClass
+                        .getMethod("addParentFirstArtifact", artifactKeyClass)
+                        .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
+            }
+            for (QuarkusArtifactKey artifactKey : metadata.orElseThrow().runnerParentFirstArtifacts()) {
+                applicationModelBuilderClass
+                        .getMethod("addRunnerParentFirstArtifact", artifactKeyClass)
+                        .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
+            }
+        }
+    }
+
+    private static Object artifactKey(
+            Class<?> artifactKeyClass,
+            QuarkusArtifactKey artifactKey)
+            throws ReflectiveOperationException {
+        return artifactKeyClass
+                .getMethod("of", String.class, String.class, String.class, String.class)
+                .invoke(
+                        null,
+                        artifactKey.groupId(),
+                        artifactKey.artifactId(),
+                        artifactKey.classifier().orElse(""),
+                        artifactKey.type().orElse("jar"));
     }
 
     private void setPlatformImports(
@@ -187,7 +257,18 @@ public final class QuarkusApplicationModelFactory {
         resolvedDependencyBuilderClass.getMethod("setType", String.class).invoke(builder, type);
         resolvedDependencyBuilderClass.getMethod("setScope", String.class).invoke(builder, quarkusScope(scope));
         resolvedDependencyBuilderClass.getMethod("setResolvedPath", Path.class).invoke(builder, path);
-        resolvedDependencyBuilderClass.getMethod("setDirect", boolean.class).invoke(builder, direct);
+        markDependency(resolvedDependencyBuilderClass, builder, scope, direct);
+    }
+
+    private static void markDependency(
+            Class<?> resolvedDependencyBuilderClass,
+            Object builder,
+            DependencyScope scope,
+            boolean direct)
+            throws ReflectiveOperationException {
+        if (direct) {
+            resolvedDependencyBuilderClass.getMethod("setDirect", boolean.class).invoke(builder, true);
+        }
         if (scope == DependencyScope.QUARKUS_DEPLOYMENT) {
             resolvedDependencyBuilderClass.getMethod("setDeploymentCp").invoke(builder);
         } else {
@@ -199,15 +280,59 @@ public final class QuarkusApplicationModelFactory {
         return scope == DependencyScope.RUNTIME || scope == DependencyScope.DEV ? "runtime" : "compile";
     }
 
-    private static int runtimeDependencyCount(QuarkusBootstrapDescriptor descriptor) {
-        return (int) descriptor.bootstrapDependencies().stream()
-                .filter(dependency -> dependency.scope() != DependencyScope.QUARKUS_DEPLOYMENT)
+    private static int runtimeDependencyCount(Map<DependencyKey, DependencyBuilderState> dependencies) {
+        return (int) dependencies.values().stream()
+                .filter(DependencyBuilderState::runtimeClasspath)
                 .count();
     }
 
-    private static int deploymentDependencyCount(QuarkusBootstrapDescriptor descriptor) {
-        return (int) descriptor.bootstrapDependencies().stream()
-                .filter(dependency -> dependency.scope() == DependencyScope.QUARKUS_DEPLOYMENT)
+    private static int deploymentDependencyCount(Map<DependencyKey, DependencyBuilderState> dependencies) {
+        return (int) dependencies.values().stream()
+                .filter(DependencyBuilderState::deploymentClasspath)
                 .count();
+    }
+
+    private record DependencyKey(
+            String groupId,
+            String artifactId,
+            String classifier,
+            String type) {
+        static DependencyKey from(QuarkusBootstrapDependency dependency) {
+            return new DependencyKey(
+                    dependency.packageId().groupId(),
+                    dependency.packageId().artifactId(),
+                    dependency.classifier(),
+                    dependency.type());
+        }
+    }
+
+    private static final class DependencyBuilderState {
+        private final Object builder;
+        private boolean runtimeClasspath;
+        private boolean deploymentClasspath;
+
+        DependencyBuilderState(Object builder) {
+            this.builder = builder;
+        }
+
+        Object builder() {
+            return builder;
+        }
+
+        void include(DependencyScope scope) {
+            if (scope == DependencyScope.QUARKUS_DEPLOYMENT) {
+                deploymentClasspath = true;
+            } else {
+                runtimeClasspath = true;
+            }
+        }
+
+        boolean runtimeClasspath() {
+            return runtimeClasspath;
+        }
+
+        boolean deploymentClasspath() {
+            return deploymentClasspath;
+        }
     }
 }
