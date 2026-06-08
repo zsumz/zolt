@@ -13,6 +13,10 @@ public record ProjectConfig(
         Map<String, String> dependencies,
         Set<String> managedDependencies,
         Map<String, String> workspaceDependencies,
+        Map<String, String> runtimeDependencies,
+        Set<String> managedRuntimeDependencies,
+        Map<String, String> providedDependencies,
+        Set<String> managedProvidedDependencies,
         Map<String, String> testDependencies,
         Set<String> managedTestDependencies,
         Map<String, String> workspaceTestDependencies,
@@ -35,6 +39,10 @@ public record ProjectConfig(
         dependencies = Map.copyOf(dependencies);
         managedDependencies = Set.copyOf(managedDependencies);
         workspaceDependencies = Map.copyOf(workspaceDependencies);
+        runtimeDependencies = Map.copyOf(runtimeDependencies);
+        managedRuntimeDependencies = Set.copyOf(managedRuntimeDependencies);
+        providedDependencies = Map.copyOf(providedDependencies);
+        managedProvidedDependencies = Set.copyOf(managedProvidedDependencies);
         testDependencies = Map.copyOf(testDependencies);
         managedTestDependencies = Set.copyOf(managedTestDependencies);
         workspaceTestDependencies = Map.copyOf(workspaceTestDependencies);
@@ -57,6 +65,10 @@ public record ProjectConfig(
             Map<String, String> dependencies,
             Set<String> managedDependencies,
             Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
             Map<String, String> testDependencies,
             Set<String> managedTestDependencies,
             Map<String, String> workspaceTestDependencies,
@@ -77,6 +89,10 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -88,6 +104,54 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 PackageSettings.defaults());
+    }
+
+    public ProjectConfig(
+            ProjectMetadata project,
+            Map<String, String> repositories,
+            Map<String, String> platforms,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            BuildSettings build,
+            NativeSettings nativeSettings,
+            CompilerSettings compilerSettings,
+            PackageSettings packageSettings) {
+        this(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings);
     }
 
     public ProjectConfig(
@@ -115,6 +179,10 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 Map.of(),
@@ -184,6 +252,10 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -216,6 +288,10 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 Map.of(),
@@ -245,6 +321,10 @@ public record ProjectConfig(
                 dependencies,
                 Set.of(),
                 Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 Set.of(),
                 Map.of(),
@@ -281,6 +361,10 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,

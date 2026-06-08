@@ -231,7 +231,7 @@ public final class IdeModelService {
 
     private IdeModel.DependencyInfo dependencyInfo(ProjectConfig config) {
         if (config == null) {
-            return new IdeModel.DependencyInfo(List.of(), List.of(), List.of(), List.of(), List.of());
+            return new IdeModel.DependencyInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
         return new IdeModel.DependencyInfo(
                 dependencyDeclarations(
@@ -242,6 +242,14 @@ public final class IdeModelService {
                         config.dependencies(),
                         config.managedDependencies(),
                         config.workspaceDependencies()),
+                dependencyDeclarations(
+                        config.runtimeDependencies(),
+                        config.managedRuntimeDependencies(),
+                        Map.of()),
+                dependencyDeclarations(
+                        config.providedDependencies(),
+                        config.managedProvidedDependencies(),
+                        Map.of()),
                 dependencyDeclarations(
                         config.testDependencies(),
                         config.managedTestDependencies(),

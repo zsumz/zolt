@@ -167,6 +167,40 @@ public final class ResolveService {
                     DependencyScope.COMPILE,
                     RequestOrigin.DIRECT));
         }
+        for (Map.Entry<String, String> dependency : config.runtimeDependencies().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.RUNTIME,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedRuntimeDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("runtime.dependencies", packageId, projectManagedVersions),
+                    DependencyScope.RUNTIME,
+                    RequestOrigin.DIRECT));
+        }
+        for (Map.Entry<String, String> dependency : config.providedDependencies().entrySet()) {
+            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
+            requests.add(new DependencyRequest(
+                    PackageId.from(coordinate),
+                    coordinate.version().orElseThrow(),
+                    DependencyScope.PROVIDED,
+                    RequestOrigin.DIRECT));
+        }
+        for (String dependency : config.managedProvidedDependencies()) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            PackageId packageId = PackageId.from(coordinate);
+            requests.add(new DependencyRequest(
+                    packageId,
+                    managedVersion("provided.dependencies", packageId, projectManagedVersions),
+                    DependencyScope.PROVIDED,
+                    RequestOrigin.DIRECT));
+        }
         for (Map.Entry<String, String> dependency : config.testDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(new DependencyRequest(

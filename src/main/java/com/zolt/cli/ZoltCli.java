@@ -185,7 +185,7 @@ public final class ZoltCli implements Runnable {
     public static final class AddCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[api|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
+                paramLabel = "[api|runtime|provided|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
                 description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
@@ -453,7 +453,7 @@ public final class ZoltCli implements Runnable {
     public static final class RemoveCommand implements Runnable {
         @Parameters(
                 arity = "1..2",
-                paramLabel = "[api|test|processor|test-processor] GROUP:ARTIFACT",
+                paramLabel = "[api|runtime|provided|test|processor|test-processor] GROUP:ARTIFACT",
                 description = "Dependency coordinate, optionally prefixed with a dependency section.")
         private List<String> arguments;
 
@@ -1622,6 +1622,8 @@ public final class ZoltCli implements Runnable {
         return switch (section) {
             case MAIN -> config.dependencies();
             case API -> config.apiDependencies();
+            case RUNTIME -> config.runtimeDependencies();
+            case PROVIDED -> config.providedDependencies();
             case TEST -> config.testDependencies();
             case PROCESSOR -> config.annotationProcessors();
             case TEST_PROCESSOR -> config.testAnnotationProcessors();
@@ -1632,6 +1634,8 @@ public final class ZoltCli implements Runnable {
         return switch (section) {
             case MAIN -> config.managedDependencies();
             case API -> config.managedApiDependencies();
+            case RUNTIME -> config.managedRuntimeDependencies();
+            case PROVIDED -> config.managedProvidedDependencies();
             case TEST -> config.managedTestDependencies();
             case PROCESSOR -> config.managedAnnotationProcessors();
             case TEST_PROCESSOR -> config.managedTestAnnotationProcessors();
@@ -1643,22 +1647,38 @@ public final class ZoltCli implements Runnable {
             case MAIN -> config.workspaceDependencies();
             case API -> config.workspaceApiDependencies();
             case TEST -> config.workspaceTestDependencies();
-            case PROCESSOR, TEST_PROCESSOR -> Map.of();
+            case RUNTIME, PROVIDED, PROCESSOR, TEST_PROCESSOR -> Map.of();
         };
     }
 
     private static Map<String, String> conflictingDependencies(ProjectConfig config, DependencySection section) {
         return switch (section) {
-            case MAIN -> config.apiDependencies();
-            case API -> config.dependencies();
+            case MAIN -> combinedDependencies(config.apiDependencies(), config.runtimeDependencies(), config.providedDependencies());
+            case API -> combinedDependencies(config.dependencies(), config.runtimeDependencies(), config.providedDependencies());
+            case RUNTIME -> combinedDependencies(config.apiDependencies(), config.dependencies(), config.providedDependencies());
+            case PROVIDED -> combinedDependencies(config.apiDependencies(), config.dependencies(), config.runtimeDependencies());
             case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
         };
     }
 
     private static java.util.Set<String> conflictingManagedDependencies(ProjectConfig config, DependencySection section) {
         return switch (section) {
-            case MAIN -> config.managedApiDependencies();
-            case API -> config.managedDependencies();
+            case MAIN -> combinedManagedDependencies(
+                    config.managedApiDependencies(),
+                    config.managedRuntimeDependencies(),
+                    config.managedProvidedDependencies());
+            case API -> combinedManagedDependencies(
+                    config.managedDependencies(),
+                    config.managedRuntimeDependencies(),
+                    config.managedProvidedDependencies());
+            case RUNTIME -> combinedManagedDependencies(
+                    config.managedApiDependencies(),
+                    config.managedDependencies(),
+                    config.managedProvidedDependencies());
+            case PROVIDED -> combinedManagedDependencies(
+                    config.managedApiDependencies(),
+                    config.managedDependencies(),
+                    config.managedRuntimeDependencies());
             case TEST, PROCESSOR, TEST_PROCESSOR -> java.util.Set.of();
         };
     }
@@ -1667,8 +1687,28 @@ public final class ZoltCli implements Runnable {
         return switch (section) {
             case MAIN -> config.workspaceApiDependencies();
             case API -> config.workspaceDependencies();
+            case RUNTIME -> combinedDependencies(config.workspaceApiDependencies(), config.workspaceDependencies());
+            case PROVIDED -> combinedDependencies(config.workspaceApiDependencies(), config.workspaceDependencies());
             case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
         };
+    }
+
+    @SafeVarargs
+    private static Map<String, String> combinedDependencies(Map<String, String>... candidates) {
+        Map<String, String> combined = new java.util.LinkedHashMap<>();
+        for (Map<String, String> candidate : candidates) {
+            combined.putAll(candidate);
+        }
+        return combined;
+    }
+
+    @SafeVarargs
+    private static Set<String> combinedManagedDependencies(Set<String>... candidates) {
+        Set<String> combined = new java.util.LinkedHashSet<>();
+        for (Set<String> candidate : candidates) {
+            combined.addAll(candidate);
+        }
+        return combined;
     }
 
     private static String existingDescription(
@@ -1694,6 +1734,8 @@ public final class ZoltCli implements Runnable {
         return switch (section) {
             case MAIN -> "dependencies";
             case API -> "api.dependencies";
+            case RUNTIME -> "runtime.dependencies";
+            case PROVIDED -> "provided.dependencies";
             case TEST -> "test.dependencies";
             case PROCESSOR -> "annotationProcessors";
             case TEST_PROCESSOR -> "test.annotationProcessors";
@@ -1706,11 +1748,15 @@ public final class ZoltCli implements Runnable {
         }
         return switch (values.get(0)) {
             case "api" -> DependencySection.API;
+            case "runtime" -> DependencySection.RUNTIME;
+            case "provided" -> DependencySection.PROVIDED;
             case "test" -> DependencySection.TEST;
             case "processor" -> DependencySection.PROCESSOR;
             case "test-processor" -> DependencySection.TEST_PROCESSOR;
             default -> throw new DependencySectionException("Unexpected dependency section `" + values.get(0)
                     + "`. Use `" + command + " api group:artifact`, `"
+                    + command + " runtime group:artifact`, `"
+                    + command + " provided group:artifact`, `"
                     + command + " test group:artifact`, `"
                     + command + " processor group:artifact`, or `"
                     + command + " test-processor group:artifact`.");

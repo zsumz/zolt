@@ -105,6 +105,30 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesRuntimeAndProvidedDependencies() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [runtime.dependencies]
+                "com.h2database:h2" = {}
+                "org.slf4j:slf4j-simple" = "2.0.17"
+
+                [provided.dependencies]
+                "jakarta.servlet:jakarta.servlet-api" = "6.1.0"
+                "com.acme:managed-container-api" = {}
+                """);
+
+        assertEquals("2.0.17", config.runtimeDependencies().get("org.slf4j:slf4j-simple"));
+        assertTrue(config.managedRuntimeDependencies().contains("com.h2database:h2"));
+        assertEquals("6.1.0", config.providedDependencies().get("jakarta.servlet:jakarta.servlet-api"));
+        assertTrue(config.managedProvidedDependencies().contains("com.acme:managed-container-api"));
+    }
+
+    @Test
     void rejectsDuplicateApiAndImplementationDependencyCoordinate() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,
@@ -124,6 +148,29 @@ final class ZoltTomlParserTest {
 
         assertEquals(
                 "Dependency com.acme:contract is declared in both [api.dependencies] and [dependencies]. Keep it in one section.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicateMainRuntimeAndProvidedDependencyCoordinate() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "web"
+                        version = "0.1.0"
+                        group = "com.acme"
+                        java = "21"
+
+                        [runtime.dependencies]
+                        "com.h2database:h2" = "2.4.240"
+
+                        [provided.dependencies]
+                        "com.h2database:h2" = "2.4.240"
+                        """));
+
+        assertEquals(
+                "Dependency com.h2database:h2 is declared in both [runtime.dependencies] and [provided.dependencies]. Keep it in one section.",
                 exception.getMessage());
     }
 

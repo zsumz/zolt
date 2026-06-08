@@ -360,6 +360,47 @@ final class ZoltCliTest {
     }
 
     @Test
+    void addAddsRuntimeDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--managed",
+                "runtime",
+                "com.h2database:h2");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency com.h2database:h2 with a platform-managed version to [runtime.dependencies]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[runtime.dependencies]\n\"com.h2database:h2\" = {}"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void addAddsProvidedDependencyWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "provided",
+                "jakarta.servlet:jakarta.servlet-api:6.1.0");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added dependency jakarta.servlet:jakarta.servlet-api:6.1.0 to [provided.dependencies]"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[provided.dependencies]\n\"jakarta.servlet:jakarta.servlet-api\" = \"6.1.0\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void addAddsProcessorDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -433,6 +474,8 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unexpected dependency section `compile-only`"));
         assertTrue(result.stderr().contains("zolt add api group:artifact"));
+        assertTrue(result.stderr().contains("zolt add runtime group:artifact"));
+        assertTrue(result.stderr().contains("zolt add provided group:artifact"));
         assertTrue(result.stderr().contains("zolt add processor group:artifact"));
         assertTrue(result.stderr().contains("zolt add test-processor group:artifact"));
     }
@@ -1188,6 +1231,8 @@ final class ZoltCliTest {
                   "dependencies": {
                     "api": [],
                     "implementation": [],
+                    "runtime": [],
+                    "provided": [],
                     "test": [],
                     "annotationProcessors": [],
                     "testAnnotationProcessors": []

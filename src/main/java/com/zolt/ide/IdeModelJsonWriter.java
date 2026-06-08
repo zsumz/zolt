@@ -110,6 +110,8 @@ public final class IdeModelJsonWriter {
         indent(json, 1).append("\"dependencies\": {\n");
         dependencyArrayField(json, 2, "api", dependencies.api(), true);
         dependencyArrayField(json, 2, "implementation", dependencies.implementation(), true);
+        dependencyArrayField(json, 2, "runtime", dependencies.runtime(), true);
+        dependencyArrayField(json, 2, "provided", dependencies.provided(), true);
         dependencyArrayField(json, 2, "test", dependencies.test(), true);
         dependencyArrayField(json, 2, "annotationProcessors", dependencies.annotationProcessors(), true);
         dependencyArrayField(json, 2, "testAnnotationProcessors", dependencies.testAnnotationProcessors(), false);

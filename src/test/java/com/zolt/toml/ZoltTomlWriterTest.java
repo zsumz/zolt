@@ -130,6 +130,72 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesRuntimeAndProvidedDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("web", "com.acme", "com.acme.Main");
+        config = writer.addManagedDependency(config, DependencySection.RUNTIME, "com.h2database:h2");
+        config = writer.addDependency(
+                config,
+                DependencySection.PROVIDED,
+                "jakarta.servlet:jakarta.servlet-api",
+                "6.1.0");
+        config = writer.addPlatform(config, "org.springframework.boot:spring-boot-dependencies", "4.0.6");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[runtime.dependencies]\n\"com.h2database:h2\" = {}"));
+        assertTrue(toml.contains("[provided.dependencies]\n\"jakarta.servlet:jakarta.servlet-api\" = \"6.1.0\""));
+        assertTrue(parsed.managedRuntimeDependencies().contains("com.h2database:h2"));
+        assertEquals("6.1.0", parsed.providedDependencies().get("jakarta.servlet:jakarta.servlet-api"));
+        assertEquals("4.0.6", parsed.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+    }
+
+    @Test
+    void editingRuntimeDependencyRemovesConflictingMainScopeDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencies]
+                "com.h2database:h2" = "2.4.240"
+                """);
+
+        config = writer.addManagedDependency(config, DependencySection.RUNTIME, "com.h2database:h2");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertTrue(parsed.dependencies().isEmpty());
+        assertTrue(parsed.managedRuntimeDependencies().contains("com.h2database:h2"));
+    }
+
+    @Test
+    void removingProvidedDependencyPreservesRuntimeDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "web"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [runtime.dependencies]
+                "com.h2database:h2" = "2.4.240"
+
+                [provided.dependencies]
+                "jakarta.servlet:jakarta.servlet-api" = "6.1.0"
+                """);
+
+        config = writer.removeDependency(config, DependencySection.PROVIDED, "jakarta.servlet:jakarta.servlet-api");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals("2.4.240", parsed.runtimeDependencies().get("com.h2database:h2"));
+        assertTrue(parsed.providedDependencies().isEmpty());
+    }
+
+    @Test
     void editingMainDependencyRemovesConflictingApiDependency() {
         ProjectConfig config = parser.parse("""
                 [project]

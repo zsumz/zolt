@@ -62,12 +62,16 @@ public record IdeModel(
     public record DependencyInfo(
             List<DependencyDeclaration> api,
             List<DependencyDeclaration> implementation,
+            List<DependencyDeclaration> runtime,
+            List<DependencyDeclaration> provided,
             List<DependencyDeclaration> test,
             List<DependencyDeclaration> annotationProcessors,
             List<DependencyDeclaration> testAnnotationProcessors) {
         public DependencyInfo {
             api = List.copyOf(api);
             implementation = List.copyOf(implementation);
+            runtime = List.copyOf(runtime);
+            provided = List.copyOf(provided);
             test = List.copyOf(test);
             annotationProcessors = List.copyOf(annotationProcessors);
             testAnnotationProcessors = List.copyOf(testAnnotationProcessors);

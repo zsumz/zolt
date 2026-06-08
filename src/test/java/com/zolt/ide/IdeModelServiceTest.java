@@ -149,6 +149,12 @@ final class IdeModelServiceTest {
                 [dependencies]
                 "com.example:impl" = "1.0.0"
 
+                [runtime.dependencies]
+                "com.example:runtime-only" = {}
+
+                [provided.dependencies]
+                "jakarta.servlet:jakarta.servlet-api" = "6.1.0"
+
                 [test.dependencies]
                 "org.junit.jupiter:junit-jupiter" = {}
 
@@ -168,6 +174,12 @@ final class IdeModelServiceTest {
                 List.of(new IdeModel.DependencyDeclaration("com.example:impl", "1.0.0", false, null)),
                 model.dependencies().implementation());
         assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("com.example:runtime-only", null, true, null)),
+                model.dependencies().runtime());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration("jakarta.servlet:jakarta.servlet-api", "6.1.0", false, null)),
+                model.dependencies().provided());
+        assertEquals(
                 List.of(new IdeModel.DependencyDeclaration("org.junit.jupiter:junit-jupiter", null, true, null)),
                 model.dependencies().test());
         assertEquals(
@@ -178,6 +190,8 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"dependencies\": {"));
         assertTrue(json.contains("\"api\": ["));
         assertTrue(json.contains("\"implementation\": ["));
+        assertTrue(json.contains("\"runtime\": ["));
+        assertTrue(json.contains("\"provided\": ["));
         assertTrue(json.contains("\"coordinate\": \"com.example:workspace-api\""));
         assertTrue(json.contains("\"workspace\": \"modules/api\""));
         assertTrue(json.contains("\"managed\": true"));

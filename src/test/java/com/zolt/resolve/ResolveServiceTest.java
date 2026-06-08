@@ -491,6 +491,48 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void directRuntimeAndProvidedDependenciesUseDistinctScopes() {
+        addArtifact("com.example", "runtime-tool", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>runtime-tool</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        addArtifact("jakarta.servlet", "jakarta.servlet-api", "6.1.0", """
+                <project>
+                  <groupId>jakarta.servlet</groupId>
+                  <artifactId>jakarta.servlet-api</artifactId>
+                  <version>6.1.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, runtimeProvidedConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "runtime-tool"))
+                        && lockPackage.scope() == DependencyScope.RUNTIME
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("jakarta.servlet", "jakarta.servlet-api"))
+                        && lockPackage.scope() == DependencyScope.PROVIDED
+                        && lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(
+                cacheRoot.resolve("jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar")),
+                classpaths.compile().entries());
+        assertEquals(List.of(
+                cacheRoot.resolve("com/example/runtime-tool/1.0.0/runtime-tool-1.0.0.jar")),
+                classpaths.runtime().entries());
+    }
+
+    @Test
     void springBootPackageModeFailsClearlyWithoutManagedLoaderVersion() {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
@@ -923,6 +965,34 @@ final class ResolveServiceTest {
                 Map.of(),
                 Set.of("com.example:app"),
                 BuildSettings.defaults(),
+                null);
+    }
+
+    private ProjectConfig runtimeProvidedConfig() {
+        return new ProjectConfig(
+                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                Map.of("test", baseUri.toString()),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of("com.example:runtime-tool", "1.0.0"),
+                Set.of(),
+                Map.of("jakarta.servlet:jakarta.servlet-api", "6.1.0"),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null,
+                null,
                 null);
     }
 

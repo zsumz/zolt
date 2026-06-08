@@ -17,6 +17,8 @@ central = "https://repo.maven.apache.org/maven2"
 "org.springframework.boot:spring-boot-starter-thymeleaf" = {}
 "org.springframework.boot:spring-boot-starter-validation" = {}
 "org.springframework.boot:spring-boot-starter-webmvc" = {}
+
+[runtime.dependencies]
 "com.h2database:h2" = {}
 
 [test.dependencies]

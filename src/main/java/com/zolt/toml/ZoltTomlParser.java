@@ -29,6 +29,8 @@ public final class ZoltTomlParser {
             "platforms",
             "api",
             "dependencies",
+            "runtime",
+            "provided",
             "annotationProcessors",
             "test",
             "build",
@@ -92,7 +94,29 @@ public final class ZoltTomlParser {
                 optionalTable(result, "dependencies"),
                 "dependencies",
                 true);
-        validateNoDuplicateMainDependencyCoordinates(apiDependencies, dependencies);
+        TomlTable runtimeTable = optionalTable(result, "runtime");
+        DependencyDeclarations runtimeDependencies = DependencyDeclarations.empty();
+        if (runtimeTable != null) {
+            validateKeys("runtime", runtimeTable, Set.of("dependencies"));
+            runtimeDependencies = dependencyDeclarations(
+                    optionalTable(runtimeTable, "dependencies"),
+                    "runtime.dependencies",
+                    false);
+        }
+        TomlTable providedTable = optionalTable(result, "provided");
+        DependencyDeclarations providedDependencies = DependencyDeclarations.empty();
+        if (providedTable != null) {
+            validateKeys("provided", providedTable, Set.of("dependencies"));
+            providedDependencies = dependencyDeclarations(
+                    optionalTable(providedTable, "dependencies"),
+                    "provided.dependencies",
+                    false);
+        }
+        validateNoDuplicateMainDependencyCoordinates(
+                apiDependencies,
+                dependencies,
+                runtimeDependencies,
+                providedDependencies);
         DependencyDeclarations annotationProcessors = dependencyDeclarations(
                 optionalTable(result, "annotationProcessors"),
                 "annotationProcessors",
@@ -129,6 +153,10 @@ public final class ZoltTomlParser {
                 dependencies.versioned(),
                 dependencies.managed(),
                 dependencies.workspace(),
+                runtimeDependencies.versioned(),
+                runtimeDependencies.managed(),
+                providedDependencies.versioned(),
+                providedDependencies.managed(),
                 testDependencies.versioned(),
                 testDependencies.managed(),
                 testDependencies.workspace(),
@@ -372,6 +400,37 @@ public final class ZoltTomlParser {
                     invalidDependencyDeclarationMessage(section, key, allowWorkspace));
         }
         return new DependencyDeclarations(versioned, Set.copyOf(managed), workspace);
+    }
+
+    private static void validateNoDuplicateMainDependencyCoordinates(
+            DependencyDeclarations apiDependencies,
+            DependencyDeclarations implementationDependencies,
+            DependencyDeclarations runtimeDependencies,
+            DependencyDeclarations providedDependencies) {
+        Map<String, String> sections = new LinkedHashMap<>();
+        addCoordinates(sections, apiDependencies, "api.dependencies");
+        addCoordinates(sections, implementationDependencies, "dependencies");
+        addCoordinates(sections, runtimeDependencies, "runtime.dependencies");
+        addCoordinates(sections, providedDependencies, "provided.dependencies");
+    }
+
+    private static void addCoordinates(
+            Map<String, String> sections,
+            DependencyDeclarations declarations,
+            String section) {
+        for (String coordinate : allCoordinates(declarations)) {
+            String existing = sections.putIfAbsent(coordinate, section);
+            if (existing != null) {
+                throw new ZoltConfigException(
+                        "Dependency "
+                                + coordinate
+                                + " is declared in both ["
+                                + existing
+                                + "] and ["
+                                + section
+                                + "]. Keep it in one section.");
+            }
+        }
     }
 
     private static void validateNoDuplicateMainDependencyCoordinates(
