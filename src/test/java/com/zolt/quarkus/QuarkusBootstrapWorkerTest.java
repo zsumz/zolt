@@ -25,6 +25,7 @@ final class QuarkusBootstrapWorkerTest {
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
+                new QuarkusProductionApplicationCreator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -34,7 +35,7 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     @Test
-    void buildsApplicationModelThenFailsHonestlyUntilAugmentationInvocationExists() throws IOException {
+    void createsProductionApplicationThenFailsHonestlyUntilOutputCaptureExists() throws IOException {
         Path descriptorFile = writeDescriptor();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusBootstrapWorker worker = new QuarkusBootstrapWorker(
@@ -43,15 +44,17 @@ final class QuarkusBootstrapWorkerTest {
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
+                new QuarkusProductionApplicationCreator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
 
         assertEquals(3, exitCode);
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("production application creation is not implemented yet"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("runnable package output capture is not implemented yet"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(descriptorFile.toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerCuratedApplication.class.getName()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerAugmentResult.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
@@ -65,6 +68,7 @@ final class QuarkusBootstrapWorkerTest {
                 modelFactory(),
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
+                new QuarkusProductionApplicationCreator(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -182,8 +186,18 @@ final class QuarkusBootstrapWorkerTest {
 
     public static final class WorkerCuratedApplication {
         public WorkerAugmentAction createAugmentor() {
-            return () -> new Object();
+            return new WorkerAugmentActionImpl();
         }
+    }
+
+    public static final class WorkerAugmentActionImpl implements WorkerAugmentAction {
+        @Override
+        public Object createProductionApplication() {
+            return new WorkerAugmentResult();
+        }
+    }
+
+    public static final class WorkerAugmentResult {
     }
 
     private static QuarkusApplicationModelFactory modelFactory() {
