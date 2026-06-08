@@ -26,6 +26,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
+                new QuarkusProductionApplicationSummarizer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[0]);
@@ -45,6 +46,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
+                new QuarkusProductionApplicationSummarizer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {descriptorFile.toString()});
@@ -55,6 +57,11 @@ final class QuarkusBootstrapWorkerTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerBootstrap.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerCuratedApplication.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(WorkerAugmentResult.class.getName()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 artifact results"));
+        assertTrue(err.toString(StandardCharsets.UTF_8)
+                .contains("jar /repo/target/quarkus-app/quarkus-run.jar"));
+        assertTrue(err.toString(StandardCharsets.UTF_8)
+                .contains("using libraries at /repo/target/quarkus-app/lib"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains(FakeApplicationModel.class.getName()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("1 model dependencies"));
     }
@@ -69,6 +76,7 @@ final class QuarkusBootstrapWorkerTest {
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
+                new QuarkusProductionApplicationSummarizer(),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
         int exitCode = worker.run(new String[] {projectDir.resolve("missing.properties").toString()});
@@ -198,6 +206,31 @@ final class QuarkusBootstrapWorkerTest {
     }
 
     public static final class WorkerAugmentResult {
+        public java.util.List<Object> getResults() {
+            return java.util.List.of(new Object());
+        }
+
+        public WorkerJarResult getJar() {
+            return new WorkerJarResult();
+        }
+
+        public Path getNativeResult() {
+            return null;
+        }
+    }
+
+    public static final class WorkerJarResult {
+        public Path getPath() {
+            return Path.of("/repo/target/quarkus-app/quarkus-run.jar");
+        }
+
+        public Path getLibraryDir() {
+            return Path.of("/repo/target/quarkus-app/lib");
+        }
+
+        public boolean isUberJar() {
+            return false;
+        }
     }
 
     private static QuarkusApplicationModelFactory modelFactory() {

@@ -12,6 +12,7 @@ public final class QuarkusBootstrapWorker {
     private final QuarkusBootstrapPreparer bootstrapPreparer;
     private final QuarkusCuratedApplicationInvoker curatedApplicationInvoker;
     private final QuarkusProductionApplicationCreator productionApplicationCreator;
+    private final QuarkusProductionApplicationSummarizer productionApplicationSummarizer;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
@@ -22,6 +23,7 @@ public final class QuarkusBootstrapWorker {
                 new QuarkusBootstrapPreparer(),
                 new QuarkusCuratedApplicationInvoker(),
                 new QuarkusProductionApplicationCreator(),
+                new QuarkusProductionApplicationSummarizer(),
                 System.err);
     }
 
@@ -32,6 +34,7 @@ public final class QuarkusBootstrapWorker {
             QuarkusBootstrapPreparer bootstrapPreparer,
             QuarkusCuratedApplicationInvoker curatedApplicationInvoker,
             QuarkusProductionApplicationCreator productionApplicationCreator,
+            QuarkusProductionApplicationSummarizer productionApplicationSummarizer,
             PrintStream err) {
         if (descriptorReader == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
@@ -51,6 +54,9 @@ public final class QuarkusBootstrapWorker {
         if (productionApplicationCreator == null) {
             throw new QuarkusAugmentationException("Quarkus production application creator is required.");
         }
+        if (productionApplicationSummarizer == null) {
+            throw new QuarkusAugmentationException("Quarkus production application summarizer is required.");
+        }
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
@@ -60,6 +66,7 @@ public final class QuarkusBootstrapWorker {
         this.bootstrapPreparer = bootstrapPreparer;
         this.curatedApplicationInvoker = curatedApplicationInvoker;
         this.productionApplicationCreator = productionApplicationCreator;
+        this.productionApplicationSummarizer = productionApplicationSummarizer;
         this.err = err;
     }
 
@@ -83,6 +90,8 @@ public final class QuarkusBootstrapWorker {
             QuarkusBootstrapHandle bootstrap = bootstrapPreparer.prepare(descriptor, api, applicationModel);
             QuarkusCuratedApplicationHandle curatedApplication = curatedApplicationInvoker.invoke(bootstrap);
             QuarkusProductionApplicationHandle productionApplication = productionApplicationCreator.create(curatedApplication);
+            QuarkusProductionApplicationSummary productionSummary =
+                    productionApplicationSummarizer.summarize(productionApplication);
             err.println("error: Quarkus runnable package output capture is not implemented yet. "
                     + "Descriptor was accepted at "
                     + descriptor.descriptorFile()
@@ -96,11 +105,25 @@ public final class QuarkusBootstrapWorker {
                     + applicationModel.dependencyCount()
                     + " model dependencies, producing "
                     + productionApplication.augmentResultClass()
+                    + " with "
+                    + productionSummary.artifactResultCount()
+                    + " artifact results and "
+                    + jarOutput(productionSummary)
                     + ".");
             return 3;
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());
             return 1;
         }
+    }
+
+    private static String jarOutput(QuarkusProductionApplicationSummary productionSummary) {
+        if (!productionSummary.hasJar()) {
+            return "no jar result";
+        }
+        if (productionSummary.libraryDirectory() == null) {
+            return "jar " + productionSummary.jarPath();
+        }
+        return "jar " + productionSummary.jarPath() + " using libraries at " + productionSummary.libraryDirectory();
     }
 }
