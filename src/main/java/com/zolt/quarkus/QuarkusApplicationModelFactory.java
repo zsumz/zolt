@@ -1,6 +1,7 @@
 package com.zolt.quarkus;
 
 import com.zolt.resolve.DependencyScope;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -36,9 +37,16 @@ public final class QuarkusApplicationModelFactory {
     }
 
     public QuarkusApplicationModelHandle create(QuarkusBootstrapDescriptor descriptor) {
+        return create(descriptor, Optional.empty());
+    }
+
+    public QuarkusApplicationModelHandle create(
+            QuarkusBootstrapDescriptor descriptor,
+            Optional<QuarkusWorkspaceModuleInputs> workspaceModuleInputs) {
         if (descriptor == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor is required.");
         }
+        workspaceModuleInputs = workspaceModuleInputs == null ? Optional.empty() : workspaceModuleInputs;
 
         try {
             Class<?> applicationModelBuilderClass = Class.forName(api.applicationModelBuilderClass());
@@ -50,9 +58,6 @@ public final class QuarkusApplicationModelFactory {
                     DependencyScope.COMPILE,
                     true,
                     descriptor.applicationArtifact().path());
-            applicationModelBuilderClass
-                    .getMethod("setAppArtifact", resolvedDependencyBuilderClass)
-                    .invoke(modelBuilder, appArtifact);
             setPlatformImports(applicationModelBuilderClass, modelBuilder, descriptor);
             Map<DependencyKey, DependencyBuilderState> dependencyBuilders = new LinkedHashMap<>();
             for (QuarkusBootstrapDependency dependency : descriptor.bootstrapDependencies()) {
@@ -76,6 +81,18 @@ public final class QuarkusApplicationModelFactory {
                         .getMethod("addDependency", resolvedDependencyBuilderClass)
                         .invoke(modelBuilder, state.builder());
             }
+            if (workspaceModuleInputs.isPresent()) {
+                setWorkspaceModule(
+                        applicationModelBuilderClass,
+                        resolvedDependencyBuilderClass,
+                        modelBuilder,
+                        appArtifact,
+                        descriptor,
+                        workspaceModuleInputs.orElseThrow());
+            }
+            applicationModelBuilderClass
+                    .getMethod("setAppArtifact", resolvedDependencyBuilderClass)
+                    .invoke(modelBuilder, appArtifact);
             setClassLoadingArtifacts(applicationModelBuilderClass, modelBuilder, descriptor);
             Object applicationModel = applicationModelBuilderClass.getMethod("build").invoke(modelBuilder);
             return new QuarkusApplicationModelHandle(
@@ -114,6 +131,84 @@ public final class QuarkusApplicationModelFactory {
                     "Could not create Quarkus application model. Check the Quarkus deployment classpath.",
                     exception);
         }
+    }
+
+    private static void setWorkspaceModule(
+            Class<?> applicationModelBuilderClass,
+            Class<?> resolvedDependencyBuilderClass,
+            Object modelBuilder,
+            Object appArtifactBuilder,
+            QuarkusBootstrapDescriptor descriptor,
+            QuarkusWorkspaceModuleInputs inputs)
+            throws ReflectiveOperationException {
+        Class<?> workspaceModuleIdClass = Class.forName("io.quarkus.bootstrap.workspace.WorkspaceModuleId");
+        Class<?> workspaceModuleClass = Class.forName("io.quarkus.bootstrap.workspace.WorkspaceModule");
+        Class<?> workspaceModuleMutableClass = Class.forName("io.quarkus.bootstrap.workspace.WorkspaceModule$Mutable");
+        Class<?> sourceDirClass = Class.forName("io.quarkus.bootstrap.workspace.SourceDir");
+        Class<?> artifactSourcesClass = Class.forName("io.quarkus.bootstrap.workspace.ArtifactSources");
+        Object moduleId = workspaceModuleIdClass
+                .getMethod("of", String.class, String.class, String.class)
+                .invoke(
+                        null,
+                        descriptor.applicationArtifact().packageId().groupId(),
+                        descriptor.applicationArtifact().packageId().artifactId(),
+                        descriptor.applicationArtifact().version());
+        Object module = applicationModelBuilderClass
+                .getMethod("getOrCreateProjectModule", workspaceModuleIdClass, File.class, File.class)
+                .invoke(
+                        modelBuilder,
+                        moduleId,
+                        inputs.projectDirectory().toAbsolutePath().normalize().toFile(),
+                        inputs.buildDirectory().toAbsolutePath().normalize().toFile());
+        workspaceModuleMutableClass
+                .getMethod("setBuildFile", Path.class)
+                .invoke(module, inputs.projectDirectory().resolve("zolt.toml").toAbsolutePath().normalize());
+        workspaceModuleMutableClass
+                .getMethod("addArtifactSources", artifactSourcesClass)
+                .invoke(module, mainSources(sourceDirClass, artifactSourcesClass, inputs));
+        workspaceModuleMutableClass
+                .getMethod("addArtifactSources", artifactSourcesClass)
+                .invoke(module, testSources(sourceDirClass, artifactSourcesClass, inputs));
+        resolvedDependencyBuilderClass
+                .getMethod("setWorkspaceModule", workspaceModuleClass)
+                .invoke(appArtifactBuilder, module);
+    }
+
+    private static Object mainSources(
+            Class<?> sourceDirClass,
+            Class<?> artifactSourcesClass,
+            QuarkusWorkspaceModuleInputs inputs)
+            throws ReflectiveOperationException {
+        Object sources = sourceDir(sourceDirClass, inputs.mainSourceDirectory(), inputs.mainOutputDirectory());
+        Object resources = sourceDir(sourceDirClass, inputs.mainResourceDirectory(), inputs.mainOutputDirectory());
+        return artifactSourcesClass
+                .getMethod("main", sourceDirClass, sourceDirClass)
+                .invoke(null, sources, resources);
+    }
+
+    private static Object testSources(
+            Class<?> sourceDirClass,
+            Class<?> artifactSourcesClass,
+            QuarkusWorkspaceModuleInputs inputs)
+            throws ReflectiveOperationException {
+        Object sources = sourceDir(sourceDirClass, inputs.testSourceDirectory(), inputs.testOutputDirectory());
+        Object resources = sourceDir(sourceDirClass, inputs.testResourceDirectory(), inputs.testOutputDirectory());
+        return artifactSourcesClass
+                .getMethod("test", sourceDirClass, sourceDirClass)
+                .invoke(null, sources, resources);
+    }
+
+    private static Object sourceDir(
+            Class<?> sourceDirClass,
+            Path sourceDirectory,
+            Path outputDirectory)
+            throws ReflectiveOperationException {
+        return sourceDirClass
+                .getMethod("of", Path.class, Path.class)
+                .invoke(
+                        null,
+                        sourceDirectory.toAbsolutePath().normalize(),
+                        outputDirectory.toAbsolutePath().normalize());
     }
 
     private void setClassLoadingArtifacts(

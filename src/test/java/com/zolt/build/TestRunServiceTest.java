@@ -10,6 +10,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +40,9 @@ final class TestRunServiceTest {
 
         assertEquals("Tests successful\n", result.output());
         List<String> command = commands.getFirst();
+        String userDirProperty = "-Duser.dir=" + projectDir.toAbsolutePath().normalize();
+        assertEquals(userDirProperty, command.get(1));
+        assertTrue(command.indexOf(userDirProperty) < command.indexOf("-classpath"));
         assertTrue(command.contains("org.junit.platform.console.ConsoleLauncher"));
         assertTrue(command.contains("execute"));
         assertTrue(command.contains("--disable-banner"));
@@ -110,7 +114,8 @@ final class TestRunServiceTest {
         service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         List<String> command = commands.getFirst();
-        assertEquals("-Djava.util.logging.manager=org.jboss.logmanager.LogManager", command.get(1));
+        assertEquals("-Duser.dir=" + projectDir.toAbsolutePath().normalize(), command.get(1));
+        assertEquals("-Djava.util.logging.manager=org.jboss.logmanager.LogManager", command.get(2));
         assertTrue(command.indexOf("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
                 < command.indexOf("-classpath"));
         assertTrue(command.stream().anyMatch(value -> value.contains("jboss-logmanager-3.1.2.Final.jar")));
@@ -154,6 +159,7 @@ final class TestRunServiceTest {
                 new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(":", processRunner),
+                new QuarkusTestApplicationModelService(),
                 ":");
     }
 

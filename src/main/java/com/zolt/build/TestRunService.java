@@ -7,10 +7,13 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.StringJoiner;
 
 public final class TestRunService {
@@ -23,6 +26,7 @@ public final class TestRunService {
     private final ClasspathBuilder classpathBuilder;
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
+    private final QuarkusTestApplicationModelService quarkusTestApplicationModelService;
     private final String pathSeparator;
 
     public TestRunService() {
@@ -32,6 +36,7 @@ public final class TestRunService {
                 new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(),
+                new QuarkusTestApplicationModelService(),
                 java.io.File.pathSeparator);
     }
 
@@ -41,12 +46,14 @@ public final class TestRunService {
             ClasspathBuilder classpathBuilder,
             JdkDetector jdkDetector,
             JavaRunner javaRunner,
+            QuarkusTestApplicationModelService quarkusTestApplicationModelService,
             String pathSeparator) {
         this.testCompileService = testCompileService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
+        this.quarkusTestApplicationModelService = quarkusTestApplicationModelService;
         this.pathSeparator = pathSeparator;
     }
 
@@ -54,7 +61,7 @@ public final class TestRunService {
         TestCompileResult compileResult = testCompileService.compileTests(projectDirectory, config, cacheRoot);
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
-        return runTests(config, classpaths, compileResult);
+        return runTests(projectDirectory, config, classpaths, compileResult);
     }
 
     public TestRunResult runTests(
@@ -67,10 +74,11 @@ public final class TestRunService {
                 config,
                 classpaths,
                 buildResult);
-        return runTests(config, classpaths, compileResult);
+        return runTests(projectDirectory, config, classpaths, compileResult);
     }
 
     private TestRunResult runTests(
+            Path projectDirectory,
             ProjectConfig config,
             ClasspathSet classpaths,
             TestCompileResult compileResult) {
@@ -78,6 +86,7 @@ public final class TestRunService {
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
         runnerClasspath.addAll(classpaths.test().entries());
+        runnerClasspath = absolutePaths(runnerClasspath);
         if (runnerClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
             throw new TestRunException(
                     "JUnit Platform Console is not present on the test classpath. "
@@ -93,7 +102,7 @@ public final class TestRunService {
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runnerClasspath),
                 CONSOLE_MAIN_CLASS,
-                jvmArguments(runnerClasspath),
+                jvmArguments(projectDirectory, config, runnerClasspath),
                 List.of(
                         "execute",
                         "--disable-banner",
@@ -111,16 +120,44 @@ public final class TestRunService {
         return joiner.toString();
     }
 
+    private static List<Path> absolutePaths(List<Path> classpath) {
+        return classpath.stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .toList();
+    }
+
     private static boolean isConsoleJar(Path path) {
         String name = path.getFileName() == null ? "" : path.getFileName().toString();
         return name.startsWith("junit-platform-console") && name.endsWith(".jar");
     }
 
-    private static List<String> jvmArguments(List<Path> runnerClasspath) {
+    private List<String> jvmArguments(
+            Path projectDirectory,
+            ProjectConfig config,
+            List<Path> runnerClasspath) {
+        List<String> arguments = new ArrayList<>();
+        arguments.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
+        writeQuarkusTestApplicationModel(projectDirectory, config)
+                .ifPresent(path -> arguments.add("-D"
+                        + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY
+                        + "="
+                        + path));
         if (runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar)) {
-            return List.of(JBOSS_LOG_MANAGER_PROPERTY);
+            arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
         }
-        return List.of();
+        return List.copyOf(arguments);
+    }
+
+    private Optional<Path> writeQuarkusTestApplicationModel(Path projectDirectory, ProjectConfig config) {
+        try {
+            return quarkusTestApplicationModelService.writeIfEnabled(projectDirectory, config);
+        } catch (QuarkusAugmentationException exception) {
+            throw new TestRunException(
+                    "Could not prepare Quarkus test application model. "
+                            + "Run `zolt resolve`, then run `zolt test` again. "
+                            + exception.getMessage(),
+                    exception);
+        }
     }
 
     private static boolean isJbossLogManagerJar(Path path) {
