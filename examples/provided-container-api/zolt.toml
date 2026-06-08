@@ -1,0 +1,18 @@
+[project]
+name = "provided-container-api"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+main = "com.example.provided.Main"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[provided.dependencies]
+"jakarta.servlet:jakarta.servlet-api" = "6.1.0"
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
