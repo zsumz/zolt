@@ -16,9 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -195,17 +197,18 @@ public final class PackageService {
             try (OutputStream fileOutput = Files.newOutputStream(jarPath);
                     JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
                 writeEntry(jarOutput, GeneratedManifest.DEFAULT_PATH, springBootManifest(startClass, loader));
-                writeDirectoryEntry(jarOutput, "BOOT-INF/");
-                writeDirectoryEntry(jarOutput, BOOT_CLASSES_PREFIX);
-                writeDirectoryEntry(jarOutput, BOOT_LIB_PREFIX);
+                Set<String> directoryEntries = new LinkedHashSet<>();
+                writeDirectoryEntry(jarOutput, directoryEntries, "BOOT-INF/");
+                writeDirectoryEntry(jarOutput, directoryEntries, BOOT_CLASSES_PREFIX);
+                writeDirectoryEntry(jarOutput, directoryEntries, BOOT_LIB_PREFIX);
                 for (Map.Entry<String, byte[]> entry : loader.entries().entrySet()) {
+                    writeParentDirectoryEntries(jarOutput, directoryEntries, entry.getKey());
                     writeEntry(jarOutput, entry.getKey(), entry.getValue());
                 }
                 for (Path file : files) {
-                    writeEntry(
-                            jarOutput,
-                            BOOT_CLASSES_PREFIX + entryName(outputDirectory, file),
-                            Files.readAllBytes(file));
+                    String bootEntryName = BOOT_CLASSES_PREFIX + entryName(outputDirectory, file);
+                    writeParentDirectoryEntries(jarOutput, directoryEntries, bootEntryName);
+                    writeEntry(jarOutput, bootEntryName, Files.readAllBytes(file));
                 }
                 for (RuntimeJar runtimeJar : runtimeJars) {
                     if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
@@ -448,7 +451,24 @@ public final class PackageService {
         }
     }
 
-    private static void writeDirectoryEntry(JarOutputStream output, String name) throws IOException {
+    private static void writeParentDirectoryEntries(
+            JarOutputStream output,
+            Set<String> writtenDirectories,
+            String entryName) throws IOException {
+        int slash = entryName.indexOf('/');
+        while (slash >= 0) {
+            writeDirectoryEntry(output, writtenDirectories, entryName.substring(0, slash + 1));
+            slash = entryName.indexOf('/', slash + 1);
+        }
+    }
+
+    private static void writeDirectoryEntry(
+            JarOutputStream output,
+            Set<String> writtenDirectories,
+            String name) throws IOException {
+        if (!writtenDirectories.add(name)) {
+            return;
+        }
         try {
             JarEntry entry = new JarEntry(name);
             entry.setTime(DETERMINISTIC_ENTRY_TIME);

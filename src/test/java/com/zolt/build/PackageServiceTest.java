@@ -268,7 +268,12 @@ final class PackageServiceTest {
             assertNotNull(jar.getEntry("org/springframework/boot/loader/launch/JarLauncher.class"));
             assertNotNull(jar.getEntry("BOOT-INF/"));
             assertNotNull(jar.getEntry("BOOT-INF/classes/"));
+            assertNotNull(jar.getEntry("BOOT-INF/classes/com/"));
+            assertNotNull(jar.getEntry("BOOT-INF/classes/com/example/"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/"));
+            assertNotNull(jar.getEntry("org/"));
+            assertNotNull(jar.getEntry("org/springframework/"));
+            assertNotNull(jar.getEntry("org/springframework/boot/loader/launch/"));
             assertNotNull(jar.getEntry("BOOT-INF/classes/com/example/Main.class"));
             assertEquals("server.port=0\n", readEntry(jar, "BOOT-INF/classes/application.properties"));
             assertNotNull(jar.getEntry("BOOT-INF/lib/runtime-lib-1.0.0.jar"));

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <title>PetClinic Lite</title>
+  <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+  <main>
+    <h1>PetClinic Lite</h1>
+    <p>Small Spring Boot fixture for Zolt.</p>
+    <ul>
+      <li th:each="owner : ${owners}" th:text="${owner.name()}">Owner</li>
+    </ul>
+  </main>
+</body>
+</html>
