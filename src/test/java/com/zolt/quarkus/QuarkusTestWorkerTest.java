@@ -114,6 +114,7 @@ final class QuarkusTestWorkerTest {
                                 api,
                                 List.of("com.example.HttpTest"),
                                 List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
                                 List.of("org.junit.platform.console.ConsoleLauncher")),
                         request -> {
                             launchRequests.add(request);
@@ -138,6 +139,7 @@ final class QuarkusTestWorkerTest {
                                 api,
                                 List.of("com.example.HttpTest"),
                                 List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
                                 List.of("org.junit.platform.console.ConsoleLauncher")),
                         request -> new QuarkusAnnotationJvmRunner.Result(1, """
                                 java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder

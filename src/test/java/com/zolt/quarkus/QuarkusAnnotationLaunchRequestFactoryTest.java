@@ -27,6 +27,11 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                 "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"),
                 request.jvmArguments());
         assertEquals(List.of(
+                        Path.of("/repo/target/test-classes"),
+                        Path.of("/repo/target/classes"),
+                        Path.of("/cache/junit-platform-console.jar")),
+                request.launcherClasspath());
+        assertEquals(List.of(
                 "org.junit.platform.console.ConsoleLauncher",
                 "execute",
                 "--disable-banner",

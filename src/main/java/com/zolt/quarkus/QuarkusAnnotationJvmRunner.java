@@ -49,7 +49,7 @@ public final class QuarkusAnnotationJvmRunner {
         command.add(javaExecutable.toString());
         command.addAll(request.jvmArguments());
         command.add("-classpath");
-        command.add(joined(request.descriptor().testRuntimeClasspath()));
+        command.add(joined(request.launcherClasspath()));
         command.addAll(request.consoleArguments());
         return List.copyOf(command);
     }

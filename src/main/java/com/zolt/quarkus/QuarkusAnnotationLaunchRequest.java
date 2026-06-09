@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import java.nio.file.Path;
 import java.util.List;
 
 public record QuarkusAnnotationLaunchRequest(
@@ -7,6 +8,7 @@ public record QuarkusAnnotationLaunchRequest(
         QuarkusAnnotationApi api,
         List<String> testClasses,
         List<String> jvmArguments,
+        List<Path> launcherClasspath,
         List<String> consoleArguments) {
     public QuarkusAnnotationLaunchRequest {
         if (descriptor == null) {
@@ -21,11 +23,16 @@ public record QuarkusAnnotationLaunchRequest(
         if (jvmArguments == null) {
             throw new QuarkusAugmentationException("Quarkus annotation launch request requires JVM arguments.");
         }
+        if (launcherClasspath == null || launcherClasspath.isEmpty()) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus annotation launch request requires a launcher classpath.");
+        }
         if (consoleArguments == null || consoleArguments.isEmpty()) {
             throw new QuarkusAugmentationException("Quarkus annotation launch request requires console arguments.");
         }
         testClasses = List.copyOf(testClasses);
         jvmArguments = List.copyOf(jvmArguments);
+        launcherClasspath = List.copyOf(launcherClasspath);
         consoleArguments = List.copyOf(consoleArguments);
     }
 }

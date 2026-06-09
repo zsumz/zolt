@@ -49,6 +49,42 @@ final class QuarkusAnnotationJvmRunnerTest {
     }
 
     @Test
+    void usesLauncherClasspathSeparatelyFromConsoleClasspath() {
+        QuarkusAnnotationLaunchRequest request = new QuarkusAnnotationLaunchRequest(
+                descriptor(),
+                api(),
+                List.of("com.example.HttpTest"),
+                List.of("-Duser.dir=/repo"),
+                List.of(
+                        Path.of("/launcher/junit-platform-console.jar"),
+                        Path.of("/launcher/quarkus-junit.jar")),
+                List.of(
+                        "org.junit.platform.console.ConsoleLauncher",
+                        "execute",
+                        "--class-path",
+                        "/repo/target/test-classes:/repo/target/classes",
+                        "--select-class",
+                        "com.example.HttpTest"));
+        QuarkusAnnotationJvmRunner runner = new QuarkusAnnotationJvmRunner(
+                ":",
+                Path.of("/jdk/bin/java"),
+                command -> new QuarkusAnnotationJvmRunner.Result(0, ""));
+
+        assertEquals(List.of(
+                        "/jdk/bin/java",
+                        "-Duser.dir=/repo",
+                        "-classpath",
+                        "/launcher/junit-platform-console.jar:/launcher/quarkus-junit.jar",
+                        "org.junit.platform.console.ConsoleLauncher",
+                        "execute",
+                        "--class-path",
+                        "/repo/target/test-classes:/repo/target/classes",
+                        "--select-class",
+                        "com.example.HttpTest"),
+                runner.command(request));
+    }
+
+    @Test
     void requiresLaunchRequest() {
         QuarkusAnnotationJvmRunner runner = new QuarkusAnnotationJvmRunner(
                 ":",
@@ -71,6 +107,10 @@ final class QuarkusAnnotationJvmRunnerTest {
                         "-Duser.dir=/repo",
                         "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
                         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"),
+                List.of(
+                        Path.of("/repo/target/test-classes"),
+                        Path.of("/repo/target/classes"),
+                        Path.of("/cache/junit-platform-console.jar")),
                 List.of(
                         "org.junit.platform.console.ConsoleLauncher",
                         "execute",

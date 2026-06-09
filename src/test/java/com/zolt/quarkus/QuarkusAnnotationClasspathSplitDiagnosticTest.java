@@ -47,6 +47,7 @@ final class QuarkusAnnotationClasspathSplitDiagnosticTest {
                 api(),
                 List.of("com.example.HttpTest"),
                 List.of("-Duser.dir=/repo"),
+                testRuntimeClasspath,
                 List.of("org.junit.platform.console.ConsoleLauncher"));
     }
 

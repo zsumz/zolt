@@ -38,6 +38,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 api,
                 testClasses,
                 jvmArguments(descriptor),
+                launcherClasspath(descriptor),
                 consoleArguments(descriptor, testClasses));
     }
 
@@ -95,6 +96,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         arguments.add("--details");
         arguments.add("summary");
         return List.copyOf(arguments);
+    }
+
+    private static List<Path> launcherClasspath(QuarkusTestRunnerDescriptor descriptor) {
+        return descriptor.testRuntimeClasspath();
     }
 
     private String joined(List<Path> classpath) {
