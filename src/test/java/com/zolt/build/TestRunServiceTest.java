@@ -54,7 +54,8 @@ final class TestRunServiceTest {
         assertTrue(command.contains("org.junit.platform.console.ConsoleLauncher"));
         assertTrue(command.contains("execute"));
         assertTrue(command.contains("--disable-banner"));
-        assertTrue(command.contains("--scan-class-path"));
+        assertTrue(command.contains("--scan-class-path="
+                + projectDir.resolve("target/test-classes").toAbsolutePath().normalize()));
         assertTrue(command.contains("--details"));
         String launcherClasspath = launcherClasspath(command);
         assertTrue(launcherClasspath.contains("junit-platform-console-standalone-1.11.4.jar"));
@@ -108,6 +109,8 @@ final class TestRunServiceTest {
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainIT.class")));
         List<String> command = commands.getFirst();
         assertTrue(command.contains("org.junit.platform.console.ConsoleLauncher"));
+        assertTrue(command.contains("--scan-class-path="
+                + projectDir.resolve("target/test-classes").toAbsolutePath().normalize()));
         assertTrue(command.stream().anyMatch(value -> value.contains("target/test-classes")));
         assertTrue(command.stream().anyMatch(value -> value.contains("junit-platform-console-standalone-1.11.4.jar")));
     }

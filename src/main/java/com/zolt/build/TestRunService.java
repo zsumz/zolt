@@ -169,7 +169,7 @@ public final class TestRunService {
                         "execute",
                         "--disable-banner",
                         "--class-path", joined(runnerClasspath),
-                        "--scan-class-path",
+                        "--scan-class-path=" + compileResult.outputDirectory().toAbsolutePath().normalize(),
                         "--details", "summary"));
         failOnHiddenQuarkusBootstrapFailure(config, result.output());
         return new TestRunResult(compileResult, result.output(), runnerClasspath.size(), launcherClasspath.size());

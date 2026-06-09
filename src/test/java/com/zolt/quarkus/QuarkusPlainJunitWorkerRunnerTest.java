@@ -29,7 +29,7 @@ final class QuarkusPlainJunitWorkerRunnerTest {
                         "--disable-banner",
                         "--class-path",
                         "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
-                        "--scan-class-path",
+                        "--scan-class-path=/repo/target/test-classes",
                         "--details",
                         "summary"),
                 runner.command(descriptor));

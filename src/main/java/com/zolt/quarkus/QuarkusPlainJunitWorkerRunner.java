@@ -67,7 +67,7 @@ public final class QuarkusPlainJunitWorkerRunner {
         command.add("--disable-banner");
         command.add("--class-path");
         command.add(classpath);
-        command.add("--scan-class-path");
+        command.add("--scan-class-path=" + descriptor.testOutputDirectory().normalize());
         command.add("--details");
         command.add("summary");
         return List.copyOf(command);
