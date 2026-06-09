@@ -794,7 +794,8 @@ public final class ZoltCli implements Runnable {
                                         workingDirectory,
                                         cacheRoot,
                                         checkLock,
-                                        offline),
+                                        offline,
+                                        timings),
                                 ZoltCli::workspaceIdeModelAttributes);
                         String output = timings.measure(
                                 "ide model json",
@@ -808,7 +809,8 @@ public final class ZoltCli implements Runnable {
                                     workingDirectory,
                                     cacheRoot,
                                     checkLock,
-                                    offline),
+                                    offline,
+                                    timings),
                             ZoltCli::ideModelAttributes);
                     String output = timings.measure(
                             "ide model json",

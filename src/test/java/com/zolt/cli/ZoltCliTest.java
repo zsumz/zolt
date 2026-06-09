@@ -229,6 +229,58 @@ final class ZoltCliTest {
     }
 
     @Test
+    void ideModelPrintsNestedJsonTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("ide-timings");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "ide", "model",
+                "--format", "json",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"schemaVersion\": 1"));
+        assertTrue(result.stderr().contains("\"phase\":\"read ide project config\""));
+        assertTrue(result.stderr().contains("\"phase\":\"build ide classpaths\""));
+        assertTrue(result.stderr().contains("\"phase\":\"build ide framework model\""));
+        assertTrue(result.stderr().contains("\"phase\":\"assemble ide model\""));
+        assertTrue(result.stderr().contains("\"phase\":\"ide model export\""));
+        assertTrue(result.stderr().contains("\"phase\":\"ide model json\""));
+        assertTrue(result.stderr().contains("\"depth\":1"));
+        assertTrue(result.stderr().contains("\"testClasspathEntries\""));
+    }
+
+    @Test
+    void workspaceIdeModelPrintsNestedJsonTimingsWhenRequested() throws IOException {
+        WorkspaceApplicationFixture fixture = workspaceApplicationFixture("workspace-ide-timings");
+
+        CommandResult result = execute(
+                "ide", "model",
+                "--workspace",
+                "--format", "json",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", fixture.workspaceDir().toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"workspace\": {"));
+        assertTrue(result.stderr().contains("\"phase\":\"discover ide workspace\""));
+        assertTrue(result.stderr().contains("\"phase\":\"read workspace ide lock\""));
+        assertTrue(result.stderr().contains("\"phase\":\"plan workspace ide classpaths\""));
+        assertTrue(result.stderr().contains("\"phase\":\"export workspace ide projects\""));
+        assertTrue(result.stderr().contains("\"phase\":\"export workspace ide edges\""));
+        assertTrue(result.stderr().contains("\"phase\":\"assemble workspace ide model\""));
+        assertTrue(result.stderr().contains("\"phase\":\"ide model export\""));
+        assertTrue(result.stderr().contains("\"phase\":\"ide model json\""));
+        assertTrue(result.stderr().contains("\"depth\":1"));
+        assertTrue(result.stderr().contains("\"projects\":\"2\""));
+    }
+
+    @Test
     void resolveLockedVerifiesExistingLockfile() throws IOException {
         try (TestRepository repository = TestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """

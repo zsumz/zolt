@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.perf.TimingRecorder;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolveException;
 import com.zolt.workspace.Workspace;
@@ -55,20 +56,46 @@ public final class WorkspaceIdeModelService {
     }
 
     public WorkspaceIdeModel export(Path startDirectory, Path cacheRoot, boolean checkLock, boolean offline) {
+        return export(startDirectory, cacheRoot, checkLock, offline, new TimingRecorder(false));
+    }
+
+    public WorkspaceIdeModel export(
+            Path startDirectory,
+            Path cacheRoot,
+            boolean checkLock,
+            boolean offline,
+            TimingRecorder timings) {
         Path start = startDirectory.toAbsolutePath().normalize();
+        TimingRecorder recorder = timings == null ? new TimingRecorder(false) : timings;
         try {
-            Optional<Workspace> discovered = workspaceDiscoveryService.discover(start);
+            Optional<Workspace> discovered = recorder.measure(
+                    "discover ide workspace",
+                    () -> workspaceDiscoveryService.discover(start));
             if (discovered.isEmpty()) {
                 return missingWorkspace(start);
             }
             Workspace workspace = discovered.orElseThrow();
-            WorkspaceLockState lockState = workspaceLockState(workspace, cacheRoot, checkLock, offline);
-            return new WorkspaceIdeModel(
-                    SCHEMA_VERSION,
-                    workspaceInfo(workspace),
-                    projectModels(workspace, cacheRoot, lockState),
-                    projectEdges(workspace),
-                    lockState.diagnostics());
+            WorkspaceLockState lockState = recorder.measure(
+                    "read workspace ide lock",
+                    () -> workspaceLockState(workspace, cacheRoot, checkLock, offline),
+                    WorkspaceIdeModelService::workspaceLockAttributes);
+            List<WorkspaceIdeModel.ProjectModel> projects = recorder.measure(
+                    "export workspace ide projects",
+                    () -> projectModels(workspace, cacheRoot, lockState, recorder),
+                    WorkspaceIdeModelService::workspaceProjectAttributes);
+            List<WorkspaceIdeModel.ProjectEdge> edges = recorder.measure(
+                    "export workspace ide edges",
+                    () -> projectEdges(workspace),
+                    WorkspaceIdeModelService::workspaceEdgeAttributes);
+            return recorder.measure(
+                    "assemble workspace ide model",
+                    () -> new WorkspaceIdeModel(
+                            SCHEMA_VERSION,
+                            workspaceInfo(workspace),
+                            projects,
+                            edges,
+                            lockState.diagnostics()),
+                    WorkspaceIdeModelService::workspaceIdeModelAttributes);
         } catch (WorkspaceConfigException exception) {
             return invalidWorkspace(start, exception);
         }
@@ -88,9 +115,13 @@ public final class WorkspaceIdeModelService {
     private List<WorkspaceIdeModel.ProjectModel> projectModels(
             Workspace workspace,
             Path cacheRoot,
-            WorkspaceLockState lockState) {
+            WorkspaceLockState lockState,
+            TimingRecorder timings) {
         List<WorkspaceIdeModel.ProjectModel> projects = new ArrayList<>();
-        Map<String, IdeModel.ClasspathInfo> classpathsByMember = classpaths(workspace, cacheRoot, lockState.lockfile());
+        Map<String, IdeModel.ClasspathInfo> classpathsByMember = timings.measure(
+                "plan workspace ide classpaths",
+                () -> classpaths(workspace, cacheRoot, lockState.lockfile()),
+                WorkspaceIdeModelService::workspaceClasspathAttributes);
         for (WorkspaceMember member : workspace.members()) {
             projects.add(new WorkspaceIdeModel.ProjectModel(
                     member.path(),
@@ -101,6 +132,43 @@ public final class WorkspaceIdeModelService {
                             List.of())));
         }
         return List.copyOf(projects);
+    }
+
+    private static Map<String, String> workspaceLockAttributes(WorkspaceLockState lockState) {
+        return Map.of(
+                "lockfilePresent", Boolean.toString(lockState.lockfile() != null),
+                "diagnostics", Integer.toString(lockState.diagnostics().size()));
+    }
+
+    private static Map<String, String> workspaceProjectAttributes(List<WorkspaceIdeModel.ProjectModel> projects) {
+        return Map.of("projects", Integer.toString(projects.size()));
+    }
+
+    private static Map<String, String> workspaceEdgeAttributes(List<WorkspaceIdeModel.ProjectEdge> edges) {
+        return Map.of("edges", Integer.toString(edges.size()));
+    }
+
+    private static Map<String, String> workspaceClasspathAttributes(Map<String, IdeModel.ClasspathInfo> classpathsByMember) {
+        int compileEntries = 0;
+        int runtimeEntries = 0;
+        int testEntries = 0;
+        for (IdeModel.ClasspathInfo classpaths : classpathsByMember.values()) {
+            compileEntries += classpaths.compile().size();
+            runtimeEntries += classpaths.runtime().size();
+            testEntries += classpaths.test().size();
+        }
+        return Map.of(
+                "members", Integer.toString(classpathsByMember.size()),
+                "compileClasspathEntries", Integer.toString(compileEntries),
+                "runtimeClasspathEntries", Integer.toString(runtimeEntries),
+                "testClasspathEntries", Integer.toString(testEntries));
+    }
+
+    private static Map<String, String> workspaceIdeModelAttributes(WorkspaceIdeModel model) {
+        return Map.of(
+                "projects", Integer.toString(model.projects().size()),
+                "edges", Integer.toString(model.edges().size()),
+                "diagnostics", Integer.toString(model.diagnostics().size()));
     }
 
     private WorkspaceLockState workspaceLockState(

@@ -6,6 +6,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.perf.TimingRecorder;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
@@ -63,30 +64,67 @@ public final class IdeModelService {
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot, boolean checkLock, boolean offline) {
+        return export(projectDirectory, cacheRoot, checkLock, offline, new TimingRecorder(false));
+    }
+
+    public IdeModel export(
+            Path projectDirectory,
+            Path cacheRoot,
+            boolean checkLock,
+            boolean offline,
+            TimingRecorder timings) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path configPath = root.resolve("zolt.toml").normalize();
         Path lockfilePath = root.resolve("zolt.lock").normalize();
         Path normalizedCacheRoot = cacheRoot.toAbsolutePath().normalize();
         List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
 
-        ProjectConfig config = readConfig(configPath, diagnostics);
-        IdeModel.ClasspathInfo classpaths = classpaths(lockfilePath, normalizedCacheRoot, root, config, diagnostics);
+        TimingRecorder recorder = timings == null ? new TimingRecorder(false) : timings;
+        ProjectConfig config = recorder.measure(
+                "read ide project config",
+                () -> readConfig(configPath, diagnostics));
+        IdeModel.ClasspathInfo classpaths = recorder.measure(
+                "build ide classpaths",
+                () -> classpaths(lockfilePath, normalizedCacheRoot, root, config, diagnostics),
+                IdeModelService::ideClasspathAttributes);
         if (checkLock) {
-            checkLockFreshness(root, lockfilePath, normalizedCacheRoot, config, offline, diagnostics);
+            recorder.measure(
+                    "check ide lock freshness",
+                    () -> checkLockFreshness(root, lockfilePath, normalizedCacheRoot, config, offline, diagnostics));
         }
+        IdeModel.FrameworkInfo frameworkInfo = recorder.measure(
+                "build ide framework model",
+                () -> frameworkInfo(root, normalizedCacheRoot, config, diagnostics));
 
-        return new IdeModel(
-                SCHEMA_VERSION,
-                projectInfo(config),
-                javaInfo(config),
-                new IdeModel.PathInfo(root, configPath, lockfilePath),
-                sourceRoots(root, config),
-                resourceRoots(root, config),
-                outputInfo(root, config),
-                dependencyInfo(config),
-                classpaths,
-                frameworkInfo(root, normalizedCacheRoot, config, diagnostics),
-                diagnostics);
+        return recorder.measure(
+                "assemble ide model",
+                () -> new IdeModel(
+                        SCHEMA_VERSION,
+                        projectInfo(config),
+                        javaInfo(config),
+                        new IdeModel.PathInfo(root, configPath, lockfilePath),
+                        sourceRoots(root, config),
+                        resourceRoots(root, config),
+                        outputInfo(root, config),
+                        dependencyInfo(config),
+                        classpaths,
+                        frameworkInfo,
+                        diagnostics),
+                IdeModelService::ideModelAttributes);
+    }
+
+    private static Map<String, String> ideClasspathAttributes(IdeModel.ClasspathInfo classpaths) {
+        return Map.of(
+                "compileClasspathEntries", Integer.toString(classpaths.compile().size()),
+                "runtimeClasspathEntries", Integer.toString(classpaths.runtime().size()),
+                "testClasspathEntries", Integer.toString(classpaths.test().size()));
+    }
+
+    private static Map<String, String> ideModelAttributes(IdeModel model) {
+        return Map.of(
+                "sourceRoots", Integer.toString(model.sourceRoots().size()),
+                "resourceRoots", Integer.toString(model.resourceRoots().size()),
+                "diagnostics", Integer.toString(model.diagnostics().size()));
     }
 
     IdeModel exportWithClasspaths(
