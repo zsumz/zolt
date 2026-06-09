@@ -2818,6 +2818,42 @@ final class ZoltCliTest {
     }
 
     @Test
+    void runCommandPrintsJsonTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("hello"));
+        assertTrue(result.stdout().contains("Ran com.example.Main"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(2, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"config read\""));
+        assertTrue(lines[0].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"phase\":\"run application\""));
+        assertTrue(lines[1].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"mainClass\":\"com.example.Main\""));
+        assertTrue(lines[1].contains("\"mainSourceFiles\":\"1\""));
+        assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
+        assertTrue(lines[1].contains("\"outputBytes\""));
+    }
+
+    @Test
     void runReportsMissingMainClassClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");
@@ -3086,6 +3122,43 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("packaged one two"));
         assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
         assertTrue(Files.exists(jarPath));
+    }
+
+    @Test
+    void runPackageCommandPrintsJsonTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("packaged");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run-package",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("packaged"));
+        assertTrue(result.stdout().contains("Ran packaged com.example.Main"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(2, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"config read\""));
+        assertTrue(lines[0].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"phase\":\"run packaged application\""));
+        assertTrue(lines[1].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"mode\":\"thin\""));
+        assertTrue(lines[1].contains("\"entries\":\"1\""));
+        assertTrue(lines[1].contains("\"hasMainClass\":\"true\""));
+        assertTrue(lines[1].contains("\"mainClass\":\"com.example.Main\""));
+        assertTrue(lines[1].contains("\"outputBytes\""));
     }
 
     @Test
