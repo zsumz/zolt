@@ -31,6 +31,7 @@ final class QuarkusTestPlanServiceTest {
         assertEquals(root, plan.projectDirectory());
         assertEquals(root.resolve("target/test-classes"), plan.testOutputDirectory());
         assertEquals(root.resolve("target/quarkus/test-application-model.dat"), plan.serializedApplicationModel());
+        assertEquals(root.resolve("target/quarkus/zolt-test-bootstrap.properties"), plan.testRunnerDescriptor());
         assertFalse(plan.testOutputPresent());
         assertTrue(plan.unsupportedTests().isEmpty());
     }

@@ -13,6 +13,7 @@ public final class QuarkusTestPlanFormatter {
         output.append("Test output: ").append(plan.testOutputDirectory()).append('\n');
         output.append("Compiled test output: ").append(plan.testOutputPresent() ? "present" : "missing").append('\n');
         output.append("Serialized application model: ").append(plan.serializedApplicationModel()).append('\n');
+        output.append("Test runner descriptor: ").append(plan.testRunnerDescriptor()).append('\n');
         output.append("Unsupported Quarkus tests: ").append(plan.unsupportedTests().size()).append('\n');
         for (QuarkusUnsupportedTest test : plan.unsupportedTests()) {
             output.append("  ")

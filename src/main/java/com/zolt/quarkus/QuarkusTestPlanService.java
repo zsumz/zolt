@@ -38,6 +38,7 @@ public final class QuarkusTestPlanService {
                 testOutputDirectory,
                 Files.isDirectory(testOutputDirectory),
                 root.resolve("target/quarkus/test-application-model.dat").normalize(),
+                root.resolve("target/quarkus/zolt-test-bootstrap.properties").normalize(),
                 unsupportedTests(testOutputDirectory));
     }
 

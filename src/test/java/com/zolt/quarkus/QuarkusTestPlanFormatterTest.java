@@ -14,6 +14,7 @@ final class QuarkusTestPlanFormatterTest {
                 Path.of("/repo/target/test-classes"),
                 false,
                 Path.of("/repo/target/quarkus/test-application-model.dat"),
+                Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
                 List.of());
 
         assertEquals("""
@@ -22,6 +23,7 @@ final class QuarkusTestPlanFormatterTest {
                 Test output: /repo/target/test-classes
                 Compiled test output: missing
                 Serialized application model: /repo/target/quarkus/test-application-model.dat
+                Test runner descriptor: /repo/target/quarkus/zolt-test-bootstrap.properties
                 Unsupported Quarkus tests: 0
                 Next: run `zolt test` for plain JUnit coverage; dedicated Quarkus test bootstrap remains future work.
                 """, new QuarkusTestPlanFormatter().format(plan));
@@ -34,6 +36,7 @@ final class QuarkusTestPlanFormatterTest {
                 Path.of("/repo/target/test-classes"),
                 true,
                 Path.of("/repo/target/quarkus/test-application-model.dat"),
+                Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
                 List.of(new QuarkusUnsupportedTest(
                         Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                         Path.of("com/example/HttpTest.class"),
@@ -45,6 +48,7 @@ final class QuarkusTestPlanFormatterTest {
                 Test output: /repo/target/test-classes
                 Compiled test output: present
                 Serialized application model: /repo/target/quarkus/test-application-model.dat
+                Test runner descriptor: /repo/target/quarkus/zolt-test-bootstrap.properties
                 Unsupported Quarkus tests: 1
                   com/example/HttpTest.class (@QuarkusTest)
                 Next: remove unsupported Quarkus test annotations or wait for Zolt's dedicated Quarkus test runner.

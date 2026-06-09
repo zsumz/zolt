@@ -14,6 +14,7 @@ import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.quarkus.QuarkusTestApplicationModelService;
+import com.zolt.quarkus.QuarkusTestRunnerDescriptorWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -216,6 +217,7 @@ final class TestRunServiceTest {
                 new JdkDetector(),
                 new JavaRunner(":", processRunner),
                 new QuarkusTestApplicationModelService(),
+                new QuarkusTestRunnerDescriptorWriter(),
                 ":");
     }
 

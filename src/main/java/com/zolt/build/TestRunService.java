@@ -9,10 +9,12 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
+import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.quarkus.QuarkusTestPlan;
 import com.zolt.quarkus.QuarkusTestPlanService;
+import com.zolt.quarkus.QuarkusTestRunnerDescriptorWriter;
+import com.zolt.quarkus.QuarkusTestRunnerRequest;
 import com.zolt.quarkus.QuarkusUnsupportedTest;
-import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ public final class TestRunService {
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
     private final QuarkusTestApplicationModelService quarkusTestApplicationModelService;
+    private final QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter;
     private final String pathSeparator;
 
     public TestRunService() {
@@ -41,6 +44,7 @@ public final class TestRunService {
                 new JdkDetector(),
                 new JavaRunner(),
                 new QuarkusTestApplicationModelService(),
+                new QuarkusTestRunnerDescriptorWriter(),
                 java.io.File.pathSeparator);
     }
 
@@ -51,6 +55,7 @@ public final class TestRunService {
             JdkDetector jdkDetector,
             JavaRunner javaRunner,
             QuarkusTestApplicationModelService quarkusTestApplicationModelService,
+            QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter,
             String pathSeparator) {
         this.testCompileService = testCompileService;
         this.lockfileReader = lockfileReader;
@@ -58,6 +63,7 @@ public final class TestRunService {
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
         this.quarkusTestApplicationModelService = quarkusTestApplicationModelService;
+        this.quarkusTestRunnerDescriptorWriter = quarkusTestRunnerDescriptorWriter;
         this.pathSeparator = pathSeparator;
     }
 
@@ -103,11 +109,18 @@ public final class TestRunService {
         if (!jdkStatus.ok()) {
             throw new BuildException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
+        Optional<Path> serializedApplicationModel = writeQuarkusTestApplicationModel(projectDirectory, config);
+        writeQuarkusTestRunnerDescriptor(
+                projectDirectory,
+                config,
+                compileResult,
+                runnerClasspath,
+                serializedApplicationModel);
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
                 new Classpath(runnerClasspath),
                 CONSOLE_MAIN_CLASS,
-                jvmArguments(projectDirectory, config, runnerClasspath),
+                jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
                 List.of(
                         "execute",
                         "--disable-banner",
@@ -161,11 +174,11 @@ public final class TestRunService {
 
     private List<String> jvmArguments(
             Path projectDirectory,
-            ProjectConfig config,
-            List<Path> runnerClasspath) {
+            List<Path> runnerClasspath,
+            Optional<Path> serializedApplicationModel) {
         List<String> arguments = new ArrayList<>();
         arguments.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
-        writeQuarkusTestApplicationModel(projectDirectory, config)
+        serializedApplicationModel
                 .ifPresent(path -> arguments.add("-D"
                         + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY
                         + "="
@@ -183,6 +196,36 @@ public final class TestRunService {
             throw new TestRunException(
                     "Could not prepare Quarkus test application model. "
                             + "Run `zolt resolve`, then run `zolt test` again. "
+                            + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    private void writeQuarkusTestRunnerDescriptor(
+            Path projectDirectory,
+            ProjectConfig config,
+            TestCompileResult compileResult,
+            List<Path> runnerClasspath,
+            Optional<Path> serializedApplicationModel) {
+        if (!config.frameworkSettings().quarkus().enabled()) {
+            return;
+        }
+        Path modelPath = serializedApplicationModel.orElseThrow(() -> new TestRunException(
+                "Could not prepare Quarkus test runner descriptor because the serialized application model was not written. "
+                        + "Run `zolt build`, then run `zolt test` again."));
+        try {
+            quarkusTestRunnerDescriptorWriter.write(new QuarkusTestRunnerRequest(
+                    projectDirectory,
+                    compileResult.buildResult().outputDirectory(),
+                    compileResult.outputDirectory(),
+                    modelPath,
+                    projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"),
+                    runnerClasspath,
+                    runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar)));
+        } catch (QuarkusAugmentationException exception) {
+            throw new TestRunException(
+                    "Could not write Quarkus test runner descriptor. "
+                            + "Clean target/quarkus, run `zolt build`, then run `zolt test` again. "
                             + exception.getMessage(),
                     exception);
         }
