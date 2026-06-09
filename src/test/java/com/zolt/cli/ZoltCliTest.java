@@ -2689,6 +2689,43 @@ final class ZoltCliTest {
     }
 
     @Test
+    void runPackageWorkspacePrintsSplitJsonTimingsWhenRequested() throws IOException {
+        WorkspaceApplicationFixture fixture = workspaceApplicationFixture("workspace-run-package-timings");
+
+        CommandResult result = execute(
+                "run-package",
+                "--workspace",
+                "--member", "apps/api",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", fixture.apiDir().toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "hello");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("core:hello"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(5, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"plan workspace run packages\""));
+        assertTrue(lines[0].contains("\"depth\":1"));
+        assertTrue(lines[0].contains("\"includedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"selectedMembers\":\"1\""));
+        assertTrue(lines[1].contains("\"phase\":\"build workspace run-package inputs\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[2].contains("\"phase\":\"assemble workspace run packages\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"entries\":\"1\""));
+        assertTrue(lines[3].contains("\"phase\":\"launch workspace packages\""));
+        assertTrue(lines[3].contains("\"depth\":1"));
+        assertTrue(lines[3].contains("\"members\":\"1\""));
+        assertTrue(lines[3].contains("\"outputBytes\""));
+        assertTrue(lines[4].contains("\"phase\":\"run workspace packages\""));
+        assertTrue(lines[4].contains("\"depth\":0"));
+        assertTrue(lines[4].contains("\"mainCompilationsExecuted\":\"2\""));
+    }
+
+    @Test
     void runWorkspaceMemberRunsSelectedApplicationFromClasses() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");
@@ -2754,6 +2791,40 @@ final class ZoltCliTest {
         assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertFalse(Files.exists(apiDir.resolve("target/api-0.1.0.jar")));
+    }
+
+    @Test
+    void runWorkspacePrintsSplitJsonTimingsWhenRequested() throws IOException {
+        WorkspaceApplicationFixture fixture = workspaceApplicationFixture("workspace-run-timings");
+
+        CommandResult result = execute(
+                "run",
+                "--workspace",
+                "--member", "apps/api",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", fixture.apiDir().toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "hello");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("core:hello"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"plan workspace run\""));
+        assertTrue(lines[0].contains("\"depth\":1"));
+        assertTrue(lines[0].contains("\"includedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"selectedMembers\":\"1\""));
+        assertTrue(lines[1].contains("\"phase\":\"build workspace run inputs\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[2].contains("\"phase\":\"launch workspace members\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"members\":\"1\""));
+        assertTrue(lines[2].contains("\"outputBytes\""));
+        assertTrue(lines[3].contains("\"phase\":\"run workspace\""));
+        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[3].contains("\"mainCompilationsExecuted\":\"2\""));
     }
 
     @Test
@@ -3690,6 +3761,60 @@ final class ZoltCliTest {
 
     private static String jsonPath(Path path) {
         return path.toString().replace('\\', '/');
+    }
+
+    private WorkspaceApplicationFixture workspaceApplicationFixture(String name) throws IOException {
+        Path workspaceDir = tempDir.resolve(name);
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+                main = "com.example.api.Api"
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println(Core.message() + ":" + args[0]);
+                    }
+                }
+                """);
+        return new WorkspaceApplicationFixture(workspaceDir, apiDir, coreDir);
+    }
+
+    private record WorkspaceApplicationFixture(Path workspaceDir, Path apiDir, Path coreDir) {
     }
 
     private static String quarkusInputFingerprint(String output) {

@@ -9,7 +9,6 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.PackageMode;
 import com.zolt.resolve.Classpath;
-import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class WorkspaceRunPackageService {
-    private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspacePackageService workspacePackageService;
     private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
@@ -29,18 +27,15 @@ public final class WorkspaceRunPackageService {
 
     WorkspaceRunPackageService(JdkChecker jdkDetector) {
         this(
-                new WorkspaceDiscoveryService(),
                 new WorkspacePackageService(jdkDetector),
                 jdkDetector,
                 new JavaRunner());
     }
 
     WorkspaceRunPackageService(
-            WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspacePackageService workspacePackageService,
             JdkChecker jdkDetector,
             JavaRunner javaRunner) {
-        this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspacePackageService = workspacePackageService;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
@@ -60,15 +55,35 @@ public final class WorkspaceRunPackageService {
             WorkspaceSelectionRequest selectionRequest,
             List<String> arguments,
             Optional<PackageMode> packageModeOverride) {
-        Path start = startDirectory.toAbsolutePath().normalize();
-        Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt run-package --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspacePackageResult packageResult = workspacePackageService.packageJars(
-                start,
-                cacheRoot,
-                selectionRequest,
-                packageModeOverride);
+        WorkspaceBuildPlan plan = planRunPackages(startDirectory, cacheRoot, selectionRequest);
+        WorkspaceBuildResult buildResult = buildRunPackageInputs(plan, cacheRoot);
+        WorkspacePackageResult packageResult = packageRunPackageInputs(plan, buildResult, packageModeOverride);
+        return runPackagedMembers(plan, packageResult, arguments);
+    }
 
+    public WorkspaceBuildPlan planRunPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
+        return workspacePackageService.planPackages(startDirectory, cacheRoot, selectionRequest);
+    }
+
+    public WorkspaceBuildResult buildRunPackageInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return workspacePackageService.buildPackageInputs(plan, cacheRoot);
+    }
+
+    public WorkspacePackageResult packageRunPackageInputs(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Optional<PackageMode> packageModeOverride) {
+        return workspacePackageService.packageBuiltJars(plan, buildResult, packageModeOverride);
+    }
+
+    public WorkspaceRunPackageResult runPackagedMembers(
+            WorkspaceBuildPlan plan,
+            WorkspacePackageResult packageResult,
+            List<String> arguments) {
+        Workspace workspace = plan.workspace();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(packageResult);
 

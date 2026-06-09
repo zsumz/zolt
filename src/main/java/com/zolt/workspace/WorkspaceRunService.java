@@ -8,7 +8,6 @@ import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.resolve.Classpath;
-import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,9 +16,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class WorkspaceRunService {
-    private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceBuildService workspaceBuildService;
-    private final WorkspaceMemberSelector memberSelector;
     private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
 
@@ -29,22 +26,16 @@ public final class WorkspaceRunService {
 
     WorkspaceRunService(JdkChecker jdkDetector) {
         this(
-                new WorkspaceDiscoveryService(),
                 new WorkspaceBuildService(jdkDetector),
-                new WorkspaceMemberSelector(),
                 jdkDetector,
                 new JavaRunner());
     }
 
     WorkspaceRunService(
-            WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceBuildService workspaceBuildService,
-            WorkspaceMemberSelector memberSelector,
             JdkChecker jdkDetector,
             JavaRunner javaRunner) {
-        this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;
-        this.memberSelector = memberSelector;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
     }
@@ -55,12 +46,29 @@ public final class WorkspaceRunService {
             WorkspaceSelectionRequest selectionRequest,
             List<String> arguments,
             Consumer<String> outputConsumer) {
-        Path start = startDirectory.toAbsolutePath().normalize();
-        Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt run --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
-        WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
+        WorkspaceBuildPlan plan = planRun(startDirectory, cacheRoot, selectionRequest);
+        WorkspaceBuildResult buildResult = buildRunInputs(plan, cacheRoot);
+        return runBuiltMembers(plan, buildResult, arguments, outputConsumer);
+    }
 
+    public WorkspaceBuildPlan planRun(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
+        return workspaceBuildService.planBuild(startDirectory, cacheRoot, false, selectionRequest);
+    }
+
+    public WorkspaceBuildResult buildRunInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return workspaceBuildService.build(plan, cacheRoot);
+    }
+
+    public WorkspaceRunResult runBuiltMembers(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            List<String> arguments,
+            Consumer<String> outputConsumer) {
+        Workspace workspace = plan.workspace();
+        WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
 
