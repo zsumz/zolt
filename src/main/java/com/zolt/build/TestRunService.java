@@ -42,7 +42,7 @@ public final class TestRunService {
         this(new JdkDetector());
     }
 
-    TestRunService(JdkChecker jdkDetector) {
+    public TestRunService(JdkChecker jdkDetector) {
         this(
                 new TestCompileService(jdkDetector),
                 jdkDetector,

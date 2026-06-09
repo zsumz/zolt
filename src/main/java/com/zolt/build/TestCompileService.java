@@ -22,7 +22,7 @@ public final class TestCompileService {
         this(new JdkDetector());
     }
 
-    TestCompileService(JdkChecker jdkDetector) {
+    public TestCompileService(JdkChecker jdkDetector) {
         this(
                 new BuildService(jdkDetector),
                 new SourceDiscoverer(),

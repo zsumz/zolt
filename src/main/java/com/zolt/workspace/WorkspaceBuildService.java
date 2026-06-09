@@ -3,6 +3,8 @@ package com.zolt.workspace;
 import com.zolt.build.BuildService;
 import com.zolt.build.JavacException;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.doctor.JdkChecker;
+import com.zolt.doctor.JdkDetector;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.ResolveException;
@@ -24,12 +26,16 @@ public final class WorkspaceBuildService {
     private final WorkspaceMemberSelector memberSelector;
 
     public WorkspaceBuildService() {
+        this(new JdkDetector());
+    }
+
+    WorkspaceBuildService(JdkChecker jdkDetector) {
         this(
                 new WorkspaceDiscoveryService(),
                 new WorkspaceResolveService(),
                 new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
-                new BuildService(),
+                new BuildService(jdkDetector),
                 new WorkspaceMemberSelector());
     }
 

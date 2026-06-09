@@ -1,6 +1,8 @@
 package com.zolt.workspace;
 
 import com.zolt.build.TestRunService;
+import com.zolt.doctor.JdkChecker;
+import com.zolt.doctor.JdkDetector;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,9 +14,13 @@ public final class WorkspaceTestService {
     private final TestRunService testRunService;
 
     public WorkspaceTestService() {
+        this(new JdkDetector());
+    }
+
+    WorkspaceTestService(JdkChecker jdkDetector) {
         this(
-                new WorkspaceBuildService(),
-                new TestRunService());
+                new WorkspaceBuildService(jdkDetector),
+                new TestRunService(jdkDetector));
     }
 
     WorkspaceTestService(

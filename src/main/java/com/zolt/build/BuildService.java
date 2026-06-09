@@ -31,7 +31,7 @@ public final class BuildService {
         this(new JdkDetector());
     }
 
-    BuildService(JdkChecker jdkDetector) {
+    public BuildService(JdkChecker jdkDetector) {
         this(
                 new ResolveService(),
                 new ZoltLockfileReader(),
