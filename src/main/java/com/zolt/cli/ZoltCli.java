@@ -114,6 +114,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -131,6 +132,7 @@ import picocli.CommandLine.Spec;
                 CommandLine.HelpCommand.class,
                 ZoltCli.InitCommand.class,
                 ZoltCli.VersionCommand.class,
+                ZoltCli.UpdateCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
                 ZoltCli.PlatformCommand.class,
@@ -191,6 +193,22 @@ public final class ZoltCli implements Runnable {
         @Override
         public void run() {
             spec.commandLine().getOut().println(VERSION);
+        }
+    }
+
+    @Command(name = "update", description = "Update the Zolt executable in place.")
+    public static final class UpdateCommand implements Callable<Integer> {
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public Integer call() {
+            spec.commandLine().getOut().println("""
+                    zolt update is not available yet.
+                    Future behavior: check the release channel, download a verified native archive, replace the current zolt executable atomically, and keep a rollback copy.
+                    Track this work in followUps/-design-zolt-update-command.md.
+                    """.stripTrailing());
+            return 1;
         }
     }
 

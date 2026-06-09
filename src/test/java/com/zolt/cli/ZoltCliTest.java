@@ -48,6 +48,17 @@ final class ZoltCliTest {
     }
 
     @Test
+    void updateExplainsFutureSelfUpdatePath() {
+        CommandResult result = execute("update");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("zolt update is not available yet."));
+        assertTrue(result.stdout().contains("verified native archive"));
+        assertTrue(result.stdout().contains("followUps/-design-zolt-update-command.md"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void helpListsMvpCommands() {
         CommandResult result = execute("help");
 
@@ -67,6 +78,7 @@ final class ZoltCliTest {
                 "help",
                 "init",
                 "version",
+                "update",
                 "add",
                 "remove",
                 "platform",
