@@ -297,6 +297,7 @@ final class QuarkusTestWorkerTest {
         assertTrue(result.output().contains("moved past the TestConfig mapping blocker"));
         assertTrue(result.output().contains("Classpath ownership:"));
         assertTrue(result.output().contains("TestHttpEndpointProvider service loading"));
+        assertTrue(result.output().contains("programmatic JUnit launcher"));
         assertTrue(result.output().contains("ResteasyReactiveTestHttpProvider not a subtype"));
     }
 

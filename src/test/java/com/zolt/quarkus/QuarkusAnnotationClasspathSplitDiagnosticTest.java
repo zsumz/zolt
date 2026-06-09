@@ -86,6 +86,9 @@ final class QuarkusAnnotationClasspathSplitDiagnosticTest {
         assertTrue(output.contains("quarkus-rest-3.33.2.jar provides io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider"));
         assertTrue(output.contains("through META-INF/services and is also present on the Quarkus deployment classpath"));
         assertTrue(output.contains("one classloader identity for both the service type and provider"));
+        assertTrue(output.contains("QuarkusClassOrderer/TestConfig warning can still appear before startup"));
+        assertTrue(output.contains("ConsoleLauncher-discovered listener shim did not engage"));
+        assertTrue(output.contains("Zolt-owned programmatic JUnit launcher"));
     }
 
     private static QuarkusAnnotationLaunchRequest request(List<Path> testRuntimeClasspath) {
