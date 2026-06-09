@@ -106,12 +106,14 @@ final class QuarkusTestWorkerTest {
 
     @Test
     void defaultAnnotationRunnerFailsHonestlyUntilImplemented() {
-        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(descriptor ->
-                        new QuarkusAnnotationApi(
-                                "io.quarkus.test.junit.QuarkusTestExtension",
-                                "io.quarkus.test.junit.QuarkusTestProfile",
-                                "io.quarkus.test.junit.launcher.CustomLauncherInterceptor",
-                                List.of("io.quarkus.test.junit.launcher.JarLauncherProvider")))
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of("org.junit.platform.console.ConsoleLauncher")))
                 .run(new QuarkusTestWorkerPlan(
                         descriptor(true),
                         QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
@@ -119,6 +121,7 @@ final class QuarkusTestWorkerTest {
 
         assertEquals(2, result.exitCode());
         assertTrue(result.output().contains("Quarkus annotation test execution is not implemented yet"));
+        assertTrue(result.output().contains("planned 1 Quarkus test class"));
         assertTrue(result.output().contains("launcher/session listeners"));
     }
 
@@ -265,6 +268,14 @@ final class QuarkusTestWorkerTest {
                         Path.of("/repo/target/test-classes"),
                         Path.of("/repo/target/classes"),
                         Path.of("/cache/junit-platform-console.jar")));
+    }
+
+    private static QuarkusAnnotationApi api() {
+        return new QuarkusAnnotationApi(
+                "io.quarkus.test.junit.QuarkusTestExtension",
+                "io.quarkus.test.junit.QuarkusTestProfile",
+                "io.quarkus.test.junit.launcher.CustomLauncherInterceptor",
+                List.of("io.quarkus.test.junit.launcher.JarLauncherProvider"));
     }
 
     private static String output(ByteArrayOutputStream output) {
