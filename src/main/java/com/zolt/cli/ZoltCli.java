@@ -59,6 +59,9 @@ import com.zolt.quarkus.QuarkusPlan;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.QuarkusPlanFormatter;
 import com.zolt.quarkus.QuarkusPlanService;
+import com.zolt.quarkus.QuarkusTestPlan;
+import com.zolt.quarkus.QuarkusTestPlanFormatter;
+import com.zolt.quarkus.QuarkusTestPlanService;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
@@ -771,7 +774,8 @@ public final class ZoltCli implements Runnable {
             mixinStandardHelpOptions = true,
             description = "Inspect Quarkus build-time augmentation inputs.",
             subcommands = {
-                    QuarkusCommand.PlanCommand.class
+                    QuarkusCommand.PlanCommand.class,
+                    QuarkusCommand.TestPlanCommand.class
             })
     public static final class QuarkusCommand implements Runnable {
         @Spec
@@ -801,6 +805,27 @@ public final class ZoltCli implements Runnable {
                     printAndFlush(spec, new QuarkusPlanFormatter().format(plan));
                     new QuarkusAugmentationRequestFactory().create(plan);
                 } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                }
+            }
+        }
+
+        @Command(name = "test-plan", description = "Print the Quarkus test bootstrap plan.")
+        public static final class TestPlanCommand implements Runnable {
+            @Option(names = "--cwd", hidden = true)
+            private Path workingDirectory = Path.of(".");
+
+            @Spec
+            private CommandSpec spec;
+
+            @Override
+            public void run() {
+                try {
+                    ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+                    QuarkusTestPlan plan = new QuarkusTestPlanService().plan(workingDirectory, config);
+                    printAndFlush(spec, new QuarkusTestPlanFormatter().format(plan));
+                } catch (QuarkusPlanException | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
                 }

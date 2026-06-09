@@ -192,9 +192,7 @@ final class TestRunServiceTest {
 
         TestRunException exception = assertThrows(
                 TestRunException.class,
-                () -> TestRunService.failOnUnsupportedQuarkusTestAnnotations(
-                        quarkusConfig(),
-                        projectDir.resolve("target/test-classes")));
+                () -> TestRunService.failOnUnsupportedQuarkusTests(projectDir, quarkusConfig()));
 
         assertTrue(exception.getMessage().contains("`@QuarkusTest` execution is not supported"));
         assertTrue(exception.getMessage().contains("dedicated Quarkus test runner"));
@@ -207,9 +205,7 @@ final class TestRunServiceTest {
         Files.createDirectories(testClass.getParent());
         Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
 
-        TestRunService.failOnUnsupportedQuarkusTestAnnotations(
-                config(),
-                projectDir.resolve("target/test-classes"));
+        TestRunService.failOnUnsupportedQuarkusTests(projectDir, config());
     }
 
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {

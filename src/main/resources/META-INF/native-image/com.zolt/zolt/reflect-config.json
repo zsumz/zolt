@@ -120,6 +120,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$QuarkusCommand$TestPlanCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$BuildCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

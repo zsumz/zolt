@@ -8,25 +8,22 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.QuarkusPlanException;
+import com.zolt.quarkus.QuarkusTestPlan;
+import com.zolt.quarkus.QuarkusTestPlanService;
+import com.zolt.quarkus.QuarkusUnsupportedTest;
 import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.resolve.Classpath;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
-import java.util.stream.Stream;
 
 public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
-    private static final String QUARKUS_TEST_ANNOTATION_DESCRIPTOR =
-            "Lio/quarkus/test/junit/QuarkusTest;";
 
     private final TestCompileService testCompileService;
     private final ZoltLockfileReader lockfileReader;
@@ -89,7 +86,7 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             TestCompileResult compileResult) {
-        failOnUnsupportedQuarkusTestAnnotations(config, compileResult.outputDirectory());
+        failOnUnsupportedQuarkusTests(projectDirectory, config);
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -135,47 +132,25 @@ public final class TestRunService {
                 .toList();
     }
 
-    static void failOnUnsupportedQuarkusTestAnnotations(ProjectConfig config, Path testOutputDirectory) {
+    static void failOnUnsupportedQuarkusTests(Path projectDirectory, ProjectConfig config) {
         if (config == null || !config.frameworkSettings().quarkus().enabled()) {
             return;
         }
-        if (testOutputDirectory == null || !Files.isDirectory(testOutputDirectory)) {
-            return;
-        }
-        try (Stream<Path> files = Files.walk(testOutputDirectory)) {
-            Optional<Path> quarkusTestClass = files
-                    .filter(path -> path.getFileName() != null)
-                    .filter(path -> path.getFileName().toString().endsWith(".class"))
-                    .filter(TestRunService::containsQuarkusTestAnnotation)
-                    .findFirst();
-            if (quarkusTestClass.isPresent()) {
+        try {
+            QuarkusTestPlan plan = new QuarkusTestPlanService().plan(projectDirectory, config);
+            if (plan.hasUnsupportedTests()) {
+                QuarkusUnsupportedTest firstUnsupportedTest = plan.unsupportedTests().getFirst();
                 throw new TestRunException(
-                        "Quarkus-specific `@QuarkusTest` execution is not supported by Zolt's current test runner. "
-                                + "Use plain JUnit tests for now, or remove `@QuarkusTest` until Zolt's dedicated "
+                        "Quarkus-specific `" + firstUnsupportedTest.annotationName()
+                                + "` execution is not supported by Zolt's current test runner. "
+                                + "Use plain JUnit tests for now, or remove `" + firstUnsupportedTest.annotationName()
+                                + "` until Zolt's dedicated "
                                 + "Quarkus test runner is implemented. Found "
-                                + testOutputDirectory.toAbsolutePath().normalize().relativize(
-                                        quarkusTestClass.orElseThrow().toAbsolutePath().normalize())
+                                + firstUnsupportedTest.relativePath()
                                 + ".");
             }
-        } catch (UncheckedIOException exception) {
-            throw new TestRunException(
-                    "Could not inspect compiled test classes for Quarkus test annotations. "
-                            + "Clean target/test-classes, run `zolt test` again, and check that target/ is readable.",
-                    exception.getCause());
-        } catch (IOException exception) {
-            throw new TestRunException(
-                    "Could not inspect compiled test classes for Quarkus test annotations. "
-                            + "Clean target/test-classes, run `zolt test` again, and check that target/ is readable.",
-                    exception);
-        }
-    }
-
-    private static boolean containsQuarkusTestAnnotation(Path classFile) {
-        try {
-            String contents = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
-            return contents.contains(QUARKUS_TEST_ANNOTATION_DESCRIPTOR);
-        } catch (IOException exception) {
-            throw new UncheckedIOException(exception);
+        } catch (QuarkusPlanException exception) {
+            throw new TestRunException(exception.getMessage(), exception);
         }
     }
 
