@@ -65,7 +65,10 @@ public final class QuarkusTestApplicationModelWorker {
         try {
             QuarkusBootstrapDescriptor descriptor = descriptorReader.read(Path.of(args[0]));
             QuarkusApplicationModelHandle applicationModel =
-                    applicationModelFactory.create(descriptor, java.util.Optional.of(workspaceModuleInputs(args)));
+                    applicationModelFactory.create(
+                            descriptor,
+                            java.util.Optional.of(workspaceModuleInputs(args)),
+                            QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
             Path outputPath = Path.of(args[1]).toAbsolutePath().normalize();
             modelWriter.write(applicationModel, outputPath);
             out.println("zolt.quarkus.test-app-model=" + outputPath);

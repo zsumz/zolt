@@ -74,17 +74,27 @@ public final class QuarkusAnnotationWorkerRunner {
             return result.output();
         }
         if (!buildChainBuilderClassloaderSplit(result.output())) {
-            if (!missingBuilderApi(result.output())) {
-                return result.output();
+            if (missingBuilderApi(result.output())) {
+                return "error: Quarkus annotation test bootstrap could not load the Quarkus builder API from "
+                        + "the annotation runner side. Zolt reached the dedicated @QuarkusTest runner path, "
+                        + "but this fixture still needs a classloader arrangement where Quarkus JUnit can see "
+                        + "builder API types without loading deployment-owned builder classes from the wrong side. "
+                        + classpathSplitDiagnostic.describeMissingBuilderApi(request)
+                        + "\n"
+                        + result.output().stripTrailing()
+                        + "\n";
             }
-            return "error: Quarkus annotation test bootstrap could not load the Quarkus builder API from "
-                    + "the annotation runner side. Zolt reached the dedicated @QuarkusTest runner path, "
-                    + "but this fixture still needs a classloader arrangement where Quarkus JUnit can see "
-                    + "builder API types without loading deployment-owned builder classes from the wrong side. "
-                    + classpathSplitDiagnostic.describeMissingBuilderApi(request)
+            if (testConfigClassloaderMismatch(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached Quarkus test configuration initialization, "
+                    + "then hit a classloader type mismatch inside FacadeClassLoader. The builder API ownership hint "
+                    + "moved this descriptor-enabled probe past the BuildChainBuilder split, but Zolt still needs "
+                    + "to align Quarkus test config class ownership before @QuarkusTest can be enabled. "
+                    + "Keep using plain JUnit tests for now, or run `zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()
                     + "\n";
+            }
+            return result.output();
         }
         return "error: Quarkus annotation test bootstrap hit a Quarkus classloader split while loading "
                 + "io.quarkus.builder.BuildChainBuilder. Zolt reached the dedicated @QuarkusTest runner path, "
@@ -106,6 +116,11 @@ public final class QuarkusAnnotationWorkerRunner {
     private static boolean missingBuilderApi(String output) {
         return output.contains("io.quarkus.test.junit")
                 && output.contains("NoClassDefFoundError: io/quarkus/builder/item/MultiBuildItem");
+    }
+
+    private static boolean testConfigClassloaderMismatch(String output) {
+        return output.contains("io.quarkus.test.junit.classloading.FacadeClassLoader.initialiseTestConfig")
+                && output.contains("java.lang.IllegalArgumentException: argument type mismatch");
     }
 
     public record Result(int exitCode, String output) {

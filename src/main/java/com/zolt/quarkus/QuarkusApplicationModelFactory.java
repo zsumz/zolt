@@ -6,9 +6,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.Properties;
 
 public final class QuarkusApplicationModelFactory {
@@ -37,16 +39,24 @@ public final class QuarkusApplicationModelFactory {
     }
 
     public QuarkusApplicationModelHandle create(QuarkusBootstrapDescriptor descriptor) {
-        return create(descriptor, Optional.empty());
+        return create(descriptor, Optional.empty(), QuarkusApplicationModelOptions.DEFAULT);
     }
 
     public QuarkusApplicationModelHandle create(
             QuarkusBootstrapDescriptor descriptor,
             Optional<QuarkusWorkspaceModuleInputs> workspaceModuleInputs) {
+        return create(descriptor, workspaceModuleInputs, QuarkusApplicationModelOptions.DEFAULT);
+    }
+
+    public QuarkusApplicationModelHandle create(
+            QuarkusBootstrapDescriptor descriptor,
+            Optional<QuarkusWorkspaceModuleInputs> workspaceModuleInputs,
+            QuarkusApplicationModelOptions options) {
         if (descriptor == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap descriptor is required.");
         }
         workspaceModuleInputs = workspaceModuleInputs == null ? Optional.empty() : workspaceModuleInputs;
+        options = options == null ? QuarkusApplicationModelOptions.DEFAULT : options;
 
         try {
             Class<?> applicationModelBuilderClass = Class.forName(api.applicationModelBuilderClass());
@@ -93,7 +103,7 @@ public final class QuarkusApplicationModelFactory {
             applicationModelBuilderClass
                     .getMethod("setAppArtifact", resolvedDependencyBuilderClass)
                     .invoke(modelBuilder, appArtifact);
-            setClassLoadingArtifacts(applicationModelBuilderClass, modelBuilder, descriptor);
+            setClassLoadingArtifacts(applicationModelBuilderClass, modelBuilder, descriptor, options);
             Object applicationModel = applicationModelBuilderClass.getMethod("build").invoke(modelBuilder);
             return new QuarkusApplicationModelHandle(
                     applicationModel,
@@ -214,9 +224,11 @@ public final class QuarkusApplicationModelFactory {
     private void setClassLoadingArtifacts(
             Class<?> applicationModelBuilderClass,
             Object modelBuilder,
-            QuarkusBootstrapDescriptor descriptor)
+            QuarkusBootstrapDescriptor descriptor,
+            QuarkusApplicationModelOptions options)
             throws ReflectiveOperationException {
-        Class<?> artifactKeyClass = null;
+        Set<QuarkusArtifactKey> parentFirstArtifacts = new LinkedHashSet<>(options.parentFirstArtifacts());
+        Set<QuarkusArtifactKey> runnerParentFirstArtifacts = new LinkedHashSet<>(options.runnerParentFirstArtifacts());
         for (Path runtimeArtifact : descriptor.runtimeClasspath()) {
             if (!Files.isRegularFile(runtimeArtifact)) {
                 continue;
@@ -225,19 +237,22 @@ public final class QuarkusApplicationModelFactory {
             if (metadata.isEmpty()) {
                 continue;
             }
-            if (artifactKeyClass == null) {
-                artifactKeyClass = Class.forName(api.artifactKeyClass());
-            }
-            for (QuarkusArtifactKey artifactKey : metadata.orElseThrow().parentFirstArtifacts()) {
-                applicationModelBuilderClass
-                        .getMethod("addParentFirstArtifact", artifactKeyClass)
-                        .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
-            }
-            for (QuarkusArtifactKey artifactKey : metadata.orElseThrow().runnerParentFirstArtifacts()) {
-                applicationModelBuilderClass
-                        .getMethod("addRunnerParentFirstArtifact", artifactKeyClass)
-                        .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
-            }
+            parentFirstArtifacts.addAll(metadata.orElseThrow().parentFirstArtifacts());
+            runnerParentFirstArtifacts.addAll(metadata.orElseThrow().runnerParentFirstArtifacts());
+        }
+        if (parentFirstArtifacts.isEmpty() && runnerParentFirstArtifacts.isEmpty()) {
+            return;
+        }
+        Class<?> artifactKeyClass = Class.forName(api.artifactKeyClass());
+        for (QuarkusArtifactKey artifactKey : parentFirstArtifacts) {
+            applicationModelBuilderClass
+                    .getMethod("addParentFirstArtifact", artifactKeyClass)
+                    .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
+        }
+        for (QuarkusArtifactKey artifactKey : runnerParentFirstArtifacts) {
+            applicationModelBuilderClass
+                    .getMethod("addRunnerParentFirstArtifact", artifactKeyClass)
+                    .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
         }
     }
 

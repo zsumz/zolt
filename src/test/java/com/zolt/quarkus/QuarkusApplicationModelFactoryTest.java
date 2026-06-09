@@ -144,6 +144,60 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     @Test
+    void addsClassLoadingArtifactsFromOptions() {
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
+
+        QuarkusApplicationModelHandle handle = factory.create(
+                descriptor(),
+                java.util.Optional.empty(),
+                new QuarkusApplicationModelOptions(
+                        List.of(new QuarkusArtifactKey(
+                                "io.quarkus",
+                                "quarkus-builder",
+                                java.util.Optional.empty(),
+                                java.util.Optional.empty())),
+                        List.of()));
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        assertEquals(
+                List.of(new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar")),
+                model.parentFirstArtifacts());
+        assertEquals(List.of(), model.runnerParentFirstArtifacts());
+    }
+
+    @Test
+    void deduplicatesClassLoadingArtifactsFromOptionsAndRuntimeExtensionMetadata() throws IOException {
+        Path quarkusCore = tempDir.resolve("quarkus-core.jar");
+        writeJar(
+                quarkusCore,
+                QuarkusExtensionMetadataReader.METADATA_PATH,
+                """
+                deployment-artifact=io.quarkus:quarkus-core-deployment:3.33.2
+                parent-first-artifacts=io.quarkus:quarkus-builder::jar
+                """);
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
+
+        QuarkusApplicationModelHandle handle = factory.create(
+                descriptor(
+                        List.of(),
+                        List.of(new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-builder"),
+                                "3.33.2",
+                                DependencyScope.COMPILE,
+                                Path.of("/cache/quarkus-builder.jar"),
+                                false)),
+                        List.of(quarkusCore),
+                        List.of()),
+                java.util.Optional.empty(),
+                QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        assertEquals(
+                List.of(new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar")),
+                model.parentFirstArtifacts());
+    }
+
+    @Test
     void rejectsMissingApplicationModelClasses() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 "missing.ApplicationModelBuilder",
