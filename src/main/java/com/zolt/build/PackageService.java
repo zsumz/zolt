@@ -83,7 +83,11 @@ public final class PackageService {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
         preparePackageToolingIfNeeded(projectDirectory, config, cacheRoot);
-        BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
+        BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
+                projectDirectory,
+                config,
+                cacheRoot,
+                false);
         return packageJar(projectDirectory, config, buildResult, cacheRoot);
     }
 
@@ -121,7 +125,22 @@ public final class PackageService {
             Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectDirectory, config, buildResult, Optional.of(cacheRoot));
+        return packageJar(projectDirectory, config, buildResult, Optional.of(cacheRoot), Optional.empty());
+    }
+
+    public PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResultWithClasspaths buildResult,
+            Path cacheRoot) {
+        PackageMode mode = config.packageSettings().mode();
+        ensureSupportedPackageMode(mode);
+        return packageJar(
+                projectDirectory,
+                config,
+                buildResult.buildResult(),
+                Optional.of(cacheRoot),
+                Optional.of(buildResult.classpathPackages()));
     }
 
     public PackageResult packageJar(
@@ -130,17 +149,18 @@ public final class PackageService {
             BuildResult buildResult) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectDirectory, config, buildResult, Optional.empty());
+        return packageJar(projectDirectory, config, buildResult, Optional.empty(), Optional.empty());
     }
 
     private PackageResult packageJar(
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
-            Optional<Path> cacheRoot) {
+            Optional<Path> cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
         PackageMode mode = config.packageSettings().mode();
         return switch (mode) {
-            case THIN -> packageThinJar(projectDirectory, config, buildResult, cacheRoot);
+            case THIN -> packageThinJar(projectDirectory, config, buildResult, cacheRoot, classpathPackages);
             case SPRING_BOOT -> packageSpringBootJar(
                     projectDirectory,
                     config,
@@ -161,7 +181,8 @@ public final class PackageService {
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
-            Optional<Path> cacheRoot) {
+            Optional<Path> cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path jarPath = jarPath(projectDirectory, config);
         Path runtimeClasspathPath = runtimeClasspathPath(jarPath);
@@ -179,7 +200,11 @@ public final class PackageService {
             }
             Optional<Path> writtenRuntimeClasspathPath = Optional.empty();
             if (cacheRoot.isPresent()) {
-                writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
+                if (classpathPackages.isPresent()) {
+                    writeRuntimeClasspath(runtimeClasspathPath, classpathPackages.orElseThrow());
+                } else {
+                    writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
+                }
                 writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
             }
             return new PackageResult(
@@ -338,7 +363,13 @@ public final class PackageService {
             Path cacheRoot,
             Path runtimeClasspathPath) throws IOException {
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(packagedClasspathPackages(lockfile, cacheRoot));
+        writeRuntimeClasspath(runtimeClasspathPath, packagedClasspathPackages(lockfile, cacheRoot));
+    }
+
+    private void writeRuntimeClasspath(
+            Path runtimeClasspathPath,
+            List<ResolvedClasspathPackage> classpathPackages) throws IOException {
+        ClasspathSet classpaths = classpathBuilder.build(packagedClasspathPackages(classpathPackages));
         String content = classpaths.runtime().entries().stream()
                 .map(Path::toString)
                 .collect(Collectors.joining("\n"));
@@ -362,7 +393,11 @@ public final class PackageService {
     }
 
     private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
-        return lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        return packagedClasspathPackages(lockfileReader.classpathPackages(lockfile, cacheRoot));
+    }
+
+    private List<ResolvedClasspathPackage> packagedClasspathPackages(List<ResolvedClasspathPackage> classpathPackages) {
+        return classpathPackages.stream()
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList();
     }

@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
@@ -11,6 +12,7 @@ import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 public final class BuildService {
@@ -66,7 +68,7 @@ public final class BuildService {
         return buildWithClasspaths(projectDirectory, config, cacheRoot, offline).buildResult();
     }
 
-    BuildResultWithClasspaths buildWithClasspaths(
+    public BuildResultWithClasspaths buildWithClasspaths(
             Path projectDirectory,
             ProjectConfig config,
             Path cacheRoot,
@@ -78,10 +80,12 @@ public final class BuildService {
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        List<ResolvedClasspathPackage> classpathPackages = lockfileReader.classpathPackages(lockfile, cacheRoot);
+        ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
         return new BuildResultWithClasspaths(
                 build(projectDirectory, config, classpaths, resolveResult),
-                classpaths);
+                classpaths,
+                classpathPackages);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {

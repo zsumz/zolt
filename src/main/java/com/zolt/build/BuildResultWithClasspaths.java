@@ -1,8 +1,14 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.ResolvedClasspathPackage;
+import java.util.List;
 
-record BuildResultWithClasspaths(
+public record BuildResultWithClasspaths(
         BuildResult buildResult,
-        ClasspathSet classpaths) {
+        ClasspathSet classpaths,
+        List<ResolvedClasspathPackage> classpathPackages) {
+    public BuildResultWithClasspaths {
+        classpathPackages = List.copyOf(classpathPackages);
+    }
 }

@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import com.zolt.build.BuildException;
 import com.zolt.build.BuildResult;
+import com.zolt.build.BuildResultWithClasspaths;
 import com.zolt.build.BuildService;
 import com.zolt.build.CleanException;
 import com.zolt.build.CleanResult;
@@ -1257,10 +1258,14 @@ public final class ZoltCli implements Runnable {
                         "package",
                         () -> {
                             packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
-                            BuildResult buildResult = timings.measure(
+                            BuildResultWithClasspaths buildResult = timings.measure(
                                     "build package inputs",
-                                    () -> new BuildService().build(workingDirectory, config, cacheRoot),
-                                    ZoltCli::buildAttributes);
+                                    () -> new BuildService().buildWithClasspaths(
+                                            workingDirectory,
+                                            config,
+                                            cacheRoot,
+                                            false),
+                                    resultWithClasspaths -> buildAttributes(resultWithClasspaths.buildResult()));
                             return timings.measure(
                                     "assemble package",
                                     () -> packageService.packageJar(workingDirectory, config, buildResult, cacheRoot),

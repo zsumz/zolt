@@ -519,6 +519,56 @@ final class PackageServiceTest {
         }
     }
 
+    @Test
+    void writesRuntimeClasspathFromPrecomputedBuildClasspathPackages() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path devJar = cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar");
+        createJarWithEntry(runtimeJar, "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(devJar, "com/example/dev/DevTools.class");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.of("com.example.Main"));
+        BuildResultWithClasspaths buildResult = new BuildService()
+                .buildWithClasspaths(projectDir, config, cacheRoot, false);
+
+        PackageResult result = packageService.packageJar(projectDir, config, buildResult, cacheRoot);
+
+        Path runtimeClasspathPath = projectDir.resolve("target/demo-0.1.0.runtime-classpath");
+        assertEquals(Optional.of(runtimeClasspathPath), result.runtimeClasspathPath());
+        String runtimeClasspath = Files.readString(runtimeClasspathPath);
+        assertTrue(buildResult.classpaths().runtime().entries().contains(devJar));
+        assertTrue(runtimeClasspath.contains(runtimeJar.toString()));
+        assertFalse(runtimeClasspath.contains(devJar.toString()));
+    }
+
     private static ProjectConfig config(Optional<String> mainClass) {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
