@@ -31,11 +31,14 @@ public final class QuarkusTestWorkerPlanService {
         if (!QuarkusTestRunnerRequest.RUNNER_MODE.equals(descriptor.runnerMode())) {
             return QuarkusTestWorkerPlanStatus.UNSUPPORTED_RUNNER_MODE;
         }
-        if (!unsupportedTests.isEmpty()) {
-            return QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS;
-        }
         if (descriptor.testRuntimeClasspath().stream().noneMatch(QuarkusTestWorkerPlanService::isConsoleJar)) {
             return QuarkusTestWorkerPlanStatus.MISSING_JUNIT_CONSOLE;
+        }
+        if (!unsupportedTests.isEmpty()) {
+            if (descriptor.supportsQuarkusTestAnnotations()) {
+                return QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED;
+            }
+            return QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS;
         }
         return QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY;
     }

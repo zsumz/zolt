@@ -76,6 +76,48 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void routesSelectedQuarkusAnnotationPlanToAnnotationRunner() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestRunnerDescriptor descriptor = descriptor(true);
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of(new QuarkusUnsupportedTest(
+                                Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
+                                Path.of("com/example/HttpTest.class"),
+                                "@QuarkusTest"))),
+                descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, "plain runner should not run\n"),
+                plan -> new QuarkusAnnotationWorkerRunner.Result(0, "Quarkus annotation tests passed\n"),
+                out,
+                err);
+
+        int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
+
+        assertEquals(0, exitCode);
+        assertTrue(output(out).contains("Status: Quarkus annotation runner selected"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
+        assertTrue(output(out).contains("com/example/HttpTest.class (@QuarkusTest)"));
+        assertTrue(output(out).contains("Quarkus annotation tests passed"));
+        assertEquals("", output(err));
+    }
+
+    @Test
+    void defaultAnnotationRunnerFailsHonestlyUntilImplemented() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner().run(
+                new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.output().contains("Quarkus annotation test execution is not implemented yet"));
+        assertTrue(result.output().contains("launcher/session listeners"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -109,6 +151,7 @@ final class QuarkusTestWorkerTest {
                         QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
                         List.of()),
                 descriptor -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
+                plan -> new QuarkusAnnotationWorkerRunner.Result(0, ""),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -127,6 +170,7 @@ final class QuarkusTestWorkerTest {
                     throw new QuarkusAugmentationException("bad plan");
                 },
                 descriptor -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
+                plan -> new QuarkusAnnotationWorkerRunner.Result(0, ""),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -160,6 +204,7 @@ final class QuarkusTestWorkerTest {
                 descriptor,
                 plan,
                 descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
+                planToRun -> new QuarkusAnnotationWorkerRunner.Result(0, ""),
                 out,
                 err);
     }
@@ -170,15 +215,36 @@ final class QuarkusTestWorkerTest {
             QuarkusTestWorker.PlainJunitRunner plainJunitRunner,
             ByteArrayOutputStream out,
             ByteArrayOutputStream err) {
+        return worker(
+                descriptor,
+                plan,
+                plainJunitRunner,
+                planToRun -> new QuarkusAnnotationWorkerRunner.Result(0, ""),
+                out,
+                err);
+    }
+
+    private static QuarkusTestWorker worker(
+            QuarkusTestRunnerDescriptor descriptor,
+            QuarkusTestWorkerPlan plan,
+            QuarkusTestWorker.PlainJunitRunner plainJunitRunner,
+            QuarkusTestWorker.QuarkusAnnotationRunner quarkusAnnotationRunner,
+            ByteArrayOutputStream out,
+            ByteArrayOutputStream err) {
         return new QuarkusTestWorker(
                 path -> descriptor,
                 actualDescriptor -> plan,
                 plainJunitRunner,
+                quarkusAnnotationRunner,
                 new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
     }
 
     private static QuarkusTestRunnerDescriptor descriptor() {
+        return descriptor(QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS);
+    }
+
+    private static QuarkusTestRunnerDescriptor descriptor(boolean supportsQuarkusTestAnnotations) {
         return new QuarkusTestRunnerDescriptor(
                 Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/test-runtime-classpath.txt"),
@@ -188,7 +254,7 @@ final class QuarkusTestWorkerTest {
                 Path.of("/repo/target/quarkus/test-application-model.dat"),
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 QuarkusTestRunnerRequest.RUNNER_MODE,
-                QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
+                supportsQuarkusTestAnnotations,
                 true,
                 List.of(
                         Path.of("/repo/target/test-classes"),

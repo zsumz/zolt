@@ -105,7 +105,6 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             TestCompileResult compileResult) {
-        failOnUnsupportedQuarkusTests(projectDirectory, config);
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -130,9 +129,14 @@ public final class TestRunService {
                 runnerClasspath,
                 serializedApplicationModel);
         if (config.frameworkSettings().quarkus().enabled()) {
+            QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
+            failOnUnsupportedQuarkusTests(
+                    projectDirectory,
+                    config,
+                    descriptor.supportsQuarkusTestAnnotations());
             String output = runQuarkusPlainJunitWorker(
                     jdkStatus.java().orElseThrow(),
-                    quarkusTestRunnerDescriptor.orElseThrow());
+                    descriptor);
             failOnHiddenQuarkusBootstrapFailure(config, output);
             return new TestRunResult(compileResult, output);
         }
@@ -174,7 +178,17 @@ public final class TestRunService {
     }
 
     static void failOnUnsupportedQuarkusTests(Path projectDirectory, ProjectConfig config) {
+        failOnUnsupportedQuarkusTests(projectDirectory, config, false);
+    }
+
+    static void failOnUnsupportedQuarkusTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            boolean supportsQuarkusTestAnnotations) {
         if (config == null || !config.frameworkSettings().quarkus().enabled()) {
+            return;
+        }
+        if (supportsQuarkusTestAnnotations) {
             return;
         }
         try {

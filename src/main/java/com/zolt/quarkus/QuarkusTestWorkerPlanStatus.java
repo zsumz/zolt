@@ -2,6 +2,7 @@ package com.zolt.quarkus;
 
 public enum QuarkusTestWorkerPlanStatus {
     PLAIN_JUNIT_READY("plain JUnit ready"),
+    QUARKUS_TEST_RUNNER_SELECTED("Quarkus annotation runner selected"),
     BLOCKED_UNSUPPORTED_QUARKUS_TESTS("blocked by unsupported Quarkus test annotations"),
     MISSING_JUNIT_CONSOLE("blocked by missing JUnit Platform Console"),
     UNSUPPORTED_RUNNER_MODE("blocked by unsupported Quarkus test runner mode");

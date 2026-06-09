@@ -265,6 +265,15 @@ final class TestRunServiceTest {
     }
 
     @Test
+    void quarkusTestAnnotationCanPassThroughWhenDescriptorSupportsIt() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
+
+        TestRunService.failOnUnsupportedQuarkusTests(projectDir, quarkusConfig(), true);
+    }
+
+    @Test
     void nonQuarkusProjectDoesNotRejectQuarkusTestAnnotationText() throws IOException {
         Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
         Files.createDirectories(testClass.getParent());

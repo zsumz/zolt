@@ -34,6 +34,25 @@ final class QuarkusTestWorkerPlanServiceTest {
     }
 
     @Test
+    void selectsQuarkusAnnotationRunnerWhenDescriptorSupportsQuarkusTests() {
+        QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
+                Path.of("com/example/HttpTest.class"),
+                "@QuarkusTest");
+
+        QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(quarkusTest))
+                .plan(descriptor(
+                        QuarkusTestRunnerRequest.RUNNER_MODE,
+                        true,
+                        List.of(Path.of("/cache/junit-platform-console.jar"))));
+
+        assertEquals(QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED, plan.status());
+        assertFalse(plan.plainJunitReady());
+        assertTrue(plan.quarkusTestRunnerSelected());
+        assertEquals(List.of(quarkusTest), plan.unsupportedTests());
+    }
+
+    @Test
     void blocksWhenJUnitConsoleIsMissing() {
         QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of())
                 .plan(descriptor(List.of(
@@ -64,6 +83,16 @@ final class QuarkusTestWorkerPlanServiceTest {
     }
 
     private static QuarkusTestRunnerDescriptor descriptor(String runnerMode, List<Path> testRuntimeClasspath) {
+        return descriptor(
+                runnerMode,
+                QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
+                testRuntimeClasspath);
+    }
+
+    private static QuarkusTestRunnerDescriptor descriptor(
+            String runnerMode,
+            boolean supportsQuarkusTestAnnotations,
+            List<Path> testRuntimeClasspath) {
         return new QuarkusTestRunnerDescriptor(
                 Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/test-runtime-classpath.txt"),
@@ -73,7 +102,7 @@ final class QuarkusTestWorkerPlanServiceTest {
                 Path.of("/repo/target/quarkus/test-application-model.dat"),
                 Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
                 runnerMode,
-                QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
+                supportsQuarkusTestAnnotations,
                 true,
                 testRuntimeClasspath);
     }

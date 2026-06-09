@@ -9,6 +9,7 @@ public final class QuarkusTestWorker {
     private final DescriptorReader descriptorReader;
     private final PlanService planService;
     private final PlainJunitRunner plainJunitRunner;
+    private final QuarkusAnnotationRunner quarkusAnnotationRunner;
     private final PrintStream out;
     private final PrintStream err;
 
@@ -17,6 +18,7 @@ public final class QuarkusTestWorker {
                 new QuarkusTestRunnerDescriptorReader()::read,
                 new QuarkusTestWorkerPlanService()::plan,
                 new QuarkusPlainJunitWorkerRunner()::run,
+                new QuarkusAnnotationWorkerRunner()::run,
                 System.out,
                 System.err);
     }
@@ -25,6 +27,7 @@ public final class QuarkusTestWorker {
             DescriptorReader descriptorReader,
             PlanService planService,
             PlainJunitRunner plainJunitRunner,
+            QuarkusAnnotationRunner quarkusAnnotationRunner,
             PrintStream out,
             PrintStream err) {
         if (descriptorReader == null) {
@@ -36,6 +39,9 @@ public final class QuarkusTestWorker {
         if (plainJunitRunner == null) {
             throw new QuarkusAugmentationException("Quarkus test worker plain JUnit runner is required.");
         }
+        if (quarkusAnnotationRunner == null) {
+            throw new QuarkusAugmentationException("Quarkus test worker annotation runner is required.");
+        }
         if (out == null) {
             throw new QuarkusAugmentationException("Quarkus test worker output stream is required.");
         }
@@ -45,6 +51,7 @@ public final class QuarkusTestWorker {
         this.descriptorReader = descriptorReader;
         this.planService = planService;
         this.plainJunitRunner = plainJunitRunner;
+        this.quarkusAnnotationRunner = quarkusAnnotationRunner;
         this.out = out;
         this.err = err;
     }
@@ -83,6 +90,11 @@ public final class QuarkusTestWorker {
             out.print(result.output());
             return result.exitCode();
         }
+        if (plan.quarkusTestRunnerSelected()) {
+            QuarkusAnnotationWorkerRunner.Result result = quarkusAnnotationRunner.run(plan);
+            out.print(result.output());
+            return result.exitCode();
+        }
         err.println(errorMessage(plan));
         return 2;
     }
@@ -104,6 +116,9 @@ public final class QuarkusTestWorker {
                     "error: Dedicated Quarkus test worker execution is not implemented yet. "
                             + "Run `zolt test` for the current plain JUnit path until Zolt owns Quarkus JUnit discovery "
                             + "and launcher/session listeners.";
+            case QUARKUS_TEST_RUNNER_SELECTED ->
+                    "error: Quarkus annotation test execution was selected but did not run. "
+                            + "Run `zolt test` again or inspect the Quarkus test worker output.";
         };
     }
 
@@ -120,5 +135,10 @@ public final class QuarkusTestWorker {
     @FunctionalInterface
     interface PlainJunitRunner {
         QuarkusPlainJunitWorkerRunner.Result run(QuarkusTestRunnerDescriptor descriptor);
+    }
+
+    @FunctionalInterface
+    interface QuarkusAnnotationRunner {
+        QuarkusAnnotationWorkerRunner.Result run(QuarkusTestWorkerPlan plan);
     }
 }

@@ -19,4 +19,8 @@ public record QuarkusTestWorkerPlan(
     public boolean plainJunitReady() {
         return status == QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY;
     }
+
+    public boolean quarkusTestRunnerSelected() {
+        return status == QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED;
+    }
 }
