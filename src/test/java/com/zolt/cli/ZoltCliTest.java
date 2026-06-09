@@ -2358,6 +2358,56 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
+        Files.createDirectories(testSource.getParent());
+        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
+
+        CommandResult result = execute(
+                "test",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Tests passed"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"config read\""));
+        assertTrue(lines[0].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"phase\":\"compile tests\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[1].contains("\"testCompilationSkipped\":\"false\""));
+        assertTrue(lines[2].contains("\"phase\":\"execute tests\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"outputBytes\""));
+        assertTrue(lines[3].contains("\"phase\":\"run tests\""));
+        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
+    }
+
+    @Test
     void packageWorkspaceMemberPackagesSelectedMemberOnly() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");

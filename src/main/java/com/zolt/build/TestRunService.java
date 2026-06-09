@@ -71,8 +71,20 @@ public final class TestRunService {
 
     public TestRunResult runTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         TestCompileResultWithClasspaths compileResult =
-                testCompileService.compileTestsWithClasspaths(projectDirectory, config, cacheRoot);
-        return runTests(projectDirectory, config, compileResult.classpaths(), compileResult.testCompileResult());
+                compileTests(projectDirectory, config, cacheRoot);
+        return runCompiledTests(projectDirectory, config, compileResult.classpaths(), compileResult.testCompileResult());
+    }
+
+    public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return testCompileService.compileTestsWithClasspaths(projectDirectory, config, cacheRoot);
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult) {
+        return runTests(projectDirectory, config, classpaths, compileResult);
     }
 
     public TestRunResult runTests(

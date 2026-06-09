@@ -23,6 +23,8 @@ import com.zolt.build.RunPackageService;
 import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
+import com.zolt.build.TestCompileResult;
+import com.zolt.build.TestCompileResultWithClasspaths;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
@@ -1141,9 +1143,24 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = timings.measure(
                         "config read",
                         () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                TestRunService testRunService = new TestRunService();
                 TestRunResult result = timings.measure(
                         "run tests",
-                        () -> new TestRunService().runTests(workingDirectory, config, cacheRoot),
+                        () -> {
+                            TestCompileResultWithClasspaths compileResult = timings.measure(
+                                    "compile tests",
+                                    () -> testRunService.compileTests(workingDirectory, config, cacheRoot),
+                                    resultWithClasspaths -> testCompileAttributes(
+                                            resultWithClasspaths.testCompileResult()));
+                            return timings.measure(
+                                    "execute tests",
+                                    () -> testRunService.runCompiledTests(
+                                            workingDirectory,
+                                            config,
+                                            compileResult.classpaths(),
+                                            compileResult.testCompileResult()),
+                                    ZoltCli::testExecutionAttributes);
+                        },
                         ZoltCli::testRunAttributes);
                 printAndFlush(spec, result.output());
                 if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
@@ -1799,6 +1816,19 @@ public final class ZoltCli implements Runnable {
                 "mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()),
                 "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
                 "outputBytes", Integer.toString(result.output().length()));
+    }
+
+    private static Map<String, String> testCompileAttributes(TestCompileResult result) {
+        return Map.of(
+                "mainSourceFiles", Integer.toString(result.buildResult().sourceCount()),
+                "testSourceFiles", Integer.toString(result.sourceCount()),
+                "testResourceFiles", Integer.toString(result.resourceCount()),
+                "mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()),
+                "testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
+    }
+
+    private static Map<String, String> testExecutionAttributes(TestRunResult result) {
+        return Map.of("outputBytes", Integer.toString(result.output().length()));
     }
 
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
