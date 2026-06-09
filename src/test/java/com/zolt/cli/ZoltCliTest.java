@@ -209,7 +209,11 @@ final class ZoltCliTest {
             assertTrue(lines[0].contains("\"projectRoot\":\"" + jsonPath(projectDir.toAbsolutePath().normalize()) + "\""));
             assertTrue(lines[1].contains("\"phase\":\"resolve graph\""));
             assertTrue(lines[1].contains("\"durationNanos\":"));
-            assertTrue(lines[1].contains("\"attributes\":{\"conflicts\":\"0\",\"downloadedArtifacts\":\"2\",\"resolvedPackages\":\"1\"}"));
+            assertTrue(lines[1].contains("\"conflicts\":\"0\""));
+            assertTrue(lines[1].contains("\"downloadedArtifacts\":\"2\""));
+            assertTrue(lines[1].contains("\"resolvedPackages\":\"1\""));
+            assertTrue(lines[1].contains("\"pomCacheMisses\""));
+            assertTrue(lines[1].contains("\"rawPomCacheHits\""));
         }
     }
 

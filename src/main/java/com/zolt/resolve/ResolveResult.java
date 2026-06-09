@@ -6,5 +6,17 @@ public record ResolveResult(
         int resolvedCount,
         int downloadCount,
         int conflictCount,
-        Path lockfilePath) {
+        Path lockfilePath,
+        ResolveMetrics metrics) {
+    public ResolveResult(
+            int resolvedCount,
+            int downloadCount,
+            int conflictCount,
+            Path lockfilePath) {
+        this(resolvedCount, downloadCount, conflictCount, lockfilePath, ResolveMetrics.empty());
+    }
+
+    public ResolveResult {
+        metrics = metrics == null ? ResolveMetrics.empty() : metrics;
+    }
 }

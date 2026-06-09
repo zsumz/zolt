@@ -117,6 +117,55 @@ final class ResolveServiceTest {
 
         assertEquals(4, first.downloadCount());
         assertEquals(0, second.downloadCount());
+        assertEquals(4, second.metrics().pomCacheHits() + second.metrics().jarCacheHits());
+    }
+
+    @Test
+    void repeatedParentPomsAreParsedOncePerResolve() {
+        addPom("com.example", "parent", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>parent</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        addArtifact("com.example", "child-a", "1.0.0", """
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>child-a</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        addArtifact("com.example", "child-b", "1.0.0", """
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>child-b</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithDependencies(Map.of(
+                        "com.example:child-a", "1.0.0",
+                        "com.example:child-b", "1.0.0")),
+                cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(1, result.metrics().rawPomCacheHits());
+        assertTrue(result.metrics().rawPomCacheMisses() >= 3);
+        assertTrue(Files.exists(result.lockfilePath()));
     }
 
     @Test

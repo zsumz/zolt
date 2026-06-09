@@ -9,6 +9,7 @@ import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
+import com.zolt.resolve.ResolveMetrics;
 import com.zolt.resolve.ResolveOutput;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -60,6 +61,7 @@ public final class WorkspaceResolveService {
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<MemberResolveOutput> memberOutputs = new ArrayList<>();
         int downloadCount = 0;
+        ResolveMetrics metrics = ResolveMetrics.empty();
         for (String memberPath : workspace.buildOrder()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             ResolveOutput output = resolveService.resolveLockfile(
@@ -71,6 +73,7 @@ public final class WorkspaceResolveService {
                     output.lockfile(),
                     exportedExternalPackageIds(member.config())));
             downloadCount += output.downloadCount();
+            metrics = metrics.plus(output.metrics());
         }
 
         ZoltLockfile lockfile = aggregate(workspace, memberOutputs);
@@ -83,7 +86,8 @@ public final class WorkspaceResolveService {
                 lockfile.packages().size(),
                 downloadCount,
                 lockfile.conflicts().size(),
-                lockfilePath);
+                lockfilePath,
+                metrics);
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {

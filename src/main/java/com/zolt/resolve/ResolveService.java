@@ -111,7 +111,8 @@ public final class ResolveService {
                 lockfile.packages().size(),
                 output.downloadCount(),
                 lockfile.conflicts().size(),
-                lockfilePath);
+                lockfilePath,
+                output.metrics());
     }
 
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
@@ -133,7 +134,7 @@ public final class ResolveService {
                 ? initial
                 : resolveGraph(context, allRequests);
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
-        return new ResolveOutput(lockfile, context.downloadCount());
+        return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
     }
 
     private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
@@ -644,8 +645,19 @@ public final class ResolveService {
         private final LocalArtifactCache cache;
         private final boolean offline;
         private final Map<String, EffectiveRawPom> metadata = new HashMap<>();
+        private final Map<String, RawPom> rawPoms = new HashMap<>();
         private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private int downloadCount;
+        private int pomCacheHits;
+        private int pomCacheMisses;
+        private int jarCacheHits;
+        private int jarCacheMisses;
+        private int artifactCacheHits;
+        private int artifactCacheMisses;
+        private int rawPomCacheHits;
+        private int rawPomCacheMisses;
+        private int effectivePomCacheHits;
+        private int effectivePomCacheMisses;
 
         RepositoryContext(ProjectConfig config, LocalArtifactCache cache, boolean offline) {
             this.config = config;
@@ -660,13 +672,17 @@ public final class ResolveService {
 
         CachedArtifact getPom(Coordinate coordinate) {
             if (offline) {
+                pomCacheHits++;
                 return cache.getCachedPom(coordinate);
             }
             Path before = cache.pomPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchPom(coordinate, requested ->
                     repositoryClient.fetchPom(repositoryUri(), requested));
-            if (!cached) {
+            if (cached) {
+                pomCacheHits++;
+            } else {
+                pomCacheMisses++;
                 downloadCount++;
             }
             return artifact;
@@ -674,13 +690,17 @@ public final class ResolveService {
 
         CachedArtifact getJar(Coordinate coordinate) {
             if (offline) {
+                jarCacheHits++;
                 return cache.getCachedJar(coordinate);
             }
             Path before = cache.jarPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchJar(coordinate, requested ->
                     repositoryClient.fetchJar(repositoryUri(), requested));
-            if (!cached) {
+            if (cached) {
+                jarCacheHits++;
+            } else {
+                jarCacheMisses++;
                 downloadCount++;
             }
             return artifact;
@@ -688,13 +708,17 @@ public final class ResolveService {
 
         CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
             if (offline) {
+                artifactCacheHits++;
                 return cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
             }
             Path before = cache.artifactPath(descriptor);
             boolean cached = java.nio.file.Files.isRegularFile(before);
             CachedArtifact artifact = cache.getOrFetchArtifact(descriptor, requested ->
                     repositoryClient.fetchArtifact(repositoryUri(), descriptor));
-            if (!cached) {
+            if (cached) {
+                artifactCacheHits++;
+            } else {
+                artifactCacheMisses++;
                 downloadCount++;
             }
             return artifact;
@@ -702,6 +726,20 @@ public final class ResolveService {
 
         int downloadCount() {
             return downloadCount;
+        }
+
+        ResolveMetrics metrics() {
+            return new ResolveMetrics(
+                    pomCacheHits,
+                    pomCacheMisses,
+                    jarCacheHits,
+                    jarCacheMisses,
+                    artifactCacheHits,
+                    artifactCacheMisses,
+                    rawPomCacheHits,
+                    rawPomCacheMisses,
+                    effectivePomCacheHits,
+                    effectivePomCacheMisses);
         }
 
         Map<PackageId, String> projectManagedVersions() {
@@ -765,8 +803,10 @@ public final class ResolveService {
             String key = coordinate.toString();
             EffectiveRawPom cached = metadata.get(key);
             if (cached != null) {
+                effectivePomCacheHits++;
                 return cached;
             }
+            effectivePomCacheMisses++;
             if (importStack.contains(key)) {
                 throw new ResolveException(
                         "Imported BOM cycle detected: "
@@ -776,8 +816,7 @@ public final class ResolveService {
                                 + ". Remove one of the import-scoped dependencyManagement entries.");
             }
 
-            CachedArtifact pomArtifact = getPom(coordinate);
-            RawPom rawPom = rawPomParser.parse(pomArtifact.bytes());
+            RawPom rawPom = rawPom(coordinate);
             List<RawPom> parents = loadParents(rawPom);
             String groupId = rawPom.groupId().or(() -> nearestGroupId(parents)).orElse(coordinate.groupId());
             String version = rawPom.version().or(() -> nearestVersion(parents)).orElse(coordinate.version().orElseThrow());
@@ -803,7 +842,7 @@ public final class ResolveService {
             while (current.parent().isPresent()) {
                 var parent = current.parent().orElseThrow();
                 Coordinate parentCoordinate = new Coordinate(parent.groupId(), parent.artifactId(), Optional.of(parent.version()));
-                RawPom parentPom = rawPomParser.parse(getPom(parentCoordinate).bytes());
+                RawPom parentPom = rawPom(parentCoordinate);
                 nearestFirst.add(parentPom);
                 current = parentPom;
             }
@@ -812,6 +851,20 @@ public final class ResolveService {
                 rootFirst.add(nearestFirst.get(index));
             }
             return rootFirst;
+        }
+
+        private RawPom rawPom(Coordinate coordinate) {
+            String key = coordinate.toString();
+            RawPom cached = rawPoms.get(key);
+            if (cached != null) {
+                rawPomCacheHits++;
+                return cached;
+            }
+            rawPomCacheMisses++;
+            CachedArtifact pomArtifact = getPom(coordinate);
+            RawPom parsed = rawPomParser.parse(pomArtifact.bytes());
+            rawPoms.put(key, parsed);
+            return parsed;
         }
 
         private URI repositoryUri() {

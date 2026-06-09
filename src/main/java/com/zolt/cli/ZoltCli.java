@@ -1759,10 +1759,21 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> resolveAttributes(ResolveResult result) {
-        return Map.of(
-                "resolvedPackages", Integer.toString(result.resolvedCount()),
-                "downloadedArtifacts", Integer.toString(result.downloadCount()),
-                "conflicts", Integer.toString(result.conflictCount()));
+        java.util.LinkedHashMap<String, String> attributes = new java.util.LinkedHashMap<>();
+        attributes.put("resolvedPackages", Integer.toString(result.resolvedCount()));
+        attributes.put("downloadedArtifacts", Integer.toString(result.downloadCount()));
+        attributes.put("conflicts", Integer.toString(result.conflictCount()));
+        attributes.put("pomCacheHits", Integer.toString(result.metrics().pomCacheHits()));
+        attributes.put("pomCacheMisses", Integer.toString(result.metrics().pomCacheMisses()));
+        attributes.put("jarCacheHits", Integer.toString(result.metrics().jarCacheHits()));
+        attributes.put("jarCacheMisses", Integer.toString(result.metrics().jarCacheMisses()));
+        attributes.put("artifactCacheHits", Integer.toString(result.metrics().artifactCacheHits()));
+        attributes.put("artifactCacheMisses", Integer.toString(result.metrics().artifactCacheMisses()));
+        attributes.put("rawPomCacheHits", Integer.toString(result.metrics().rawPomCacheHits()));
+        attributes.put("rawPomCacheMisses", Integer.toString(result.metrics().rawPomCacheMisses()));
+        attributes.put("effectivePomCacheHits", Integer.toString(result.metrics().effectivePomCacheHits()));
+        attributes.put("effectivePomCacheMisses", Integer.toString(result.metrics().effectivePomCacheMisses()));
+        return attributes;
     }
 
     private static Map<String, String> buildAttributes(BuildResult result) {
