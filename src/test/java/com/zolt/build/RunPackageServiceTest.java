@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkDetector;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -124,7 +123,7 @@ final class RunPackageServiceTest {
     private RunPackageService service(JavaRunner.ProcessRunner processRunner) {
         return new RunPackageService(
                 new PackageService(),
-                new ZoltLockfileReader(),
+                new BuildService(),
                 new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(":", processRunner));

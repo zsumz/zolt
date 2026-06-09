@@ -4,8 +4,6 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
@@ -15,7 +13,7 @@ import java.util.List;
 
 public final class RunPackageService {
     private final PackageService packageService;
-    private final ZoltLockfileReader lockfileReader;
+    private final BuildService buildService;
     private final ClasspathBuilder classpathBuilder;
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
@@ -23,7 +21,7 @@ public final class RunPackageService {
     public RunPackageService() {
         this(
                 new PackageService(),
-                new ZoltLockfileReader(),
+                new BuildService(),
                 new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner());
@@ -31,12 +29,12 @@ public final class RunPackageService {
 
     RunPackageService(
             PackageService packageService,
-            ZoltLockfileReader lockfileReader,
+            BuildService buildService,
             ClasspathBuilder classpathBuilder,
             JdkDetector jdkDetector,
             JavaRunner javaRunner) {
         this.packageService = packageService;
-        this.lockfileReader = lockfileReader;
+        this.buildService = buildService;
         this.classpathBuilder = classpathBuilder;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
@@ -49,7 +47,13 @@ public final class RunPackageService {
             List<String> arguments) {
         String mainClass = config.project().main().orElseThrow(() -> new RunPackageException(
                 "No main class is configured. Add [project].main to zolt.toml to run a packaged application."));
-        PackageResult packageResult = packageService.packageJar(projectDirectory, config, cacheRoot);
+        packageService.preparePackageToolingIfNeeded(projectDirectory, config, cacheRoot);
+        BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
+                projectDirectory,
+                config,
+                cacheRoot,
+                false);
+        PackageResult packageResult = packageService.packageJar(projectDirectory, config, buildResult, cacheRoot);
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
             throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
@@ -64,8 +68,7 @@ public final class RunPackageService {
             return new RunPackageResult(packageResult, javaRunResult);
         }
 
-        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        ClasspathSet classpaths = classpathBuilder.build(buildResult.classpathPackages().stream()
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList());
         List<Path> runtimeEntries = new ArrayList<>();
