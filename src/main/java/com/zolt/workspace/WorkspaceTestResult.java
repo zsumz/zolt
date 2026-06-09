@@ -34,6 +34,29 @@ public record WorkspaceTestResult(
                 .sum();
     }
 
+    public int mainCompilationSkippedCount() {
+        return (int) builtMembers.stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::result)
+                .filter(result -> result.mainCompilationSkipped())
+                .count();
+    }
+
+    public int mainCompilationExecutedCount() {
+        return builtMembers.size() - mainCompilationSkippedCount();
+    }
+
+    public int testCompilationSkippedCount() {
+        return (int) members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::compileResult)
+                .filter(result -> result.testCompilationSkipped())
+                .count();
+    }
+
+    public int testCompilationExecutedCount() {
+        return members.size() - testCompilationSkippedCount();
+    }
+
     public record MemberTestRunResult(
             String member,
             TestRunResult result) {

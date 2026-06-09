@@ -109,6 +109,7 @@ import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1862,6 +1863,8 @@ public final class ZoltCli implements Runnable {
         return Map.of(
                 "members", Integer.toString(result.members().size()),
                 "sourceFiles", Integer.toString(result.sourceCount()),
+                "mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()),
+                "mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()),
                 "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
     }
 
@@ -1896,11 +1899,16 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
-        return Map.of(
-                "members", Integer.toString(result.members().size()),
-                "mainSourceFiles", Integer.toString(result.mainSourceCount()),
-                "testSourceFiles", Integer.toString(result.testSourceCount()),
-                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("members", Integer.toString(result.members().size()));
+        attributes.put("mainSourceFiles", Integer.toString(result.mainSourceCount()));
+        attributes.put("testSourceFiles", Integer.toString(result.testSourceCount()));
+        attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
+        attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
+        attributes.put("testCompilationsSkipped", Integer.toString(result.testCompilationSkippedCount()));
+        attributes.put("testCompilationsExecuted", Integer.toString(result.testCompilationExecutedCount()));
+        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        return attributes;
     }
 
     private static Map<String, String> packageAttributes(PackageResult result) {

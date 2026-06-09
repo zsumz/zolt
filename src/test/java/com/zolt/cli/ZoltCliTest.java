@@ -2132,10 +2132,14 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"depth\":1"));
         assertTrue(lines[1].contains("\"members\":\"2\""));
         assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[1].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[2].contains("\"phase\":\"build workspace\""));
         assertTrue(lines[2].contains("\"depth\":0"));
         assertTrue(lines[2].contains("\"members\":\"2\""));
         assertTrue(lines[2].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[2].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[2].contains("\"mainCompilationsExecuted\":\"2\""));
     }
 
     @Test
@@ -2440,14 +2444,24 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"depth\":1"));
         assertTrue(lines[1].contains("\"members\":\"2\""));
         assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[1].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[2].contains("\"phase\":\"run workspace test members\""));
         assertTrue(lines[2].contains("\"depth\":1"));
         assertTrue(lines[2].contains("\"members\":\"2\""));
         assertTrue(lines[2].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[2].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[2].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[2].contains("\"testCompilationsSkipped\""));
+        assertTrue(lines[2].contains("\"testCompilationsExecuted\""));
         assertTrue(lines[3].contains("\"phase\":\"test workspace\""));
         assertTrue(lines[3].contains("\"depth\":0"));
         assertTrue(lines[3].contains("\"members\":\"2\""));
         assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[3].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[3].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[3].contains("\"testCompilationsSkipped\""));
+        assertTrue(lines[3].contains("\"testCompilationsExecuted\""));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
@@ -2578,6 +2592,8 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"depth\":1"));
         assertTrue(lines[1].contains("\"members\":\"2\""));
         assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[1].contains("\"mainCompilationsSkipped\":\"0\""));
+        assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[2].contains("\"phase\":\"assemble workspace packages\""));
         assertTrue(lines[2].contains("\"depth\":1"));
         assertTrue(lines[2].contains("\"members\":\"1\""));

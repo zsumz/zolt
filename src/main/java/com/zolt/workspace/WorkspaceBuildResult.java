@@ -24,6 +24,17 @@ public record WorkspaceBuildResult(
                 .sum();
     }
 
+    public int mainCompilationSkippedCount() {
+        return (int) members.stream()
+                .map(MemberBuildResult::result)
+                .filter(BuildResult::mainCompilationSkipped)
+                .count();
+    }
+
+    public int mainCompilationExecutedCount() {
+        return members.size() - mainCompilationSkippedCount();
+    }
+
     public record MemberBuildResult(
             String member,
             BuildResult result) {
