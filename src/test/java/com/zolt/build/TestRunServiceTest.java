@@ -8,8 +8,11 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.QuarkusSettings;
 import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -152,6 +155,34 @@ final class TestRunServiceTest {
         assertTrue(exception.getMessage().contains("test failed"));
     }
 
+    @Test
+    void quarkusBootstrapStackTraceFailsEvenWhenJUnitConsoleExitsZero() throws IOException {
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> TestRunService.failOnHiddenQuarkusBootstrapFailure(quarkusConfig(), """
+                        java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
+                            at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
+
+                        Test run finished after 41 ms
+                        [         1 tests successful      ]
+
+                        Tests passed
+                        """));
+
+        assertTrue(exception.getMessage().contains("Quarkus test bootstrap failed"));
+        assertTrue(exception.getMessage().contains("does not yet support Quarkus-specific `@QuarkusTest`"));
+        assertTrue(exception.getMessage().contains("BuildChainBuilder"));
+    }
+
+    @Test
+    void nonQuarkusProjectDoesNotScanSuccessfulJUnitOutputForQuarkusText() {
+        TestRunService.failOnHiddenQuarkusBootstrapFailure(config(), """
+                java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
+                    at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
+                Tests passed
+                """);
+    }
+
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {
         return new TestRunService(
                 new TestCompileService(),
@@ -215,6 +246,11 @@ final class TestRunServiceTest {
                 Map.of(),
                 Map.of("org.junit.platform:junit-platform-console-standalone", "1.11.4"),
                 BuildSettings.defaults());
+    }
+
+    private static ProjectConfig quarkusConfig() {
+        return config().withFrameworkSettings(new FrameworkSettings(
+                new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
     }
 
     private static ProjectConfig multiRootConfig() {

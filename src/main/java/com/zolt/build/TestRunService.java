@@ -109,6 +109,7 @@ public final class TestRunService {
                         "--class-path", joined(runnerClasspath),
                         "--scan-class-path",
                         "--details", "summary"));
+        failOnHiddenQuarkusBootstrapFailure(config, result.output());
         return new TestRunResult(compileResult, result.output());
     }
 
@@ -158,6 +159,30 @@ public final class TestRunService {
                             + exception.getMessage(),
                     exception);
         }
+    }
+
+    static void failOnHiddenQuarkusBootstrapFailure(ProjectConfig config, String output) {
+        if (!config.frameworkSettings().quarkus().enabled()) {
+            return;
+        }
+        if (output == null || output.isBlank()) {
+            return;
+        }
+        if (!hiddenQuarkusBootstrapFailure(output)) {
+            return;
+        }
+        throw new TestRunException(
+                "Quarkus test bootstrap failed while JUnit Platform reported success. "
+                        + "Zolt does not yet support Quarkus-specific `@QuarkusTest` execution. "
+                        + "Use plain JUnit tests for now, or remove `@QuarkusTest` until Zolt's dedicated Quarkus test runner is implemented.\n"
+                        + output.stripTrailing());
+    }
+
+    private static boolean hiddenQuarkusBootstrapFailure(String output) {
+        return output.contains("io.quarkus.test.junit")
+                && (output.contains("io.quarkus.bootstrap.BootstrapException")
+                        || output.contains("ClassCastException: class io.quarkus.builder.BuildChainBuilder")
+                        || output.contains("NullPointerException"));
     }
 
     private static boolean isJbossLogManagerJar(Path path) {
