@@ -156,7 +156,8 @@ final class QuarkusApplicationModelFactoryTest {
                                 "quarkus-builder",
                                 java.util.Optional.empty(),
                                 java.util.Optional.empty())),
-                        List.of()));
+                        List.of(),
+                        Map.of()));
 
         FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
@@ -200,6 +201,58 @@ final class QuarkusApplicationModelFactoryTest {
                         new FakeArtifactKey("io.smallrye.config", "smallrye-config-common", "", "jar"),
                         new FakeArtifactKey("io.smallrye.config", "smallrye-config-core", "", "jar")),
                 model.parentFirstArtifacts());
+    }
+
+    @Test
+    void addsRemovedResourcesFromRuntimeExtensionMetadata() throws IOException {
+        Path quarkusRest = tempDir.resolve("quarkus-rest.jar");
+        writeJar(
+                quarkusRest,
+                QuarkusExtensionMetadataReader.METADATA_PATH,
+                """
+                deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.2
+                removed-resources.io.quarkus\\:quarkus-rest=\
+                META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider,\
+                META-INF/duplicate.index
+                """);
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
+
+        QuarkusApplicationModelHandle handle = factory.create(descriptor(
+                List.of(),
+                List.of(new QuarkusBootstrapDependency(
+                        new PackageId("io.quarkus", "quarkus-rest"),
+                        "3.33.2",
+                        DependencyScope.COMPILE,
+                        quarkusRest,
+                        true)),
+                List.of(quarkusRest),
+                List.of()));
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        assertEquals(
+                Map.of(
+                        new FakeArtifactKey("io.quarkus", "quarkus-rest", "", "jar"),
+                        List.of(
+                                "META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider",
+                                "META-INF/duplicate.index")),
+                model.removedResources());
+    }
+
+    @Test
+    void addsTestBootstrapRemovedResourceOption() {
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
+
+        QuarkusApplicationModelHandle handle = factory.create(
+                descriptor(),
+                java.util.Optional.empty(),
+                QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        assertEquals(
+                Map.of(
+                        new FakeArtifactKey("io.quarkus", "quarkus-rest", "", "jar"),
+                        List.of("META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider")),
+                model.removedResources());
     }
 
     @Test
@@ -326,6 +379,7 @@ final class QuarkusApplicationModelFactoryTest {
         private final List<FakeResolvedDependencyBuilder> dependencies = new ArrayList<>();
         private final List<FakeArtifactKey> parentFirstArtifacts = new ArrayList<>();
         private final List<FakeArtifactKey> runnerParentFirstArtifacts = new ArrayList<>();
+        private final Map<FakeArtifactKey, List<String>> removedResources = new java.util.LinkedHashMap<>();
 
         public FakeApplicationModelBuilder setAppArtifact(FakeResolvedDependencyBuilder appArtifact) {
             this.appArtifact = appArtifact;
@@ -352,13 +406,21 @@ final class QuarkusApplicationModelFactoryTest {
             return this;
         }
 
+        public FakeApplicationModelBuilder addRemovedResources(
+                FakeArtifactKey artifactKey,
+                java.util.Collection<String> resources) {
+            removedResources.put(artifactKey, List.copyOf(resources));
+            return this;
+        }
+
         public FakeApplicationModel build() {
             return new FakeApplicationModel(
                     appArtifact,
                     platformImports,
                     List.copyOf(dependencies),
                     List.copyOf(parentFirstArtifacts),
-                    List.copyOf(runnerParentFirstArtifacts));
+                    List.copyOf(runnerParentFirstArtifacts),
+                    Map.copyOf(removedResources));
         }
     }
 
@@ -368,7 +430,7 @@ final class QuarkusApplicationModelFactoryTest {
         }
 
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(null, null, List.of(), List.of(), List.of());
+            return new FakeApplicationModel(null, null, List.of(), List.of(), List.of(), Map.of());
         }
     }
 
@@ -505,6 +567,7 @@ final class QuarkusApplicationModelFactoryTest {
             FakePlatformImports platformImports,
             List<FakeResolvedDependencyBuilder> dependencies,
             List<FakeArtifactKey> parentFirstArtifacts,
-            List<FakeArtifactKey> runnerParentFirstArtifacts) {
+            List<FakeArtifactKey> runnerParentFirstArtifacts,
+            Map<FakeArtifactKey, List<String>> removedResources) {
     }
 }

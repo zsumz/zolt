@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -229,6 +230,8 @@ public final class QuarkusApplicationModelFactory {
             throws ReflectiveOperationException {
         Set<QuarkusArtifactKey> parentFirstArtifacts = new LinkedHashSet<>(options.parentFirstArtifacts());
         Set<QuarkusArtifactKey> runnerParentFirstArtifacts = new LinkedHashSet<>(options.runnerParentFirstArtifacts());
+        Map<QuarkusArtifactKey, Set<String>> removedResources = new LinkedHashMap<>();
+        addRemovedResources(removedResources, options.removedResources());
         for (Path runtimeArtifact : descriptor.runtimeClasspath()) {
             if (!Files.isRegularFile(runtimeArtifact)) {
                 continue;
@@ -239,8 +242,9 @@ public final class QuarkusApplicationModelFactory {
             }
             parentFirstArtifacts.addAll(metadata.orElseThrow().parentFirstArtifacts());
             runnerParentFirstArtifacts.addAll(metadata.orElseThrow().runnerParentFirstArtifacts());
+            addRemovedResources(removedResources, metadata.orElseThrow().removedResources());
         }
-        if (parentFirstArtifacts.isEmpty() && runnerParentFirstArtifacts.isEmpty()) {
+        if (parentFirstArtifacts.isEmpty() && runnerParentFirstArtifacts.isEmpty() && removedResources.isEmpty()) {
             return;
         }
         Class<?> artifactKeyClass = Class.forName(api.artifactKeyClass());
@@ -253,6 +257,19 @@ public final class QuarkusApplicationModelFactory {
             applicationModelBuilderClass
                     .getMethod("addRunnerParentFirstArtifact", artifactKeyClass)
                     .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
+        }
+        for (Map.Entry<QuarkusArtifactKey, Set<String>> entry : removedResources.entrySet()) {
+            applicationModelBuilderClass
+                    .getMethod("addRemovedResources", artifactKeyClass, java.util.Collection.class)
+                    .invoke(modelBuilder, artifactKey(artifactKeyClass, entry.getKey()), List.copyOf(entry.getValue()));
+        }
+    }
+
+    private static void addRemovedResources(
+            Map<QuarkusArtifactKey, Set<String>> target,
+            Map<QuarkusArtifactKey, List<String>> source) {
+        for (Map.Entry<QuarkusArtifactKey, List<String>> entry : source.entrySet()) {
+            target.computeIfAbsent(entry.getKey(), ignored -> new LinkedHashSet<>()).addAll(entry.getValue());
         }
     }
 
