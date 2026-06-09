@@ -7,33 +7,53 @@ import java.util.Set;
 
 public final class PomPropertyInterpolator {
     public String interpolate(String value, EffectiveRawPom pom) {
+        if (!containsPropertyExpression(value)) {
+            return value;
+        }
         Map<String, String> properties = properties(pom);
-        String context = pom.groupId() + ":" + pom.rawPom().artifactId() + ":" + pom.version();
-        return interpolate(value, properties, context, new LinkedHashSet<>());
+        String context = context(pom);
+        return interpolate(value, properties, context);
     }
 
     public RawPomDependency interpolateDependency(RawPomDependency dependency, EffectiveRawPom pom) {
+        if (!containsPropertyExpression(dependency)) {
+            return dependency;
+        }
+        Map<String, String> properties = properties(pom);
+        String context = context(pom);
         return new RawPomDependency(
-                interpolate(dependency.groupId(), pom),
-                interpolate(dependency.artifactId(), pom),
-                dependency.version().map(value -> interpolate(value, pom)),
-                dependency.scope().map(value -> interpolate(value, pom)),
-                dependency.type().map(value -> interpolate(value, pom)),
-                dependency.classifier().map(value -> interpolate(value, pom)),
+                interpolate(dependency.groupId(), properties, context),
+                interpolate(dependency.artifactId(), properties, context),
+                dependency.version().map(value -> interpolate(value, properties, context)),
+                dependency.scope().map(value -> interpolate(value, properties, context)),
+                dependency.type().map(value -> interpolate(value, properties, context)),
+                dependency.classifier().map(value -> interpolate(value, properties, context)),
                 dependency.optional(),
                 dependency.exclusions().stream()
                         .map(exclusion -> new RawPomExclusion(
-                                interpolate(exclusion.groupId(), pom),
-                                interpolate(exclusion.artifactId(), pom)))
+                                interpolate(exclusion.groupId(), properties, context),
+                                interpolate(exclusion.artifactId(), properties, context)))
                         .toList());
     }
 
     public RawPomRelocation interpolateRelocation(RawPomRelocation relocation, EffectiveRawPom pom) {
+        if (!containsPropertyExpression(relocation)) {
+            return relocation;
+        }
+        Map<String, String> properties = properties(pom);
+        String context = context(pom);
         return new RawPomRelocation(
-                relocation.groupId().map(value -> interpolate(value, pom)),
-                relocation.artifactId().map(value -> interpolate(value, pom)),
-                relocation.version().map(value -> interpolate(value, pom)),
-                relocation.message().map(value -> interpolate(value, pom)));
+                relocation.groupId().map(value -> interpolate(value, properties, context)),
+                relocation.artifactId().map(value -> interpolate(value, properties, context)),
+                relocation.version().map(value -> interpolate(value, properties, context)),
+                relocation.message().map(value -> interpolate(value, properties, context)));
+    }
+
+    private String interpolate(String value, Map<String, String> properties, String context) {
+        if (!containsPropertyExpression(value)) {
+            return value;
+        }
+        return interpolate(value, properties, context, new LinkedHashSet<>());
     }
 
     private String interpolate(String value, Map<String, String> properties, String context, Set<String> propertyStack) {
@@ -73,6 +93,33 @@ public final class PomPropertyInterpolator {
             start = result.indexOf("${", start + replacement.length());
         }
         return result;
+    }
+
+    private static boolean containsPropertyExpression(RawPomDependency dependency) {
+        return containsPropertyExpression(dependency.groupId())
+                || containsPropertyExpression(dependency.artifactId())
+                || dependency.version().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || dependency.scope().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || dependency.type().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || dependency.classifier().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || dependency.exclusions().stream()
+                        .anyMatch(exclusion -> containsPropertyExpression(exclusion.groupId())
+                                || containsPropertyExpression(exclusion.artifactId()));
+    }
+
+    private static boolean containsPropertyExpression(RawPomRelocation relocation) {
+        return relocation.groupId().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || relocation.artifactId().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || relocation.version().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)
+                || relocation.message().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false);
+    }
+
+    private static boolean containsPropertyExpression(String value) {
+        return value.contains("${");
+    }
+
+    private static String context(EffectiveRawPom pom) {
+        return pom.groupId() + ":" + pom.rawPom().artifactId() + ":" + pom.version();
     }
 
     private Map<String, String> properties(EffectiveRawPom pom) {

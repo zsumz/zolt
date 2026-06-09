@@ -1,6 +1,7 @@
 package com.zolt.maven;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Map;
@@ -152,6 +153,56 @@ final class PomPropertyInterpolatorTest {
         assertEquals("com.example", interpolated.groupId());
         assertEquals("app-api", interpolated.artifactId());
         assertEquals("2.0.0", interpolated.version().orElseThrow());
+    }
+
+    @Test
+    void plainDependencyFieldsReturnOriginalDependency() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                </project>
+                """);
+        RawPomDependency dependency = new RawPomDependency(
+                "com.example",
+                "library",
+                Optional.of("2.0.0"),
+                Optional.of("compile"),
+                Optional.empty(),
+                Optional.empty(),
+                false,
+                java.util.List.of());
+
+        assertSame(dependency, interpolator.interpolateDependency(dependency, pom));
+    }
+
+    @Test
+    void unresolvedDependencyPropertyProducesActionableErrorWithCoordinateContext() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                </project>
+                """);
+        RawPomDependency dependency = new RawPomDependency(
+                "com.example",
+                "library",
+                Optional.of("${missing.version}"),
+                Optional.of("compile"),
+                Optional.empty(),
+                Optional.empty(),
+                false,
+                java.util.List.of());
+
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> interpolator.interpolateDependency(dependency, pom));
+
+        assertEquals(
+                "Unresolved POM property `${missing.version}` while processing com.example:app:1.2.3. Define the property or declare the value explicitly.",
+                exception.getMessage());
     }
 
     @Test
