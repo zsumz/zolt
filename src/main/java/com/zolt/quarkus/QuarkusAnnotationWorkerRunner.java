@@ -105,6 +105,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (testHttpEndpointProviderSplit(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached Quarkus application startup, then hit "
+                    + "a runtime service-provider classloader split for TestHttpEndpointProvider. Running the "
+                    + "annotation probe from the JVM classpath moved past the TestConfig mapping blocker, but "
+                    + "Zolt still needs to align Quarkus runtime service loading before @QuarkusTest can be "
+                    + "enabled. Keep using plain JUnit tests for now, or run `zolt quarkus test-plan` to inspect "
+                    + "blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             if (testConfigMappingMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution after filtering "
                     + "the conflicting JUnit launcher-session listener, then hit a missing Quarkus TestConfig "
@@ -153,6 +164,11 @@ public final class QuarkusAnnotationWorkerRunner {
     private static boolean testConfigMappingMissing(String output) {
         return output.contains("SRCFG00027: Could not find a mapping for io.quarkus.deployment.dev.testing.TestConfig")
                 && output.contains("io.quarkus.test.junit");
+    }
+
+    private static boolean testHttpEndpointProviderSplit(String output) {
+        return output.contains("java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestHttpEndpointProvider")
+                && output.contains("not a subtype");
     }
 
     public record Result(int exitCode, String output) {

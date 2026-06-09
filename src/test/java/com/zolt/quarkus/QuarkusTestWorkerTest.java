@@ -267,6 +267,35 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsTestHttpEndpointProviderSplit() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                java.lang.RuntimeException: java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestHttpEndpointProvider: io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider not a subtype
+                                    at io.quarkus.test.junit.QuarkusTestExtension.throwBootFailureException(QuarkusTestExtension.java:672)
+                                Caused by: java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestHttpEndpointProvider: io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider not a subtype
+                                    at io.quarkus.runtime.test.TestHttpEndpointProvider.load(TestHttpEndpointProvider.java:17)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("reached Quarkus application startup"));
+        assertTrue(result.output().contains("runtime service-provider classloader split"));
+        assertTrue(result.output().contains("moved past the TestConfig mapping blocker"));
+        assertTrue(result.output().contains("ResteasyReactiveTestHttpProvider not a subtype"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();

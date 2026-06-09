@@ -4,35 +4,23 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.StringJoiner;
 
 public final class QuarkusAnnotationLaunchRequestFactory {
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
 
-    private final String pathSeparator;
     private final QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner;
 
     public QuarkusAnnotationLaunchRequestFactory() {
-        this(java.io.File.pathSeparator, new QuarkusAnnotationLauncherClasspathPlanner());
+        this(new QuarkusAnnotationLauncherClasspathPlanner());
     }
 
-    QuarkusAnnotationLaunchRequestFactory(String pathSeparator) {
-        this(pathSeparator, new QuarkusAnnotationLauncherClasspathPlanner());
-    }
-
-    QuarkusAnnotationLaunchRequestFactory(
-            String pathSeparator,
-            QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner) {
-        if (pathSeparator == null || pathSeparator.isBlank()) {
-            throw new QuarkusAugmentationException("Quarkus annotation launch request path separator is required.");
-        }
+    QuarkusAnnotationLaunchRequestFactory(QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner) {
         if (launcherClasspathPlanner == null) {
             throw new QuarkusAugmentationException(
                     "Quarkus annotation launch request requires a launcher classpath planner.");
         }
-        this.pathSeparator = pathSeparator;
         this.launcherClasspathPlanner = launcherClasspathPlanner;
     }
 
@@ -52,7 +40,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 testClasses,
                 jvmArguments(descriptor),
                 classpathPlan.launcherClasspath(),
-                consoleArguments(classpathPlan.junitDiscoveryClasspath(), testClasses));
+                consoleArguments(testClasses));
     }
 
     private static List<String> testClasses(List<QuarkusUnsupportedTest> tests) {
@@ -94,14 +82,11 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return List.copyOf(arguments);
     }
 
-    private List<String> consoleArguments(List<Path> junitDiscoveryClasspath, List<String> testClasses) {
-        String classpath = joined(junitDiscoveryClasspath);
+    private static List<String> consoleArguments(List<String> testClasses) {
         List<String> arguments = new ArrayList<>();
         arguments.add(CONSOLE_MAIN_CLASS);
         arguments.add("execute");
         arguments.add("--disable-banner");
-        arguments.add("--class-path");
-        arguments.add(classpath);
         for (String testClass : testClasses) {
             arguments.add("--select-class");
             arguments.add(testClass);
@@ -109,13 +94,5 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         arguments.add("--details");
         arguments.add("summary");
         return List.copyOf(arguments);
-    }
-
-    private String joined(List<Path> classpath) {
-        StringJoiner joiner = new StringJoiner(pathSeparator);
-        for (Path entry : classpath) {
-            joiner.add(entry.normalize().toString());
-        }
-        return joiner.toString();
     }
 }

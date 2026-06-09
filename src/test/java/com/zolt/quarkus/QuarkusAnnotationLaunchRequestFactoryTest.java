@@ -9,7 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class QuarkusAnnotationLaunchRequestFactoryTest {
-    private final QuarkusAnnotationLaunchRequestFactory factory = new QuarkusAnnotationLaunchRequestFactory(":");
+    private final QuarkusAnnotationLaunchRequestFactory factory = new QuarkusAnnotationLaunchRequestFactory();
 
     @Test
     void createsDeterministicAnnotationLaunchRequest() {
@@ -35,8 +35,6 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                 "org.junit.platform.console.ConsoleLauncher",
                 "execute",
                 "--disable-banner",
-                "--class-path",
-                "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
                 "--select-class",
                 "com.example.AlphaTest",
                 "--select-class",
