@@ -11,9 +11,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -37,18 +36,17 @@ final class QuarkusTestPlanServiceTest {
     }
 
     @Test
-    void detectsUnsupportedQuarkusTestAnnotationsDeterministically() throws IOException {
-        writeClass("com/example/BetaTest.class", "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
-        writeClass("com/example/AlphaTest.class", "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
+    void usesSharedScannerForUnsupportedQuarkusTests() {
+        Path testOutput = projectDir.toAbsolutePath().normalize().resolve("target/test-classes");
+        QuarkusTestPlan plan = new QuarkusTestPlanService(path -> List.of(new QuarkusUnsupportedTest(
+                        path.resolve("com/example/HttpTest.class"),
+                        Path.of("com/example/HttpTest.class"),
+                        "@QuarkusTest")))
+                .plan(projectDir, config(true));
 
-        QuarkusTestPlan plan = new QuarkusTestPlanService().plan(projectDir, config(true));
-
-        assertTrue(plan.testOutputPresent());
-        assertEquals(2, plan.unsupportedTests().size());
-        assertEquals(Path.of("com/example/AlphaTest.class"), plan.unsupportedTests().get(0).relativePath());
-        assertEquals("@QuarkusTest", plan.unsupportedTests().get(0).annotationName());
-        assertEquals(Path.of("com/example/BetaTest.class"), plan.unsupportedTests().get(1).relativePath());
-        assertEquals("@QuarkusIntegrationTest", plan.unsupportedTests().get(1).annotationName());
+        assertEquals(testOutput, plan.testOutputDirectory());
+        assertEquals(1, plan.unsupportedTests().size());
+        assertEquals(Path.of("com/example/HttpTest.class"), plan.unsupportedTests().getFirst().relativePath());
     }
 
     @Test
@@ -59,12 +57,6 @@ final class QuarkusTestPlanServiceTest {
 
         assertTrue(exception.getMessage().contains("Quarkus is not enabled for this project"));
         assertTrue(exception.getMessage().contains("zolt quarkus test-plan"));
-    }
-
-    private void writeClass(String relativePath, String content) throws IOException {
-        Path classFile = projectDir.resolve("target/test-classes").resolve(relativePath);
-        Files.createDirectories(classFile.getParent());
-        Files.writeString(classFile, content);
     }
 
     private static ProjectConfig config(boolean quarkusEnabled) {

@@ -27,12 +27,21 @@ final class QuarkusTestWorkerTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusTestRunnerDescriptor descriptor = descriptor();
-        QuarkusTestWorker worker = worker(descriptor, out, err);
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                path -> List.of(new QuarkusUnsupportedTest(
+                        path.resolve("com/example/HttpTest.class"),
+                        Path.of("com/example/HttpTest.class"),
+                        "@QuarkusTest")),
+                out,
+                err);
 
         int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
 
         assertEquals(2, exitCode);
         assertTrue(output(out).contains("Runner mode: plain-junit"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
+        assertTrue(output(out).contains("com/example/HttpTest.class (@QuarkusTest)"));
         assertTrue(output(err).contains("Dedicated Quarkus test worker execution is not implemented yet"));
         assertTrue(output(err).contains("launcher/session listeners"));
     }
@@ -44,6 +53,7 @@ final class QuarkusTestWorkerTest {
                 path -> {
                     throw new QuarkusAugmentationException("bad descriptor");
                 },
+                path -> List.of(),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -53,12 +63,38 @@ final class QuarkusTestWorkerTest {
         assertTrue(output(err).contains("error: bad descriptor"));
     }
 
+    @Test
+    void reportsUnsupportedTestScanFailures() {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestWorker worker = new QuarkusTestWorker(
+                path -> descriptor(),
+                path -> {
+                    throw new QuarkusPlanException("bad scan");
+                },
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
+
+        int exitCode = worker.run(new String[] {"/repo/target/quarkus/zolt-test-bootstrap.properties"});
+
+        assertEquals(1, exitCode);
+        assertTrue(output(err).contains("error: bad scan"));
+    }
+
     private static QuarkusTestWorker worker(
             QuarkusTestRunnerDescriptor descriptor,
             ByteArrayOutputStream out,
             ByteArrayOutputStream err) {
+        return worker(descriptor, path -> List.of(), out, err);
+    }
+
+    private static QuarkusTestWorker worker(
+            QuarkusTestRunnerDescriptor descriptor,
+            QuarkusTestWorker.UnsupportedTestScanner unsupportedTestScanner,
+            ByteArrayOutputStream out,
+            ByteArrayOutputStream err) {
         return new QuarkusTestWorker(
                 path -> descriptor,
+                unsupportedTestScanner,
                 new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
     }
