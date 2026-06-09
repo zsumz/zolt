@@ -71,6 +71,13 @@ public record WorkspaceTestResult(
                 .sum();
     }
 
+    public int testDiscoveryScanRootCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .mapToInt(TestRunResult::testDiscoveryScanRoots)
+                .sum();
+    }
+
     public record MemberTestRunResult(
             String member,
             TestRunResult result) {

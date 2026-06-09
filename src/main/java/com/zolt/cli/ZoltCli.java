@@ -1932,6 +1932,7 @@ public final class ZoltCli implements Runnable {
                 "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
                 "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
                 "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
+                "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),
                 "outputBytes", Integer.toString(result.output().length()));
     }
 
@@ -1948,6 +1949,7 @@ public final class ZoltCli implements Runnable {
         return Map.of(
                 "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
                 "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
+                "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),
                 "outputBytes", Integer.toString(result.output().length()));
     }
 
@@ -1962,6 +1964,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("testCompilationsExecuted", Integer.toString(result.testCompilationExecutedCount()));
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntryCount()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntryCount()));
+        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRootCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         return attributes;
     }

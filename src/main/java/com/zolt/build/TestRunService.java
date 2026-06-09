@@ -158,7 +158,7 @@ public final class TestRunService {
                     workerClasspath,
                     descriptor);
             failOnHiddenQuarkusBootstrapFailure(config, output);
-            return new TestRunResult(compileResult, output, runnerClasspath.size(), workerClasspath.size());
+            return new TestRunResult(compileResult, output, runnerClasspath.size(), workerClasspath.size(), 1);
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
@@ -172,7 +172,7 @@ public final class TestRunService {
                         "--scan-class-path=" + compileResult.outputDirectory().toAbsolutePath().normalize(),
                         "--details", "summary"));
         failOnHiddenQuarkusBootstrapFailure(config, result.output());
-        return new TestRunResult(compileResult, result.output(), runnerClasspath.size(), launcherClasspath.size());
+        return new TestRunResult(compileResult, result.output(), runnerClasspath.size(), launcherClasspath.size(), 1);
     }
 
     private String joined(List<Path> classpath) {

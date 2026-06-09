@@ -2454,6 +2454,7 @@ final class ZoltCliTest {
         assertTrue(lines[2].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[2].contains("\"testCompilationsSkipped\""));
         assertTrue(lines[2].contains("\"testCompilationsExecuted\""));
+        assertTrue(lines[2].contains("\"testDiscoveryScanRoots\""));
         assertTrue(lines[3].contains("\"phase\":\"test workspace\""));
         assertTrue(lines[3].contains("\"depth\":0"));
         assertTrue(lines[3].contains("\"members\":\"2\""));
@@ -2462,6 +2463,7 @@ final class ZoltCliTest {
         assertTrue(lines[3].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[3].contains("\"testCompilationsSkipped\""));
         assertTrue(lines[3].contains("\"testCompilationsExecuted\""));
+        assertTrue(lines[3].contains("\"testDiscoveryScanRoots\""));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
@@ -2520,12 +2522,14 @@ final class ZoltCliTest {
         assertTrue(lines[4].contains("\"depth\":1"));
         assertTrue(lines[4].contains("\"testRuntimeClasspathEntries\""));
         assertTrue(lines[4].contains("\"testLauncherClasspathEntries\""));
+        assertTrue(lines[4].contains("\"testDiscoveryScanRoots\""));
         assertTrue(lines[4].contains("\"outputBytes\""));
         assertTrue(lines[5].contains("\"phase\":\"run tests\""));
         assertTrue(lines[5].contains("\"depth\":0"));
         assertTrue(lines[5].contains("\"testSourceFiles\":\"1\""));
         assertTrue(lines[5].contains("\"testRuntimeClasspathEntries\""));
         assertTrue(lines[5].contains("\"testLauncherClasspathEntries\""));
+        assertTrue(lines[5].contains("\"testDiscoveryScanRoots\""));
     }
 
     @Test
