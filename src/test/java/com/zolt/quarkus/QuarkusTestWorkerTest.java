@@ -130,6 +130,32 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsBuildChainBuilderClassloaderSplit() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
+                                    at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("Quarkus annotation test bootstrap hit a Quarkus classloader split"));
+        assertTrue(result.output().contains("dedicated @QuarkusTest runner path"));
+        assertTrue(result.output().contains("deployment/runtime classloader ownership work"));
+        assertTrue(result.output().contains("BuildChainBuilder cannot be cast"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
