@@ -146,8 +146,82 @@ final class ZoltCliTest {
             assertTrue(result.stdout().contains("Downloaded 2 artifacts"));
             assertTrue(result.stdout().contains("Conflicts 0"));
             assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
+            assertEquals("", result.stderr());
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
+    }
+
+    @Test
+    void resolvePrintsTextTimingsWhenRequested() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+
+            CommandResult result = execute(
+                    "resolve",
+                    "--timings",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Resolved 1 packages"));
+            assertTrue(result.stderr().contains("Timings for zolt resolve"));
+            assertTrue(result.stderr().contains("config read:"));
+            assertTrue(result.stderr().contains("resolve graph:"));
+            assertTrue(result.stderr().contains("resolvedPackages=1"));
+            assertTrue(result.stderr().contains("downloadedArtifacts=2"));
+        }
+    }
+
+    @Test
+    void resolvePrintsJsonTimingsWhenRequested() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+
+            CommandResult result = execute(
+                    "resolve",
+                    "--timings",
+                    "--timings-format", "json",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Resolved 1 packages"));
+            String[] lines = result.stderr().lines().toArray(String[]::new);
+            assertEquals(2, lines.length);
+            assertTrue(lines[0].startsWith("{\"command\":\"resolve\""));
+            assertTrue(lines[0].contains("\"phase\":\"config read\""));
+            assertTrue(lines[0].contains("\"projectRoot\":\"" + jsonPath(projectDir.toAbsolutePath().normalize()) + "\""));
+            assertTrue(lines[1].contains("\"phase\":\"resolve graph\""));
+            assertTrue(lines[1].contains("\"durationNanos\":"));
+            assertTrue(lines[1].contains("\"attributes\":{\"conflicts\":\"0\",\"downloadedArtifacts\":\"2\",\"resolvedPackages\":\"1\"}"));
+        }
+    }
+
+    @Test
+    void failedCommandStillPrintsTimingsWhenRequested() {
+        CommandResult result = execute("resolve", "--timings", "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+        assertTrue(result.stderr().contains("Timings for zolt resolve"));
+        assertTrue(result.stderr().contains("config read:"));
+        assertTrue(result.stderr().contains("status=failed"));
     }
 
     @Test

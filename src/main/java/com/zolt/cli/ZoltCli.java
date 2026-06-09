@@ -44,6 +44,9 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
 import com.zolt.maven.CoordinateParser;
+import com.zolt.perf.TimingFormat;
+import com.zolt.perf.TimingFormatter;
+import com.zolt.perf.TimingRecorder;
 import com.zolt.project.DependencySection;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -108,6 +111,7 @@ import java.util.Optional;
 import java.util.Set;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -161,6 +165,14 @@ public final class ZoltCli implements Runnable {
     @Override
     public void run() {
         spec.commandLine().usage(spec.commandLine().getOut());
+    }
+
+    public static final class TimingOptions {
+        @Option(names = "--timings", description = "Print command timing information.")
+        private boolean enabled;
+
+        @Option(names = "--timings-format", description = "Timing output format: text or json.")
+        private TimingFormat format = TimingFormat.TEXT;
     }
 
     @Command(name = "init", description = "Create a new Zolt project.")
@@ -536,31 +548,46 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
         @Spec
         private CommandSpec spec;
 
         @Override
         public void run() {
+            TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
-                    ResolveResult result = new WorkspaceResolveService().resolve(
-                            workingDirectory,
-                            cacheRoot,
-                            locked,
-                            offline);
+                    ResolveResult result = timings.measure(
+                            "resolve workspace",
+                            () -> new WorkspaceResolveService().resolve(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    locked,
+                                    offline),
+                            ZoltCli::resolveAttributes);
                     printResolveResult(spec, result, !locked);
                     return;
                 }
-                ResolveResult result = new ResolveService().resolve(
-                        workingDirectory,
-                        new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
-                        cacheRoot,
-                        locked,
-                        offline);
+                ProjectConfig config = timings.measure(
+                        "config read",
+                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                ResolveResult result = timings.measure(
+                        "resolve graph",
+                        () -> new ResolveService().resolve(
+                                workingDirectory,
+                                config,
+                                cacheRoot,
+                                locked,
+                                offline),
+                        ZoltCli::resolveAttributes);
                 printResolveResult(spec, result, !locked);
             } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            } finally {
+                printTimings(spec, "resolve", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -745,26 +772,46 @@ public final class ZoltCli implements Runnable {
             @Option(names = "--cache-root", hidden = true)
             private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+            @Mixin
+            private TimingOptions timingOptions = new TimingOptions();
+
             @Spec
             private CommandSpec spec;
 
             @Override
             public void run() {
-                if (workspace) {
-                    String output = new WorkspaceIdeModelJsonWriter().write(new WorkspaceIdeModelService().export(
-                            workingDirectory,
-                            cacheRoot,
-                            checkLock,
-                            offline));
+                TimingRecorder timings = timingRecorder(timingOptions);
+                try {
+                    if (workspace) {
+                        com.zolt.ide.WorkspaceIdeModel model = timings.measure(
+                                "ide model export",
+                                () -> new WorkspaceIdeModelService().export(
+                                        workingDirectory,
+                                        cacheRoot,
+                                        checkLock,
+                                        offline),
+                                ZoltCli::workspaceIdeModelAttributes);
+                        String output = timings.measure(
+                                "ide model json",
+                                () -> new WorkspaceIdeModelJsonWriter().write(model));
+                        printAndFlush(spec, output);
+                        return;
+                    }
+                    com.zolt.ide.IdeModel model = timings.measure(
+                            "ide model export",
+                            () -> new IdeModelService().export(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    checkLock,
+                                    offline),
+                            ZoltCli::ideModelAttributes);
+                    String output = timings.measure(
+                            "ide model json",
+                            () -> new IdeModelJsonWriter().write(model));
                     printAndFlush(spec, output);
-                    return;
+                } finally {
+                    printTimings(spec, "ide model", workingDirectory, timingOptions, timings);
                 }
-                String output = new IdeModelJsonWriter().write(new IdeModelService().export(
-                        workingDirectory,
-                        cacheRoot,
-                        checkLock,
-                        offline));
-                printAndFlush(spec, output);
             }
         }
     }
@@ -794,19 +841,35 @@ public final class ZoltCli implements Runnable {
             @Option(names = "--cache-root", hidden = true)
             private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+            @Mixin
+            private TimingOptions timingOptions = new TimingOptions();
+
             @Spec
             private CommandSpec spec;
 
             @Override
             public void run() {
+                TimingRecorder timings = timingRecorder(timingOptions);
                 try {
-                    ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                    QuarkusPlan plan = new QuarkusPlanService().plan(workingDirectory, config, cacheRoot);
-                    printAndFlush(spec, new QuarkusPlanFormatter().format(plan));
-                    new QuarkusAugmentationRequestFactory().create(plan);
+                    ProjectConfig config = timings.measure(
+                            "config read",
+                            () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                    QuarkusPlan plan = timings.measure(
+                            "quarkus plan",
+                            () -> new QuarkusPlanService().plan(workingDirectory, config, cacheRoot),
+                            ZoltCli::quarkusPlanAttributes);
+                    String output = timings.measure(
+                            "quarkus plan format",
+                            () -> new QuarkusPlanFormatter().format(plan));
+                    printAndFlush(spec, output);
+                    timings.measure(
+                            "quarkus augmentation request",
+                            () -> new QuarkusAugmentationRequestFactory().create(plan));
                 } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
                     spec.commandLine().getErr().println("error: " + exception.getMessage());
                     throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                } finally {
+                    printTimings(spec, "quarkus plan", workingDirectory, timingOptions, timings);
                 }
             }
         }
@@ -856,18 +919,25 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
         @Spec
         private CommandSpec spec;
 
         @Override
         public void run() {
+            TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
-                    WorkspaceBuildResult result = new WorkspaceBuildService().build(
-                            workingDirectory,
-                            cacheRoot,
-                            offline,
-                            workspaceSelection(all, members, memberGroups));
+                    WorkspaceBuildResult result = timings.measure(
+                            "build workspace",
+                            () -> new WorkspaceBuildService().build(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    offline,
+                                    workspaceSelection(all, members, memberGroups)),
+                            ZoltCli::workspaceBuildAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -881,15 +951,26 @@ public final class ZoltCli implements Runnable {
                     spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " workspace main source files");
                     return;
                 }
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                BuildResult result = new BuildService().build(workingDirectory, config, cacheRoot, offline);
+                ProjectConfig config = timings.measure(
+                        "config read",
+                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                BuildResult result = timings.measure(
+                        "compile main",
+                        () -> new BuildService().build(workingDirectory, config, cacheRoot, offline),
+                        ZoltCli::buildAttributes);
                 if (result.resolvedLockfile()) {
                     spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
                 }
                 spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
                 spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
                 Optional<QuarkusAugmentationResult> quarkusResult =
-                        new QuarkusBuildAugmentationService().augmentIfEnabled(workingDirectory, config, cacheRoot);
+                        timings.measure(
+                                "quarkus augmentation",
+                                () -> new QuarkusBuildAugmentationService().augmentIfEnabled(
+                                        workingDirectory,
+                                        config,
+                                        cacheRoot),
+                                ZoltCli::quarkusAugmentationAttributes);
                 if (quarkusResult.isPresent()) {
                     spec.commandLine().getOut().println(
                             "Ran Quarkus augmentation; runner jar "
@@ -908,6 +989,8 @@ public final class ZoltCli implements Runnable {
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            } finally {
+                printTimings(spec, "build", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -1021,17 +1104,24 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
         @Spec
         private CommandSpec spec;
 
         @Override
         public void run() {
+            TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
-                    WorkspaceTestResult result = new WorkspaceTestService().test(
-                            workingDirectory,
-                            cacheRoot,
-                            workspaceSelection(all, members, memberGroups));
+                    WorkspaceTestResult result = timings.measure(
+                            "test workspace",
+                            () -> new WorkspaceTestService().test(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    workspaceSelection(all, members, memberGroups)),
+                            ZoltCli::workspaceTestAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -1048,8 +1138,13 @@ public final class ZoltCli implements Runnable {
                                     + " workspace members");
                     return;
                 }
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                TestRunResult result = new TestRunService().runTests(workingDirectory, config, cacheRoot);
+                ProjectConfig config = timings.measure(
+                        "config read",
+                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                TestRunResult result = timings.measure(
+                        "run tests",
+                        () -> new TestRunService().runTests(workingDirectory, config, cacheRoot),
+                        ZoltCli::testRunAttributes);
                 printAndFlush(spec, result.output());
                 if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
                     spec.commandLine().getOut().println();
@@ -1067,6 +1162,8 @@ public final class ZoltCli implements Runnable {
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            } finally {
+                printTimings(spec, "test", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -1094,19 +1191,26 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
         @Spec
         private CommandSpec spec;
 
         @Override
         public void run() {
+            TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
                 if (workspace) {
-                    WorkspacePackageResult result = new WorkspacePackageService().packageJars(
-                            workingDirectory,
-                            cacheRoot,
-                            workspaceSelection(all, members, memberGroups),
-                            packageModeOverride);
+                    WorkspacePackageResult result = timings.measure(
+                            "package workspace",
+                            () -> new WorkspacePackageService().packageJars(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    workspaceSelection(all, members, memberGroups),
+                                    packageModeOverride),
+                            ZoltCli::workspacePackageAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
                     }
@@ -1127,9 +1231,14 @@ public final class ZoltCli implements Runnable {
                     return;
                 }
                 ProjectConfig config = withPackageModeOverride(
-                        new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")),
+                        timings.measure(
+                                "config read",
+                                () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
                         packageModeOverride);
-                PackageResult result = new PackageService().packageJar(workingDirectory, config, cacheRoot);
+                PackageResult result = timings.measure(
+                        "package",
+                        () -> new PackageService().packageJar(workingDirectory, config, cacheRoot),
+                        ZoltCli::packageAttributes);
                 if (result.buildResult().resolvedLockfile()) {
                     spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
                 }
@@ -1169,6 +1278,8 @@ public final class ZoltCli implements Runnable {
                     | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            } finally {
+                printTimings(spec, "package", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -1454,20 +1565,31 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
 
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
         @Spec
         private CommandSpec spec;
 
         @Override
         public void run() {
-            SelfCheckResult result = new SelfCheckService().check(
-                    workingDirectory,
-                    cacheRoot,
-                    offline,
-                    nativeCheck,
-                    nativeImageExecutable);
-            printSelfCheckStatus(spec, result);
-            if (!result.ok()) {
-                throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");
+            TimingRecorder timings = timingRecorder(timingOptions);
+            try {
+                SelfCheckResult result = timings.measure(
+                        "self-check",
+                        () -> new SelfCheckService().check(
+                                workingDirectory,
+                                cacheRoot,
+                                offline,
+                                nativeCheck,
+                                nativeImageExecutable),
+                        ZoltCli::selfCheckAttributes);
+                printSelfCheckStatus(spec, result);
+                if (!result.ok()) {
+                    throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");
+                }
+            } finally {
+                printTimings(spec, "self-check", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -1613,6 +1735,123 @@ public final class ZoltCli implements Runnable {
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result) {
         printResolveResult(spec, result, true);
+    }
+
+    private static TimingRecorder timingRecorder(TimingOptions options) {
+        return new TimingRecorder(options != null && options.enabled);
+    }
+
+    private static void printTimings(
+            CommandSpec spec,
+            String command,
+            Path projectRoot,
+            TimingOptions options,
+            TimingRecorder recorder) {
+        if (options == null || !options.enabled || recorder.events().isEmpty()) {
+            return;
+        }
+        spec.commandLine().getErr().print(TimingFormatter.format(
+                options.format,
+                command,
+                projectRoot,
+                recorder.events()));
+        spec.commandLine().getErr().flush();
+    }
+
+    private static Map<String, String> resolveAttributes(ResolveResult result) {
+        return Map.of(
+                "resolvedPackages", Integer.toString(result.resolvedCount()),
+                "downloadedArtifacts", Integer.toString(result.downloadCount()),
+                "conflicts", Integer.toString(result.conflictCount()));
+    }
+
+    private static Map<String, String> buildAttributes(BuildResult result) {
+        return Map.of(
+                "sourceFiles", Integer.toString(result.sourceCount()),
+                "resourceFiles", Integer.toString(result.resourceCount()),
+                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+    }
+
+    private static Map<String, String> workspaceBuildAttributes(WorkspaceBuildResult result) {
+        return Map.of(
+                "members", Integer.toString(result.members().size()),
+                "sourceFiles", Integer.toString(result.sourceCount()),
+                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+    }
+
+    private static Map<String, String> testRunAttributes(TestRunResult result) {
+        return Map.of(
+                "mainSourceFiles", Integer.toString(result.compileResult().buildResult().sourceCount()),
+                "testSourceFiles", Integer.toString(result.compileResult().sourceCount()),
+                "testResourceFiles", Integer.toString(result.compileResult().resourceCount()),
+                "outputBytes", Integer.toString(result.output().length()));
+    }
+
+    private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
+        return Map.of(
+                "members", Integer.toString(result.members().size()),
+                "mainSourceFiles", Integer.toString(result.mainSourceCount()),
+                "testSourceFiles", Integer.toString(result.testSourceCount()),
+                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+    }
+
+    private static Map<String, String> packageAttributes(PackageResult result) {
+        return Map.of(
+                "mode", result.mode().configValue(),
+                "entries", Integer.toString(result.entryCount()),
+                "hasMainClass", Boolean.toString(result.hasMainClass()),
+                "resolvedLockfile", Boolean.toString(result.buildResult().resolvedLockfile()));
+    }
+
+    private static Map<String, String> workspacePackageAttributes(WorkspacePackageResult result) {
+        return Map.of(
+                "members", Integer.toString(result.members().size()),
+                "entries", Integer.toString(result.entryCount()),
+                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+    }
+
+    private static Map<String, String> quarkusAugmentationAttributes(Optional<QuarkusAugmentationResult> result) {
+        if (result.isEmpty()) {
+            return Map.of("enabled", "false");
+        }
+        QuarkusAugmentationResult augmentation = result.orElseThrow();
+        return Map.of(
+                "enabled", "true",
+                "runnerJar", augmentation.workerResult().runnerJar().toString());
+    }
+
+    private static Map<String, String> quarkusPlanAttributes(QuarkusPlan plan) {
+        return Map.of(
+                "runtimeClasspathEntries", Integer.toString(plan.runtimeClasspath().size()),
+                "deploymentClasspathEntries", Integer.toString(plan.deploymentClasspath().size()),
+                "extensions", Integer.toString(plan.extensions().size()),
+                "packageMode", plan.packageMode().configValue());
+    }
+
+    private static Map<String, String> ideModelAttributes(com.zolt.ide.IdeModel model) {
+        java.util.LinkedHashMap<String, String> attributes = new java.util.LinkedHashMap<>();
+        attributes.put("sourceRoots", Integer.toString(model.sourceRoots().size()));
+        attributes.put("resourceRoots", Integer.toString(model.resourceRoots().size()));
+        attributes.put("compileClasspathEntries", Integer.toString(model.classpaths().compile().size()));
+        attributes.put("runtimeClasspathEntries", Integer.toString(model.classpaths().runtime().size()));
+        attributes.put("testClasspathEntries", Integer.toString(model.classpaths().test().size()));
+        attributes.put("diagnostics", Integer.toString(model.diagnostics().size()));
+        return attributes;
+    }
+
+    private static Map<String, String> workspaceIdeModelAttributes(com.zolt.ide.WorkspaceIdeModel model) {
+        return Map.of(
+                "projects", Integer.toString(model.projects().size()),
+                "edges", Integer.toString(model.edges().size()),
+                "diagnostics", Integer.toString(model.diagnostics().size()));
+    }
+
+    private static Map<String, String> selfCheckAttributes(SelfCheckResult result) {
+        long failedSteps = result.steps().stream().filter(step -> !step.ok()).count();
+        return Map.of(
+                "steps", Integer.toString(result.steps().size()),
+                "failedSteps", Long.toString(failedSteps),
+                "ok", Boolean.toString(result.ok()));
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
