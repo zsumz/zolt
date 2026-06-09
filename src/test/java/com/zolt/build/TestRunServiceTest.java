@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
+import com.zolt.doctor.JdkStatus;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
@@ -161,6 +163,22 @@ final class TestRunServiceTest {
         assertFalse(launcherClasspath.contains("target/test-classes"));
         assertTrue(commandArgumentAfter(commands.getFirst(), "--class-path").contains("junit-jupiter-engine-5.11.4.jar"));
         assertTrue(commandArgumentAfter(commands.getFirst(), "--class-path").contains("target/test-classes"));
+    }
+
+    @Test
+    void sharesCachedJdkDetectionAcrossBuildCompileAndExecution() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "Tests successful\n"),
+                jdkChecker);
+
+        service.runTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals(3, jdkChecker.detectCalls());
+        assertEquals(1, jdkChecker.toolchainReads());
     }
 
     @Test
@@ -322,8 +340,13 @@ final class TestRunServiceTest {
     }
 
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {
+        return service(processRunner, new JdkDetector());
+    }
+
+    private TestRunService service(JavaRunner.ProcessRunner processRunner, JdkChecker jdkChecker) {
         return service(
                 processRunner,
+                jdkChecker,
                 (projectDirectory, config) -> Optional.empty(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, descriptor) -> {
@@ -333,18 +356,32 @@ final class TestRunServiceTest {
 
     private TestRunService service(
             JavaRunner.ProcessRunner processRunner,
+            JdkChecker jdkChecker,
             TestRunService.QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
             java.util.function.Supplier<List<Path>> quarkusTestWorkerClasspath,
             TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner) {
         return new TestRunService(
-                new TestCompileService(),
-                new JdkDetector(),
+                new TestCompileService(jdkChecker),
+                jdkChecker,
                 new JavaRunner(":", processRunner),
                 quarkusTestApplicationModelWriter,
                 new QuarkusTestRunnerDescriptorWriter(),
                 quarkusTestWorkerClasspath,
                 quarkusTestWorkerRunner,
                 ":");
+    }
+
+    private TestRunService service(
+            JavaRunner.ProcessRunner processRunner,
+            TestRunService.QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
+            java.util.function.Supplier<List<Path>> quarkusTestWorkerClasspath,
+            TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner) {
+        return service(
+                processRunner,
+                new JdkDetector(),
+                quarkusTestApplicationModelWriter,
+                quarkusTestWorkerClasspath,
+                quarkusTestWorkerRunner);
     }
 
     private void writeConsoleLockfile() throws IOException {
@@ -516,5 +553,42 @@ final class TestRunServiceTest {
         assertTrue(index >= 0, "missing command argument " + argument + " in " + command);
         assertTrue(index + 1 < command.size(), "missing value after command argument " + argument + " in " + command);
         return command.get(index + 1);
+    }
+
+    private static String executable(String name) {
+        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
+                ? name + ".exe"
+                : name;
+    }
+
+    private static final class CachingJdkChecker implements JdkChecker {
+        private int detectCalls;
+        private int toolchainReads;
+        private JdkStatus status;
+
+        @Override
+        public JdkStatus detect(String requiredVersion) {
+            detectCalls++;
+            if (status == null) {
+                toolchainReads++;
+                Path javaHome = Path.of(System.getProperty("java.home"));
+                status = new JdkStatus(
+                        Optional.of(javaHome),
+                        Optional.of(javaHome.resolve("bin").resolve(executable("java"))),
+                        Optional.of(javaHome.resolve("bin").resolve(executable("javac"))),
+                        Optional.of(javaHome.resolve("bin").resolve(executable("jar"))),
+                        Optional.of(requiredVersion),
+                        requiredVersion);
+            }
+            return status;
+        }
+
+        int detectCalls() {
+            return detectCalls;
+        }
+
+        int toolchainReads() {
+            return toolchainReads;
+        }
     }
 }

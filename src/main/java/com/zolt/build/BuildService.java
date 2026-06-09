@@ -3,6 +3,7 @@ package com.zolt.build;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
@@ -23,10 +24,14 @@ public final class BuildService {
     private final ResourceCopier resourceCopier;
     private final BuildMetadataGenerator buildMetadataGenerator;
     private final BuildFingerprintService buildFingerprintService;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
 
     public BuildService() {
+        this(new JdkDetector());
+    }
+
+    BuildService(JdkChecker jdkDetector) {
         this(
                 new ResolveService(),
                 new ZoltLockfileReader(),
@@ -35,7 +40,7 @@ public final class BuildService {
                 new ResourceCopier(),
                 new BuildMetadataGenerator(),
                 new BuildFingerprintService(),
-                new JdkDetector(),
+                jdkDetector,
                 new JavacRunner());
     }
 
@@ -47,7 +52,7 @@ public final class BuildService {
             ResourceCopier resourceCopier,
             BuildMetadataGenerator buildMetadataGenerator,
             BuildFingerprintService buildFingerprintService,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavacRunner javacRunner) {
         this.resolveService = resolveService;
         this.lockfileReader = lockfileReader;

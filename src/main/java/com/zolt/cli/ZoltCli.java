@@ -1193,11 +1193,10 @@ public final class ZoltCli implements Runnable {
                                     () -> {
                                         BuildResultWithClasspaths buildResult = timings.measure(
                                                 "build test inputs",
-                                                () -> new BuildService().buildWithClasspaths(
+                                                () -> testRunService.buildTestInputs(
                                                         workingDirectory,
                                                         config,
-                                                        cacheRoot,
-                                                        false),
+                                                        cacheRoot),
                                                 resultWithClasspaths -> buildAttributes(
                                                         resultWithClasspaths.buildResult()));
                                         TestCompileResult testCompileResult = timings.measure(

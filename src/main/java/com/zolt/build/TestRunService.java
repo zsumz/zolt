@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
@@ -29,7 +30,7 @@ public final class TestRunService {
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
     private final TestCompileService testCompileService;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
     private final QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter;
     private final QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter;
@@ -38,9 +39,13 @@ public final class TestRunService {
     private final String pathSeparator;
 
     public TestRunService() {
+        this(new JdkDetector());
+    }
+
+    TestRunService(JdkChecker jdkDetector) {
         this(
-                new TestCompileService(),
-                new JdkDetector(),
+                new TestCompileService(jdkDetector),
+                jdkDetector,
                 new JavaRunner(),
                 new QuarkusTestApplicationModelService()::writeIfEnabled,
                 new QuarkusTestRunnerDescriptorWriter(),
@@ -52,7 +57,7 @@ public final class TestRunService {
 
     TestRunService(
             TestCompileService testCompileService,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavaRunner javaRunner,
             QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
             QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter,
@@ -77,6 +82,10 @@ public final class TestRunService {
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         return testCompileService.compileTestsWithClasspaths(projectDirectory, config, cacheRoot);
+    }
+
+    public BuildResultWithClasspaths buildTestInputs(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return testCompileService.buildTestInputs(projectDirectory, config, cacheRoot);
     }
 
     public TestRunResult runCompiledTests(

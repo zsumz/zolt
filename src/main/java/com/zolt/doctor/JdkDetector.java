@@ -10,7 +10,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class JdkDetector {
+public final class JdkDetector implements JdkChecker {
     private static final Pattern VERSION_PATTERN = Pattern.compile("version \"([^\"]+)\"");
 
     private final Function<String, String> environment;
@@ -42,6 +42,7 @@ public final class JdkDetector {
         this.versionReader = versionReader;
     }
 
+    @Override
     public JdkStatus detect(String requiredVersion) {
         Toolchain detected = toolchain();
         return new JdkStatus(

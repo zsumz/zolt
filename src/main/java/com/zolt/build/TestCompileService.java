@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
@@ -14,16 +15,20 @@ public final class TestCompileService {
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
     private final BuildFingerprintService buildFingerprintService;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
 
     public TestCompileService() {
+        this(new JdkDetector());
+    }
+
+    TestCompileService(JdkChecker jdkDetector) {
         this(
-                new BuildService(),
+                new BuildService(jdkDetector),
                 new SourceDiscoverer(),
                 new ResourceCopier(),
                 new BuildFingerprintService(),
-                new JdkDetector(),
+                jdkDetector,
                 new JavacRunner());
     }
 
@@ -32,7 +37,7 @@ public final class TestCompileService {
             SourceDiscoverer sourceDiscoverer,
             ResourceCopier resourceCopier,
             BuildFingerprintService buildFingerprintService,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavacRunner javacRunner) {
         this.buildService = buildService;
         this.sourceDiscoverer = sourceDiscoverer;
@@ -50,14 +55,18 @@ public final class TestCompileService {
             Path projectDirectory,
             ProjectConfig config,
             Path cacheRoot) {
-        BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
+        BuildResultWithClasspaths buildResult = buildTestInputs(projectDirectory, config, cacheRoot);
+        return new TestCompileResultWithClasspaths(
+                compileTests(projectDirectory, config, buildResult.classpaths(), buildResult.buildResult()),
+                buildResult.classpaths());
+    }
+
+    BuildResultWithClasspaths buildTestInputs(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return buildService.buildWithClasspaths(
                 projectDirectory,
                 config,
                 cacheRoot,
                 false);
-        return new TestCompileResultWithClasspaths(
-                compileTests(projectDirectory, config, buildResult.classpaths(), buildResult.buildResult()),
-                buildResult.classpaths());
     }
 
     public TestCompileResult compileTests(
