@@ -1252,9 +1252,20 @@ public final class ZoltCli implements Runnable {
                                 "config read",
                                 () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
                         packageModeOverride);
+                PackageService packageService = new PackageService();
                 PackageResult result = timings.measure(
                         "package",
-                        () -> new PackageService().packageJar(workingDirectory, config, cacheRoot),
+                        () -> {
+                            packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
+                            BuildResult buildResult = timings.measure(
+                                    "build package inputs",
+                                    () -> new BuildService().build(workingDirectory, config, cacheRoot),
+                                    ZoltCli::buildAttributes);
+                            return timings.measure(
+                                    "assemble package",
+                                    () -> packageService.packageJar(workingDirectory, config, buildResult, cacheRoot),
+                                    ZoltCli::packageAttributes);
+                        },
                         ZoltCli::packageAttributes);
                 if (result.buildResult().resolvedLockfile()) {
                     spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");

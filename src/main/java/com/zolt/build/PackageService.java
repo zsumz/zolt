@@ -82,12 +82,12 @@ public final class PackageService {
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        refreshPackageToolingIfNeeded(projectDirectory, config, cacheRoot);
+        preparePackageToolingIfNeeded(projectDirectory, config, cacheRoot);
         BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
         return packageJar(projectDirectory, config, buildResult, cacheRoot);
     }
 
-    private void refreshPackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+    public void preparePackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
             return;
         }

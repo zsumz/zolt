@@ -2740,6 +2740,47 @@ final class ZoltCliTest {
     }
 
     @Test
+    void packageCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"config read\""));
+        assertTrue(lines[0].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"phase\":\"build package inputs\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"sourceFiles\":\"1\""));
+        assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
+        assertTrue(lines[2].contains("\"phase\":\"assemble package\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"mode\":\"thin\""));
+        assertTrue(lines[2].contains("\"entries\":\"1\""));
+        assertTrue(lines[3].contains("\"phase\":\"package\""));
+        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[3].contains("\"mode\":\"thin\""));
+    }
+
+    @Test
     void packageModeOverrideUsesThinForCurrentCommandOnly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
