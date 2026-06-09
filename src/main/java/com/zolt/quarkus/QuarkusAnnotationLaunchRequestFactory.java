@@ -12,16 +12,28 @@ public final class QuarkusAnnotationLaunchRequestFactory {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
 
     private final String pathSeparator;
+    private final QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner;
 
     public QuarkusAnnotationLaunchRequestFactory() {
-        this(java.io.File.pathSeparator);
+        this(java.io.File.pathSeparator, new QuarkusAnnotationLauncherClasspathPlanner());
     }
 
     QuarkusAnnotationLaunchRequestFactory(String pathSeparator) {
+        this(pathSeparator, new QuarkusAnnotationLauncherClasspathPlanner());
+    }
+
+    QuarkusAnnotationLaunchRequestFactory(
+            String pathSeparator,
+            QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner) {
         if (pathSeparator == null || pathSeparator.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus annotation launch request path separator is required.");
         }
+        if (launcherClasspathPlanner == null) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus annotation launch request requires a launcher classpath planner.");
+        }
         this.pathSeparator = pathSeparator;
+        this.launcherClasspathPlanner = launcherClasspathPlanner;
     }
 
     public QuarkusAnnotationLaunchRequest create(QuarkusTestWorkerPlan plan, QuarkusAnnotationApi api) {
@@ -33,12 +45,13 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         }
         List<String> testClasses = testClasses(plan.unsupportedTests());
         QuarkusTestRunnerDescriptor descriptor = plan.descriptor();
+        QuarkusAnnotationLauncherClasspathPlan classpathPlan = launcherClasspathPlanner.plan(descriptor);
         return new QuarkusAnnotationLaunchRequest(
                 descriptor,
                 api,
                 testClasses,
                 jvmArguments(descriptor),
-                launcherClasspath(descriptor),
+                classpathPlan.launcherClasspath(),
                 consoleArguments(descriptor, testClasses));
     }
 
@@ -96,10 +109,6 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         arguments.add("--details");
         arguments.add("summary");
         return List.copyOf(arguments);
-    }
-
-    private static List<Path> launcherClasspath(QuarkusTestRunnerDescriptor descriptor) {
-        return descriptor.testRuntimeClasspath();
     }
 
     private String joined(List<Path> classpath) {
