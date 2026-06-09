@@ -72,6 +72,8 @@ final class WorkspaceRunServiceTest {
         assertEquals(List.of("modules/core", "apps/api"), result.builtMembers().stream()
                 .map(WorkspaceBuildResult.MemberBuildResult::member)
                 .toList());
+        assertTrue(result.builtMembers().get(1).classpaths().runtime().entries()
+                .contains(tempDir.resolve("modules/core/target/classes")));
         assertEquals(List.of("apps/api"), result.members().stream()
                 .map(WorkspaceRunResult.MemberRunResult::member)
                 .toList());

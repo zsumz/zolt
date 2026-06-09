@@ -4,11 +4,8 @@ import com.zolt.build.JavaRunResult;
 import com.zolt.build.JavaRunner;
 import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
-import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
@@ -22,8 +19,6 @@ public final class WorkspaceRunService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceBuildService workspaceBuildService;
     private final WorkspaceMemberSelector memberSelector;
-    private final ZoltLockfileReader lockfileReader;
-    private final WorkspaceClasspathService workspaceClasspathService;
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
 
@@ -32,8 +27,6 @@ public final class WorkspaceRunService {
                 new WorkspaceDiscoveryService(),
                 new WorkspaceBuildService(),
                 new WorkspaceMemberSelector(),
-                new ZoltLockfileReader(),
-                new WorkspaceClasspathService(),
                 new JdkDetector(),
                 new JavaRunner());
     }
@@ -42,15 +35,11 @@ public final class WorkspaceRunService {
             WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceBuildService workspaceBuildService,
             WorkspaceMemberSelector memberSelector,
-            ZoltLockfileReader lockfileReader,
-            WorkspaceClasspathService workspaceClasspathService,
             JdkDetector jdkDetector,
             JavaRunner javaRunner) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;
         this.memberSelector = memberSelector;
-        this.lockfileReader = lockfileReader;
-        this.workspaceClasspathService = workspaceClasspathService;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
     }
@@ -67,7 +56,6 @@ public final class WorkspaceRunService {
         WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
         WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
 
-        ZoltLockfile lockfile = lockfileReader.read(workspace.root().resolve("zolt.lock"));
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
 
@@ -83,15 +71,9 @@ public final class WorkspaceRunService {
             if (!jdkStatus.ok()) {
                 throw new RunException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
             }
-            ClasspathSet classpaths = workspaceClasspathService.classpathsFor(
-                    workspace,
-                    lockfile,
-                    cacheRoot,
-                    member.path());
-
             List<Path> runtimeEntries = new ArrayList<>();
             runtimeEntries.add(memberBuild.result().outputDirectory());
-            runtimeEntries.addAll(classpaths.runtime().entries());
+            runtimeEntries.addAll(memberBuild.classpaths().runtime().entries());
             JavaRunResult javaRunResult = javaRunner.run(
                     jdkStatus.java().orElseThrow(),
                     new Classpath(runtimeEntries),
