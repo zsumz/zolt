@@ -4,21 +4,36 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.function.Supplier;
 
 public final class QuarkusAnnotationJvmRunner {
     private final String pathSeparator;
     private final Path javaExecutable;
+    private final Supplier<String> workerClasspath;
     private final ProcessRunner processRunner;
 
     public QuarkusAnnotationJvmRunner() {
-        this(java.io.File.pathSeparator, defaultJavaExecutable(), QuarkusAnnotationJvmRunner::runProcess);
+        this(
+                java.io.File.pathSeparator,
+                defaultJavaExecutable(),
+                () -> System.getProperty(QuarkusTestWorkerLauncher.WORKER_CLASSPATH_PROPERTY, ""),
+                QuarkusAnnotationJvmRunner::runProcess);
     }
 
     QuarkusAnnotationJvmRunner(
             String pathSeparator,
             Path javaExecutable,
+            ProcessRunner processRunner) {
+        this(pathSeparator, javaExecutable, () -> "", processRunner);
+    }
+
+    QuarkusAnnotationJvmRunner(
+            String pathSeparator,
+            Path javaExecutable,
+            Supplier<String> workerClasspath,
             ProcessRunner processRunner) {
         if (pathSeparator == null || pathSeparator.isBlank()) {
             throw new QuarkusAugmentationException("Quarkus annotation JVM runner path separator is required.");
@@ -26,11 +41,15 @@ public final class QuarkusAnnotationJvmRunner {
         if (javaExecutable == null) {
             throw new QuarkusAugmentationException("Quarkus annotation JVM runner Java executable is required.");
         }
+        if (workerClasspath == null) {
+            throw new QuarkusAugmentationException("Quarkus annotation JVM runner worker classpath is required.");
+        }
         if (processRunner == null) {
             throw new QuarkusAugmentationException("Quarkus annotation JVM runner process runner is required.");
         }
         this.pathSeparator = pathSeparator;
         this.javaExecutable = javaExecutable;
+        this.workerClasspath = workerClasspath;
         this.processRunner = processRunner;
     }
 
@@ -49,9 +68,23 @@ public final class QuarkusAnnotationJvmRunner {
         command.add(javaExecutable.toString());
         command.addAll(request.jvmArguments());
         command.add("-classpath");
-        command.add(joined(request.launcherClasspath()));
+        command.add(joined(runnerClasspath(request)));
         command.addAll(request.consoleArguments());
         return List.copyOf(command);
+    }
+
+    private List<Path> runnerClasspath(QuarkusAnnotationLaunchRequest request) {
+        List<Path> classpath = new ArrayList<>();
+        String workerClasspathValue = workerClasspath.get();
+        if (workerClasspathValue != null && !workerClasspathValue.isBlank()) {
+            Arrays.stream(workerClasspathValue.split(java.util.regex.Pattern.quote(pathSeparator)))
+                    .filter(entry -> !entry.isBlank())
+                    .map(Path::of)
+                    .map(path -> path.toAbsolutePath().normalize())
+                    .forEach(classpath::add);
+        }
+        classpath.addAll(request.launcherClasspath());
+        return List.copyOf(classpath);
     }
 
     private String joined(List<Path> classpath) {

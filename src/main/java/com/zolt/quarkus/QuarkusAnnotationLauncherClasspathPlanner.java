@@ -74,7 +74,7 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
             Path temporaryJar = Files.createTempFile(outputDirectory, outputJar.getFileName().toString(), ".tmp");
             writeJarWithoutLauncherSessionListener(sourceJar, temporaryJar);
             Files.move(temporaryJar, outputJar, StandardCopyOption.REPLACE_EXISTING);
-            return outputJar.normalize();
+            return outputJar.toAbsolutePath().normalize();
         } catch (IOException exception) {
             throw new QuarkusAugmentationException(
                     "Could not prepare Quarkus annotation runner classpath. "

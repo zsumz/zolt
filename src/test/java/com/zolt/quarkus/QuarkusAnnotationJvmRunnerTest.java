@@ -23,15 +23,8 @@ final class QuarkusAnnotationJvmRunnerTest {
                         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
                         "-classpath",
                         "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
-                        "org.junit.platform.console.ConsoleLauncher",
-                        "execute",
-                        "--disable-banner",
-                        "--class-path",
-                        "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
-                        "--select-class",
-                        "com.example.HttpTest",
-                        "--details",
-                        "summary"),
+                        QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
+                        "com.example.HttpTest"),
                 runner.command(request()));
     }
 
@@ -59,27 +52,20 @@ final class QuarkusAnnotationJvmRunnerTest {
                         Path.of("/launcher/junit-platform-console.jar"),
                         Path.of("/launcher/quarkus-junit.jar")),
                 List.of(
-                        "org.junit.platform.console.ConsoleLauncher",
-                        "execute",
-                        "--class-path",
-                        "/repo/target/test-classes:/repo/target/classes",
-                        "--select-class",
+                        QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
                         "com.example.HttpTest"));
         QuarkusAnnotationJvmRunner runner = new QuarkusAnnotationJvmRunner(
                 ":",
                 Path.of("/jdk/bin/java"),
+                () -> "/zolt/zolt.jar:/zolt/picocli.jar",
                 command -> new QuarkusAnnotationJvmRunner.Result(0, ""));
 
         assertEquals(List.of(
                         "/jdk/bin/java",
                         "-Duser.dir=/repo",
                         "-classpath",
-                        "/launcher/junit-platform-console.jar:/launcher/quarkus-junit.jar",
-                        "org.junit.platform.console.ConsoleLauncher",
-                        "execute",
-                        "--class-path",
-                        "/repo/target/test-classes:/repo/target/classes",
-                        "--select-class",
+                        "/zolt/zolt.jar:/zolt/picocli.jar:/launcher/junit-platform-console.jar:/launcher/quarkus-junit.jar",
+                        QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
                         "com.example.HttpTest"),
                 runner.command(request));
     }
@@ -112,15 +98,8 @@ final class QuarkusAnnotationJvmRunnerTest {
                         Path.of("/repo/target/classes"),
                         Path.of("/cache/junit-platform-console.jar")),
                 List.of(
-                        "org.junit.platform.console.ConsoleLauncher",
-                        "execute",
-                        "--disable-banner",
-                        "--class-path",
-                        "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
-                        "--select-class",
-                        "com.example.HttpTest",
-                        "--details",
-                        "summary"));
+                        QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
+                        "com.example.HttpTest"));
     }
 
     private static QuarkusAnnotationApi api() {

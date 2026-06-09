@@ -20,6 +20,7 @@ final class QuarkusTestWorkerLauncherTest {
 
         assertEquals(List.of(
                 "/jdk/bin/java",
+                "-D" + QuarkusTestWorkerLauncher.WORKER_CLASSPATH_PROPERTY + "=/zolt/zolt.jar",
                 "-classpath",
                 "/zolt/zolt.jar:/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
                 QuarkusTestWorker.MAIN_CLASS,

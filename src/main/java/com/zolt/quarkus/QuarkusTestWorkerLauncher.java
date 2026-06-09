@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.StringJoiner;
 
 public final class QuarkusTestWorkerLauncher {
+    public static final String WORKER_CLASSPATH_PROPERTY = "zolt.quarkus.test-worker.classpath";
+
     private final String pathSeparator;
     private final Path javaExecutable;
     private final List<Path> workerClasspath;
@@ -64,6 +66,7 @@ public final class QuarkusTestWorkerLauncher {
         }
         List<String> command = new ArrayList<>();
         command.add(javaExecutable.toString());
+        command.add("-D" + WORKER_CLASSPATH_PROPERTY + "=" + joinedAbsolute(workerClasspath));
         command.add("-classpath");
         command.add(joinedClasspath(descriptor));
         command.add(QuarkusTestWorker.MAIN_CLASS);
@@ -73,11 +76,25 @@ public final class QuarkusTestWorkerLauncher {
 
     private String joinedClasspath(QuarkusTestRunnerDescriptor descriptor) {
         StringJoiner joiner = new StringJoiner(pathSeparator);
-        for (Path entry : workerClasspath) {
-            joiner.add(entry.normalize().toString());
-        }
+        joiner.add(joined(workerClasspath));
         for (Path entry : descriptor.testRuntimeClasspath()) {
             joiner.add(entry.normalize().toString());
+        }
+        return joiner.toString();
+    }
+
+    private String joined(List<Path> classpath) {
+        StringJoiner joiner = new StringJoiner(pathSeparator);
+        for (Path entry : classpath) {
+            joiner.add(entry.normalize().toString());
+        }
+        return joiner.toString();
+    }
+
+    private String joinedAbsolute(List<Path> classpath) {
+        StringJoiner joiner = new StringJoiner(pathSeparator);
+        for (Path entry : classpath) {
+            joiner.add(entry.toAbsolutePath().normalize().toString());
         }
         return joiner.toString();
     }

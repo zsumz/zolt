@@ -32,15 +32,9 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                         Path.of("/cache/junit-platform-console.jar")),
                 request.launcherClasspath());
         assertEquals(List.of(
-                "org.junit.platform.console.ConsoleLauncher",
-                "execute",
-                "--disable-banner",
-                "--select-class",
+                QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
                 "com.example.AlphaTest",
-                "--select-class",
-                "com.example.BetaTest",
-                "--details",
-                "summary"),
+                "com.example.BetaTest"),
                 request.consoleArguments());
         assertEquals(api(), request.api());
     }

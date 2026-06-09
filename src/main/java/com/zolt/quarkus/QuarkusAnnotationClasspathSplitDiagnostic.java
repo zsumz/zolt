@@ -59,10 +59,9 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
                 + " Quarkus JUnit reached application startup and needs TestHttpEndpointProvider service loading "
                 + "to use one classloader identity for both the service type and provider. A lingering "
                 + "QuarkusClassOrderer/TestConfig warning can still appear before startup, but the current "
-                + "blocking failure is runtime service loading. A ConsoleLauncher-discovered listener shim "
-                + "did not engage in this JVM classpath-only probe, so the next fix should use a Zolt-owned "
-                + "programmatic JUnit launcher or an equivalent runner boundary that can control the context "
-                + "classloader before Quarkus starts the application.";
+                + "blocking failure is runtime service loading. Zolt's programmatic JUnit launcher boundary "
+                + "is active for this probe, so the next fix should control the context classloader inside "
+                + "that boundary before Quarkus starts the application.";
     }
 
     private static String description(List<Path> sharedClasspath) {

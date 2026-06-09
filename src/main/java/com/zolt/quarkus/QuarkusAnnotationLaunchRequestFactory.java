@@ -8,7 +8,7 @@ import java.util.List;
 public final class QuarkusAnnotationLaunchRequestFactory {
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
-    private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
+    private static final String RUNNER_MAIN_CLASS = QuarkusAnnotationProgrammaticRunner.MAIN_CLASS;
 
     private final QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner;
 
@@ -40,7 +40,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 testClasses,
                 jvmArguments(descriptor),
                 classpathPlan.launcherClasspath(),
-                consoleArguments(testClasses));
+                runnerArguments(testClasses));
     }
 
     private static List<String> testClasses(List<QuarkusUnsupportedTest> tests) {
@@ -82,17 +82,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return List.copyOf(arguments);
     }
 
-    private static List<String> consoleArguments(List<String> testClasses) {
+    private static List<String> runnerArguments(List<String> testClasses) {
         List<String> arguments = new ArrayList<>();
-        arguments.add(CONSOLE_MAIN_CLASS);
-        arguments.add("execute");
-        arguments.add("--disable-banner");
-        for (String testClass : testClasses) {
-            arguments.add("--select-class");
-            arguments.add(testClass);
-        }
-        arguments.add("--details");
-        arguments.add("summary");
+        arguments.add(RUNNER_MAIN_CLASS);
+        arguments.addAll(testClasses);
         return List.copyOf(arguments);
     }
 }
