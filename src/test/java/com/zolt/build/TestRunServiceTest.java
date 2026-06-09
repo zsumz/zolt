@@ -43,6 +43,8 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         assertEquals("Tests successful\n", result.output());
+        assertEquals(3, result.testRuntimeClasspathEntries());
+        assertEquals(1, result.testLauncherClasspathEntries());
         List<String> command = commands.getFirst();
         String userDirProperty = "-Duser.dir=" + projectDir.toAbsolutePath().normalize();
         assertEquals(userDirProperty, command.get(1));
@@ -143,9 +145,11 @@ final class TestRunServiceTest {
             return new JavaRunner.ProcessResult(0, "Tests successful\n");
         });
 
-        service.runTests(projectDir, config(), projectDir.resolve("cache"));
+        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         String launcherClasspath = launcherClasspath(commands.getFirst());
+        assertEquals(10, result.testRuntimeClasspathEntries());
+        assertEquals(7, result.testLauncherClasspathEntries());
         assertTrue(launcherClasspath.contains("junit-platform-console-1.11.4.jar"));
         assertTrue(launcherClasspath.contains("junit-platform-reporting-1.11.4.jar"));
         assertTrue(launcherClasspath.contains("junit-platform-launcher-1.11.4.jar"));
@@ -217,6 +221,8 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, quarkusConfig(), projectDir.resolve("cache"));
 
         assertEquals("Worker tests successful\n", result.output());
+        assertEquals(4, result.testRuntimeClasspathEntries());
+        assertEquals(1, result.testLauncherClasspathEntries());
         assertTrue(javaCommands.isEmpty());
         assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
         QuarkusTestRunnerDescriptor descriptor = descriptors.getFirst();

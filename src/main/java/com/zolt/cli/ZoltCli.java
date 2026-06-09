@@ -1910,6 +1910,8 @@ public final class ZoltCli implements Runnable {
                 "testResourceFiles", Integer.toString(result.compileResult().resourceCount()),
                 "mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()),
                 "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
+                "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
+                "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
                 "outputBytes", Integer.toString(result.output().length()));
     }
 
@@ -1923,7 +1925,10 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> testExecutionAttributes(TestRunResult result) {
-        return Map.of("outputBytes", Integer.toString(result.output().length()));
+        return Map.of(
+                "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
+                "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
+                "outputBytes", Integer.toString(result.output().length()));
     }
 
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
@@ -1935,6 +1940,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
         attributes.put("testCompilationsSkipped", Integer.toString(result.testCompilationSkippedCount()));
         attributes.put("testCompilationsExecuted", Integer.toString(result.testCompilationExecutedCount()));
+        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntryCount()));
+        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntryCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         return attributes;
     }

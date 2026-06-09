@@ -2511,10 +2511,14 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"testCompilationSkipped\":\"false\""));
         assertTrue(lines[2].contains("\"phase\":\"execute tests\""));
         assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"testRuntimeClasspathEntries\""));
+        assertTrue(lines[2].contains("\"testLauncherClasspathEntries\""));
         assertTrue(lines[2].contains("\"outputBytes\""));
         assertTrue(lines[3].contains("\"phase\":\"run tests\""));
         assertTrue(lines[3].contains("\"depth\":0"));
         assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[3].contains("\"testRuntimeClasspathEntries\""));
+        assertTrue(lines[3].contains("\"testLauncherClasspathEntries\""));
     }
 
     @Test

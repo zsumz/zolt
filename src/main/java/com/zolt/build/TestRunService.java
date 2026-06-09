@@ -128,21 +128,24 @@ public final class TestRunService {
                 compileResult,
                 runnerClasspath,
                 serializedApplicationModel);
+        List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
             QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
             failOnUnsupportedQuarkusTests(
                     projectDirectory,
                     config,
                     descriptor.supportsQuarkusTestAnnotations());
+            List<Path> workerClasspath = quarkusTestWorkerClasspath.get();
             String output = runQuarkusPlainJunitWorker(
                     jdkStatus.java().orElseThrow(),
+                    workerClasspath,
                     descriptor);
             failOnHiddenQuarkusBootstrapFailure(config, output);
-            return new TestRunResult(compileResult, output);
+            return new TestRunResult(compileResult, output, runnerClasspath.size(), workerClasspath.size());
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
-                new Classpath(junitLauncherClasspath(runnerClasspath)),
+                new Classpath(launcherClasspath),
                 CONSOLE_MAIN_CLASS,
                 jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
                 List.of(
@@ -152,7 +155,7 @@ public final class TestRunService {
                         "--scan-class-path",
                         "--details", "summary"));
         failOnHiddenQuarkusBootstrapFailure(config, result.output());
-        return new TestRunResult(compileResult, result.output());
+        return new TestRunResult(compileResult, result.output(), runnerClasspath.size(), launcherClasspath.size());
     }
 
     private String joined(List<Path> classpath) {
@@ -169,9 +172,12 @@ public final class TestRunService {
                 .toList();
     }
 
-    private String runQuarkusPlainJunitWorker(Path javaExecutable, QuarkusTestRunnerDescriptor descriptor) {
+    private String runQuarkusPlainJunitWorker(
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            QuarkusTestRunnerDescriptor descriptor) {
         try {
-            return quarkusTestWorkerRunner.run(javaExecutable, quarkusTestWorkerClasspath.get(), descriptor);
+            return quarkusTestWorkerRunner.run(javaExecutable, workerClasspath, descriptor);
         } catch (QuarkusAugmentationException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }

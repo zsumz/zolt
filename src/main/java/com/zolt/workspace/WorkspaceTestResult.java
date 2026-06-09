@@ -57,6 +57,20 @@ public record WorkspaceTestResult(
         return members.size() - testCompilationSkippedCount();
     }
 
+    public int testRuntimeClasspathEntryCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .mapToInt(TestRunResult::testRuntimeClasspathEntries)
+                .sum();
+    }
+
+    public int testLauncherClasspathEntryCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .mapToInt(TestRunResult::testLauncherClasspathEntries)
+                .sum();
+    }
+
     public record MemberTestRunResult(
             String member,
             TestRunResult result) {
