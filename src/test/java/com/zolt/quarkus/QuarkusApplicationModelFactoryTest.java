@@ -193,7 +193,12 @@ final class QuarkusApplicationModelFactoryTest {
 
         FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
-                List.of(new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar")),
+                List.of(
+                        new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar"),
+                        new FakeArtifactKey("org.eclipse.microprofile.config", "microprofile-config-api", "", "jar"),
+                        new FakeArtifactKey("io.smallrye.config", "smallrye-config", "", "jar"),
+                        new FakeArtifactKey("io.smallrye.config", "smallrye-config-common", "", "jar"),
+                        new FakeArtifactKey("io.smallrye.config", "smallrye-config-core", "", "jar")),
                 model.parentFirstArtifacts());
     }
 

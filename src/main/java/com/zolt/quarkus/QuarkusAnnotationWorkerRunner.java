@@ -94,6 +94,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (testConfigLauncherSessionMismatch(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached JUnit launcher-session cleanup, then hit "
+                    + "a Quarkus test config resolver ownership mismatch. Zolt's test config parent-first hints "
+                    + "moved this descriptor-enabled probe past FacadeClassLoader initialization, but the runner "
+                    + "still needs to align QuarkusTestConfigProviderResolver and ConfigLauncherSession ownership "
+                    + "before @QuarkusTest can be enabled. Keep using plain JUnit tests for now, or run "
+                    + "`zolt quarkus test-plan` to inspect blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             return result.output();
         }
         return "error: Quarkus annotation test bootstrap hit a Quarkus classloader split while loading "
@@ -121,6 +132,12 @@ public final class QuarkusAnnotationWorkerRunner {
     private static boolean testConfigClassloaderMismatch(String output) {
         return output.contains("io.quarkus.test.junit.classloading.FacadeClassLoader.initialiseTestConfig")
                 && output.contains("java.lang.IllegalArgumentException: argument type mismatch");
+    }
+
+    private static boolean testConfigLauncherSessionMismatch(String output) {
+        return output.contains("io.quarkus.test.config.ConfigLauncherSession.launcherSessionClosed")
+                && output.contains("QuarkusTestConfigProviderResolver cannot be cast")
+                && output.contains("io.quarkus.test.config.TestConfigProviderResolver");
     }
 
     public record Result(int exitCode, String output) {

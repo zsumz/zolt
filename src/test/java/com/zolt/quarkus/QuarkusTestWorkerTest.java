@@ -212,6 +212,33 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsTestConfigLauncherSessionMismatch() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(255, """
+                                java.lang.ClassCastException: class io.quarkus.test.junit.classloading.QuarkusTestConfigProviderResolver cannot be cast to class io.quarkus.test.config.TestConfigProviderResolver
+                                    at io.quarkus.test.config.ConfigLauncherSession.launcherSessionClosed(ConfigLauncherSession.java:38)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(255, result.exitCode());
+        assertTrue(result.output().contains("JUnit launcher-session cleanup"));
+        assertTrue(result.output().contains("test config resolver ownership mismatch"));
+        assertTrue(result.output().contains("moved this descriptor-enabled probe past FacadeClassLoader"));
+        assertTrue(result.output().contains("QuarkusTestConfigProviderResolver cannot be cast"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
