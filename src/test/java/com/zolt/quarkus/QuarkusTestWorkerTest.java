@@ -239,6 +239,34 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsMissingTestConfigMapping() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                org.junit.jupiter.engine.execution.ConditionEvaluationException: Failed to evaluate condition [io.quarkus.test.junit.QuarkusTestExtension]
+                                Caused by: java.util.NoSuchElementException: SRCFG00027: Could not find a mapping for io.quarkus.deployment.dev.testing.TestConfig
+                                    at io.quarkus.test.junit.AbstractJvmQuarkusTestExtension.evaluateExecutionCondition(AbstractJvmQuarkusTestExtension.java:164)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("reached Quarkus JUnit execution"));
+        assertTrue(result.output().contains("filtering the conflicting JUnit launcher-session listener"));
+        assertTrue(result.output().contains("missing Quarkus TestConfig mapping"));
+        assertTrue(result.output().contains("SRCFG00027"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();

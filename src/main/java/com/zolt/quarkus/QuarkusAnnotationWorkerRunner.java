@@ -105,6 +105,16 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (testConfigMappingMissing(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution after filtering "
+                    + "the conflicting JUnit launcher-session listener, then hit a missing Quarkus TestConfig "
+                    + "mapping. Zolt still needs to align the Quarkus test runtime classloader, thread context "
+                    + "classloader, and config mapping ownership before @QuarkusTest can be enabled. Keep using "
+                    + "plain JUnit tests for now, or run `zolt quarkus test-plan` to inspect blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             return result.output();
         }
         return "error: Quarkus annotation test bootstrap hit a Quarkus classloader split while loading "
@@ -138,6 +148,11 @@ public final class QuarkusAnnotationWorkerRunner {
         return output.contains("io.quarkus.test.config.ConfigLauncherSession.launcherSessionClosed")
                 && output.contains("QuarkusTestConfigProviderResolver cannot be cast")
                 && output.contains("io.quarkus.test.config.TestConfigProviderResolver");
+    }
+
+    private static boolean testConfigMappingMissing(String output) {
+        return output.contains("SRCFG00027: Could not find a mapping for io.quarkus.deployment.dev.testing.TestConfig")
+                && output.contains("io.quarkus.test.junit");
     }
 
     public record Result(int exitCode, String output) {

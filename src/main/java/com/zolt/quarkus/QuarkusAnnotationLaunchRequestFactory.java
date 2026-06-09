@@ -52,7 +52,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 testClasses,
                 jvmArguments(descriptor),
                 classpathPlan.launcherClasspath(),
-                consoleArguments(descriptor, testClasses));
+                consoleArguments(classpathPlan.junitDiscoveryClasspath(), testClasses));
     }
 
     private static List<String> testClasses(List<QuarkusUnsupportedTest> tests) {
@@ -94,8 +94,8 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return List.copyOf(arguments);
     }
 
-    private List<String> consoleArguments(QuarkusTestRunnerDescriptor descriptor, List<String> testClasses) {
-        String classpath = joined(descriptor.testRuntimeClasspath());
+    private List<String> consoleArguments(List<Path> junitDiscoveryClasspath, List<String> testClasses) {
+        String classpath = joined(junitDiscoveryClasspath);
         List<String> arguments = new ArrayList<>();
         arguments.add(CONSOLE_MAIN_CLASS);
         arguments.add("execute");
