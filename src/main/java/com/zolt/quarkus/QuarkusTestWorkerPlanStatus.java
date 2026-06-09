@@ -1,0 +1,18 @@
+package com.zolt.quarkus;
+
+public enum QuarkusTestWorkerPlanStatus {
+    PLAIN_JUNIT_READY("plain JUnit ready"),
+    BLOCKED_UNSUPPORTED_QUARKUS_TESTS("blocked by unsupported Quarkus test annotations"),
+    MISSING_JUNIT_CONSOLE("blocked by missing JUnit Platform Console"),
+    UNSUPPORTED_RUNNER_MODE("blocked by unsupported Quarkus test runner mode");
+
+    private final String displayName;
+
+    QuarkusTestWorkerPlanStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public String displayName() {
+        return displayName;
+    }
+}

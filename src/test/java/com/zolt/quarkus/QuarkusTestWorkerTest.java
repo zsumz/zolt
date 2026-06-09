@@ -27,12 +27,16 @@ final class QuarkusTestWorkerTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusTestRunnerDescriptor descriptor = descriptor();
+        QuarkusUnsupportedTest unsupportedTest = new QuarkusUnsupportedTest(
+                descriptor.testOutputDirectory().resolve("com/example/HttpTest.class"),
+                Path.of("com/example/HttpTest.class"),
+                "@QuarkusTest");
         QuarkusTestWorker worker = worker(
                 descriptor,
-                path -> List.of(new QuarkusUnsupportedTest(
-                        path.resolve("com/example/HttpTest.class"),
-                        Path.of("com/example/HttpTest.class"),
-                        "@QuarkusTest")),
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS,
+                        List.of(unsupportedTest)),
                 out,
                 err);
 
@@ -40,10 +44,33 @@ final class QuarkusTestWorkerTest {
 
         assertEquals(2, exitCode);
         assertTrue(output(out).contains("Runner mode: plain-junit"));
+        assertTrue(output(out).contains("Status: blocked by unsupported Quarkus test annotations"));
         assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
         assertTrue(output(out).contains("com/example/HttpTest.class (@QuarkusTest)"));
-        assertTrue(output(err).contains("Dedicated Quarkus test worker execution is not implemented yet"));
+        assertTrue(output(err).contains("Quarkus-specific test annotations are not supported"));
         assertTrue(output(err).contains("launcher/session listeners"));
+    }
+
+    @Test
+    void reportsPlainJunitReadyPlanBeforeCurrentNotImplementedFailure() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestRunnerDescriptor descriptor = descriptor();
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
+                        List.of()),
+                out,
+                err);
+
+        int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
+
+        assertEquals(2, exitCode);
+        assertTrue(output(out).contains("Status: plain JUnit ready"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 0"));
+        assertTrue(output(err).contains("Dedicated Quarkus test worker execution is not implemented yet"));
     }
 
     @Test
@@ -53,7 +80,10 @@ final class QuarkusTestWorkerTest {
                 path -> {
                     throw new QuarkusAugmentationException("bad descriptor");
                 },
-                path -> List.of(),
+                descriptor -> new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
+                        List.of()),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -64,12 +94,12 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
-    void reportsUnsupportedTestScanFailures() {
+    void reportsPlanFailures() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusTestWorker worker = new QuarkusTestWorker(
                 path -> descriptor(),
-                path -> {
-                    throw new QuarkusPlanException("bad scan");
+                descriptor -> {
+                    throw new QuarkusAugmentationException("bad plan");
                 },
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
@@ -77,24 +107,31 @@ final class QuarkusTestWorkerTest {
         int exitCode = worker.run(new String[] {"/repo/target/quarkus/zolt-test-bootstrap.properties"});
 
         assertEquals(1, exitCode);
-        assertTrue(output(err).contains("error: bad scan"));
+        assertTrue(output(err).contains("error: bad plan"));
     }
 
     private static QuarkusTestWorker worker(
             QuarkusTestRunnerDescriptor descriptor,
             ByteArrayOutputStream out,
             ByteArrayOutputStream err) {
-        return worker(descriptor, path -> List.of(), out, err);
+        return worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
+                        List.of()),
+                out,
+                err);
     }
 
     private static QuarkusTestWorker worker(
             QuarkusTestRunnerDescriptor descriptor,
-            QuarkusTestWorker.UnsupportedTestScanner unsupportedTestScanner,
+            QuarkusTestWorkerPlan plan,
             ByteArrayOutputStream out,
             ByteArrayOutputStream err) {
         return new QuarkusTestWorker(
                 path -> descriptor,
-                unsupportedTestScanner,
+                actualDescriptor -> plan,
                 new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
     }
