@@ -63,6 +63,14 @@ public final class BuildService {
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean offline) {
+        return buildWithClasspaths(projectDirectory, config, cacheRoot, offline).buildResult();
+    }
+
+    BuildResultWithClasspaths buildWithClasspaths(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            boolean offline) {
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
         Optional<ResolveResult> resolveResult = Optional.empty();
         if (!Files.isRegularFile(lockfilePath)) {
@@ -71,7 +79,9 @@ public final class BuildService {
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
-        return build(projectDirectory, config, classpaths, resolveResult);
+        return new BuildResultWithClasspaths(
+                build(projectDirectory, config, classpaths, resolveResult),
+                classpaths);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {

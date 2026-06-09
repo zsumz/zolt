@@ -1,11 +1,8 @@
 package com.zolt.build;
 
-import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
@@ -14,8 +11,6 @@ import java.util.List;
 
 public final class TestCompileService {
     private final BuildService buildService;
-    private final ZoltLockfileReader lockfileReader;
-    private final ClasspathBuilder classpathBuilder;
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
     private final BuildFingerprintService buildFingerprintService;
@@ -25,8 +20,6 @@ public final class TestCompileService {
     public TestCompileService() {
         this(
                 new BuildService(),
-                new ZoltLockfileReader(),
-                new ClasspathBuilder(),
                 new SourceDiscoverer(),
                 new ResourceCopier(),
                 new BuildFingerprintService(),
@@ -36,16 +29,12 @@ public final class TestCompileService {
 
     TestCompileService(
             BuildService buildService,
-            ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
             SourceDiscoverer sourceDiscoverer,
             ResourceCopier resourceCopier,
             BuildFingerprintService buildFingerprintService,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.buildService = buildService;
-        this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
         this.buildFingerprintService = buildFingerprintService;
@@ -54,10 +43,21 @@ public final class TestCompileService {
     }
 
     public TestCompileResult compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
-        BuildResult buildResult = buildService.build(projectDirectory, config, cacheRoot);
-        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
-        return compileTests(projectDirectory, config, classpaths, buildResult);
+        return compileTestsWithClasspaths(projectDirectory, config, cacheRoot).testCompileResult();
+    }
+
+    TestCompileResultWithClasspaths compileTestsWithClasspaths(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot) {
+        BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
+                projectDirectory,
+                config,
+                cacheRoot,
+                false);
+        return new TestCompileResultWithClasspaths(
+                compileTests(projectDirectory, config, buildResult.classpaths(), buildResult.buildResult()),
+                buildResult.classpaths());
     }
 
     public TestCompileResult compileTests(

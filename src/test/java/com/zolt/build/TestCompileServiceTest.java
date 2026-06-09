@@ -113,6 +113,33 @@ final class TestCompileServiceTest {
     }
 
     @Test
+    void compileTestsWithClasspathsReturnsReusedClasspaths() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");
+        createHelperJar(helperJar);
+        writeLockfile("""
+                version = 1
+
+                [[package]]
+                id = "com.example:helper"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "com/example/helper/1.0.0/helper-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+
+        TestCompileResultWithClasspaths result =
+                testCompileService.compileTestsWithClasspaths(projectDir, config(), cacheRoot);
+
+        assertEquals(1, result.testCompileResult().sourceCount());
+        assertEquals(List.of(helperJar), result.classpaths().test().entries());
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+    }
+
+    @Test
     void testCompilationUsesTestProcessorClasspathAndGeneratedSources() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path processorJar = cacheRoot.resolve("com/example/test-processor/1.0.0/test-processor-1.0.0.jar");

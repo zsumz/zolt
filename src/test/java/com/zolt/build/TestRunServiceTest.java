@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkDetector;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
@@ -299,8 +297,6 @@ final class TestRunServiceTest {
             TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner) {
         return new TestRunService(
                 new TestCompileService(),
-                new ZoltLockfileReader(),
-                new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(":", processRunner),
                 quarkusTestApplicationModelWriter,

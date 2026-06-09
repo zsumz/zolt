@@ -1,11 +1,8 @@
 package com.zolt.build;
 
-import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
@@ -32,8 +29,6 @@ public final class TestRunService {
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
     private final TestCompileService testCompileService;
-    private final ZoltLockfileReader lockfileReader;
-    private final ClasspathBuilder classpathBuilder;
     private final JdkDetector jdkDetector;
     private final JavaRunner javaRunner;
     private final QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter;
@@ -45,8 +40,6 @@ public final class TestRunService {
     public TestRunService() {
         this(
                 new TestCompileService(),
-                new ZoltLockfileReader(),
-                new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(),
                 new QuarkusTestApplicationModelService()::writeIfEnabled,
@@ -59,8 +52,6 @@ public final class TestRunService {
 
     TestRunService(
             TestCompileService testCompileService,
-            ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
             JdkDetector jdkDetector,
             JavaRunner javaRunner,
             QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
@@ -69,8 +60,6 @@ public final class TestRunService {
             QuarkusTestWorkerRunner quarkusTestWorkerRunner,
             String pathSeparator) {
         this.testCompileService = testCompileService;
-        this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
         this.quarkusTestApplicationModelWriter = quarkusTestApplicationModelWriter;
@@ -81,10 +70,9 @@ public final class TestRunService {
     }
 
     public TestRunResult runTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
-        TestCompileResult compileResult = testCompileService.compileTests(projectDirectory, config, cacheRoot);
-        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
-        return runTests(projectDirectory, config, classpaths, compileResult);
+        TestCompileResultWithClasspaths compileResult =
+                testCompileService.compileTestsWithClasspaths(projectDirectory, config, cacheRoot);
+        return runTests(projectDirectory, config, compileResult.classpaths(), compileResult.testCompileResult());
     }
 
     public TestRunResult runTests(
