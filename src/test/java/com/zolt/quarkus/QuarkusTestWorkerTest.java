@@ -106,8 +106,13 @@ final class QuarkusTestWorkerTest {
 
     @Test
     void defaultAnnotationRunnerFailsHonestlyUntilImplemented() {
-        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner().run(
-                new QuarkusTestWorkerPlan(
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(descriptor ->
+                        new QuarkusAnnotationApi(
+                                "io.quarkus.test.junit.QuarkusTestExtension",
+                                "io.quarkus.test.junit.QuarkusTestProfile",
+                                "io.quarkus.test.junit.launcher.CustomLauncherInterceptor",
+                                List.of("io.quarkus.test.junit.launcher.JarLauncherProvider")))
+                .run(new QuarkusTestWorkerPlan(
                         descriptor(true),
                         QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
                         List.of()));
