@@ -9,6 +9,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.QuarkusPackageMode;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,31 @@ final class ZoltTomlParserTest {
         ProjectConfig config = parser.parse(Path.of("examples/junit-basic/zolt.toml"));
 
         assertEquals("1.11.4", config.testDependencies().get("org.junit.platform:junit-platform-console-standalone"));
+    }
+
+    @Test
+    void preservesDependencyDeclarationOrder() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "ordered"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:alpha" = "1.0.0"
+                "com.example:beta" = "1.0.0"
+                "com.example:core" = { workspace = "modules/core" }
+                "com.example:util" = { workspace = "modules/util" }
+
+                [test.dependencies]
+                "org.junit.jupiter:junit-jupiter" = "5.11.4"
+                "org.assertj:assertj-core" = "3.27.3"
+                """);
+
+        assertEquals(List.of("com.example:alpha", "com.example:beta"), new ArrayList<>(config.dependencies().keySet()));
+        assertEquals(List.of("com.example:core", "com.example:util"), new ArrayList<>(config.workspaceDependencies().keySet()));
+        assertEquals(List.of("org.junit.jupiter:junit-jupiter", "org.assertj:assertj-core"), new ArrayList<>(config.testDependencies().keySet()));
     }
 
     @Test

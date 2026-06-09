@@ -1,5 +1,8 @@
 package com.zolt.project;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,27 +37,27 @@ public record ProjectConfig(
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
-        repositories = Map.copyOf(repositories);
-        platforms = Map.copyOf(platforms);
-        apiDependencies = Map.copyOf(apiDependencies);
-        managedApiDependencies = Set.copyOf(managedApiDependencies);
-        workspaceApiDependencies = Map.copyOf(workspaceApiDependencies);
-        dependencies = Map.copyOf(dependencies);
-        managedDependencies = Set.copyOf(managedDependencies);
-        workspaceDependencies = Map.copyOf(workspaceDependencies);
-        runtimeDependencies = Map.copyOf(runtimeDependencies);
-        managedRuntimeDependencies = Set.copyOf(managedRuntimeDependencies);
-        providedDependencies = Map.copyOf(providedDependencies);
-        managedProvidedDependencies = Set.copyOf(managedProvidedDependencies);
-        devDependencies = Map.copyOf(devDependencies);
-        managedDevDependencies = Set.copyOf(managedDevDependencies);
-        testDependencies = Map.copyOf(testDependencies);
-        managedTestDependencies = Set.copyOf(managedTestDependencies);
-        workspaceTestDependencies = Map.copyOf(workspaceTestDependencies);
-        annotationProcessors = Map.copyOf(annotationProcessors);
-        managedAnnotationProcessors = Set.copyOf(managedAnnotationProcessors);
-        testAnnotationProcessors = Map.copyOf(testAnnotationProcessors);
-        managedTestAnnotationProcessors = Set.copyOf(managedTestAnnotationProcessors);
+        repositories = orderedMap(repositories);
+        platforms = orderedMap(platforms);
+        apiDependencies = orderedMap(apiDependencies);
+        managedApiDependencies = orderedSet(managedApiDependencies);
+        workspaceApiDependencies = orderedMap(workspaceApiDependencies);
+        dependencies = orderedMap(dependencies);
+        managedDependencies = orderedSet(managedDependencies);
+        workspaceDependencies = orderedMap(workspaceDependencies);
+        runtimeDependencies = orderedMap(runtimeDependencies);
+        managedRuntimeDependencies = orderedSet(managedRuntimeDependencies);
+        providedDependencies = orderedMap(providedDependencies);
+        managedProvidedDependencies = orderedSet(managedProvidedDependencies);
+        devDependencies = orderedMap(devDependencies);
+        managedDevDependencies = orderedSet(managedDevDependencies);
+        testDependencies = orderedMap(testDependencies);
+        managedTestDependencies = orderedSet(managedTestDependencies);
+        workspaceTestDependencies = orderedMap(workspaceTestDependencies);
+        annotationProcessors = orderedMap(annotationProcessors);
+        managedAnnotationProcessors = orderedSet(managedAnnotationProcessors);
+        testAnnotationProcessors = orderedMap(testAnnotationProcessors);
+        managedTestAnnotationProcessors = orderedSet(managedTestAnnotationProcessors);
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
         packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
@@ -477,6 +480,14 @@ public record ProjectConfig(
 
     public static Map<String, String> defaultRepositories() {
         return Map.of("central", MAVEN_CENTRAL);
+    }
+
+    private static Map<String, String> orderedMap(Map<String, String> values) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
+    private static Set<String> orderedSet(Set<String> values) {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 
     public ProjectConfig withBuildSettings(BuildSettings build) {
