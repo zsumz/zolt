@@ -1129,12 +1129,26 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
+                    WorkspaceTestService workspaceTestService = new WorkspaceTestService();
                     WorkspaceTestResult result = timings.measure(
                             "test workspace",
-                            () -> new WorkspaceTestService().test(
-                                    workingDirectory,
-                                    cacheRoot,
-                                    workspaceSelection(all, members, memberGroups)),
+                            () -> {
+                                WorkspaceBuildPlan plan = timings.measure(
+                                        "plan workspace tests",
+                                        () -> workspaceTestService.planTests(
+                                                workingDirectory,
+                                                cacheRoot,
+                                                workspaceSelection(all, members, memberGroups)),
+                                        ZoltCli::workspaceBuildPlanAttributes);
+                                WorkspaceBuildResult buildResult = timings.measure(
+                                        "build workspace test inputs",
+                                        () -> workspaceTestService.buildTestInputs(plan, cacheRoot),
+                                        ZoltCli::workspaceBuildAttributes);
+                                return timings.measure(
+                                        "run workspace test members",
+                                        () -> workspaceTestService.runTests(plan, buildResult, cacheRoot),
+                                        ZoltCli::workspaceTestAttributes);
+                            },
                             ZoltCli::workspaceTestAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");

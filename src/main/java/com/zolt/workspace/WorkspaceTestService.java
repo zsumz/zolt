@@ -3,8 +3,6 @@ package com.zolt.workspace;
 import com.zolt.build.TestRunService;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,36 +10,24 @@ import java.util.List;
 import java.util.Map;
 
 public final class WorkspaceTestService {
-    private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceBuildService workspaceBuildService;
-    private final ZoltLockfileReader lockfileReader;
     private final WorkspaceClasspathService workspaceClasspathService;
     private final TestRunService testRunService;
-    private final WorkspaceMemberSelector memberSelector;
 
     public WorkspaceTestService() {
         this(
-                new WorkspaceDiscoveryService(),
                 new WorkspaceBuildService(),
-                new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
-                new TestRunService(),
-                new WorkspaceMemberSelector());
+                new TestRunService());
     }
 
     WorkspaceTestService(
-            WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceBuildService workspaceBuildService,
-            ZoltLockfileReader lockfileReader,
             WorkspaceClasspathService workspaceClasspathService,
-            TestRunService testRunService,
-            WorkspaceMemberSelector memberSelector) {
-        this.workspaceDiscoveryService = workspaceDiscoveryService;
+            TestRunService testRunService) {
         this.workspaceBuildService = workspaceBuildService;
-        this.lockfileReader = lockfileReader;
         this.workspaceClasspathService = workspaceClasspathService;
         this.testRunService = testRunService;
-        this.memberSelector = memberSelector;
     }
 
     public WorkspaceTestResult test(Path startDirectory, Path cacheRoot) {
@@ -52,13 +38,29 @@ public final class WorkspaceTestService {
             Path startDirectory,
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest) {
-        Path start = startDirectory.toAbsolutePath().normalize();
-        Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt test --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
-        WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
+        WorkspaceBuildPlan plan = planTests(startDirectory, cacheRoot, selectionRequest);
+        WorkspaceBuildResult buildResult = buildTestInputs(plan, cacheRoot);
+        return runTests(plan, buildResult, cacheRoot);
+    }
 
-        ZoltLockfile lockfile = lockfileReader.read(workspace.root().resolve("zolt.lock"));
+    public WorkspaceBuildPlan planTests(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
+        return workspaceBuildService.planBuild(startDirectory, cacheRoot, false, selectionRequest);
+    }
+
+    public WorkspaceBuildResult buildTestInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return workspaceBuildService.build(plan, cacheRoot);
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot) {
+        Workspace workspace = plan.workspace();
+        WorkspaceSelection selection = plan.selection();
+        ZoltLockfile lockfile = plan.lockfile();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
         List<WorkspaceTestResult.MemberTestRunResult> results = new ArrayList<>();

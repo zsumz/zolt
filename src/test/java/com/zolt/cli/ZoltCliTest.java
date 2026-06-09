@@ -2420,15 +2420,34 @@ final class ZoltCliTest {
                 "test",
                 "--workspace",
                 "--all",
+                "--timings",
+                "--timings-format", "json",
                 "--cwd", apiDir.toString(),
                 "--cache-root", cacheRoot.toString());
 
         assertEquals(0, result.exitCode());
-        assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Tests passed in modules/core"));
         assertTrue(result.stdout().contains("Tests passed in apps/api"));
         assertTrue(result.stdout().contains("Tests passed for 2 workspace members"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"plan workspace tests\""));
+        assertTrue(lines[0].contains("\"depth\":1"));
+        assertTrue(lines[0].contains("\"includedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"selectedMembers\":\"2\""));
+        assertTrue(lines[1].contains("\"phase\":\"build workspace test inputs\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"members\":\"2\""));
+        assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[2].contains("\"phase\":\"run workspace test members\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"members\":\"2\""));
+        assertTrue(lines[2].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[3].contains("\"phase\":\"test workspace\""));
+        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[3].contains("\"members\":\"2\""));
+        assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
