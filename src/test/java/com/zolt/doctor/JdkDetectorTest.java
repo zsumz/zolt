@@ -101,6 +101,29 @@ final class JdkDetectorTest {
     }
 
     @Test
+    void reusesDetectedToolchainForRepeatedChecks() throws IOException {
+        Path javaHome = tempDir.resolve("jdk");
+        tool(javaHome, "java");
+        tool(javaHome, "javac");
+        tool(javaHome, "jar");
+        int[] versionReads = new int[1];
+        JdkDetector detector = detector(
+                Map.of("JAVA_HOME", javaHome.toString()),
+                java -> {
+                    versionReads[0]++;
+                    return Optional.of("openjdk version \"21.0.2\"");
+                });
+
+        JdkStatus first = detector.detect("21");
+        JdkStatus second = detector.detect("17");
+
+        assertTrue(first.ok());
+        assertFalse(second.ok());
+        assertEquals(1, versionReads[0]);
+        assertEquals("21", second.version().orElseThrow());
+    }
+
+    @Test
     void parsesLegacyJavaEightVersion() {
         assertEquals("8", JdkDetector.majorVersion("java version \"1.8.0_402\"").orElseThrow());
     }

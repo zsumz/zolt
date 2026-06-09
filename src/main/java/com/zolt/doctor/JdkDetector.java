@@ -18,6 +18,7 @@ public final class JdkDetector {
     private final String osName;
     private final Optional<Path> runtimeJavaHome;
     private final ToolVersionReader versionReader;
+    private Toolchain toolchain;
 
     public JdkDetector() {
         this(
@@ -42,12 +43,27 @@ public final class JdkDetector {
     }
 
     public JdkStatus detect(String requiredVersion) {
+        Toolchain detected = toolchain();
+        return new JdkStatus(
+                detected.javaHome(),
+                detected.java(),
+                detected.javac(),
+                detected.jar(),
+                detected.version(),
+                requiredVersion);
+    }
+
+    private Toolchain toolchain() {
+        if (toolchain != null) {
+            return toolchain;
+        }
         Optional<Path> javaHome = value("JAVA_HOME").map(Path::of);
         Optional<Path> java = findTool("java", javaHome);
         Optional<Path> javac = findTool("javac", javaHome);
         Optional<Path> jar = findTool("jar", javaHome);
         Optional<String> version = java.flatMap(versionReader::read).flatMap(JdkDetector::majorVersion);
-        return new JdkStatus(javaHome, java, javac, jar, version, requiredVersion);
+        toolchain = new Toolchain(javaHome, java, javac, jar, version);
+        return toolchain;
     }
 
     static Optional<String> majorVersion(String versionOutput) {
@@ -131,5 +147,20 @@ public final class JdkDetector {
     @FunctionalInterface
     interface ToolVersionReader {
         Optional<String> read(Path java);
+    }
+
+    private record Toolchain(
+            Optional<Path> javaHome,
+            Optional<Path> java,
+            Optional<Path> javac,
+            Optional<Path> jar,
+            Optional<String> version) {
+        private Toolchain {
+            javaHome = javaHome == null ? Optional.empty() : javaHome;
+            java = java == null ? Optional.empty() : java;
+            javac = javac == null ? Optional.empty() : javac;
+            jar = jar == null ? Optional.empty() : jar;
+            version = version == null ? Optional.empty() : version;
+        }
     }
 }
