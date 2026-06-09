@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import io.quarkus.test.config.ConfigLauncherSession;
 import org.junit.jupiter.api.Test;
 
 final class QuarkusAnnotationProgrammaticRunnerTest {
@@ -13,6 +14,7 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     void executesSelectedJunitClassReflectively() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
+        ConfigLauncherSession.reset();
 
         int exitCode = new QuarkusAnnotationProgrammaticRunner().run(
                 new String[] {PassingTest.class.getName()},
@@ -22,6 +24,7 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
         assertEquals(0, exitCode);
         assertTrue(output(out).contains("Tests passed"));
         assertEquals("", output(err));
+        assertTrue(ConfigLauncherSession.opened());
     }
 
     @Test

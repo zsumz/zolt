@@ -54,6 +54,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                     .invoke(null);
             Class<?> sessionInterface = Class.forName("org.junit.platform.launcher.LauncherSession");
             try {
+                installQuarkusTestConfigSession(session, sessionInterface);
                 Object launcher = sessionInterface.getMethod("getLauncher").invoke(session);
                 Class<?> launcherInterface = Class.forName("org.junit.platform.launcher.Launcher");
                 Class<?> requestInterface = Class.forName("org.junit.platform.launcher.LauncherDiscoveryRequest");
@@ -92,6 +93,18 @@ public final class QuarkusAnnotationProgrammaticRunner {
             Object builder = builderClass.getMethod("request").invoke(null);
             builderClass.getMethod("selectors", List.class).invoke(builder, selectors);
             return builderClass.getMethod("build").invoke(builder);
+        }
+
+        private void installQuarkusTestConfigSession(Object session, Class<?> sessionInterface) {
+            try {
+                Class<?> configSessionClass = Class.forName("io.quarkus.test.config.ConfigLauncherSession");
+                Object configSession = configSessionClass.getDeclaredConstructor().newInstance();
+                configSessionClass
+                        .getMethod("launcherSessionOpened", sessionInterface)
+                        .invoke(configSession, session);
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                // Non-Quarkus tests and older Quarkus launchers can run without this setup.
+            }
         }
 
         private Object listener(
