@@ -1,6 +1,7 @@
 package com.zolt.workspace;
 
 import com.zolt.build.BuildResult;
+import com.zolt.classpath.ClasspathSet;
 import com.zolt.resolve.ResolveResult;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +38,7 @@ public record WorkspaceBuildResult(
 
     public record MemberBuildResult(
             String member,
-            BuildResult result) {
+            BuildResult result,
+            ClasspathSet classpaths) {
     }
 }

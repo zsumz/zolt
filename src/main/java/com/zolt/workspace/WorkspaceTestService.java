@@ -1,8 +1,6 @@
 package com.zolt.workspace;
 
 import com.zolt.build.TestRunService;
-import com.zolt.classpath.ClasspathSet;
-import com.zolt.lockfile.ZoltLockfile;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,22 +9,18 @@ import java.util.Map;
 
 public final class WorkspaceTestService {
     private final WorkspaceBuildService workspaceBuildService;
-    private final WorkspaceClasspathService workspaceClasspathService;
     private final TestRunService testRunService;
 
     public WorkspaceTestService() {
         this(
                 new WorkspaceBuildService(),
-                new WorkspaceClasspathService(),
                 new TestRunService());
     }
 
     WorkspaceTestService(
             WorkspaceBuildService workspaceBuildService,
-            WorkspaceClasspathService workspaceClasspathService,
             TestRunService testRunService) {
         this.workspaceBuildService = workspaceBuildService;
-        this.workspaceClasspathService = workspaceClasspathService;
         this.testRunService = testRunService;
     }
 
@@ -60,24 +54,18 @@ public final class WorkspaceTestService {
             Path cacheRoot) {
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
-        ZoltLockfile lockfile = plan.lockfile();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
         List<WorkspaceTestResult.MemberTestRunResult> results = new ArrayList<>();
         for (String memberPath : selection.selectedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
-            ClasspathSet classpaths = workspaceClasspathService.classpathsFor(
-                    workspace,
-                    lockfile,
-                    cacheRoot,
-                    member.path());
             results.add(new WorkspaceTestResult.MemberTestRunResult(
                     member.path(),
                     testRunService.runTests(
                             member.directory(),
                             member.config(),
-                            classpaths,
+                            memberBuild.classpaths(),
                             memberBuild.result())));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);

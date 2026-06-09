@@ -95,7 +95,8 @@ public final class WorkspaceBuildService {
             try {
                 results.add(new WorkspaceBuildResult.MemberBuildResult(
                         member.path(),
-                        buildService.build(member.directory(), member.config(), classpaths)));
+                        buildService.build(member.directory(), member.config(), classpaths),
+                        classpaths));
             } catch (JavacException exception) {
                 throw new JavacException(
                         exception.getMessage()

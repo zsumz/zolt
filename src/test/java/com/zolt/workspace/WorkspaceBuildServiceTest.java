@@ -89,6 +89,8 @@ final class WorkspaceBuildServiceTest {
                 .map(WorkspaceBuildResult.MemberBuildResult::member)
                 .toList());
         assertEquals(2, result.sourceCount());
+        assertTrue(result.members().get(1).classpaths().compile().entries()
+                .contains(tempDir.resolve("modules/core/target/classes")));
         assertTrue(Files.exists(tempDir.resolve("modules/core/target/classes/com/acme/core/Core.class")));
         assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
         assertTrue(Files.exists(tempDir.resolve("zolt.lock")));
