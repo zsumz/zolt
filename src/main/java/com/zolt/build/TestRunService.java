@@ -92,12 +92,20 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult) {
-        TestCompileResult compileResult = testCompileService.compileTests(
+        TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
+        return runTests(projectDirectory, config, classpaths, compileResult);
+    }
+
+    public TestCompileResult compileTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult) {
+        return testCompileService.compileTests(
                 projectDirectory,
                 config,
                 classpaths,
                 buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult);
     }
 
     private TestRunResult runTests(

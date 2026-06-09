@@ -1190,7 +1190,28 @@ public final class ZoltCli implements Runnable {
                         () -> {
                             TestCompileResultWithClasspaths compileResult = timings.measure(
                                     "compile tests",
-                                    () -> testRunService.compileTests(workingDirectory, config, cacheRoot),
+                                    () -> {
+                                        BuildResultWithClasspaths buildResult = timings.measure(
+                                                "build test inputs",
+                                                () -> new BuildService().buildWithClasspaths(
+                                                        workingDirectory,
+                                                        config,
+                                                        cacheRoot,
+                                                        false),
+                                                resultWithClasspaths -> buildAttributes(
+                                                        resultWithClasspaths.buildResult()));
+                                        TestCompileResult testCompileResult = timings.measure(
+                                                "compile test sources",
+                                                () -> testRunService.compileTests(
+                                                        workingDirectory,
+                                                        config,
+                                                        buildResult.classpaths(),
+                                                        buildResult.buildResult()),
+                                                ZoltCli::testCompileAttributes);
+                                        return new TestCompileResultWithClasspaths(
+                                                testCompileResult,
+                                                buildResult.classpaths());
+                                    },
                                     resultWithClasspaths -> testCompileAttributes(
                                             resultWithClasspaths.testCompileResult()));
                             return timings.measure(

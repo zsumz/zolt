@@ -2502,23 +2502,30 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Tests passed"));
         String[] lines = result.stderr().lines().toArray(String[]::new);
-        assertEquals(4, lines.length);
+        assertEquals(6, lines.length);
         assertTrue(lines[0].contains("\"phase\":\"config read\""));
         assertTrue(lines[0].contains("\"depth\":0"));
-        assertTrue(lines[1].contains("\"phase\":\"compile tests\""));
-        assertTrue(lines[1].contains("\"depth\":1"));
-        assertTrue(lines[1].contains("\"testSourceFiles\":\"1\""));
-        assertTrue(lines[1].contains("\"testCompilationSkipped\":\"false\""));
-        assertTrue(lines[2].contains("\"phase\":\"execute tests\""));
-        assertTrue(lines[2].contains("\"depth\":1"));
-        assertTrue(lines[2].contains("\"testRuntimeClasspathEntries\""));
-        assertTrue(lines[2].contains("\"testLauncherClasspathEntries\""));
-        assertTrue(lines[2].contains("\"outputBytes\""));
-        assertTrue(lines[3].contains("\"phase\":\"run tests\""));
-        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[1].contains("\"phase\":\"build test inputs\""));
+        assertTrue(lines[1].contains("\"depth\":2"));
+        assertTrue(lines[1].contains("\"mainCompilationSkipped\""));
+        assertTrue(lines[2].contains("\"phase\":\"compile test sources\""));
+        assertTrue(lines[2].contains("\"depth\":2"));
+        assertTrue(lines[2].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[2].contains("\"testCompilationSkipped\":\"false\""));
+        assertTrue(lines[3].contains("\"phase\":\"compile tests\""));
+        assertTrue(lines[3].contains("\"depth\":1"));
         assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
-        assertTrue(lines[3].contains("\"testRuntimeClasspathEntries\""));
-        assertTrue(lines[3].contains("\"testLauncherClasspathEntries\""));
+        assertTrue(lines[3].contains("\"testCompilationSkipped\":\"false\""));
+        assertTrue(lines[4].contains("\"phase\":\"execute tests\""));
+        assertTrue(lines[4].contains("\"depth\":1"));
+        assertTrue(lines[4].contains("\"testRuntimeClasspathEntries\""));
+        assertTrue(lines[4].contains("\"testLauncherClasspathEntries\""));
+        assertTrue(lines[4].contains("\"outputBytes\""));
+        assertTrue(lines[5].contains("\"phase\":\"run tests\""));
+        assertTrue(lines[5].contains("\"depth\":0"));
+        assertTrue(lines[5].contains("\"testSourceFiles\":\"1\""));
+        assertTrue(lines[5].contains("\"testRuntimeClasspathEntries\""));
+        assertTrue(lines[5].contains("\"testLauncherClasspathEntries\""));
     }
 
     @Test
