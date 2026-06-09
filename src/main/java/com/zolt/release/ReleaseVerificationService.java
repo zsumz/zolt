@@ -114,8 +114,8 @@ public final class ReleaseVerificationService {
             throw archiveFailure(archive, "`zolt --version` failed with exit code "
                     + result.exitCode() + ". Output:\n" + result.output());
         }
-        if (!result.output().contains("zolt " + expectedVersion)) {
-            throw archiveFailure(archive, "`zolt --version` did not print expected version zolt "
+        if (!result.output().trim().equals(expectedVersion)) {
+            throw archiveFailure(archive, "`zolt --version` did not print only expected version "
                     + expectedVersion + ". Output:\n" + result.output());
         }
     }

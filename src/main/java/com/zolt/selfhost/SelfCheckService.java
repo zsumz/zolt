@@ -153,12 +153,12 @@ public final class SelfCheckService {
 
         try {
             RunPackageResult runPackageResult = packagedApplicationRunner.run(root, config, cacheRoot, packageResult);
-            String expectedVersion = config.project().name() + " " + config.project().version();
+            String expectedVersion = config.project().version();
             String output = runPackageResult.javaRunResult().output();
-            if (!output.contains(expectedVersion)) {
+            if (!output.trim().equals(expectedVersion)) {
                 steps.add(failed(
                         "run packaged jar",
-                        "expected packaged application to print `" + expectedVersion + "` for --version"));
+                        "expected packaged application to print only `" + expectedVersion + "` for --version"));
                 return new SelfCheckResult(steps);
             }
             steps.add(new SelfCheckResult.SelfCheckStep(
@@ -190,11 +190,11 @@ public final class SelfCheckService {
             NativeBinaryRunResult nativeRunResult = nativeBinaryRunner.run(
                     nativeBuildResult.nativeImageResult().outputBinary(),
                     List.of("--version"));
-            String expectedVersion = config.project().name() + " " + config.project().version();
-            if (!nativeRunResult.output().contains(expectedVersion)) {
+            String expectedVersion = config.project().version();
+            if (!nativeRunResult.output().trim().equals(expectedVersion)) {
                 steps.add(failed(
                         "run native binary",
-                        "expected native binary to print `" + expectedVersion + "` for --version"));
+                        "expected native binary to print only `" + expectedVersion + "` for --version"));
                 return new SelfCheckResult(steps);
             }
             steps.add(new SelfCheckResult.SelfCheckStep(

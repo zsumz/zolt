@@ -125,11 +125,12 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "zolt",
         mixinStandardHelpOptions = true,
-        version = "zolt 0.1.0-SNAPSHOT",
+        version = ZoltCli.VERSION,
         description = "The modern Java build toolkit.",
         subcommands = {
                 CommandLine.HelpCommand.class,
                 ZoltCli.InitCommand.class,
+                ZoltCli.VersionCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
                 ZoltCli.PlatformCommand.class,
@@ -155,6 +156,8 @@ import picocli.CommandLine.Spec;
                 ZoltCli.DoctorCommand.class
         })
 public final class ZoltCli implements Runnable {
+    public static final String VERSION = "0.1.0-SNAPSHOT";
+
     @Spec
     private CommandSpec spec;
 
@@ -178,6 +181,17 @@ public final class ZoltCli implements Runnable {
 
         @Option(names = "--timings-format", description = "Timing output format: text or json.")
         private TimingFormat format = TimingFormat.TEXT;
+    }
+
+    @Command(name = "version", description = "Print the Zolt version.")
+    public static final class VersionCommand implements Runnable {
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            spec.commandLine().getOut().println(VERSION);
+        }
     }
 
     @Command(name = "init", description = "Create a new Zolt project.")

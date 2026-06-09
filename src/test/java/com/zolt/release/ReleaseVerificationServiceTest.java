@@ -51,7 +51,7 @@ final class ReleaseVerificationServiceTest {
                 }
                 return new ReleaseVerificationService.ProcessResult(0, "Created Zolt project at smoke\n");
             }
-            return new ReleaseVerificationService.ProcessResult(0, "zolt 0.1.0\n");
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
         });
 
         ReleaseVerificationResult result = service.verify(
@@ -165,7 +165,7 @@ final class ReleaseVerificationServiceTest {
                     throw new AssertionError(exception);
                 }
             }
-            return new ReleaseVerificationService.ProcessResult(0, "zolt 0.1.0\n");
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
         });
     }
 

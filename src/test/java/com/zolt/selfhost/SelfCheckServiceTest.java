@@ -66,7 +66,7 @@ final class SelfCheckServiceTest {
                     calls.add("run-package:" + packageResult.jarPath().getFileName());
                     return new RunPackageResult(
                             packageResult,
-                            new JavaRunResult("com.example.Main", "demo 0.1.0\n"));
+                            new JavaRunResult("com.example.Main", "0.1.0\n"));
                 },
                 (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
                     throw new AssertionError("native should not run");
@@ -93,7 +93,7 @@ final class SelfCheckServiceTest {
                         "package",
                         "run packaged jar"),
                 result.steps().stream().map(SelfCheckResult.SelfCheckStep::name).toList());
-        assertEquals("printed demo 0.1.0", result.steps().getLast().message());
+        assertEquals("printed 0.1.0", result.steps().getLast().message());
     }
 
     @Test
@@ -170,7 +170,7 @@ final class SelfCheckServiceTest {
 
         assertFalse(result.ok());
         assertEquals("run packaged jar", result.steps().getLast().name());
-        assertTrue(result.steps().getLast().message().contains("expected packaged application to print `demo 0.1.0`"));
+        assertTrue(result.steps().getLast().message().contains("expected packaged application to print only `0.1.0`"));
     }
 
     @Test
@@ -206,14 +206,14 @@ final class SelfCheckServiceTest {
                 (projectDirectory, config, suppliedBuildResult, cacheRoot) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
-                        new JavaRunResult("com.example.Main", "demo 0.1.0\n")),
+                        new JavaRunResult("com.example.Main", "0.1.0\n")),
                 (projectDirectory, config, cacheRoot, nativeImageExecutable) -> {
                     calls.add("native:" + nativeImageExecutable);
                     return nativeBuildResult;
                 },
                 (binary, arguments) -> {
                     calls.add("run-native:" + binary.getFileName() + ":" + arguments);
-                    return new SelfCheckService.NativeBinaryRunResult(binary, "demo 0.1.0\n");
+                    return new SelfCheckService.NativeBinaryRunResult(binary, "0.1.0\n");
                 });
 
         SelfCheckResult result = service.check(
@@ -235,7 +235,7 @@ final class SelfCheckServiceTest {
                         "native",
                         "run native binary"),
                 result.steps().stream().map(SelfCheckResult.SelfCheckStep::name).toList());
-        assertEquals("printed demo 0.1.0", result.steps().getLast().message());
+        assertEquals("printed 0.1.0", result.steps().getLast().message());
     }
 
     @Test
@@ -270,7 +270,7 @@ final class SelfCheckServiceTest {
                 (projectDirectory, config, suppliedBuildResult, cacheRoot) -> packageResult,
                 (projectDirectory, config, cacheRoot, suppliedPackageResult) -> new RunPackageResult(
                         suppliedPackageResult,
-                        new JavaRunResult("com.example.Main", "demo 0.1.0\n")),
+                        new JavaRunResult("com.example.Main", "0.1.0\n")),
                 (projectDirectory, config, cacheRoot, nativeImageExecutable) -> nativeBuildResult,
                 (binary, arguments) -> new SelfCheckService.NativeBinaryRunResult(binary, "usage\n"));
 
@@ -283,7 +283,7 @@ final class SelfCheckServiceTest {
 
         assertFalse(result.ok());
         assertEquals("run native binary", result.steps().getLast().name());
-        assertTrue(result.steps().getLast().message().contains("expected native binary to print `demo 0.1.0`"));
+        assertTrue(result.steps().getLast().message().contains("expected native binary to print only `0.1.0`"));
     }
 
     private BuildResult buildResult(Path projectDirectory, int sourceCount) {

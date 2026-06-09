@@ -36,14 +36,14 @@ public final class NativeSmokeService {
 
         Path workRoot = root.resolve(workDirectory).normalize();
         resetWorkDirectory(workRoot);
-        String expectedVersion = config.project().name() + " " + config.project().version();
+        String expectedVersion = config.project().version();
 
         ProcessResult version = run("version", workRoot, resolvedBinary, List.of("--version"));
-        if (!version.output().contains(expectedVersion)) {
+        if (!version.output().trim().equals(expectedVersion)) {
             throw new NativeSmokeException(
                     "Native smoke failed: expected `"
                             + resolvedBinary
-                            + " --version` to print `"
+                            + " --version` to print only `"
                             + expectedVersion
                             + "`. Output was:\n"
                             + version.output());

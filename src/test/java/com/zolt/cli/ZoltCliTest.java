@@ -36,7 +36,15 @@ final class ZoltCliTest {
         CommandResult result = execute("--version");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("zolt 0.1.0-SNAPSHOT"));
+        assertEquals("0.1.0-SNAPSHOT\n", result.stdout());
+    }
+
+    @Test
+    void versionCommandPrintsZoltVersion() {
+        CommandResult result = execute("version");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("0.1.0-SNAPSHOT\n", result.stdout());
     }
 
     @Test
@@ -58,6 +66,7 @@ final class ZoltCliTest {
         assertTrue(subcommands.containsAll(Set.of(
                 "help",
                 "init",
+                "version",
                 "add",
                 "remove",
                 "platform",

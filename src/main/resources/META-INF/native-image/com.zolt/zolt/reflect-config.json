@@ -36,6 +36,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$VersionCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$AddCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

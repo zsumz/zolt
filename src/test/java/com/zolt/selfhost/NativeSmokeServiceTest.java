@@ -48,7 +48,7 @@ final class NativeSmokeServiceTest {
                 return new NativeSmokeService.ProcessResult(0, "Created Zolt project at hello-native\n");
             }
             if (command.contains("--version")) {
-                return new NativeSmokeService.ProcessResult(0, "zolt 0.1.0\n");
+                return new NativeSmokeService.ProcessResult(0, "0.1.0\n");
             }
             if (command.contains("run")) {
                 return new NativeSmokeService.ProcessResult(0, "Hello from hello-native!\n");
@@ -88,7 +88,7 @@ final class NativeSmokeServiceTest {
                 () -> service.smoke(tempDir, config(), binary, Path.of("target/native-smoke")));
 
         assertTrue(exception.getMessage().contains("expected `"));
-        assertTrue(exception.getMessage().contains("zolt 0.1.0"));
+        assertTrue(exception.getMessage().contains("0.1.0"));
     }
 
     @Test
