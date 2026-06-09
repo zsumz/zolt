@@ -2,6 +2,7 @@ package com.zolt.quarkus;
 
 import java.io.PrintStream;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -45,7 +46,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
             Class<?> listenerInterface = Class.forName("org.junit.platform.launcher.TestExecutionListener");
             AtomicBoolean containsTests = new AtomicBoolean(false);
             AtomicBoolean failed = new AtomicBoolean(false);
-            Object listener = listener(listenerInterface, containsTests, failed);
+            Object listener = listener(listenerInterface, testClasses, containsTests, failed);
 
             Object request = discoveryRequest(testClasses);
             Object session = Class.forName("org.junit.platform.launcher.core.LauncherFactory")
@@ -95,11 +96,15 @@ public final class QuarkusAnnotationProgrammaticRunner {
 
         private Object listener(
                 Class<?> listenerInterface,
+                List<String> testClasses,
                 AtomicBoolean containsTests,
                 AtomicBoolean failed) {
             InvocationHandler handler = (proxy, method, args) -> {
                 switch (method.getName()) {
-                    case "testPlanExecutionStarted" -> containsTests.set(containsTests(args[0]));
+                    case "testPlanExecutionStarted" -> {
+                        containsTests.set(containsTests(args[0]));
+                        switchToQuarkusFacadeTestClassLoader(testClasses);
+                    }
                     case "executionFinished" -> recordResult(args[1], failed);
                     default -> {
                     }
@@ -114,6 +119,24 @@ public final class QuarkusAnnotationProgrammaticRunner {
 
         private static boolean containsTests(Object testPlan) throws ReflectiveOperationException {
             return (boolean) testPlan.getClass().getMethod("containsTests").invoke(testPlan);
+        }
+
+        private void switchToQuarkusFacadeTestClassLoader(List<String> testClasses) {
+            if (testClasses.isEmpty()) {
+                return;
+            }
+            try {
+                Class<?> interceptor = Class.forName("io.quarkus.test.junit.launcher.CustomLauncherInterceptor");
+                Field facadeLoaderField = interceptor.getDeclaredField("facadeLoader");
+                facadeLoaderField.setAccessible(true);
+                Object facadeLoader = facadeLoaderField.get(null);
+                if (facadeLoader instanceof ClassLoader classLoader) {
+                    Class<?> testClass = Class.forName(testClasses.getFirst(), false, classLoader);
+                    Thread.currentThread().setContextClassLoader(testClass.getClassLoader());
+                }
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                // Non-Quarkus tests and older Quarkus launchers can run without this handoff.
+            }
         }
 
         private void recordResult(Object result, AtomicBoolean failed) throws ReflectiveOperationException {

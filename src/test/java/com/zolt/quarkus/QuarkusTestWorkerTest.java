@@ -263,9 +263,10 @@ final class QuarkusTestWorkerTest {
                         List.of()));
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.output().contains("reached Quarkus JUnit execution"));
-        assertTrue(result.output().contains("filtering the conflicting JUnit launcher-session listener"));
+        assertTrue(result.output().contains("programmatic runner and facade-loader context-classloader handoff"));
         assertTrue(result.output().contains("missing Quarkus TestConfig mapping"));
+        assertTrue(result.output().contains("moved this descriptor-enabled probe past"));
+        assertTrue(result.output().contains("TestHttpEndpointProvider service-loading split"));
         assertTrue(result.output().contains("SRCFG00027"));
     }
 

@@ -118,10 +118,11 @@ public final class QuarkusAnnotationWorkerRunner {
                     + "\n";
             }
             if (testConfigMappingMissing(result.output())) {
-                return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution after filtering "
-                    + "the conflicting JUnit launcher-session listener, then hit a missing Quarkus TestConfig "
-                    + "mapping. Zolt still needs to align the Quarkus test runtime classloader, thread context "
-                    + "classloader, and config mapping ownership before @QuarkusTest can be enabled. Keep using "
+                return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution through Zolt's "
+                    + "programmatic runner and facade-loader context-classloader handoff, then hit a missing "
+                    + "Quarkus TestConfig mapping. That handoff moved this descriptor-enabled probe past the "
+                    + "runtime TestHttpEndpointProvider service-loading split, but Zolt still needs to align "
+                    + "Quarkus test config mapping ownership before @QuarkusTest can be enabled. Keep using "
                     + "plain JUnit tests for now, or run `zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()
