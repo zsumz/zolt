@@ -98,6 +98,31 @@ final class RawPomParserTest {
     }
 
     @Test
+    void parsesDistributionManagementRelocation() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-junit5</artifactId>
+                  <version>3.33.2</version>
+                  <distributionManagement>
+                    <relocation>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-junit</artifactId>
+                      <version>3.33.2</version>
+                      <message>Use quarkus-junit instead.</message>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+
+        RawPomRelocation relocation = pom.relocation().orElseThrow();
+        assertEquals("io.quarkus", relocation.groupId().orElseThrow());
+        assertEquals("quarkus-junit", relocation.artifactId().orElseThrow());
+        assertEquals("3.33.2", relocation.version().orElseThrow());
+        assertEquals("Use quarkus-junit instead.", relocation.message().orElseThrow());
+    }
+
+    @Test
     void defaultsPackagingToJar() {
         RawPom pom = parser.parse("""
                 <project>

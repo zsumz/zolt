@@ -20,6 +20,7 @@ public final class DependencyGraphTraverser {
     private final PomDependencyManager dependencyManager;
     private final DependencyNormalizer normalizer;
     private final DependencyTraversalPolicy traversalPolicy;
+    private final DependencyRelocator relocator;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
         this(
@@ -38,6 +39,7 @@ public final class DependencyGraphTraverser {
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
         this.traversalPolicy = traversalPolicy;
+        this.relocator = new DependencyRelocator(metadataSource);
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
@@ -52,25 +54,24 @@ public final class DependencyGraphTraverser {
 
         while (!queue.isEmpty()) {
             TraversalItem item = queue.removeFirst();
-            String version = requireVersion(item.request());
-            PackageNode node = node(item.request(), version);
+            DependencyRelocator.RelocationResult relocated = relocator.relocateWithPom(item.request());
+            DependencyRequest request = relocated.request();
+            String version = requireVersion(request);
+            PackageNode node = node(request, version);
             NodeKey nodeKey = NodeKey.from(node);
             nodes.putIfAbsent(nodeKey, node);
 
             item.parent().ifPresent(parent -> edges.add(new ResolutionEdge(
                     parent,
                     node,
-                    item.request(),
+                    request,
                     item.decision())));
 
             if (!visited.add(VisitKey.from(node, item.request().scope()))) {
                 continue;
             }
 
-            EffectiveRawPom pom = metadataSource.load(new Coordinate(
-                    node.packageId().groupId(),
-                    node.packageId().artifactId(),
-                    Optional.of(node.selectedVersion())));
+            EffectiveRawPom pom = relocated.pom();
             List<NormalizedDependency> dependencies = dependencyManager.applyManagedVersions(pom).stream()
                     .map(normalizer::normalize)
                     .sorted(Comparator.comparing(DependencyGraphTraverser::dependencySortKey))
@@ -102,12 +103,12 @@ public final class DependencyGraphTraverser {
                                         + ":"
                                         + node.selectedVersion()
                                         + " does not declare or inherit a version."));
-                DependencyRequest request = new DependencyRequest(
+                DependencyRequest transitiveRequest = new DependencyRequest(
                         new PackageId(dependency.rawDependency().groupId(), dependency.rawDependency().artifactId()),
                         requestedVersion,
                         requestScope.orElseThrow(),
                         RequestOrigin.TRANSITIVE);
-                queue.add(TraversalItem.transitive(node, request, dependency.exclusions(), decision));
+                queue.add(TraversalItem.transitive(node, transitiveRequest, dependency.exclusions(), decision));
             }
         }
 

@@ -896,6 +896,53 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void directTestDependencyRelocationLocksRelocatedArtifact() {
+        addPom("io.quarkus", "quarkus-junit5", "3.33.2", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-junit5</artifactId>
+                  <version>3.33.2</version>
+                  <distributionManagement>
+                    <relocation>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-junit</artifactId>
+                      <version>3.33.2</version>
+                      <message>Use io.quarkus:quarkus-junit instead.</message>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+        addArtifact("io.quarkus", "quarkus-junit", "3.33.2", """
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-junit</artifactId>
+                  <version>3.33.2</version>
+                </project>
+                """);
+        addJUnitConsoleArtifact("1.11.4");
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithTestDependencies(Map.of("io.quarkus:quarkus-junit5", "3.33.2")),
+                cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-junit"))
+                        && lockPackage.version().equals("3.33.2")
+                        && lockPackage.scope() == DependencyScope.TEST
+                        && lockPackage.direct()
+                        && lockPackage.jar().orElseThrow().equals(
+                                "io/quarkus/quarkus-junit/3.33.2/quarkus-junit-3.33.2.jar")));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.quarkus", "quarkus-junit5"))));
+    }
+
+    @Test
     void annotationProcessorsResolveToProcessorScopesOnly() {
         addArtifact("com.example", "processor", "1.0.0", """
                 <project>

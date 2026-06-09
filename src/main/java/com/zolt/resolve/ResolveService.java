@@ -117,7 +117,7 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
-        List<DependencyRequest> directRequests = directRequests(config, managedVersions);
+        List<DependencyRequest> directRequests = relocateDirectRequests(context, directRequests(config, managedVersions));
         ResolutionState initial = resolveGraph(context, directRequests);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         if (config.frameworkSettings().quarkus().enabled()) {
@@ -140,6 +140,15 @@ public final class ResolveService {
         DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
         ResolutionGraph graph = traverser.traverse(requests);
         return new ResolutionState(graph, versionSelector.select(requests, graph));
+    }
+
+    private List<DependencyRequest> relocateDirectRequests(
+            RepositoryContext context,
+            List<DependencyRequest> directRequests) {
+        DependencyRelocator relocator = new DependencyRelocator(context);
+        return directRequests.stream()
+                .map(relocator::relocate)
+                .toList();
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {

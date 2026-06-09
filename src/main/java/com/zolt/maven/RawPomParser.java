@@ -36,12 +36,14 @@ public final class RawPomParser {
         }
 
         Optional<RawPomParent> parent = child(project, "parent").map(this::parseParent);
+        Optional<RawPomRelocation> relocation = parseRelocation(project);
         return new RawPom(
                 text(project, "groupId"),
                 requiredText(project, "artifactId", "project"),
                 text(project, "version"),
                 text(project, "packaging").orElse("jar"),
                 parent,
+                relocation,
                 parseProperties(project),
                 parseDependencyManagement(project),
                 parseDependencies(child(project, "dependencies")));
@@ -77,6 +79,16 @@ public final class RawPomParser {
                 requiredText(parent, "artifactId", "parent"),
                 requiredText(parent, "version", "parent"),
                 text(parent, "relativePath"));
+    }
+
+    private Optional<RawPomRelocation> parseRelocation(Element project) {
+        return child(project, "distributionManagement")
+                .flatMap(distributionManagement -> child(distributionManagement, "relocation"))
+                .map(relocation -> new RawPomRelocation(
+                        text(relocation, "groupId"),
+                        text(relocation, "artifactId"),
+                        text(relocation, "version"),
+                        text(relocation, "message")));
     }
 
     private Map<String, String> parseProperties(Element project) {
