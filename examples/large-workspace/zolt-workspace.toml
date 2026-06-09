@@ -1,0 +1,7 @@
+[workspace]
+name = "large-workspace"
+members = ["modules/core", "modules/service", "apps/app"]
+defaultMembers = ["apps/app"]
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
