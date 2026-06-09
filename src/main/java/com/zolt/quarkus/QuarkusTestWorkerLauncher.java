@@ -51,7 +51,8 @@ public final class QuarkusTestWorkerLauncher {
             throw new QuarkusAugmentationException(
                     "Quarkus test worker failed with exit code "
                             + result.exitCode()
-                            + ". Use `zolt test` for plain JUnit tests until the dedicated Quarkus test runner is implemented.\n"
+                            + ". Inspect the worker output, fix failing tests or unsupported Quarkus test shapes, "
+                            + "then run `zolt test` again.\n"
                             + result.output().stripTrailing());
         }
         return result.output();

@@ -52,7 +52,7 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
-    void reportsPlainJunitReadyPlanBeforeCurrentNotImplementedFailure() {
+    void runsPlainJunitReadyPlan() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusTestRunnerDescriptor descriptor = descriptor();
@@ -62,15 +62,39 @@ final class QuarkusTestWorkerTest {
                         descriptor,
                         QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
                         List.of()),
+                descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, "Tests passed\n"),
                 out,
                 err);
 
         int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
 
-        assertEquals(2, exitCode);
+        assertEquals(0, exitCode);
         assertTrue(output(out).contains("Status: plain JUnit ready"));
         assertTrue(output(out).contains("Unsupported Quarkus tests: 0"));
-        assertTrue(output(err).contains("Dedicated Quarkus test worker execution is not implemented yet"));
+        assertTrue(output(out).contains("Tests passed"));
+        assertEquals("", output(err));
+    }
+
+    @Test
+    void returnsPlainJunitFailureCodeAndOutput() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestRunnerDescriptor descriptor = descriptor();
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
+                        List.of()),
+                descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(3, "Tests failed\n"),
+                out,
+                err);
+
+        int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
+
+        assertEquals(3, exitCode);
+        assertTrue(output(out).contains("Tests failed"));
+        assertEquals("", output(err));
     }
 
     @Test
@@ -84,6 +108,7 @@ final class QuarkusTestWorkerTest {
                         descriptor,
                         QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
                         List.of()),
+                descriptor -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -101,6 +126,7 @@ final class QuarkusTestWorkerTest {
                 descriptor -> {
                     throw new QuarkusAugmentationException("bad plan");
                 },
+                descriptor -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
@@ -120,6 +146,7 @@ final class QuarkusTestWorkerTest {
                         descriptor,
                         QuarkusTestWorkerPlanStatus.PLAIN_JUNIT_READY,
                         List.of()),
+                descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
                 out,
                 err);
     }
@@ -129,9 +156,24 @@ final class QuarkusTestWorkerTest {
             QuarkusTestWorkerPlan plan,
             ByteArrayOutputStream out,
             ByteArrayOutputStream err) {
+        return worker(
+                descriptor,
+                plan,
+                descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, ""),
+                out,
+                err);
+    }
+
+    private static QuarkusTestWorker worker(
+            QuarkusTestRunnerDescriptor descriptor,
+            QuarkusTestWorkerPlan plan,
+            QuarkusTestWorker.PlainJunitRunner plainJunitRunner,
+            ByteArrayOutputStream out,
+            ByteArrayOutputStream err) {
         return new QuarkusTestWorker(
                 path -> descriptor,
                 actualDescriptor -> plan,
+                plainJunitRunner,
                 new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
     }

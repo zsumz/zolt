@@ -8,6 +8,7 @@ public final class QuarkusTestWorker {
 
     private final DescriptorReader descriptorReader;
     private final PlanService planService;
+    private final PlainJunitRunner plainJunitRunner;
     private final PrintStream out;
     private final PrintStream err;
 
@@ -15,6 +16,7 @@ public final class QuarkusTestWorker {
         this(
                 new QuarkusTestRunnerDescriptorReader()::read,
                 new QuarkusTestWorkerPlanService()::plan,
+                new QuarkusPlainJunitWorkerRunner()::run,
                 System.out,
                 System.err);
     }
@@ -22,6 +24,7 @@ public final class QuarkusTestWorker {
     QuarkusTestWorker(
             DescriptorReader descriptorReader,
             PlanService planService,
+            PlainJunitRunner plainJunitRunner,
             PrintStream out,
             PrintStream err) {
         if (descriptorReader == null) {
@@ -29,6 +32,9 @@ public final class QuarkusTestWorker {
         }
         if (planService == null) {
             throw new QuarkusAugmentationException("Quarkus test worker plan service is required.");
+        }
+        if (plainJunitRunner == null) {
+            throw new QuarkusAugmentationException("Quarkus test worker plain JUnit runner is required.");
         }
         if (out == null) {
             throw new QuarkusAugmentationException("Quarkus test worker output stream is required.");
@@ -38,6 +44,7 @@ public final class QuarkusTestWorker {
         }
         this.descriptorReader = descriptorReader;
         this.planService = planService;
+        this.plainJunitRunner = plainJunitRunner;
         this.out = out;
         this.err = err;
     }
@@ -71,6 +78,11 @@ public final class QuarkusTestWorker {
         for (QuarkusUnsupportedTest test : plan.unsupportedTests()) {
             out.println("  " + test.relativePath() + " (" + test.annotationName() + ")");
         }
+        if (plan.plainJunitReady()) {
+            QuarkusPlainJunitWorkerRunner.Result result = plainJunitRunner.run(descriptor);
+            out.print(result.output());
+            return result.exitCode();
+        }
         err.println(errorMessage(plan));
         return 2;
     }
@@ -103,5 +115,10 @@ public final class QuarkusTestWorker {
     @FunctionalInterface
     interface PlanService {
         QuarkusTestWorkerPlan plan(QuarkusTestRunnerDescriptor descriptor);
+    }
+
+    @FunctionalInterface
+    interface PlainJunitRunner {
+        QuarkusPlainJunitWorkerRunner.Result run(QuarkusTestRunnerDescriptor descriptor);
     }
 }

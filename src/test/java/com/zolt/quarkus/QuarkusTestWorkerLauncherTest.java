@@ -50,7 +50,7 @@ final class QuarkusTestWorkerLauncherTest {
                 () -> launcher.run(descriptor()));
 
         assertTrue(exception.getMessage().contains("Quarkus test worker failed with exit code 2"));
-        assertTrue(exception.getMessage().contains("plain JUnit"));
+        assertTrue(exception.getMessage().contains("unsupported Quarkus test shapes"));
         assertTrue(exception.getMessage().contains("not implemented"));
     }
 
