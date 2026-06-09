@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,6 +52,10 @@ final class TestRunServiceTest {
         assertTrue(command.contains("--disable-banner"));
         assertTrue(command.contains("--scan-class-path"));
         assertTrue(command.contains("--details"));
+        String launcherClasspath = launcherClasspath(command);
+        assertTrue(launcherClasspath.contains("junit-platform-console-standalone-1.11.4.jar"));
+        assertFalse(launcherClasspath.contains("target/test-classes"));
+        assertFalse(launcherClasspath.contains("target/classes"));
         assertTrue(command.stream().anyMatch(value -> value.contains("target/test-classes")));
         assertTrue(command.stream().anyMatch(value -> value.contains("target/classes")));
         assertTrue(command.stream().anyMatch(value -> value.contains("junit-platform-console-standalone-1.11.4.jar")));
@@ -121,7 +126,37 @@ final class TestRunServiceTest {
         assertEquals("-Djava.util.logging.manager=org.jboss.logmanager.LogManager", command.get(2));
         assertTrue(command.indexOf("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
                 < command.indexOf("-classpath"));
+        String launcherClasspath = launcherClasspath(command);
+        assertTrue(launcherClasspath.contains("junit-platform-console-standalone-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("jboss-logmanager-3.1.2.Final.jar"));
         assertTrue(command.stream().anyMatch(value -> value.contains("jboss-logmanager-3.1.2.Final.jar")));
+    }
+
+    @Test
+    void nonStandaloneConsoleLaunchesWithJUnitPlatformRuntimeClasspath() throws IOException {
+        writeNonStandaloneConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        service.runTests(projectDir, config(), projectDir.resolve("cache"));
+
+        String launcherClasspath = launcherClasspath(commands.getFirst());
+        assertTrue(launcherClasspath.contains("junit-platform-console-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("junit-platform-reporting-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("junit-platform-launcher-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("junit-platform-engine-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("junit-platform-commons-1.11.4.jar"));
+        assertTrue(launcherClasspath.contains("apiguardian-api-1.1.2.jar"));
+        assertTrue(launcherClasspath.contains("opentest4j-1.3.0.jar"));
+        assertFalse(launcherClasspath.contains("junit-jupiter-engine-5.11.4.jar"));
+        assertFalse(launcherClasspath.contains("target/test-classes"));
+        assertTrue(commandArgumentAfter(commands.getFirst(), "--class-path").contains("junit-jupiter-engine-5.11.4.jar"));
+        assertTrue(commandArgumentAfter(commands.getFirst(), "--class-path").contains("target/test-classes"));
     }
 
     @Test
@@ -345,6 +380,84 @@ final class TestRunServiceTest {
                 """);
     }
 
+    private void writeNonStandaloneConsoleLockfile() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.apiguardian:apiguardian-api"
+                version = "1.1.2"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.jupiter:junit-jupiter-engine"
+                version = "5.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/jupiter/junit-jupiter-engine/5.11.4/junit-jupiter-engine-5.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-commons"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-commons/1.11.4/junit-platform-commons-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-console/1.11.4/junit-platform-console-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-engine"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-engine/1.11.4/junit-platform-engine-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-launcher"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-launcher/1.11.4/junit-platform-launcher-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-reporting"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-reporting/1.11.4/junit-platform-reporting-1.11.4.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.opentest4j:opentest4j"
+                version = "1.3.0"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar"
+                dependencies = []
+                """);
+    }
+
     private void source(String path, String content) throws IOException {
         Path source = projectDir.resolve(path);
         Files.createDirectories(source.getParent());
@@ -386,5 +499,16 @@ final class TestRunServiceTest {
             return parts[1];
         }
         return parts[0];
+    }
+
+    private static String launcherClasspath(List<String> command) {
+        return commandArgumentAfter(command, "-classpath");
+    }
+
+    private static String commandArgumentAfter(List<String> command, String argument) {
+        int index = command.indexOf(argument);
+        assertTrue(index >= 0, "missing command argument " + argument + " in " + command);
+        assertTrue(index + 1 < command.size(), "missing value after command argument " + argument + " in " + command);
+        return command.get(index + 1);
     }
 }

@@ -142,7 +142,7 @@ public final class TestRunService {
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
-                new Classpath(runnerClasspath),
+                new Classpath(junitLauncherClasspath(runnerClasspath)),
                 CONSOLE_MAIN_CLASS,
                 jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
                 List.of(
@@ -212,6 +212,42 @@ public final class TestRunService {
     private static boolean isConsoleJar(Path path) {
         String name = path.getFileName() == null ? "" : path.getFileName().toString();
         return name.startsWith("junit-platform-console") && name.endsWith(".jar");
+    }
+
+    private static List<Path> junitLauncherClasspath(List<Path> runnerClasspath) {
+        List<Path> launcherClasspath = new ArrayList<>();
+        boolean hasStandaloneConsole = runnerClasspath.stream().anyMatch(TestRunService::isStandaloneConsoleJar);
+        for (Path entry : runnerClasspath) {
+            if (hasStandaloneConsole) {
+                if (isStandaloneConsoleJar(entry) || isJbossLogManagerJar(entry)) {
+                    launcherClasspath.add(entry);
+                }
+            } else if (isJunitPlatformRuntimeJar(entry)
+                    || isJunitPlatformSupportJar(entry)
+                    || isJbossLogManagerJar(entry)) {
+                launcherClasspath.add(entry);
+            }
+        }
+        return List.copyOf(launcherClasspath);
+    }
+
+    private static boolean isStandaloneConsoleJar(Path path) {
+        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+        return name.startsWith("junit-platform-console-standalone-") && name.endsWith(".jar");
+    }
+
+    private static boolean isJunitPlatformRuntimeJar(Path path) {
+        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+        return name.startsWith("junit-platform-console-")
+                || name.startsWith("junit-platform-reporting-")
+                || name.startsWith("junit-platform-launcher-")
+                || name.startsWith("junit-platform-engine-")
+                || name.startsWith("junit-platform-commons-");
+    }
+
+    private static boolean isJunitPlatformSupportJar(Path path) {
+        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+        return name.startsWith("apiguardian-api-") || name.startsWith("opentest4j-");
     }
 
     private List<String> jvmArguments(
