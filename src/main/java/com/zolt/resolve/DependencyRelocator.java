@@ -3,6 +3,7 @@ package com.zolt.resolve;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
+import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPomRelocation;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +15,7 @@ final class DependencyRelocator {
     private static final int MAX_RELOCATION_DEPTH = 16;
 
     private final DependencyMetadataSource metadataSource;
+    private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
     private final Map<String, RelocationTarget> cache = new HashMap<>();
 
     DependencyRelocator(DependencyMetadataSource metadataSource) {
@@ -50,7 +52,10 @@ final class DependencyRelocator {
                 return cacheResult(relocationStack, current, pom);
             }
 
-            DependencyRequest relocated = relocatedRequest(current, pom, relocation.orElseThrow());
+            DependencyRequest relocated = relocatedRequest(
+                    current,
+                    pom,
+                    interpolator.interpolateRelocation(relocation.orElseThrow(), pom));
             if (coordinate(relocated).equals(coordinate)) {
                 return cacheResult(relocationStack, current, pom);
             }

@@ -53,7 +53,7 @@ final class DependencyGraphTraverserTest {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
         source.put(
                 "io.quarkus:quarkus-junit5:3.33.2",
-                relocatedPom("io.quarkus", "quarkus-junit5", "3.33.2", "io.quarkus", "quarkus-junit", "3.33.2"));
+                relocatedPom("io.quarkus", "quarkus-junit5", "3.33.2", "io.quarkus", "quarkus-junit", "${project.version}"));
         source.put("io.quarkus:quarkus-junit:3.33.2", pom("io.quarkus", "quarkus-junit", "3.33.2", List.of()));
 
         ResolutionGraph graph = traverser(source).traverse(List.of(directTest("io.quarkus", "quarkus-junit5", "3.33.2")));

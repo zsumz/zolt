@@ -155,6 +155,34 @@ final class PomPropertyInterpolatorTest {
     }
 
     @Test
+    void interpolatesRelocationFields() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-junit5</artifactId>
+                  <version>3.33.2</version>
+                  <distributionManagement>
+                    <relocation>
+                      <groupId>${project.groupId}</groupId>
+                      <artifactId>quarkus-junit</artifactId>
+                      <version>${project.version}</version>
+                      <message>Use ${project.groupId}:quarkus-junit.</message>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+
+        RawPomRelocation relocation = interpolator.interpolateRelocation(
+                pom.rawPom().relocation().orElseThrow(),
+                pom);
+
+        assertEquals("io.quarkus", relocation.groupId().orElseThrow());
+        assertEquals("quarkus-junit", relocation.artifactId().orElseThrow());
+        assertEquals("3.33.2", relocation.version().orElseThrow());
+        assertEquals("Use io.quarkus:quarkus-junit.", relocation.message().orElseThrow());
+    }
+
+    @Test
     void unresolvedPropertyProducesActionableErrorWithCoordinateContext() {
         EffectiveRawPom pom = effective("""
                 <project>

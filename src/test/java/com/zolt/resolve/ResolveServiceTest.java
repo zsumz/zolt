@@ -906,7 +906,7 @@ final class ResolveServiceTest {
                     <relocation>
                       <groupId>io.quarkus</groupId>
                       <artifactId>quarkus-junit</artifactId>
-                      <version>3.33.2</version>
+                      <version>${project.version}</version>
                       <message>Use io.quarkus:quarkus-junit instead.</message>
                     </relocation>
                   </distributionManagement>

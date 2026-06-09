@@ -28,6 +28,14 @@ public final class PomPropertyInterpolator {
                         .toList());
     }
 
+    public RawPomRelocation interpolateRelocation(RawPomRelocation relocation, EffectiveRawPom pom) {
+        return new RawPomRelocation(
+                relocation.groupId().map(value -> interpolate(value, pom)),
+                relocation.artifactId().map(value -> interpolate(value, pom)),
+                relocation.version().map(value -> interpolate(value, pom)),
+                relocation.message().map(value -> interpolate(value, pom)));
+    }
+
     private String interpolate(String value, Map<String, String> properties, String context, Set<String> propertyStack) {
         String result = value;
         int start = result.indexOf("${");
