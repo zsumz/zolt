@@ -114,7 +114,10 @@ final class QuarkusTestWorkerTest {
                                 api,
                                 List.of("com.example.HttpTest"),
                                 List.of("-Duser.dir=/repo"),
-                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of(
+                                        Path.of("/cache/io/quarkus/quarkus-core-3.33.2.jar"),
+                                        Path.of("/cache/io/quarkus/quarkus-rest-3.33.2.jar"),
+                                        Path.of("/cache/junit-platform-console.jar")),
                                 List.of("org.junit.platform.console.ConsoleLauncher")),
                         request -> {
                             launchRequests.add(request);
@@ -292,6 +295,8 @@ final class QuarkusTestWorkerTest {
         assertTrue(result.output().contains("reached Quarkus application startup"));
         assertTrue(result.output().contains("runtime service-provider classloader split"));
         assertTrue(result.output().contains("moved past the TestConfig mapping blocker"));
+        assertTrue(result.output().contains("Classpath ownership:"));
+        assertTrue(result.output().contains("TestHttpEndpointProvider service loading"));
         assertTrue(result.output().contains("ResteasyReactiveTestHttpProvider not a subtype"));
     }
 

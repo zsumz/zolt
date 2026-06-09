@@ -67,6 +67,26 @@ final class QuarkusAnnotationClasspathSplitDiagnosticTest {
         assertTrue(output.contains("io.quarkus.builder.item.MultiBuildItem"));
     }
 
+    @Test
+    void reportsRuntimeServiceProviderSplitOwnership() {
+        Path quarkusCore = Path.of("/cache/io/quarkus/quarkus-core-3.33.2.jar");
+        Path quarkusRest = Path.of("/cache/io/quarkus/quarkus-rest-3.33.2.jar");
+        Path quarkusRestCommon = Path.of("/cache/io/quarkus/quarkus-rest-common-3.33.2.jar");
+        QuarkusAnnotationClasspathSplitDiagnostic diagnostic = new QuarkusAnnotationClasspathSplitDiagnostic(
+                descriptorFile -> bootstrapDescriptor(List.of(quarkusCore, quarkusRest)));
+
+        String output = diagnostic.describeRuntimeServiceProviderSplit(request(List.of(
+                Path.of("/repo/target/test-classes"),
+                quarkusRestCommon,
+                quarkusCore,
+                quarkusRest)));
+
+        assertTrue(output.contains("quarkus-core-3.33.2.jar provides io.quarkus.runtime.test.TestHttpEndpointProvider"));
+        assertTrue(output.contains("annotation JVM launcher classpath and is also present on the Quarkus deployment classpath"));
+        assertTrue(output.contains("quarkus-rest-3.33.2.jar provides io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider"));
+        assertTrue(output.contains("through META-INF/services and is also present on the Quarkus deployment classpath"));
+        assertTrue(output.contains("one classloader identity for both the service type and provider"));
+    }
 
     private static QuarkusAnnotationLaunchRequest request(List<Path> testRuntimeClasspath) {
         return new QuarkusAnnotationLaunchRequest(

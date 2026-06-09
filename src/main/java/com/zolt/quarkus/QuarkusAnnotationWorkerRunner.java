@@ -111,7 +111,8 @@ public final class QuarkusAnnotationWorkerRunner {
                     + "annotation probe from the JVM classpath moved past the TestConfig mapping blocker, but "
                     + "Zolt still needs to align Quarkus runtime service loading before @QuarkusTest can be "
                     + "enabled. Keep using plain JUnit tests for now, or run `zolt quarkus test-plan` to inspect "
-                    + "blocked tests."
+                    + "blocked tests. "
+                    + classpathSplitDiagnostic.describeRuntimeServiceProviderSplit(request)
                     + "\n"
                     + result.output().stripTrailing()
                     + "\n";

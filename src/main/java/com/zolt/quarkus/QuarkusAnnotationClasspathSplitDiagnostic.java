@@ -47,6 +47,19 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
                 + " Quarkus JUnit needs io.quarkus.builder.item.MultiBuildItem while preparing test augmentation.";
     }
 
+    public String describeRuntimeServiceProviderSplit(QuarkusAnnotationLaunchRequest request) {
+        if (request == null) {
+            throw new QuarkusAugmentationException("Quarkus annotation classpath split diagnostic requires a request.");
+        }
+        List<Path> sharedClasspath = sharedClasspathIfReadable(request);
+        return "Classpath ownership: "
+                + runtimeServiceTypeOwnership(request.launcherClasspath(), sharedClasspath)
+                + " "
+                + runtimeServiceProviderOwnership(request.launcherClasspath(), sharedClasspath)
+                + " Quarkus JUnit reached application startup and needs TestHttpEndpointProvider service loading "
+                + "to use one classloader identity for both the service type and provider.";
+    }
+
     private static String description(List<Path> sharedClasspath) {
         return "Classpath ownership: "
                 + quarkusBuilderOwnership(sharedClasspath)
@@ -72,6 +85,44 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
                 .orElse("quarkus-builder is absent from the annotation JVM launcher classpath.");
     }
 
+    private List<Path> sharedClasspathIfReadable(QuarkusAnnotationLaunchRequest request) {
+        try {
+            QuarkusBootstrapDescriptor bootstrapDescriptor =
+                    bootstrapDescriptorReader.read(request.descriptor().bootstrapDescriptorFile());
+            return sharedClasspath(request.descriptor().testRuntimeClasspath(), bootstrapDescriptor.deploymentClasspath());
+        } catch (QuarkusAugmentationException exception) {
+            return List.of();
+        }
+    }
+
+    private static String runtimeServiceTypeOwnership(List<Path> launcherClasspath, List<Path> sharedClasspath) {
+        return launcherClasspath.stream()
+                .filter(QuarkusAnnotationClasspathSplitDiagnostic::isQuarkusCoreJar)
+                .findFirst()
+                .map(path -> fileName(path)
+                        + " provides io.quarkus.runtime.test.TestHttpEndpointProvider on the annotation JVM launcher "
+                        + "classpath"
+                        + sharedSuffix(path, sharedClasspath))
+                .orElse("quarkus-core was not found on the annotation JVM launcher classpath.");
+    }
+
+    private static String runtimeServiceProviderOwnership(List<Path> launcherClasspath, List<Path> sharedClasspath) {
+        return launcherClasspath.stream()
+                .filter(QuarkusAnnotationClasspathSplitDiagnostic::isQuarkusRestJar)
+                .findFirst()
+                .map(path -> fileName(path)
+                        + " provides io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider "
+                        + "through META-INF/services"
+                        + sharedSuffix(path, sharedClasspath))
+                .orElse("quarkus-rest was not found on the annotation JVM launcher classpath.");
+    }
+
+    private static String sharedSuffix(Path path, List<Path> sharedClasspath) {
+        return sharedClasspath.contains(normalize(path))
+                ? " and is also present on the Quarkus deployment classpath."
+                : ".";
+    }
+
     private static List<Path> sharedClasspath(List<Path> testRuntimeClasspath, List<Path> deploymentClasspath) {
         Set<Path> deploymentEntries = new LinkedHashSet<>();
         for (Path entry : deploymentClasspath) {
@@ -89,6 +140,22 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
 
     private static boolean isQuarkusBuilderJar(Path path) {
         return fileName(path).startsWith("quarkus-builder-") && fileName(path).endsWith(".jar");
+    }
+
+    private static boolean isQuarkusCoreJar(Path path) {
+        return isVersionedArtifactJar(path, "quarkus-core-");
+    }
+
+    private static boolean isQuarkusRestJar(Path path) {
+        return isVersionedArtifactJar(path, "quarkus-rest-");
+    }
+
+    private static boolean isVersionedArtifactJar(Path path, String prefix) {
+        String fileName = fileName(path);
+        return fileName.startsWith(prefix)
+                && fileName.endsWith(".jar")
+                && fileName.length() > prefix.length()
+                && Character.isDigit(fileName.charAt(prefix.length()));
     }
 
     private static String fileName(Path path) {
