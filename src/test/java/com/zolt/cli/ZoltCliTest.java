@@ -2557,15 +2557,35 @@ final class ZoltCliTest {
                 "package",
                 "--workspace",
                 "--member", "apps/api",
+                "--timings",
+                "--timings-format", "json",
                 "--cwd", apiDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(0, result.exitCode());
-        assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved workspace dependencies because zolt.lock was missing"));
         assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar in apps/api"));
         assertTrue(result.stdout().contains("Included Main-Class manifest entry in apps/api"));
         assertTrue(result.stdout().contains("Packaged 1 workspace members"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"plan workspace packages\""));
+        assertTrue(lines[0].contains("\"depth\":1"));
+        assertTrue(lines[0].contains("\"includedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"selectedMembers\":\"1\""));
+        assertTrue(lines[0].contains("\"resolvedLockfile\":\"true\""));
+        assertTrue(lines[1].contains("\"phase\":\"build workspace package inputs\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"members\":\"2\""));
+        assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[2].contains("\"phase\":\"assemble workspace packages\""));
+        assertTrue(lines[2].contains("\"depth\":1"));
+        assertTrue(lines[2].contains("\"members\":\"1\""));
+        assertTrue(lines[2].contains("\"entries\":\"1\""));
+        assertTrue(lines[3].contains("\"phase\":\"package workspace\""));
+        assertTrue(lines[3].contains("\"depth\":0"));
+        assertTrue(lines[3].contains("\"members\":\"1\""));
+        assertTrue(lines[3].contains("\"entries\":\"1\""));
         assertTrue(Files.exists(apiDir.resolve("target/api-0.1.0.jar")));
         assertFalse(Files.exists(coreDir.resolve("target/core-0.1.0.jar")));
     }

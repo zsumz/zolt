@@ -1246,13 +1246,29 @@ public final class ZoltCli implements Runnable {
             try {
                 Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
                 if (workspace) {
+                    WorkspacePackageService workspacePackageService = new WorkspacePackageService();
                     WorkspacePackageResult result = timings.measure(
                             "package workspace",
-                            () -> new WorkspacePackageService().packageJars(
-                                    workingDirectory,
-                                    cacheRoot,
-                                    workspaceSelection(all, members, memberGroups),
-                                    packageModeOverride),
+                            () -> {
+                                WorkspaceBuildPlan plan = timings.measure(
+                                        "plan workspace packages",
+                                        () -> workspacePackageService.planPackages(
+                                                workingDirectory,
+                                                cacheRoot,
+                                                workspaceSelection(all, members, memberGroups)),
+                                        ZoltCli::workspaceBuildPlanAttributes);
+                                WorkspaceBuildResult buildResult = timings.measure(
+                                        "build workspace package inputs",
+                                        () -> workspacePackageService.buildPackageInputs(plan, cacheRoot),
+                                        ZoltCli::workspaceBuildAttributes);
+                                return timings.measure(
+                                        "assemble workspace packages",
+                                        () -> workspacePackageService.packageBuiltJars(
+                                                plan,
+                                                buildResult,
+                                                packageModeOverride),
+                                        ZoltCli::workspacePackageAttributes);
+                            },
                             ZoltCli::workspacePackageAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");

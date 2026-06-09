@@ -4,7 +4,6 @@ import com.zolt.build.PackageService;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,27 +12,19 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class WorkspacePackageService {
-    private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceBuildService workspaceBuildService;
-    private final WorkspaceMemberSelector memberSelector;
     private final PackageService packageService;
 
     public WorkspacePackageService() {
         this(
-                new WorkspaceDiscoveryService(),
                 new WorkspaceBuildService(),
-                new WorkspaceMemberSelector(),
                 new PackageService());
     }
 
     WorkspacePackageService(
-            WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceBuildService workspaceBuildService,
-            WorkspaceMemberSelector memberSelector,
             PackageService packageService) {
-        this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;
-        this.memberSelector = memberSelector;
         this.packageService = packageService;
     }
 
@@ -49,12 +40,28 @@ public final class WorkspacePackageService {
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest,
             Optional<PackageMode> packageModeOverride) {
-        Path start = startDirectory.toAbsolutePath().normalize();
-        Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt package --workspace` from a workspace directory or create zolt-workspace.toml."));
-        WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
-        WorkspaceBuildResult buildResult = workspaceBuildService.build(start, cacheRoot, false, selectionRequest);
+        WorkspaceBuildPlan plan = planPackages(startDirectory, cacheRoot, selectionRequest);
+        WorkspaceBuildResult buildResult = buildPackageInputs(plan, cacheRoot);
+        return packageBuiltJars(plan, buildResult, packageModeOverride);
+    }
 
+    public WorkspaceBuildPlan planPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
+        return workspaceBuildService.planBuild(startDirectory, cacheRoot, false, selectionRequest);
+    }
+
+    public WorkspaceBuildResult buildPackageInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return workspaceBuildService.build(plan, cacheRoot);
+    }
+
+    public WorkspacePackageResult packageBuiltJars(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Optional<PackageMode> packageModeOverride) {
+        Workspace workspace = plan.workspace();
+        WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
         List<WorkspacePackageResult.MemberPackageResult> results = new ArrayList<>();
