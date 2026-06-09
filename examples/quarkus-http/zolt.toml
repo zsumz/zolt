@@ -15,7 +15,6 @@ central = "https://repo.maven.apache.org/maven2"
 
 [test.dependencies]
 "org.junit.jupiter:junit-jupiter" = {}
-"io.quarkus:quarkus-junit5" = {}
 
 [build]
 source = "src/main/java"

@@ -185,27 +185,31 @@ final class TestRunServiceTest {
     }
 
     @Test
-    void quarkusTestRunnerClasspathExcludesBuilderFromLauncherClasspath() {
-        List<Path> classpath = List.of(
-                projectDir.resolve("target/test-classes"),
-                projectDir.resolve("cache/io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.jar"),
-                projectDir.resolve("cache/io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"),
-                projectDir.resolve("cache/org/junit/platform/junit-platform-console/6.0.3/junit-platform-console-6.0.3.jar"));
+    void quarkusTestAnnotationFailsBeforeJUnitConsoleCanSkipIt() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
 
-        List<Path> filtered = TestRunService.testRunnerClasspath(quarkusConfig(), classpath);
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> TestRunService.failOnUnsupportedQuarkusTestAnnotations(
+                        quarkusConfig(),
+                        projectDir.resolve("target/test-classes")));
 
-        assertEquals(List.of(
-                classpath.get(0),
-                classpath.get(1),
-                classpath.get(3)), filtered);
+        assertTrue(exception.getMessage().contains("`@QuarkusTest` execution is not supported"));
+        assertTrue(exception.getMessage().contains("dedicated Quarkus test runner"));
+        assertTrue(exception.getMessage().contains("com/example/QuarkusHttpTest.class"));
     }
 
     @Test
-    void nonQuarkusTestRunnerClasspathKeepsBuilderLikeArtifacts() {
-        List<Path> classpath = List.of(
-                projectDir.resolve("cache/io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"));
+    void nonQuarkusProjectDoesNotRejectQuarkusTestAnnotationText() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
 
-        assertEquals(classpath, TestRunService.testRunnerClasspath(config(), classpath));
+        TestRunService.failOnUnsupportedQuarkusTestAnnotations(
+                config(),
+                projectDir.resolve("target/test-classes"));
     }
 
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {

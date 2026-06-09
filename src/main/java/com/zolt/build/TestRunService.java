@@ -10,16 +10,23 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.resolve.Classpath;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.stream.Stream;
 
 public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
+    private static final String QUARKUS_TEST_ANNOTATION_DESCRIPTOR =
+            "Lio/quarkus/test/junit/QuarkusTest;";
 
     private final TestCompileService testCompileService;
     private final ZoltLockfileReader lockfileReader;
@@ -82,13 +89,13 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             TestCompileResult compileResult) {
+        failOnUnsupportedQuarkusTestAnnotations(config, compileResult.outputDirectory());
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
         runnerClasspath.addAll(classpaths.test().entries());
         runnerClasspath = absolutePaths(runnerClasspath);
-        List<Path> launcherClasspath = testRunnerClasspath(config, runnerClasspath);
-        if (launcherClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
+        if (runnerClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
             throw new TestRunException(
                     "JUnit Platform Console is not present on the test classpath. "
                             + "Run `zolt resolve` to refresh Zolt's test runner tooling. "
@@ -101,9 +108,9 @@ public final class TestRunService {
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
-                new Classpath(launcherClasspath),
+                new Classpath(runnerClasspath),
                 CONSOLE_MAIN_CLASS,
-                jvmArguments(projectDirectory, config, launcherClasspath),
+                jvmArguments(projectDirectory, config, runnerClasspath),
                 List.of(
                         "execute",
                         "--disable-banner",
@@ -128,21 +135,48 @@ public final class TestRunService {
                 .toList();
     }
 
-    static List<Path> testRunnerClasspath(ProjectConfig config, List<Path> classpath) {
+    static void failOnUnsupportedQuarkusTestAnnotations(ProjectConfig config, Path testOutputDirectory) {
         if (config == null || !config.frameworkSettings().quarkus().enabled()) {
-            return List.copyOf(classpath);
+            return;
         }
-        return classpath.stream()
-                .filter(path -> !isQuarkusBuilderJar(path))
-                .toList();
+        if (testOutputDirectory == null || !Files.isDirectory(testOutputDirectory)) {
+            return;
+        }
+        try (Stream<Path> files = Files.walk(testOutputDirectory)) {
+            Optional<Path> quarkusTestClass = files
+                    .filter(path -> path.getFileName() != null)
+                    .filter(path -> path.getFileName().toString().endsWith(".class"))
+                    .filter(TestRunService::containsQuarkusTestAnnotation)
+                    .findFirst();
+            if (quarkusTestClass.isPresent()) {
+                throw new TestRunException(
+                        "Quarkus-specific `@QuarkusTest` execution is not supported by Zolt's current test runner. "
+                                + "Use plain JUnit tests for now, or remove `@QuarkusTest` until Zolt's dedicated "
+                                + "Quarkus test runner is implemented. Found "
+                                + testOutputDirectory.toAbsolutePath().normalize().relativize(
+                                        quarkusTestClass.orElseThrow().toAbsolutePath().normalize())
+                                + ".");
+            }
+        } catch (UncheckedIOException exception) {
+            throw new TestRunException(
+                    "Could not inspect compiled test classes for Quarkus test annotations. "
+                            + "Clean target/test-classes, run `zolt test` again, and check that target/ is readable.",
+                    exception.getCause());
+        } catch (IOException exception) {
+            throw new TestRunException(
+                    "Could not inspect compiled test classes for Quarkus test annotations. "
+                            + "Clean target/test-classes, run `zolt test` again, and check that target/ is readable.",
+                    exception);
+        }
     }
 
-    private static boolean isQuarkusBuilderJar(Path path) {
-        String normalized = path.normalize().toString().replace('\\', '/');
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return normalized.contains("/io/quarkus/quarkus-builder/")
-                && name.startsWith("quarkus-builder-")
-                && name.endsWith(".jar");
+    private static boolean containsQuarkusTestAnnotation(Path classFile) {
+        try {
+            String contents = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
+            return contents.contains(QUARKUS_TEST_ANNOTATION_DESCRIPTOR);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 
     private static boolean isConsoleJar(Path path) {
