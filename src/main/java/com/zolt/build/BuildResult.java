@@ -9,7 +9,17 @@ public record BuildResult(
         int sourceCount,
         int resourceCount,
         Path outputDirectory,
-        String compilerOutput) {
+        String compilerOutput,
+        boolean mainCompilationSkipped) {
+    public BuildResult(
+            Optional<ResolveResult> resolveResult,
+            int sourceCount,
+            int resourceCount,
+            Path outputDirectory,
+            String compilerOutput) {
+        this(resolveResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false);
+    }
+
     public BuildResult {
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
     }

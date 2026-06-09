@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildMetadataSettings;
@@ -87,6 +88,99 @@ final class BuildServiceTest {
                 """, Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")));
     }
 
+    @Test
+    void repeatedMainBuildSkipsCompilationWhenInputsAreCurrent() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+
+        BuildResult first = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        BuildResult second = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(first.mainCompilationSkipped());
+        assertTrue(second.mainCompilationSkipped());
+        assertEquals(1, second.sourceCount());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void sourceChangeInvalidatesMainBuildFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        Path source = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(source, """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "changed";
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.mainCompilationSkipped());
+    }
+
+    @Test
+    void resourceChangeInvalidatesMainBuildFingerprintButStillCopiesResource() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+        source("src/main/resources/application.properties", "message=hello\n");
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(projectDir.resolve("src/main/resources/application.properties"), "message=changed\n");
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.mainCompilationSkipped());
+        assertEquals("message=changed\n", Files.readString(projectDir.resolve("target/classes/application.properties")));
+    }
+
+    @Test
+    void missingExpectedClassFilePreventsMainBuildSkip() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.delete(projectDir.resolve("target/classes/com/example/Main.class"));
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.mainCompilationSkipped());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
     private static ProjectConfig config() {
         return new ProjectConfig(
                 new ProjectMetadata(
@@ -101,10 +195,11 @@ final class BuildServiceTest {
                 BuildSettings.defaults());
     }
 
-    private void source(String path, String content) throws IOException {
+    private Path source(String path, String content) throws IOException {
         Path source = projectDir.resolve(path);
         Files.createDirectories(source.getParent());
         Files.writeString(source, content);
+        return source;
     }
 
     private void writeLockfile(String content) throws IOException {

@@ -1780,7 +1780,8 @@ public final class ZoltCli implements Runnable {
         return Map.of(
                 "sourceFiles", Integer.toString(result.sourceCount()),
                 "resourceFiles", Integer.toString(result.resourceCount()),
-                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()),
+                "mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
     }
 
     private static Map<String, String> workspaceBuildAttributes(WorkspaceBuildResult result) {

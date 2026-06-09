@@ -20,6 +20,7 @@ public final class BuildService {
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
     private final BuildMetadataGenerator buildMetadataGenerator;
+    private final BuildFingerprintService buildFingerprintService;
     private final JdkDetector jdkDetector;
     private final JavacRunner javacRunner;
 
@@ -31,6 +32,7 @@ public final class BuildService {
                 new SourceDiscoverer(),
                 new ResourceCopier(),
                 new BuildMetadataGenerator(),
+                new BuildFingerprintService(),
                 new JdkDetector(),
                 new JavacRunner());
     }
@@ -42,6 +44,7 @@ public final class BuildService {
             SourceDiscoverer sourceDiscoverer,
             ResourceCopier resourceCopier,
             BuildMetadataGenerator buildMetadataGenerator,
+            BuildFingerprintService buildFingerprintService,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.resolveService = resolveService;
@@ -50,6 +53,7 @@ public final class BuildService {
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
         this.buildMetadataGenerator = buildMetadataGenerator;
+        this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
     }
@@ -86,21 +90,42 @@ public final class BuildService {
         }
 
         Path outputDirectory = projectDirectory.resolve(config.build().output());
-        JavacResult javacResult = javacRunner.compile(
-                jdkStatus.javac().orElseThrow(),
-                sources.mainSources(),
-                classpaths.compile(),
+        Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources());
+        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        boolean compileSkipped = buildFingerprintService.isMainCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                classpaths,
                 outputDirectory,
-                classpaths.processor(),
-                generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources()));
+                generatedSourcesDirectory);
+        JavacResult javacResult = compileSkipped
+                ? new JavacResult(sources.mainSources().size(), outputDirectory, "")
+                : javacRunner.compile(
+                        jdkStatus.javac().orElseThrow(),
+                        sources.mainSources(),
+                        classpaths.compile(),
+                        outputDirectory,
+                        classpaths.processor(),
+                        generatedSourcesDirectory);
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
+        buildFingerprintService.writeMainCompileFingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                classpaths,
+                outputDirectory,
+                generatedSourcesDirectory);
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),
                 resourceResult.copiedCount() + metadataResult.generatedCount(),
                 javacResult.outputDirectory(),
-                javacResult.output());
+                javacResult.output(),
+                compileSkipped);
     }
 
     private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {
