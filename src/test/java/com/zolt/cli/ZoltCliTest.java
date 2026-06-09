@@ -2062,6 +2062,83 @@ final class ZoltCliTest {
     }
 
     @Test
+    void buildWorkspacePrintsNestedJsonTimingsWhenRequested() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--workspace",
+                "--all",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Compiled 2 workspace main source files"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(3, lines.length);
+        assertTrue(lines[0].contains("\"phase\":\"plan workspace build\""));
+        assertTrue(lines[0].contains("\"depth\":1"));
+        assertTrue(lines[0].contains("\"includedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"selectedMembers\":\"2\""));
+        assertTrue(lines[0].contains("\"resolvedLockfile\":\"true\""));
+        assertTrue(lines[1].contains("\"phase\":\"compile workspace members\""));
+        assertTrue(lines[1].contains("\"depth\":1"));
+        assertTrue(lines[1].contains("\"members\":\"2\""));
+        assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[2].contains("\"phase\":\"build workspace\""));
+        assertTrue(lines[2].contains("\"depth\":0"));
+        assertTrue(lines[2].contains("\"members\":\"2\""));
+        assertTrue(lines[2].contains("\"sourceFiles\":\"2\""));
+    }
+
+    @Test
     void buildWorkspaceMemberSelectionCompilesDependenciesOnly() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");

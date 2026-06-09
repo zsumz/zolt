@@ -94,6 +94,7 @@ import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
 import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspacePackageResult;
@@ -933,13 +934,23 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
+                    WorkspaceBuildService workspaceBuildService = new WorkspaceBuildService();
                     WorkspaceBuildResult result = timings.measure(
                             "build workspace",
-                            () -> new WorkspaceBuildService().build(
-                                    workingDirectory,
-                                    cacheRoot,
-                                    offline,
-                                    workspaceSelection(all, members, memberGroups)),
+                            () -> {
+                                WorkspaceBuildPlan plan = timings.measure(
+                                        "plan workspace build",
+                                        () -> workspaceBuildService.planBuild(
+                                                workingDirectory,
+                                                cacheRoot,
+                                                offline,
+                                                workspaceSelection(all, members, memberGroups)),
+                                        ZoltCli::workspaceBuildPlanAttributes);
+                                return timings.measure(
+                                        "compile workspace members",
+                                        () -> workspaceBuildService.build(plan, cacheRoot),
+                                        ZoltCli::workspaceBuildAttributes);
+                            },
                             ZoltCli::workspaceBuildAttributes);
                     if (result.resolvedLockfile()) {
                         spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
@@ -1822,6 +1833,13 @@ public final class ZoltCli implements Runnable {
                 "members", Integer.toString(result.members().size()),
                 "sourceFiles", Integer.toString(result.sourceCount()),
                 "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+    }
+
+    private static Map<String, String> workspaceBuildPlanAttributes(WorkspaceBuildPlan plan) {
+        return Map.of(
+                "includedMembers", Integer.toString(plan.selection().includedMembers().size()),
+                "selectedMembers", Integer.toString(plan.selection().selectedMembers().size()),
+                "resolvedLockfile", Boolean.toString(plan.resolvedLockfile()));
     }
 
     private static Map<String, String> testRunAttributes(TestRunResult result) {

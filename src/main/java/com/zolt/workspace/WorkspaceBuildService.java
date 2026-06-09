@@ -57,6 +57,14 @@ public final class WorkspaceBuildService {
             Path cacheRoot,
             boolean offline,
             WorkspaceSelectionRequest selectionRequest) {
+        return build(planBuild(startDirectory, cacheRoot, offline, selectionRequest), cacheRoot);
+    }
+
+    public WorkspaceBuildPlan planBuild(
+            Path startDirectory,
+            Path cacheRoot,
+            boolean offline,
+            WorkspaceSelectionRequest selectionRequest) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt build --workspace` from a workspace directory or create zolt-workspace.toml."));
@@ -68,6 +76,13 @@ public final class WorkspaceBuildService {
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        return new WorkspaceBuildPlan(workspace, selection, resolveResult, lockfile);
+    }
+
+    public WorkspaceBuildResult build(WorkspaceBuildPlan plan, Path cacheRoot) {
+        Workspace workspace = plan.workspace();
+        WorkspaceSelection selection = plan.selection();
+        ZoltLockfile lockfile = plan.lockfile();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<WorkspaceBuildResult.MemberBuildResult> results = new ArrayList<>();
         for (String memberPath : selection.includedMembers()) {
@@ -90,7 +105,7 @@ public final class WorkspaceBuildService {
                         exception);
             }
         }
-        return new WorkspaceBuildResult(resolveResult, results);
+        return new WorkspaceBuildResult(plan.resolveResult(), results);
     }
 
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
