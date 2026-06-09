@@ -3,9 +3,7 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkDetector;
-import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
@@ -69,7 +67,21 @@ final class RunServiceTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Files.createDirectories(runtimeJar.getParent());
+        Files.writeString(runtimeJar, "runtime jar placeholder");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+                """);
         ProjectConfig config = config(false, Optional.of("com.example.Main"));
         List<String> command = new ArrayList<>();
         RunService service = service(
@@ -82,6 +94,7 @@ final class RunServiceTest {
         RunResult result = service.run(projectDir, config, cacheRoot, List.of());
 
         assertTrue(command.contains("-classpath"));
+        assertTrue(command.stream().anyMatch(entry -> entry.contains(runtimeJar.toString())));
         assertTrue(command.contains("com.example.Main"));
         assertEquals("com.example.Main", result.javaRunResult().mainClass());
     }
@@ -91,8 +104,6 @@ final class RunServiceTest {
             JavaRunner.ProcessRunner processRunner) {
         return new RunService(
                 new BuildService(),
-                new ZoltLockfileReader(),
-                new ClasspathBuilder(),
                 new JdkDetector(),
                 new JavaRunner(":", processRunner),
                 quarkusBuildAugmenter);
