@@ -3,6 +3,7 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
@@ -15,6 +16,7 @@ import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.QuarkusBootstrapWorkerResult;
 import com.zolt.resolve.PackageId;
+import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -99,12 +101,38 @@ final class RunServiceTest {
         assertEquals("com.example.Main", result.javaRunResult().mainClass());
     }
 
+    @Test
+    void sharesCachedJdkDetectionAcrossBuildAndLaunch() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = config(false, Optional.of("com.example.Main"));
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
+        RunService service = service(
+                (actualProjectDirectory, actualConfig, actualCacheRoot) -> Optional.empty(),
+                (actualCommand, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),
+                jdkChecker);
+
+        service.run(projectDir, config, cacheRoot, List.of());
+
+        assertEquals(2, jdkChecker.detectCalls());
+        assertEquals(1, jdkChecker.toolchainReads());
+    }
+
     private static RunService service(
             RunService.QuarkusBuildAugmenter quarkusBuildAugmenter,
             JavaRunner.ProcessRunner processRunner) {
+        return service(quarkusBuildAugmenter, processRunner, new JdkDetector());
+    }
+
+    private static RunService service(
+            RunService.QuarkusBuildAugmenter quarkusBuildAugmenter,
+            JavaRunner.ProcessRunner processRunner,
+            JdkChecker jdkChecker) {
         return new RunService(
-                new BuildService(),
-                new JdkDetector(),
+                new BuildService(jdkChecker),
+                jdkChecker,
                 new JavaRunner(":", processRunner),
                 quarkusBuildAugmenter);
     }

@@ -6,12 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -120,12 +122,43 @@ final class RunPackageServiceTest {
         assertTrue(exception.getMessage().contains("[project].main"));
     }
 
+    @Test
+    void sharesCachedJdkDetectionAcrossBuildPackageAndLaunch() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
+        RunPackageService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),
+                jdkChecker);
+
+        service.runPackage(
+                projectDir,
+                config(Optional.of("com.example.Main")),
+                cacheRoot,
+                List.of());
+
+        assertEquals(2, jdkChecker.detectCalls());
+        assertEquals(1, jdkChecker.toolchainReads());
+    }
+
     private RunPackageService service(JavaRunner.ProcessRunner processRunner) {
+        return service(processRunner, new JdkDetector());
+    }
+
+    private RunPackageService service(JavaRunner.ProcessRunner processRunner, JdkChecker jdkChecker) {
         return new RunPackageService(
                 new PackageService(),
-                new BuildService(),
+                new BuildService(jdkChecker),
                 new ClasspathBuilder(),
-                new JdkDetector(),
+                jdkChecker,
                 new JavaRunner(":", processRunner));
     }
 

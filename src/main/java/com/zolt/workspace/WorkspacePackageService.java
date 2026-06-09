@@ -1,6 +1,8 @@
 package com.zolt.workspace;
 
 import com.zolt.build.PackageService;
+import com.zolt.doctor.JdkChecker;
+import com.zolt.doctor.JdkDetector;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -16,8 +18,12 @@ public final class WorkspacePackageService {
     private final PackageService packageService;
 
     public WorkspacePackageService() {
+        this(new JdkDetector());
+    }
+
+    WorkspacePackageService(JdkChecker jdkDetector) {
         this(
-                new WorkspaceBuildService(),
+                new WorkspaceBuildService(jdkDetector),
                 new PackageService());
     }
 

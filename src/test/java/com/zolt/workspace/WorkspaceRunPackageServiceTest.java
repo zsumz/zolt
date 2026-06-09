@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.RunPackageException;
+import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,6 +105,53 @@ final class WorkspaceRunPackageServiceTest {
         assertEquals(
                 "Workspace member `modules/core` has no main class configured. Add [project].main to its zolt.toml or choose an application member.",
                 exception.getMessage());
+    }
+
+    @Test
+    void sharesCachedJdkDetectionAcrossWorkspacePackageAndLaunch() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("modules/core", "core", "");
+        source("modules/core/src/main/java/com/acme/core/Core.java", """
+                package com.acme.core;
+
+                public final class Core {
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        member("apps/api", "api", """
+                main = "com.acme.api.Api"
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        source("apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                import com.acme.core.Core;
+
+                public final class Api {
+                    public static void main(String[] args) {
+                        System.out.println(Core.message());
+                    }
+                }
+                """);
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
+        WorkspaceRunPackageService service = new WorkspaceRunPackageService(jdkChecker);
+
+        service.runPackages(
+                tempDir,
+                tempDir.resolve("cache"),
+                new WorkspaceSelectionRequest(false, List.of("apps/api")),
+                List.of());
+
+        assertEquals(3, jdkChecker.detectCalls());
+        assertEquals(1, jdkChecker.toolchainReads());
     }
 
     private void workspace(String content) throws IOException {

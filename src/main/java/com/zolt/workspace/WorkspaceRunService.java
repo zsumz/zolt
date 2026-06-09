@@ -4,6 +4,7 @@ import com.zolt.build.JavaRunResult;
 import com.zolt.build.JavaRunner;
 import com.zolt.build.RunException;
 import com.zolt.build.RunResult;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.resolve.Classpath;
@@ -19,15 +20,19 @@ public final class WorkspaceRunService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceBuildService workspaceBuildService;
     private final WorkspaceMemberSelector memberSelector;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
 
     public WorkspaceRunService() {
+        this(new JdkDetector());
+    }
+
+    WorkspaceRunService(JdkChecker jdkDetector) {
         this(
                 new WorkspaceDiscoveryService(),
-                new WorkspaceBuildService(),
+                new WorkspaceBuildService(jdkDetector),
                 new WorkspaceMemberSelector(),
-                new JdkDetector(),
+                jdkDetector,
                 new JavaRunner());
     }
 
@@ -35,7 +40,7 @@ public final class WorkspaceRunService {
             WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceBuildService workspaceBuildService,
             WorkspaceMemberSelector memberSelector,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavaRunner javaRunner) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceBuildService = workspaceBuildService;

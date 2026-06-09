@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.PackageMode;
@@ -15,15 +16,19 @@ public final class RunPackageService {
     private final PackageService packageService;
     private final BuildService buildService;
     private final ClasspathBuilder classpathBuilder;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
 
     public RunPackageService() {
+        this(new JdkDetector());
+    }
+
+    public RunPackageService(JdkChecker jdkDetector) {
         this(
                 new PackageService(),
-                new BuildService(),
+                new BuildService(jdkDetector),
                 new ClasspathBuilder(),
-                new JdkDetector(),
+                jdkDetector,
                 new JavaRunner());
     }
 
@@ -31,7 +36,7 @@ public final class RunPackageService {
             PackageService packageService,
             BuildService buildService,
             ClasspathBuilder classpathBuilder,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavaRunner javaRunner) {
         this.packageService = packageService;
         this.buildService = buildService;

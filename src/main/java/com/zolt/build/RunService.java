@@ -1,5 +1,6 @@
 package com.zolt.build;
 
+import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
@@ -14,14 +15,18 @@ import java.util.function.Consumer;
 
 public final class RunService {
     private final BuildService buildService;
-    private final JdkDetector jdkDetector;
+    private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
     private final QuarkusBuildAugmenter quarkusBuildAugmenter;
 
     public RunService() {
+        this(new JdkDetector());
+    }
+
+    public RunService(JdkChecker jdkDetector) {
         this(
-                new BuildService(),
-                new JdkDetector(),
+                new BuildService(jdkDetector),
+                jdkDetector,
                 new JavaRunner(),
                 (projectDirectory, config, cacheRoot) ->
                         new QuarkusBuildAugmentationService().augmentIfEnabled(projectDirectory, config, cacheRoot));
@@ -29,7 +34,7 @@ public final class RunService {
 
     RunService(
             BuildService buildService,
-            JdkDetector jdkDetector,
+            JdkChecker jdkDetector,
             JavaRunner javaRunner,
             QuarkusBuildAugmenter quarkusBuildAugmenter) {
         this.buildService = buildService;
