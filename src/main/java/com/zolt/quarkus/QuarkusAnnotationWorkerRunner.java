@@ -4,19 +4,22 @@ public final class QuarkusAnnotationWorkerRunner {
     private final ApiProbe apiProbe;
     private final LaunchRequestFactory launchRequestFactory;
     private final LaunchRunner launchRunner;
+    private final QuarkusAnnotationClasspathSplitDiagnostic classpathSplitDiagnostic;
 
     public QuarkusAnnotationWorkerRunner() {
         this(
                 new QuarkusAnnotationApiProbe()::probe,
                 new QuarkusAnnotationLaunchRequestFactory()::create,
-                new QuarkusAnnotationJvmRunner()::run);
+                new QuarkusAnnotationJvmRunner()::run,
+                new QuarkusAnnotationClasspathSplitDiagnostic());
     }
 
     QuarkusAnnotationWorkerRunner(ApiProbe apiProbe) {
         this(
                 apiProbe,
                 new QuarkusAnnotationLaunchRequestFactory()::create,
-                new QuarkusAnnotationJvmRunner()::run);
+                new QuarkusAnnotationJvmRunner()::run,
+                new QuarkusAnnotationClasspathSplitDiagnostic());
     }
 
     QuarkusAnnotationWorkerRunner(
@@ -29,6 +32,14 @@ public final class QuarkusAnnotationWorkerRunner {
             ApiProbe apiProbe,
             LaunchRequestFactory launchRequestFactory,
             LaunchRunner launchRunner) {
+        this(apiProbe, launchRequestFactory, launchRunner, new QuarkusAnnotationClasspathSplitDiagnostic());
+    }
+
+    QuarkusAnnotationWorkerRunner(
+            ApiProbe apiProbe,
+            LaunchRequestFactory launchRequestFactory,
+            LaunchRunner launchRunner,
+            QuarkusAnnotationClasspathSplitDiagnostic classpathSplitDiagnostic) {
         if (apiProbe == null) {
             throw new QuarkusAugmentationException("Quarkus annotation worker API probe is required.");
         }
@@ -38,9 +49,14 @@ public final class QuarkusAnnotationWorkerRunner {
         if (launchRunner == null) {
             throw new QuarkusAugmentationException("Quarkus annotation worker launch runner is required.");
         }
+        if (classpathSplitDiagnostic == null) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus annotation worker classpath split diagnostic is required.");
+        }
         this.apiProbe = apiProbe;
         this.launchRequestFactory = launchRequestFactory;
         this.launchRunner = launchRunner;
+        this.classpathSplitDiagnostic = classpathSplitDiagnostic;
     }
 
     public Result run(QuarkusTestWorkerPlan plan) {
@@ -50,10 +66,10 @@ public final class QuarkusAnnotationWorkerRunner {
         QuarkusAnnotationApi api = apiProbe.probe(plan.descriptor());
         QuarkusAnnotationLaunchRequest launchRequest = launchRequestFactory.create(plan, api);
         QuarkusAnnotationJvmRunner.Result result = launchRunner.run(launchRequest);
-        return new Result(result.exitCode(), diagnosedOutput(result));
+        return new Result(result.exitCode(), diagnosedOutput(launchRequest, result));
     }
 
-    private static String diagnosedOutput(QuarkusAnnotationJvmRunner.Result result) {
+    private String diagnosedOutput(QuarkusAnnotationLaunchRequest request, QuarkusAnnotationJvmRunner.Result result) {
         if (result.exitCode() == 0 || result.output() == null || result.output().isBlank()) {
             return result.output();
         }
@@ -64,7 +80,9 @@ public final class QuarkusAnnotationWorkerRunner {
                 + "io.quarkus.builder.BuildChainBuilder. Zolt reached the dedicated @QuarkusTest runner path, "
                 + "but this fixture still needs Quarkus deployment/runtime classloader ownership work before "
                 + "Quarkus test annotations can be enabled. Keep using plain JUnit tests for now, or run "
-                + "`zolt quarkus test-plan` to inspect blocked tests.\n"
+                + "`zolt quarkus test-plan` to inspect blocked tests. "
+                + classpathSplitDiagnostic.describe(request)
+                + "\n"
                 + result.output().stripTrailing()
                 + "\n";
     }
