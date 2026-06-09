@@ -109,7 +109,7 @@ public final class TestCompileService {
         return new TestCompileResult(
                 buildResult,
                 javacResult.sourceCount(),
-                resourceResult.copiedCount(),
+                resourceResult.resourceCount(),
                 javacResult.outputDirectory(),
                 javacResult.output(),
                 compileSkipped);

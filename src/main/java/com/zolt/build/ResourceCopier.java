@@ -39,6 +39,7 @@ public final class ResourceCopier {
         Path mainOutput = projectRoot.resolve(settings.output()).normalize();
         Path testOutput = projectRoot.resolve(settings.testOutput()).normalize();
         List<Path> copiedResources = new ArrayList<>();
+        List<Path> skippedResources = new ArrayList<>();
         Set<Path> targetRelativePaths = new HashSet<>();
         for (String configuredRoot : configuredRoots) {
             Path resourceRoot = resourceRoot(projectDirectory, configuredRoot);
@@ -67,8 +68,12 @@ public final class ResourceCopier {
                     }
                     Path target = outputDirectory.resolve(relativePath).normalize();
                     Files.createDirectories(target.getParent());
-                    Files.copy(resource, target, StandardCopyOption.REPLACE_EXISTING);
-                    copiedResources.add(resource);
+                    if (isCurrent(resource, target)) {
+                        skippedResources.add(resource);
+                    } else {
+                        Files.copy(resource, target, StandardCopyOption.REPLACE_EXISTING);
+                        copiedResources.add(resource);
+                    }
                 }
             } catch (IOException exception) {
                 throw new ResourceCopyException(
@@ -80,7 +85,13 @@ public final class ResourceCopier {
                         exception);
             }
         }
-        return new ResourceCopyResult(copiedResources);
+        return new ResourceCopyResult(copiedResources, skippedResources);
+    }
+
+    private static boolean isCurrent(Path source, Path target) throws IOException {
+        return Files.isRegularFile(target)
+                && Files.size(source) == Files.size(target)
+                && Files.mismatch(source, target) == -1L;
     }
 
     private static Path resourceRoot(Path projectDirectory, String configuredRoot) {

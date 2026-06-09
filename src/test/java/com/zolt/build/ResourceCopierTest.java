@@ -40,7 +40,35 @@ final class ResourceCopierTest {
         ResourceCopyResult result = copier.copyTestResources(projectDir, BuildSettings.defaults());
 
         assertEquals(List.of(fixture), result.copiedResources());
+        assertEquals(1, result.resourceCount());
         assertEquals("fixture\n", Files.readString(projectDir.resolve("target/test-classes/fixtures/input.txt")));
+    }
+
+    @Test
+    void skipsUnchangedResourcesOnRepeatedCopy() throws IOException {
+        Path resource = resource("src/main/resources/application.properties", "name=demo\n");
+
+        ResourceCopyResult first = copier.copyMainResources(projectDir, BuildSettings.defaults());
+        ResourceCopyResult second = copier.copyMainResources(projectDir, BuildSettings.defaults());
+
+        assertEquals(List.of(resource), first.copiedResources());
+        assertTrue(first.skippedResources().isEmpty());
+        assertTrue(second.copiedResources().isEmpty());
+        assertEquals(List.of(resource), second.skippedResources());
+        assertEquals(1, second.resourceCount());
+    }
+
+    @Test
+    void copiesChangedResourcesOnRepeatedCopy() throws IOException {
+        Path resource = resource("src/main/resources/application.properties", "name=demo\n");
+        copier.copyMainResources(projectDir, BuildSettings.defaults());
+        Files.writeString(resource, "name=changed\n");
+
+        ResourceCopyResult result = copier.copyMainResources(projectDir, BuildSettings.defaults());
+
+        assertEquals(List.of(resource), result.copiedResources());
+        assertTrue(result.skippedResources().isEmpty());
+        assertEquals("name=changed\n", Files.readString(projectDir.resolve("target/classes/application.properties")));
     }
 
     @Test

@@ -122,7 +122,7 @@ public final class BuildService {
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),
-                resourceResult.copiedCount() + metadataResult.generatedCount(),
+                resourceResult.resourceCount() + metadataResult.generatedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output(),
                 compileSkipped);
