@@ -74,7 +74,17 @@ public final class QuarkusAnnotationWorkerRunner {
             return result.output();
         }
         if (!buildChainBuilderClassloaderSplit(result.output())) {
-            return result.output();
+            if (!missingBuilderApi(result.output())) {
+                return result.output();
+            }
+            return "error: Quarkus annotation test bootstrap could not load the Quarkus builder API from "
+                    + "the annotation runner side. Zolt reached the dedicated @QuarkusTest runner path, "
+                    + "but this fixture still needs a classloader arrangement where Quarkus JUnit can see "
+                    + "builder API types without loading deployment-owned builder classes from the wrong side. "
+                    + classpathSplitDiagnostic.describeMissingBuilderApi(request)
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
         }
         return "error: Quarkus annotation test bootstrap hit a Quarkus classloader split while loading "
                 + "io.quarkus.builder.BuildChainBuilder. Zolt reached the dedicated @QuarkusTest runner path, "
@@ -91,6 +101,11 @@ public final class QuarkusAnnotationWorkerRunner {
         return output.contains("io.quarkus.test.junit")
                 && output.contains("ClassCastException: class io.quarkus.builder.BuildChainBuilder")
                 && output.contains("cannot be cast to class io.quarkus.builder.BuildChainBuilder");
+    }
+
+    private static boolean missingBuilderApi(String output) {
+        return output.contains("io.quarkus.test.junit")
+                && output.contains("NoClassDefFoundError: io/quarkus/builder/item/MultiBuildItem");
     }
 
     public record Result(int exitCode, String output) {

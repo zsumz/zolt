@@ -41,6 +41,33 @@ final class QuarkusAnnotationClasspathSplitDiagnosticTest {
         assertTrue(output.contains("Run `zolt build`, then run `zolt test` again"));
     }
 
+    @Test
+    void reportsWhenQuarkusBuilderIsMissingFromLauncherClasspath() {
+        QuarkusAnnotationClasspathSplitDiagnostic diagnostic = new QuarkusAnnotationClasspathSplitDiagnostic(
+                descriptorFile -> bootstrapDescriptor(List.of()));
+
+        String output = diagnostic.describeMissingBuilderApi(request(List.of(
+                Path.of("/repo/target/test-classes"),
+                Path.of("/cache/org/junit/platform/junit-platform-console.jar"))));
+
+        assertTrue(output.contains("quarkus-builder is absent from the annotation JVM launcher classpath"));
+        assertTrue(output.contains("io.quarkus.builder.item.MultiBuildItem"));
+    }
+
+    @Test
+    void reportsWhenQuarkusBuilderIsPresentOnLauncherClasspath() {
+        QuarkusAnnotationClasspathSplitDiagnostic diagnostic = new QuarkusAnnotationClasspathSplitDiagnostic(
+                descriptorFile -> bootstrapDescriptor(List.of()));
+
+        String output = diagnostic.describeMissingBuilderApi(request(List.of(
+                Path.of("/repo/target/test-classes"),
+                Path.of("/cache/io/quarkus/quarkus-builder-3.33.2.jar"))));
+
+        assertTrue(output.contains("quarkus-builder-3.33.2.jar is present on the annotation JVM launcher classpath"));
+        assertTrue(output.contains("io.quarkus.builder.item.MultiBuildItem"));
+    }
+
+
     private static QuarkusAnnotationLaunchRequest request(List<Path> testRuntimeClasspath) {
         return new QuarkusAnnotationLaunchRequest(
                 descriptor(testRuntimeClasspath),

@@ -38,6 +38,15 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
         }
     }
 
+    public String describeMissingBuilderApi(QuarkusAnnotationLaunchRequest request) {
+        if (request == null) {
+            throw new QuarkusAugmentationException("Quarkus annotation classpath split diagnostic requires a request.");
+        }
+        return "Classpath ownership: "
+                + quarkusBuilderLauncherOwnership(request.launcherClasspath())
+                + " Quarkus JUnit needs io.quarkus.builder.item.MultiBuildItem while preparing test augmentation.";
+    }
+
     private static String description(List<Path> sharedClasspath) {
         return "Classpath ownership: "
                 + quarkusBuilderOwnership(sharedClasspath)
@@ -53,6 +62,14 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
                 .map(path -> fileName(path)
                         + " is present on both the JUnit test runtime classpath and Quarkus deployment classpath.")
                 .orElse("quarkus-builder was not found in both classpaths.");
+    }
+
+    private static String quarkusBuilderLauncherOwnership(List<Path> launcherClasspath) {
+        return launcherClasspath.stream()
+                .filter(QuarkusAnnotationClasspathSplitDiagnostic::isQuarkusBuilderJar)
+                .findFirst()
+                .map(path -> fileName(path) + " is present on the annotation JVM launcher classpath.")
+                .orElse("quarkus-builder is absent from the annotation JVM launcher classpath.");
     }
 
     private static List<Path> sharedClasspath(List<Path> testRuntimeClasspath, List<Path> deploymentClasspath) {

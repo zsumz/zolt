@@ -158,6 +158,33 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsMissingBuilderApiOnLauncherClasspath() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                Cause: java.lang.NoClassDefFoundError: io/quarkus/builder/item/MultiBuildItem
+                                    at io.quarkus.test.junit.TestBuildChainFunction.collectTestAnnotationItems(TestBuildChainFunction.java:185)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("could not load the Quarkus builder API"));
+        assertTrue(result.output().contains("builder API types"));
+        assertTrue(result.output().contains("quarkus-builder is absent from the annotation JVM launcher classpath"));
+        assertTrue(result.output().contains("MultiBuildItem"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
