@@ -57,11 +57,10 @@ public final class QuarkusAnnotationClasspathSplitDiagnostic {
                 + " "
                 + runtimeServiceProviderOwnership(request.launcherClasspath(), sharedClasspath)
                 + " Quarkus JUnit reached application startup and needs TestHttpEndpointProvider service loading "
-                + "to use one classloader identity for both the service type and provider. A lingering "
-                + "QuarkusClassOrderer/TestConfig warning can still appear before startup, but the current "
-                + "blocking failure is runtime service loading. Zolt's programmatic JUnit launcher boundary "
-                + "is active for this probe, so the next fix should control the context classloader inside "
-                + "that boundary before Quarkus starts the application.";
+                + "to use one classloader identity for both the service type and provider. Zolt's programmatic "
+                + "JUnit launcher boundary now keeps Quarkus condition/config evaluation on the system "
+                + "classloader and defers the runtime context-classloader handoff until JUnit starts the "
+                + "selected class source, so the current blocking failure is runtime service loading.";
     }
 
     private static String description(List<Path> sharedClasspath) {

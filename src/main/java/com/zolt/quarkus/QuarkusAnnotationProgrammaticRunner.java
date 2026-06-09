@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class QuarkusAnnotationProgrammaticRunner {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner";
@@ -46,7 +47,8 @@ public final class QuarkusAnnotationProgrammaticRunner {
             Class<?> listenerInterface = Class.forName("org.junit.platform.launcher.TestExecutionListener");
             AtomicBoolean containsTests = new AtomicBoolean(false);
             AtomicBoolean failed = new AtomicBoolean(false);
-            Object listener = listener(listenerInterface, testClasses, containsTests, failed);
+            AtomicReference<ClassLoader> quarkusRuntimeClassLoader = new AtomicReference<>();
+            Object listener = listener(listenerInterface, testClasses, containsTests, failed, quarkusRuntimeClassLoader);
 
             Object request = discoveryRequest(testClasses);
             Object session = Class.forName("org.junit.platform.launcher.core.LauncherFactory")
@@ -111,13 +113,18 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 Class<?> listenerInterface,
                 List<String> testClasses,
                 AtomicBoolean containsTests,
-                AtomicBoolean failed) {
+                AtomicBoolean failed,
+                AtomicReference<ClassLoader> quarkusRuntimeClassLoader) {
             InvocationHandler handler = (proxy, method, args) -> {
                 switch (method.getName()) {
                     case "testPlanExecutionStarted" -> {
                         containsTests.set(containsTests(args[0]));
-                        switchToQuarkusFacadeTestClassLoader(testClasses);
+                        prepareQuarkusConditionEvaluation(testClasses, quarkusRuntimeClassLoader);
                     }
+                    case "executionStarted" -> switchToQuarkusRuntimeClassLoader(
+                            args[0],
+                            testClasses,
+                            quarkusRuntimeClassLoader);
                     case "executionFinished" -> recordResult(args[1], failed);
                     default -> {
                     }
@@ -134,7 +141,9 @@ public final class QuarkusAnnotationProgrammaticRunner {
             return (boolean) testPlan.getClass().getMethod("containsTests").invoke(testPlan);
         }
 
-        private void switchToQuarkusFacadeTestClassLoader(List<String> testClasses) {
+        private void prepareQuarkusConditionEvaluation(
+                List<String> testClasses,
+                AtomicReference<ClassLoader> quarkusRuntimeClassLoader) {
             if (testClasses.isEmpty()) {
                 return;
             }
@@ -145,10 +154,43 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 Object facadeLoader = facadeLoaderField.get(null);
                 if (facadeLoader instanceof ClassLoader classLoader) {
                     Class<?> testClass = Class.forName(testClasses.getFirst(), false, classLoader);
-                    Thread.currentThread().setContextClassLoader(testClass.getClassLoader());
+                    quarkusRuntimeClassLoader.set(testClass.getClassLoader());
+                    Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
                 }
             } catch (ReflectiveOperationException | LinkageError exception) {
                 // Non-Quarkus tests and older Quarkus launchers can run without this handoff.
+            }
+        }
+
+        private void switchToQuarkusRuntimeClassLoader(
+                Object testIdentifier,
+                List<String> testClasses,
+                AtomicReference<ClassLoader> quarkusRuntimeClassLoader) throws ReflectiveOperationException {
+            ClassLoader classLoader = quarkusRuntimeClassLoader.get();
+            if (classLoader != null && selectedTestClassStarted(testIdentifier, testClasses)) {
+                Thread.currentThread().setContextClassLoader(classLoader);
+            }
+        }
+
+        private static boolean selectedTestClassStarted(Object testIdentifier, List<String> testClasses)
+                throws ReflectiveOperationException {
+            return sourceClassName(testIdentifier)
+                    .map(testClasses::contains)
+                    .orElse(false);
+        }
+
+        private static Optional<String> sourceClassName(Object testIdentifier)
+                throws ReflectiveOperationException {
+            Optional<?> source = (Optional<?>) testIdentifier.getClass().getMethod("getSource").invoke(testIdentifier);
+            if (source.isEmpty()) {
+                return Optional.empty();
+            }
+            Object testSource = source.get();
+            try {
+                Object className = testSource.getClass().getMethod("getClassName").invoke(testSource);
+                return Optional.of(String.valueOf(className));
+            } catch (NoSuchMethodException exception) {
+                return Optional.empty();
             }
         }
 

@@ -86,9 +86,9 @@ final class QuarkusAnnotationClasspathSplitDiagnosticTest {
         assertTrue(output.contains("quarkus-rest-3.33.2.jar provides io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider"));
         assertTrue(output.contains("through META-INF/services and is also present on the Quarkus deployment classpath"));
         assertTrue(output.contains("one classloader identity for both the service type and provider"));
-        assertTrue(output.contains("QuarkusClassOrderer/TestConfig warning can still appear before startup"));
-        assertTrue(output.contains("programmatic JUnit launcher boundary is active"));
-        assertTrue(output.contains("control the context classloader inside that boundary"));
+        assertTrue(output.contains("condition/config evaluation on the system classloader"));
+        assertTrue(output.contains("defers the runtime context-classloader handoff"));
+        assertTrue(output.contains("current blocking failure is runtime service loading"));
     }
 
     private static QuarkusAnnotationLaunchRequest request(List<Path> testRuntimeClasspath) {
