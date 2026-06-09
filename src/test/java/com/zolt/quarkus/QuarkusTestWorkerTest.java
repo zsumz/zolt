@@ -105,7 +105,8 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
-    void defaultAnnotationRunnerFailsHonestlyUntilImplemented() {
+    void annotationRunnerExecutesGeneratedLaunchRequest() {
+        List<QuarkusAnnotationLaunchRequest> launchRequests = new java.util.ArrayList<>();
         QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
                         descriptor -> api(),
                         (plan, api) -> new QuarkusAnnotationLaunchRequest(
@@ -113,16 +114,19 @@ final class QuarkusTestWorkerTest {
                                 api,
                                 List.of("com.example.HttpTest"),
                                 List.of("-Duser.dir=/repo"),
-                                List.of("org.junit.platform.console.ConsoleLauncher")))
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> {
+                            launchRequests.add(request);
+                            return new QuarkusAnnotationJvmRunner.Result(0, "Quarkus annotation tests passed\n");
+                        })
                 .run(new QuarkusTestWorkerPlan(
                         descriptor(true),
                         QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
                         List.of()));
 
-        assertEquals(2, result.exitCode());
-        assertTrue(result.output().contains("Quarkus annotation test execution is not implemented yet"));
-        assertTrue(result.output().contains("planned 1 Quarkus test class"));
-        assertTrue(result.output().contains("launcher/session listeners"));
+        assertEquals(0, result.exitCode());
+        assertEquals("Quarkus annotation tests passed\n", result.output());
+        assertEquals(List.of("com.example.HttpTest"), launchRequests.getFirst().testClasses());
     }
 
     @Test
