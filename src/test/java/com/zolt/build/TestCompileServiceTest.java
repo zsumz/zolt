@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -153,6 +154,82 @@ final class TestCompileServiceTest {
     }
 
     @Test
+    void repeatedTestCompilationSkipsJavacWhenInputsAreCurrent() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+
+        TestCompileResult first = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        TestCompileResult second = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(first.testCompilationSkipped());
+        assertFalse(first.buildResult().mainCompilationSkipped());
+        assertTrue(second.buildResult().mainCompilationSkipped());
+        assertTrue(second.testCompilationSkipped());
+        assertEquals(1, second.sourceCount());
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+    }
+
+    @Test
+    void testSourceChangeInvalidatesTestCompileFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path testSource = source(
+                "src/test/java/com/example/MainTest.java",
+                "package com.example; public final class MainTest { public String message() { return \"one\"; } }\n");
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(
+                testSource,
+                "package com.example; public final class MainTest { public String message() { return \"two\"; } }\n");
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertTrue(result.buildResult().mainCompilationSkipped());
+        assertFalse(result.testCompilationSkipped());
+    }
+
+    @Test
+    void mainOutputChangeInvalidatesTestCompileFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        Path mainSource = source(
+                "src/main/java/com/example/Main.java",
+                "package com.example; public final class Main { public static String message() { return \"one\"; } }\n");
+        source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return Main.message();
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(
+                mainSource,
+                "package com.example; public final class Main { public static String message() { return \"two\"; } }\n");
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.buildResult().mainCompilationSkipped());
+        assertFalse(result.testCompilationSkipped());
+    }
+
+    @Test
+    void missingExpectedTestClassPreventsTestCompileSkip() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.delete(projectDir.resolve("target/test-classes/com/example/MainTest.class"));
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertTrue(result.buildResult().mainCompilationSkipped());
+        assertFalse(result.testCompilationSkipped());
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+    }
+
+    @Test
     void testCompilerErrorsAreSurfacedClearly() throws IOException {
         writeLockfile("version = 1\n");
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
@@ -181,10 +258,11 @@ final class TestCompileServiceTest {
                 BuildSettings.defaults());
     }
 
-    private void source(String path, String content) throws IOException {
+    private Path source(String path, String content) throws IOException {
         Path source = projectDir.resolve(path);
         Files.createDirectories(source.getParent());
         Files.writeString(source, content);
+        return source;
     }
 
     private void writeLockfile(String content) throws IOException {

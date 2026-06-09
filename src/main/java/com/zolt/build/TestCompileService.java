@@ -18,6 +18,7 @@ public final class TestCompileService {
     private final ClasspathBuilder classpathBuilder;
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
+    private final BuildFingerprintService buildFingerprintService;
     private final JdkDetector jdkDetector;
     private final JavacRunner javacRunner;
 
@@ -28,6 +29,7 @@ public final class TestCompileService {
                 new ClasspathBuilder(),
                 new SourceDiscoverer(),
                 new ResourceCopier(),
+                new BuildFingerprintService(),
                 new JdkDetector(),
                 new JavacRunner());
     }
@@ -38,6 +40,7 @@ public final class TestCompileService {
             ClasspathBuilder classpathBuilder,
             SourceDiscoverer sourceDiscoverer,
             ResourceCopier resourceCopier,
+            BuildFingerprintService buildFingerprintService,
             JdkDetector jdkDetector,
             JavacRunner javacRunner) {
         this.buildService = buildService;
@@ -45,6 +48,7 @@ public final class TestCompileService {
         this.classpathBuilder = classpathBuilder;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
+        this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
     }
@@ -71,20 +75,44 @@ public final class TestCompileService {
         testCompileEntries.add(buildResult.outputDirectory());
         testCompileEntries.addAll(classpaths.test().entries());
         Path outputDirectory = projectDirectory.resolve(config.build().testOutput());
-        JavacResult javacResult = javacRunner.compile(
-                jdkStatus.javac().orElseThrow(),
-                sources.testSources(),
-                new Classpath(testCompileEntries),
-                outputDirectory,
+        Classpath testCompileClasspath = new Classpath(testCompileEntries);
+        Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedTestSources());
+        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        boolean compileSkipped = buildFingerprintService.isTestCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                testCompileClasspath,
                 classpaths.testProcessor(),
-                generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedTestSources()));
+                outputDirectory,
+                generatedSourcesDirectory);
+        JavacResult javacResult = compileSkipped
+                ? new JavacResult(sources.testSources().size(), outputDirectory, "")
+                : javacRunner.compile(
+                        jdkStatus.javac().orElseThrow(),
+                        sources.testSources(),
+                        testCompileClasspath,
+                        outputDirectory,
+                        classpaths.testProcessor(),
+                        generatedSourcesDirectory);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config.build());
+        buildFingerprintService.writeTestCompileFingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                testCompileClasspath,
+                classpaths.testProcessor(),
+                outputDirectory,
+                generatedSourcesDirectory);
         return new TestCompileResult(
                 buildResult,
                 javacResult.sourceCount(),
                 resourceResult.copiedCount(),
                 javacResult.outputDirectory(),
-                javacResult.output());
+                javacResult.output(),
+                compileSkipped);
     }
 
     private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {

@@ -19,8 +19,10 @@ import java.util.stream.Stream;
 
 public final class BuildFingerprintService {
     private static final String VERSION = "1";
-    private static final String FILE_NAME = ".zolt-build-main.fingerprint";
+    private static final String MAIN_FILE_NAME = ".zolt-build-main.fingerprint";
+    private static final String TEST_FILE_NAME = ".zolt-build-test.fingerprint";
     private static final List<String> OUTPUT_DIRECTORY_NAMES = List.of("build", "target");
+    private static final List<String> LOCAL_FINGERPRINT_FILES = List.of(MAIN_FILE_NAME, TEST_FILE_NAME);
 
     public boolean isMainCompileCurrent(
             Path projectDirectory,
@@ -30,35 +32,19 @@ public final class BuildFingerprintService {
             ClasspathSet classpaths,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
-        Path fingerprintPath = fingerprintPath(outputDirectory);
-        if (!Files.isRegularFile(fingerprintPath)) {
-            return false;
-        }
-        if (!Files.isDirectory(outputDirectory)) {
-            return false;
-        }
-        if (!expectedClassFilesPresent(projectDirectory, config.build(), sources.mainSources(), outputDirectory)) {
-            return false;
-        }
-        if (!classpaths.processor().entries().isEmpty() && !Files.isDirectory(generatedSourcesDirectory)) {
-            return false;
-        }
-        try {
-            return Files.readString(fingerprintPath).equals(fingerprint(
-                    projectDirectory,
-                    config,
-                    lockfilePath,
-                    sources,
-                    classpaths,
-                    outputDirectory,
-                    generatedSourcesDirectory));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not read build fingerprint at "
-                            + fingerprintPath
-                            + ". Delete the file or rerun `zolt build` to refresh it.",
-                    exception);
-        }
+        return isCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                List.of(config.build().source()),
+                config.build().resourceRoots(),
+                sources.mainSources(),
+                classpaths.compile(),
+                classpaths.processor(),
+                outputDirectory,
+                config.build().output(),
+                generatedSourcesDirectory,
+                MAIN_FILE_NAME);
     }
 
     public void writeMainCompileFingerprint(
@@ -69,7 +55,131 @@ public final class BuildFingerprintService {
             ClasspathSet classpaths,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
-        Path fingerprintPath = fingerprintPath(outputDirectory);
+        writeCompileFingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                List.of(config.build().source()),
+                config.build().resourceRoots(),
+                sources.mainSources(),
+                classpaths.compile(),
+                classpaths.processor(),
+                outputDirectory,
+                config.build().output(),
+                generatedSourcesDirectory,
+                MAIN_FILE_NAME);
+    }
+
+    public boolean isTestCompileCurrent(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        return isCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                config.build().testSources(),
+                config.build().testResourceRoots(),
+                sources.testSources(),
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                config.build().testOutput(),
+                generatedSourcesDirectory,
+                TEST_FILE_NAME);
+    }
+
+    public void writeTestCompileFingerprint(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        writeCompileFingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                config.build().testSources(),
+                config.build().testResourceRoots(),
+                sources.testSources(),
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                config.build().testOutput(),
+                generatedSourcesDirectory,
+                TEST_FILE_NAME);
+    }
+
+    private boolean isCompileCurrent(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            List<String> sourceRoots,
+            List<String> resourceRoots,
+            List<Path> sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            String outputDirectoryName,
+            Path generatedSourcesDirectory,
+            String fileName) {
+        Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
+        if (!Files.isRegularFile(fingerprintPath)) {
+            return false;
+        }
+        if (!Files.isDirectory(outputDirectory)) {
+            return false;
+        }
+        if (!expectedClassFilesPresent(projectDirectory, sourceRoots, sources, outputDirectory)) {
+            return false;
+        }
+        if (!processorClasspath.entries().isEmpty() && !Files.isDirectory(generatedSourcesDirectory)) {
+            return false;
+        }
+        try {
+            return Files.readString(fingerprintPath).equals(fingerprint(
+                    projectDirectory,
+                    config,
+                    lockfilePath,
+                    sourceRoots,
+                    resourceRoots,
+                    sources,
+                    compileClasspath,
+                    processorClasspath,
+                    outputDirectory,
+                    outputDirectoryName,
+                    generatedSourcesDirectory));
+        } catch (IOException exception) {
+            throw new BuildException(
+                    "Could not read build fingerprint at "
+                            + fingerprintPath
+                            + ". Delete the file or rerun `zolt build` to refresh it.",
+                    exception);
+        }
+    }
+
+    private void writeCompileFingerprint(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            List<String> sourceRoots,
+            List<String> resourceRoots,
+            List<Path> sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            String outputDirectoryName,
+            Path generatedSourcesDirectory,
+            String fileName) {
+        Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
         try {
             Files.createDirectories(fingerprintPath.getParent());
             Files.writeString(
@@ -78,9 +188,13 @@ public final class BuildFingerprintService {
                             projectDirectory,
                             config,
                             lockfilePath,
+                            sourceRoots,
+                            resourceRoots,
                             sources,
-                            classpaths,
+                            compileClasspath,
+                            processorClasspath,
                             outputDirectory,
+                            outputDirectoryName,
                             generatedSourcesDirectory),
                     StandardCharsets.UTF_8);
         } catch (IOException exception) {
@@ -92,17 +206,21 @@ public final class BuildFingerprintService {
         }
     }
 
-    private static Path fingerprintPath(Path outputDirectory) {
-        return outputDirectory.resolve(FILE_NAME);
+    private static Path fingerprintPath(Path outputDirectory, String fileName) {
+        return outputDirectory.resolve(fileName);
     }
 
     private String fingerprint(
             Path projectDirectory,
             ProjectConfig config,
             Path lockfilePath,
-            SourceDiscoveryResult sources,
-            ClasspathSet classpaths,
+            List<String> sourceRoots,
+            List<String> resourceRoots,
+            List<Path> sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
             Path outputDirectory,
+            String outputDirectoryName,
             Path generatedSourcesDirectory) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
@@ -110,16 +228,16 @@ public final class BuildFingerprintService {
         line(content, "projectConfig", sha256(config.toString().getBytes(StandardCharsets.UTF_8)));
         line(content, "zoltToml", fileHash(projectRoot.resolve("zolt.toml")));
         line(content, "lockfile", fileHash(lockfilePath));
-        line(content, "sourceRoot", normalize(config.build().source()));
-        line(content, "outputDirectory", normalize(config.build().output()));
-        line(content, "generatedSourcesDirectory", normalize(config.compilerSettings().generatedSources()));
+        section(content, "sourceRoots", sourceRoots.stream().map(BuildFingerprintService::normalize).toList());
+        line(content, "outputDirectory", normalize(outputDirectoryName));
+        line(content, "generatedSourcesDirectory", relative(projectRoot, generatedSourcesDirectory));
         line(content, "compilerSettings", config.compilerSettings().toString());
-        section(content, "compileClasspath", classpathEntries(classpaths.compile()));
-        section(content, "processorClasspath", classpathEntries(classpaths.processor()));
-        section(content, "mainSources", fileEntries(projectRoot, sources.mainSources()));
-        section(content, "mainResources", resourceEntries(projectRoot, config.build().resourceRoots(), config.build()));
+        section(content, "compileClasspath", classpathEntries(compileClasspath));
+        section(content, "processorClasspath", classpathEntries(processorClasspath));
+        section(content, "sources", fileEntries(projectRoot, sources));
+        section(content, "resources", resourceEntries(projectRoot, resourceRoots, config.build()));
         section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory));
-        section(content, "expectedClasses", expectedClassEntries(projectRoot, config.build(), sources.mainSources(), outputDirectory));
+        section(content, "expectedClasses", expectedClassEntries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
     }
 
@@ -189,10 +307,10 @@ public final class BuildFingerprintService {
 
     private static List<String> expectedClassEntries(
             Path projectRoot,
-            BuildSettings settings,
+            List<String> sourceRoots,
             List<Path> sources,
             Path outputDirectory) {
-        return expectedClassFiles(projectRoot, settings, sources, outputDirectory).stream()
+        return expectedClassFiles(projectRoot, sourceRoots, sources, outputDirectory).stream()
                 .sorted()
                 .map(path -> relative(projectRoot, path))
                 .toList();
@@ -200,11 +318,11 @@ public final class BuildFingerprintService {
 
     private static boolean expectedClassFilesPresent(
             Path projectDirectory,
-            BuildSettings settings,
+            List<String> sourceRoots,
             List<Path> sources,
             Path outputDirectory) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        for (Path expectedClass : expectedClassFiles(projectRoot, settings, sources, outputDirectory)) {
+        for (Path expectedClass : expectedClassFiles(projectRoot, sourceRoots, sources, outputDirectory)) {
             if (!Files.isRegularFile(expectedClass)) {
                 return false;
             }
@@ -214,21 +332,25 @@ public final class BuildFingerprintService {
 
     private static List<Path> expectedClassFiles(
             Path projectRoot,
-            BuildSettings settings,
+            List<String> sourceRoots,
             List<Path> sources,
             Path outputDirectory) {
-        Path sourceRoot = projectRoot.resolve(settings.source()).normalize();
+        List<Path> roots = sourceRoots.stream()
+                .map(root -> projectRoot.resolve(root).normalize())
+                .toList();
         return sources.stream()
                 .map(path -> path.toAbsolutePath().normalize())
-                .filter(path -> path.startsWith(sourceRoot))
-                .map(path -> classFile(sourceRoot, path, outputDirectory))
+                .map(path -> classFile(sourceRootFor(roots, path), path, outputDirectory))
                 .flatMap(Optional::stream)
                 .sorted()
                 .toList();
     }
 
-    private static Optional<Path> classFile(Path sourceRoot, Path source, Path outputDirectory) {
-        Path relative = sourceRoot.relativize(source);
+    private static Optional<Path> classFile(Optional<Path> sourceRoot, Path source, Path outputDirectory) {
+        if (sourceRoot.isEmpty()) {
+            return Optional.empty();
+        }
+        Path relative = sourceRoot.orElseThrow().relativize(source);
         String fileName = relative.getFileName().toString();
         if (!fileName.endsWith(".java")) {
             return Optional.empty();
@@ -237,6 +359,12 @@ public final class BuildFingerprintService {
                 ? Path.of(fileName.substring(0, fileName.length() - ".java".length()) + ".class")
                 : relative.getParent().resolve(fileName.substring(0, fileName.length() - ".java".length()) + ".class");
         return Optional.of(outputDirectory.resolve(classRelative).normalize());
+    }
+
+    private static Optional<Path> sourceRootFor(List<Path> sourceRoots, Path source) {
+        return sourceRoots.stream()
+                .filter(source::startsWith)
+                .max(Comparator.comparingInt(Path::getNameCount));
     }
 
     private static void section(StringBuilder content, String name, List<String> entries) {
@@ -262,6 +390,9 @@ public final class BuildFingerprintService {
 
     private static String fileHash(Path path) {
         Path normalized = path.toAbsolutePath().normalize();
+        if (Files.isDirectory(normalized)) {
+            return directoryHash(normalized);
+        }
         if (!Files.isRegularFile(normalized)) {
             return "missing";
         }
@@ -271,6 +402,28 @@ public final class BuildFingerprintService {
             throw new BuildException(
                     "Could not fingerprint file "
                             + normalized
+                            + ". Check that it is readable.",
+                    exception);
+        }
+    }
+
+    private static String directoryHash(Path directory) {
+        try (Stream<Path> paths = Files.walk(directory)) {
+            StringBuilder content = new StringBuilder();
+            paths.filter(Files::isRegularFile)
+                    .map(Path::normalize)
+                    .filter(path -> !LOCAL_FINGERPRINT_FILES.contains(path.getFileName().toString()))
+                    .sorted()
+                    .forEach(path -> content
+                            .append(directory.relativize(path).toString().replace('\\', '/'))
+                            .append('|')
+                            .append(fileHash(path))
+                            .append('\n'));
+            return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException exception) {
+            throw new BuildException(
+                    "Could not fingerprint directory "
+                            + directory
                             + ". Check that it is readable.",
                     exception);
         }

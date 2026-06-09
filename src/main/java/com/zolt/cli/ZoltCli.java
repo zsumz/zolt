@@ -1796,6 +1796,8 @@ public final class ZoltCli implements Runnable {
                 "mainSourceFiles", Integer.toString(result.compileResult().buildResult().sourceCount()),
                 "testSourceFiles", Integer.toString(result.compileResult().sourceCount()),
                 "testResourceFiles", Integer.toString(result.compileResult().resourceCount()),
+                "mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()),
+                "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
                 "outputBytes", Integer.toString(result.output().length()));
     }
 

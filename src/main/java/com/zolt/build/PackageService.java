@@ -39,7 +39,9 @@ public final class PackageService {
     private static final String BOOT_LOADER_PREFIX = "org/springframework/boot/loader/";
     private static final String BOOT_LAUNCHER = "org.springframework.boot.loader.launch.JarLauncher";
     private static final String LEGACY_BOOT_LAUNCHER = "org.springframework.boot.loader.JarLauncher";
-    private static final String LOCAL_BUILD_FINGERPRINT = ".zolt-build-main.fingerprint";
+    private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
+            ".zolt-build-main.fingerprint",
+            ".zolt-build-test.fingerprint");
     private static final PackageId SPRING_BOOT_PACKAGE = new PackageId("org.springframework.boot", "spring-boot");
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
             "org.springframework.boot",
@@ -498,7 +500,7 @@ public final class PackageService {
         try (var stream = Files.walk(outputDirectory)) {
             return stream
                     .filter(Files::isRegularFile)
-                    .filter(path -> !path.getFileName().toString().equals(LOCAL_BUILD_FINGERPRINT))
+                    .filter(path -> !LOCAL_BUILD_FINGERPRINTS.contains(path.getFileName().toString()))
                     .sorted(Comparator.comparing(path -> entryName(outputDirectory, path)))
                     .toList();
         }

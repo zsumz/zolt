@@ -7,5 +7,14 @@ public record TestCompileResult(
         int sourceCount,
         int resourceCount,
         Path outputDirectory,
-        String compilerOutput) {
+        String compilerOutput,
+        boolean testCompilationSkipped) {
+    public TestCompileResult(
+            BuildResult buildResult,
+            int sourceCount,
+            int resourceCount,
+            Path outputDirectory,
+            String compilerOutput) {
+        this(buildResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false);
+    }
 }
