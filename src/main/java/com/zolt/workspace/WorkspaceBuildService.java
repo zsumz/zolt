@@ -90,14 +90,15 @@ public final class WorkspaceBuildService {
         WorkspaceSelection selection = plan.selection();
         ZoltLockfile lockfile = plan.lockfile();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
+        Map<String, ClasspathSet> classpathsByMember = workspaceClasspathService.classpathsForMembers(
+                workspace,
+                lockfile,
+                cacheRoot,
+                selection.includedMembers());
         List<WorkspaceBuildResult.MemberBuildResult> results = new ArrayList<>();
         for (String memberPath : selection.includedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
-            ClasspathSet classpaths = workspaceClasspathService.classpathsFor(
-                    workspace,
-                    lockfile,
-                    cacheRoot,
-                    member.path());
+            ClasspathSet classpaths = classpathsByMember.get(member.path());
             try {
                 results.add(new WorkspaceBuildResult.MemberBuildResult(
                         member.path(),

@@ -1,5 +1,6 @@
 package com.zolt.workspace;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -106,7 +107,15 @@ final class WorkspaceClasspathServiceTest {
 
         ClasspathSet apiClasspaths = service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/api");
         ClasspathSet workerClasspaths = service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/worker");
+        Map<String, ClasspathSet> classpathsByMember = service.classpathsForMembers(
+                workspace,
+                lockfile,
+                tempDir.resolve("cache"),
+                List.of("apps/api", "apps/worker"));
 
+        assertEquals(List.of("apps/api", "apps/worker"), List.copyOf(classpathsByMember.keySet()));
+        assertEquals(apiClasspaths, classpathsByMember.get("apps/api"));
+        assertEquals(workerClasspaths, classpathsByMember.get("apps/worker"));
         assertTrue(apiClasspaths.compile().entries().contains(coreOutput));
         assertFalse(apiClasspaths.compile().entries().contains(extraOutput));
         assertFalse(apiClasspaths.compile().entries().contains(coreHelperJar));

@@ -17,7 +17,10 @@ import com.zolt.workspace.WorkspaceResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class WorkspaceIdeModelService {
@@ -87,13 +90,14 @@ public final class WorkspaceIdeModelService {
             Path cacheRoot,
             WorkspaceLockState lockState) {
         List<WorkspaceIdeModel.ProjectModel> projects = new ArrayList<>();
+        Map<String, IdeModel.ClasspathInfo> classpathsByMember = classpaths(workspace, cacheRoot, lockState.lockfile());
         for (WorkspaceMember member : workspace.members()) {
             projects.add(new WorkspaceIdeModel.ProjectModel(
                     member.path(),
                     ideModelService.exportWithClasspaths(
                             member.directory(),
                             workspace.root().resolve("zolt.lock"),
-                            classpaths(workspace, member, cacheRoot, lockState.lockfile()),
+                            classpathsByMember.get(member.path()),
                             List.of())));
         }
         return List.copyOf(projects);
@@ -160,21 +164,36 @@ public final class WorkspaceIdeModelService {
         }
     }
 
-    private IdeModel.ClasspathInfo classpaths(
+    private Map<String, IdeModel.ClasspathInfo> classpaths(
             Workspace workspace,
-            WorkspaceMember member,
             Path cacheRoot,
             ZoltLockfile lockfile) {
+        Map<String, IdeModel.ClasspathInfo> classpathsByMember = new LinkedHashMap<>();
         if (lockfile == null) {
-            return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of());
+            for (WorkspaceMember member : workspace.members()) {
+                classpathsByMember.put(member.path(), new IdeModel.ClasspathInfo(List.of(), List.of(), List.of()));
+            }
+            return Collections.unmodifiableMap(classpathsByMember);
         }
-        ClasspathSet classpaths = workspaceClasspathService.classpathsFor(workspace, lockfile, cacheRoot, member.path());
-        Path mainOutput = member.directory().resolve(member.config().build().output()).normalize();
-        Path testOutput = member.directory().resolve(member.config().build().testOutput()).normalize();
-        return new IdeModel.ClasspathInfo(
-                absoluteEntries(classpaths.compile()),
-                withOutputs(List.of(mainOutput), classpaths.runtime()),
-                withOutputs(List.of(mainOutput, testOutput), classpaths.test()));
+        Map<String, ClasspathSet> zoltClasspathsByMember = workspaceClasspathService.classpathsForMembers(
+                workspace,
+                lockfile,
+                cacheRoot,
+                workspace.members().stream()
+                        .map(WorkspaceMember::path)
+                        .toList());
+        for (WorkspaceMember member : workspace.members()) {
+            ClasspathSet classpaths = zoltClasspathsByMember.get(member.path());
+            Path mainOutput = member.directory().resolve(member.config().build().output()).normalize();
+            Path testOutput = member.directory().resolve(member.config().build().testOutput()).normalize();
+            classpathsByMember.put(
+                    member.path(),
+                    new IdeModel.ClasspathInfo(
+                            absoluteEntries(classpaths.compile()),
+                            withOutputs(List.of(mainOutput), classpaths.runtime()),
+                            withOutputs(List.of(mainOutput, testOutput), classpaths.test())));
+        }
+        return Collections.unmodifiableMap(classpathsByMember);
     }
 
     private static String lockDiagnosticCode(ResolveException exception) {

@@ -7,6 +7,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,7 +34,41 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             String memberPath) {
-        Set<String> dependencyClosure = dependencyClosure(workspace, memberPath);
+        return classpathsFor(
+                workspace,
+                lockfile,
+                cacheRoot,
+                memberPath,
+                dependenciesByMember(workspace));
+    }
+
+    public Map<String, ClasspathSet> classpathsForMembers(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            List<String> memberPaths) {
+        Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
+        Map<String, ClasspathSet> classpathsByMember = new LinkedHashMap<>();
+        for (String memberPath : memberPaths) {
+            classpathsByMember.put(
+                    memberPath,
+                    classpathsFor(
+                            workspace,
+                            lockfile,
+                            cacheRoot,
+                            memberPath,
+                            dependenciesByMember));
+        }
+        return Collections.unmodifiableMap(classpathsByMember);
+    }
+
+    private ClasspathSet classpathsFor(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            String memberPath,
+            Map<String, List<String>> dependenciesByMember) {
+        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
         Set<String> visibleMembers = new LinkedHashSet<>();
         visibleMembers.add(memberPath);
         visibleMembers.addAll(dependencyClosure);
@@ -113,8 +148,9 @@ public final class WorkspaceClasspathService {
         return false;
     }
 
-    private static Set<String> dependencyClosure(Workspace workspace, String memberPath) {
-        Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
+    private static Set<String> dependencyClosure(
+            String memberPath,
+            Map<String, List<String>> dependenciesByMember) {
         Set<String> closure = new LinkedHashSet<>();
         for (String dependency : dependenciesByMember.getOrDefault(memberPath, List.of())) {
             includeDependency(dependency, dependenciesByMember, closure);
