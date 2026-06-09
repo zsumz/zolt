@@ -170,7 +170,8 @@ final class TestRunServiceTest {
                         """));
 
         assertTrue(exception.getMessage().contains("Quarkus test bootstrap failed"));
-        assertTrue(exception.getMessage().contains("does not yet support Quarkus-specific `@QuarkusTest`"));
+        assertTrue(exception.getMessage().contains("early Quarkus test runner path"));
+        assertTrue(exception.getMessage().contains("unsupported Quarkus test bootstrap shape"));
         assertTrue(exception.getMessage().contains("BuildChainBuilder"));
     }
 
@@ -181,6 +182,30 @@ final class TestRunServiceTest {
                     at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
                 Tests passed
                 """);
+    }
+
+    @Test
+    void quarkusTestRunnerClasspathExcludesBuilderFromLauncherClasspath() {
+        List<Path> classpath = List.of(
+                projectDir.resolve("target/test-classes"),
+                projectDir.resolve("cache/io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.jar"),
+                projectDir.resolve("cache/io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"),
+                projectDir.resolve("cache/org/junit/platform/junit-platform-console/6.0.3/junit-platform-console-6.0.3.jar"));
+
+        List<Path> filtered = TestRunService.testRunnerClasspath(quarkusConfig(), classpath);
+
+        assertEquals(List.of(
+                classpath.get(0),
+                classpath.get(1),
+                classpath.get(3)), filtered);
+    }
+
+    @Test
+    void nonQuarkusTestRunnerClasspathKeepsBuilderLikeArtifacts() {
+        List<Path> classpath = List.of(
+                projectDir.resolve("cache/io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"));
+
+        assertEquals(classpath, TestRunService.testRunnerClasspath(config(), classpath));
     }
 
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {

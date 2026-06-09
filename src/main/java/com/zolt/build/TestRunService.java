@@ -87,7 +87,8 @@ public final class TestRunService {
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
         runnerClasspath.addAll(classpaths.test().entries());
         runnerClasspath = absolutePaths(runnerClasspath);
-        if (runnerClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
+        List<Path> launcherClasspath = testRunnerClasspath(config, runnerClasspath);
+        if (launcherClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
             throw new TestRunException(
                     "JUnit Platform Console is not present on the test classpath. "
                             + "Run `zolt resolve` to refresh Zolt's test runner tooling. "
@@ -100,9 +101,9 @@ public final class TestRunService {
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
-                new Classpath(runnerClasspath),
+                new Classpath(launcherClasspath),
                 CONSOLE_MAIN_CLASS,
-                jvmArguments(projectDirectory, config, runnerClasspath),
+                jvmArguments(projectDirectory, config, launcherClasspath),
                 List.of(
                         "execute",
                         "--disable-banner",
@@ -125,6 +126,23 @@ public final class TestRunService {
         return classpath.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .toList();
+    }
+
+    static List<Path> testRunnerClasspath(ProjectConfig config, List<Path> classpath) {
+        if (config == null || !config.frameworkSettings().quarkus().enabled()) {
+            return List.copyOf(classpath);
+        }
+        return classpath.stream()
+                .filter(path -> !isQuarkusBuilderJar(path))
+                .toList();
+    }
+
+    private static boolean isQuarkusBuilderJar(Path path) {
+        String normalized = path.normalize().toString().replace('\\', '/');
+        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+        return normalized.contains("/io/quarkus/quarkus-builder/")
+                && name.startsWith("quarkus-builder-")
+                && name.endsWith(".jar");
     }
 
     private static boolean isConsoleJar(Path path) {
@@ -173,8 +191,9 @@ public final class TestRunService {
         }
         throw new TestRunException(
                 "Quarkus test bootstrap failed while JUnit Platform reported success. "
-                        + "Zolt does not yet support Quarkus-specific `@QuarkusTest` execution. "
-                        + "Use plain JUnit tests for now, or remove `@QuarkusTest` until Zolt's dedicated Quarkus test runner is implemented.\n"
+                        + "Zolt supports an early Quarkus test runner path, but this project hit an unsupported "
+                        + "Quarkus test bootstrap shape. Use plain JUnit tests for now, or simplify `@QuarkusTest` "
+                        + "usage until Zolt's dedicated Quarkus test runner is expanded.\n"
                         + output.stripTrailing());
     }
 
