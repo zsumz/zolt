@@ -1996,17 +1996,19 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> testRunAttributes(TestRunResult result) {
-        return Map.of(
-                "mainSourceFiles", Integer.toString(result.compileResult().buildResult().sourceCount()),
-                "testSourceFiles", Integer.toString(result.compileResult().sourceCount()),
-                "testResourceFiles", Integer.toString(result.compileResult().resourceCount()),
-                "mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()),
-                "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
-                "testRunner", result.testRunner(),
-                "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
-                "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
-                "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),
-                "outputBytes", Integer.toString(result.output().length()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("mainSourceFiles", Integer.toString(result.compileResult().buildResult().sourceCount()));
+        attributes.put("testSourceFiles", Integer.toString(result.compileResult().sourceCount()));
+        attributes.put("testResourceFiles", Integer.toString(result.compileResult().resourceCount()));
+        attributes.put("mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()));
+        attributes.put("testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()));
+        attributes.put("testRunner", result.testRunner());
+        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
+        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
+        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        addPlainJunitWorkerTimingAttributes(attributes, result);
+        attributes.put("outputBytes", Integer.toString(result.output().length()));
+        return attributes;
     }
 
     private static Map<String, String> testCompileAttributes(TestCompileResult result) {
@@ -2019,12 +2021,25 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> testExecutionAttributes(TestRunResult result) {
-        return Map.of(
-                "testRunner", result.testRunner(),
-                "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
-                "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
-                "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),
-                "outputBytes", Integer.toString(result.output().length()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("testRunner", result.testRunner());
+        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
+        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
+        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        addPlainJunitWorkerTimingAttributes(attributes, result);
+        attributes.put("outputBytes", Integer.toString(result.output().length()));
+        return attributes;
+    }
+
+    private static void addPlainJunitWorkerTimingAttributes(Map<String, String> attributes, TestRunResult result) {
+        if (result.testRunnerStartupNanos() >= 0L) {
+            attributes.put("testRunnerStartupMillis", Long.toString(result.testRunnerStartupNanos() / 1_000_000L));
+            attributes.put("testRunnerStartupNanos", Long.toString(result.testRunnerStartupNanos()));
+        }
+        if (result.testRunnerRequestNanos() >= 0L) {
+            attributes.put("testRunnerRequestMillis", Long.toString(result.testRunnerRequestNanos() / 1_000_000L));
+            attributes.put("testRunnerRequestNanos", Long.toString(result.testRunnerRequestNanos()));
+        }
     }
 
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {

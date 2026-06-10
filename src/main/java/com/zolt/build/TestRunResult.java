@@ -6,9 +6,11 @@ public record TestRunResult(
         String testRunner,
         int testRuntimeClasspathEntries,
         int testLauncherClasspathEntries,
-        int testDiscoveryScanRoots) {
+        int testDiscoveryScanRoots,
+        long testRunnerStartupNanos,
+        long testRunnerRequestNanos) {
     public TestRunResult(TestCompileResult compileResult, String output) {
-        this(compileResult, output, "unknown", 0, 0, 0);
+        this(compileResult, output, "unknown", 0, 0, 0, -1L, -1L);
     }
 
     public TestRunResult(
@@ -16,7 +18,7 @@ public record TestRunResult(
             String output,
             int testRuntimeClasspathEntries,
             int testLauncherClasspathEntries) {
-        this(compileResult, output, "unknown", testRuntimeClasspathEntries, testLauncherClasspathEntries, 0);
+        this(compileResult, output, "unknown", testRuntimeClasspathEntries, testLauncherClasspathEntries, 0, -1L, -1L);
     }
 
     public TestRunResult(
@@ -31,6 +33,26 @@ public record TestRunResult(
                 "unknown",
                 testRuntimeClasspathEntries,
                 testLauncherClasspathEntries,
-                testDiscoveryScanRoots);
+                testDiscoveryScanRoots,
+                -1L,
+                -1L);
+    }
+
+    public TestRunResult(
+            TestCompileResult compileResult,
+            String output,
+            String testRunner,
+            int testRuntimeClasspathEntries,
+            int testLauncherClasspathEntries,
+            int testDiscoveryScanRoots) {
+        this(
+                compileResult,
+                output,
+                testRunner,
+                testRuntimeClasspathEntries,
+                testLauncherClasspathEntries,
+                testDiscoveryScanRoots,
+                -1L,
+                -1L);
     }
 }

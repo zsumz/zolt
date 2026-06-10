@@ -187,27 +187,29 @@ public final class TestRunService {
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
-            JunitWorkerClient.WorkerRunResult result = plainJunitWorkerRunner.run(
+            PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
                     workerClasspath,
                     projectDirectory,
                     runnerClasspath,
                     compileResult.outputDirectory().toAbsolutePath().normalize());
-            failOnHiddenQuarkusBootstrapFailure(config, result.output());
-            if (result.exitCode() != 0) {
+            failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
+            if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
                         "JUnit worker tests failed with exit code "
-                                + result.exitCode()
+                                + result.workerResult().exitCode()
                                 + ". Fix failing tests, then run `zolt test` again.\n"
-                                + result.output().stripTrailing());
+                                + result.workerResult().output().stripTrailing());
             }
             return new TestRunResult(
                     compileResult,
-                    result.output(),
+                    result.workerResult().output(),
                     PLAIN_JUNIT_WORKER_RUNNER,
                     runnerClasspath.size(),
                     workerClasspath.size() + runnerClasspath.size(),
-                    1);
+                    1,
+                    result.startupNanos(),
+                    result.requestNanos());
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
@@ -255,15 +257,20 @@ public final class TestRunService {
         }
     }
 
-    private static JunitWorkerClient.WorkerRunResult runPlainJunitWorker(
+    private static PlainJunitWorkerRunResult runPlainJunitWorker(
             Path javaExecutable,
             List<Path> workerClasspath,
             Path projectDirectory,
             List<Path> testRuntimeClasspath,
             Path testOutputDirectory) {
+        long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
                 .start(projectDirectory, testRuntimeClasspath)) {
-            return process.run(testOutputDirectory);
+            long startupNanos = System.nanoTime() - startupStarted;
+            long requestStarted = System.nanoTime();
+            JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory);
+            long requestNanos = System.nanoTime() - requestStarted;
+            return new PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
         } catch (JunitWorkerClientException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }
@@ -458,11 +465,17 @@ public final class TestRunService {
 
     @FunctionalInterface
     interface PlainJunitWorkerRunner {
-        JunitWorkerClient.WorkerRunResult run(
+        PlainJunitWorkerRunResult run(
                 Path javaExecutable,
                 List<Path> workerClasspath,
                 Path projectDirectory,
                 List<Path> testRuntimeClasspath,
                 Path testOutputDirectory);
+    }
+
+    record PlainJunitWorkerRunResult(
+            JunitWorkerClient.WorkerRunResult workerResult,
+            long startupNanos,
+            long requestNanos) {
     }
 }

@@ -245,7 +245,10 @@ final class TestRunServiceTest {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
-                    return new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0);
+                    return new TestRunService.PlainJunitWorkerRunResult(
+                            new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
+                            12_000_000L,
+                            34_000_000L);
                 },
                 true);
 
@@ -263,6 +266,8 @@ final class TestRunServiceTest {
         assertEquals(3, result.testRuntimeClasspathEntries());
         assertEquals(4, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
+        assertEquals(12_000_000L, result.testRunnerStartupNanos());
+        assertEquals(34_000_000L, result.testRunnerRequestNanos());
     }
 
     @Test
@@ -280,7 +285,10 @@ final class TestRunServiceTest {
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory) ->
-                        new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
+                        new TestRunService.PlainJunitWorkerRunResult(
+                                new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
+                                12_000_000L,
+                                34_000_000L),
                 true);
 
         TestRunException exception = assertThrows(
