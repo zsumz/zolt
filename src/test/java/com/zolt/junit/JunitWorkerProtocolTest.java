@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestSelection;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class JunitWorkerProtocolTest {
@@ -18,6 +20,26 @@ final class JunitWorkerProtocolTest {
         assertEquals(JunitWorkerProtocol.WorkerCommand.RUN, request.command());
         assertEquals("request-1", request.requestId());
         assertEquals("target/test-classes", request.testOutputDirectory());
+        assertTrue(request.testSelection().emptySelection());
+    }
+
+    @Test
+    void formatsAndParsesRunRequestsWithSelection() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.example.MainTest"),
+                List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
+                List.of("*ServiceTest", "com.example.Foo,BarTest"),
+                List.of("fast"),
+                List.of("slow"));
+
+        String frame = JunitWorkerProtocol.runRequest("request-1", Path.of("target/test-classes"), selection);
+
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(frame);
+
+        assertEquals(
+                "RUN\trequest-1\ttarget/test-classes\tcom.example.MainTest\tcom.example.OtherTest#runs\t*ServiceTest,com.example.Foo%2CBarTest\tfast\tslow",
+                frame);
+        assertEquals(selection, request.testSelection());
     }
 
     @Test
@@ -30,6 +52,7 @@ final class JunitWorkerProtocolTest {
         assertEquals(JunitWorkerProtocol.WorkerCommand.QUIT, request.command());
         assertEquals("quit-1", request.requestId());
         assertEquals("", request.testOutputDirectory());
+        assertTrue(request.testSelection().emptySelection());
     }
 
     @Test
@@ -50,6 +73,16 @@ final class JunitWorkerProtocolTest {
                 () -> JunitWorkerProtocol.parseRequest("RUN\trequest-1"));
 
         assertTrue(exception.getMessage().contains("Malformed JUnit worker run request"));
+    }
+
+    @Test
+    void rejectsMalformedSelection() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseRequest(
+                        "RUN\trequest-1\ttarget/test-classes\tcom.example.MainTest\tbad-method\t\t\t"));
+
+        assertTrue(exception.getMessage().contains("Malformed JUnit worker test selection"));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import com.zolt.build.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -14,7 +15,35 @@ public record QuarkusTestRunnerDescriptor(
         String runnerMode,
         boolean supportsQuarkusTestAnnotations,
         boolean jbossLogManagerPresent,
-        List<Path> testRuntimeClasspath) {
+        List<Path> testRuntimeClasspath,
+        TestSelection testSelection) {
+    public QuarkusTestRunnerDescriptor(
+            Path descriptorFile,
+            Path testRuntimeClasspathFile,
+            Path projectDirectory,
+            Path mainOutputDirectory,
+            Path testOutputDirectory,
+            Path serializedApplicationModel,
+            Path bootstrapDescriptorFile,
+            String runnerMode,
+            boolean supportsQuarkusTestAnnotations,
+            boolean jbossLogManagerPresent,
+            List<Path> testRuntimeClasspath) {
+        this(
+                descriptorFile,
+                testRuntimeClasspathFile,
+                projectDirectory,
+                mainOutputDirectory,
+                testOutputDirectory,
+                serializedApplicationModel,
+                bootstrapDescriptorFile,
+                runnerMode,
+                supportsQuarkusTestAnnotations,
+                jbossLogManagerPresent,
+                testRuntimeClasspath,
+                TestSelection.empty());
+    }
+
     public QuarkusTestRunnerDescriptor {
         if (descriptorFile == null) {
             throw new QuarkusAugmentationException("Quarkus test runner descriptor file is required.");
@@ -44,5 +73,6 @@ public record QuarkusTestRunnerDescriptor(
             throw new QuarkusAugmentationException("Quarkus test runner classpath is required.");
         }
         testRuntimeClasspath = List.copyOf(testRuntimeClasspath);
+        testSelection = testSelection == null ? TestSelection.empty() : testSelection;
     }
 }

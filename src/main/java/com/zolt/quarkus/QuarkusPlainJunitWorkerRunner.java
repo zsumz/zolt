@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import com.zolt.build.TestSelection;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -67,10 +68,42 @@ public final class QuarkusPlainJunitWorkerRunner {
         command.add("--disable-banner");
         command.add("--class-path");
         command.add(classpath);
-        command.add("--scan-class-path=" + descriptor.testOutputDirectory().normalize());
+        addSelectionArguments(command, descriptor.testOutputDirectory(), descriptor.testSelection());
         command.add("--details");
         command.add("summary");
         return List.copyOf(command);
+    }
+
+    private static void addSelectionArguments(
+            List<String> command,
+            Path testOutputDirectory,
+            TestSelection selection) {
+        TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
+        boolean hasClassOrMethodSelectors =
+                !testSelection.classSelectors().isEmpty() || !testSelection.methodSelectors().isEmpty();
+        if (!hasClassOrMethodSelectors) {
+            command.add("--scan-class-path=" + testOutputDirectory.normalize());
+        }
+        for (String classSelector : testSelection.classSelectors()) {
+            command.add("--select-class");
+            command.add(classSelector);
+        }
+        for (TestSelection.MethodSelector methodSelector : testSelection.methodSelectors()) {
+            command.add("--select-method");
+            command.add(methodSelector.className() + "#" + methodSelector.methodName());
+        }
+        for (String pattern : testSelection.classNamePatterns()) {
+            command.add("--include-classname");
+            command.add(TestSelection.toClassNameRegex(pattern));
+        }
+        for (String tag : testSelection.includedTags()) {
+            command.add("--include-tag");
+            command.add(tag);
+        }
+        for (String tag : testSelection.excludedTags()) {
+            command.add("--exclude-tag");
+            command.add(tag);
+        }
     }
 
     private String joinedClasspath(List<Path> classpath) {

@@ -48,6 +48,37 @@ public record TestSelection(
         return new TestSelection(classes, methods, patterns, includes, excludes);
     }
 
+    public static TestSelection fromFields(
+            List<String> classSelectors,
+            List<MethodSelector> methodSelectors,
+            List<String> classNamePatterns,
+            List<String> includedTags,
+            List<String> excludedTags) {
+        List<String> classes = nullToEmpty(classSelectors).stream()
+                .map(value -> validateClassName("--test", value))
+                .toList();
+        List<MethodSelector> methods = nullToEmpty(methodSelectors).stream()
+                .map(method -> {
+                    if (method == null) {
+                        throw new TestSelectionException("Invalid --test method selector. Use com.example.UserServiceTest#methodName.");
+                    }
+                    String className = validateClassName("--test", method.className());
+                    String methodName = validateMethodName(className + "#" + method.methodName(), method.methodName());
+                    return new MethodSelector(className, methodName);
+                })
+                .toList();
+        List<String> patterns = nullToEmpty(classNamePatterns).stream()
+                .map(TestSelection::validatePattern)
+                .toList();
+        List<String> includes = nullToEmpty(includedTags).stream()
+                .map(tag -> validateTag("--include-tag", tag))
+                .toList();
+        List<String> excludes = nullToEmpty(excludedTags).stream()
+                .map(tag -> validateTag("--exclude-tag", tag))
+                .toList();
+        return new TestSelection(classes, methods, patterns, includes, excludes);
+    }
+
     public boolean emptySelection() {
         return classSelectors.isEmpty()
                 && methodSelectors.isEmpty()
@@ -62,6 +93,32 @@ public record TestSelection(
 
     public int tagSelectorCount() {
         return includedTags.size() + excludedTags.size();
+    }
+
+    public List<String> classNameRegexPatterns() {
+        return classNamePatterns.stream()
+                .map(TestSelection::toClassNameRegex)
+                .toList();
+    }
+
+    public static String toClassNameRegex(String pattern) {
+        StringBuilder regex = new StringBuilder();
+        if (pattern.indexOf('.') < 0 && pattern.indexOf('*') != 0) {
+            regex.append(".*");
+        }
+        for (int index = 0; index < pattern.length(); index++) {
+            char character = pattern.charAt(index);
+            switch (character) {
+                case '*' -> regex.append(".*");
+                case '?' -> regex.append('.');
+                case '.', '\\', '[', ']', '(', ')', '{', '}', '+', '-', '^', '$', '|' -> {
+                    regex.append('\\');
+                    regex.append(character);
+                }
+                default -> regex.append(character);
+            }
+        }
+        return regex.toString();
     }
 
     private static void parseTestSelector(
@@ -160,7 +217,7 @@ public record TestSelection(
         return false;
     }
 
-    private static List<String> nullToEmpty(List<String> values) {
+    private static <T> List<T> nullToEmpty(List<T> values) {
         return values == null ? List.of() : values;
     }
 

@@ -62,4 +62,15 @@ final class TestSelectionTest {
 
         assertTrue(exception.getMessage().contains("Tags must not contain whitespace"));
     }
+
+    @Test
+    void convertsClassNamePatternsToRegexes() {
+        TestSelection selection = TestSelection.fromCli(
+                List.of(),
+                List.of("*ServiceTest", "com.example.?serTest"),
+                List.of(),
+                List.of());
+
+        assertEquals(List.of(".*ServiceTest", "com\\.example\\..serTest"), selection.classNameRegexPatterns());
+    }
 }

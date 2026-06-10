@@ -1,5 +1,6 @@
 package com.zolt.junit;
 
+import com.zolt.build.TestSelection;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -25,9 +26,13 @@ public final class JunitWorkerClient implements AutoCloseable {
     }
 
     public WorkerRunResult run(Path testOutputDirectory) {
+        return run(testOutputDirectory, TestSelection.empty());
+    }
+
+    public WorkerRunResult run(Path testOutputDirectory, TestSelection testSelection) {
         ensureOpen();
         String requestId = nextRequestId();
-        writeFrame(JunitWorkerProtocol.runRequest(requestId, testOutputDirectory));
+        writeFrame(JunitWorkerProtocol.runRequest(requestId, testOutputDirectory, testSelection));
         return readRunResult(requestId);
     }
 

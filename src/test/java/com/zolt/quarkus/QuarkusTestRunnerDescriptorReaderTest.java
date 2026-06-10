@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -146,6 +147,48 @@ final class QuarkusTestRunnerDescriptorReaderTest {
 
         assertEquals("C:\\repo\\app", read.projectDirectory().toString());
         assertEquals("C:\\repo\\app\\target\\test-classes", read.testRuntimeClasspath().getFirst().toString());
+    }
+
+    @Test
+    void readsSelectionFields() throws IOException {
+        Path descriptor = descriptorPath();
+        Path classpath = projectDir.resolve("target/quarkus/test-runtime-classpath.txt");
+        Files.createDirectories(classpath.getParent());
+        Files.writeString(classpath, projectDir.resolve("target/test-classes") + "\n");
+        Files.writeString(descriptor, """
+                version=1
+                runnerMode=plain-junit
+                supportsQuarkusTestAnnotations=false
+                jbossLogManagerPresent=false
+                projectDirectory=%s
+                mainOutputDirectory=%s
+                testOutputDirectory=%s
+                serializedApplicationModel=%s
+                bootstrapDescriptorFile=%s
+                testRuntimeClasspathFile=%s
+                testSelection.classSelectors=com.example.MainTest
+                testSelection.methodSelectors=com.example.OtherTest#runs
+                testSelection.classNamePatterns=*ServiceTest
+                testSelection.includedTags=fast
+                testSelection.excludedTags=slow
+                """.formatted(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/test-classes"),
+                projectDir.resolve("target/quarkus/test-application-model.dat"),
+                projectDir.resolve("target/quarkus/zolt-bootstrap.properties"),
+                classpath));
+
+        QuarkusTestRunnerDescriptor read = reader.read(descriptor);
+
+        assertEquals(
+                TestSelection.fromFields(
+                        List.of("com.example.MainTest"),
+                        List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
+                        List.of("*ServiceTest"),
+                        List.of("fast"),
+                        List.of("slow")),
+                read.testSelection());
     }
 
     private Path descriptorPath() {

@@ -1,5 +1,6 @@
 package com.zolt.junit;
 
+import com.zolt.build.TestSelection;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +11,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -54,7 +56,7 @@ public final class JunitLauncherWorker {
                     out.flush();
                     return 0;
                 }
-                int exitCode = runRequest(launcher, request.testOutputDirectory(), err);
+                int exitCode = runRequest(launcher, request.testOutputDirectory(), request.testSelection(), err);
                 out.println(JunitWorkerProtocol.result(request.requestId(), exitCode));
                 out.flush();
             }
@@ -70,12 +72,16 @@ public final class JunitLauncherWorker {
     }
 
     private int runOnce(String testOutputDirectory, PrintStream out, PrintStream err) {
-        return runRequest(new ProgrammaticLauncher(out), testOutputDirectory, err);
+        return runRequest(new ProgrammaticLauncher(out), testOutputDirectory, TestSelection.empty(), err);
     }
 
-    private int runRequest(ProgrammaticLauncher launcher, String testOutputDirectory, PrintStream err) {
+    private int runRequest(
+            ProgrammaticLauncher launcher,
+            String testOutputDirectory,
+            TestSelection testSelection,
+            PrintStream err) {
         try {
-            return launcher.execute(Path.of(testOutputDirectory));
+            return launcher.execute(Path.of(testOutputDirectory), testSelection);
         } catch (ReflectiveOperationException | LinkageError exception) {
             err.println("error: Could not run tests through Zolt's JUnit launcher worker. "
                     + "Check that JUnit Platform Launcher and test engines are on the worker classpath.");
@@ -91,10 +97,10 @@ public final class JunitLauncherWorker {
             this.out = out;
         }
 
-        private int execute(Path testOutputDirectory) throws ReflectiveOperationException {
+        private int execute(Path testOutputDirectory, TestSelection testSelection) throws ReflectiveOperationException {
             Class<?> listenerClass = Class.forName("org.junit.platform.launcher.listeners.SummaryGeneratingListener");
             Object listener = listenerClass.getDeclaredConstructor().newInstance();
-            Object request = discoveryRequest(testOutputDirectory.toAbsolutePath().normalize());
+            Object request = discoveryRequest(testOutputDirectory.toAbsolutePath().normalize(), testSelection);
             Object session = Class.forName("org.junit.platform.launcher.core.LauncherFactory")
                     .getMethod("openSession")
                     .invoke(null);
@@ -117,33 +123,91 @@ public final class JunitLauncherWorker {
             return summarize(listenerClass, listener);
         }
 
-        private static Object discoveryRequest(Path testOutputDirectory) throws ReflectiveOperationException {
+        private static Object discoveryRequest(Path testOutputDirectory, TestSelection testSelection)
+                throws ReflectiveOperationException {
+            TestSelection selection = testSelection == null ? TestSelection.empty() : testSelection;
             Class<?> selectorsClass = Class.forName("org.junit.platform.engine.discovery.DiscoverySelectors");
-            Object selectors = selectorsClass
-                    .getMethod("selectClasspathRoots", Set.class)
-                    .invoke(null, Set.of(testOutputDirectory));
+            Object selectors = selectors(selection, selectorsClass, testOutputDirectory);
 
             Class<?> builderClass = Class.forName("org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder");
             Object builder = builderClass.getMethod("request").invoke(null);
             builderClass.getMethod("selectors", List.class).invoke(builder, selectors);
-            applyDefaultClassNameFilter(builderClass, builder);
+            applyFilters(builderClass, builder, selection);
             return builderClass.getMethod("build").invoke(builder);
         }
 
-        private static void applyDefaultClassNameFilter(Class<?> builderClass, Object builder)
+        private static Object selectors(
+                TestSelection selection,
+                Class<?> selectorsClass,
+                Path testOutputDirectory) throws ReflectiveOperationException {
+            boolean hasClassOrMethodSelectors =
+                    !selection.classSelectors().isEmpty() || !selection.methodSelectors().isEmpty();
+            if (!hasClassOrMethodSelectors) {
+                return selectorsClass
+                        .getMethod("selectClasspathRoots", Set.class)
+                        .invoke(null, Set.of(testOutputDirectory));
+            }
+            List<Object> selectors = new ArrayList<>();
+            Method selectClass = selectorsClass.getMethod("selectClass", String.class);
+            Method selectMethod = selectorsClass.getMethod("selectMethod", String.class);
+            for (String classSelector : selection.classSelectors()) {
+                selectors.add(selectClass.invoke(null, classSelector));
+            }
+            for (TestSelection.MethodSelector methodSelector : selection.methodSelectors()) {
+                selectors.add(selectMethod.invoke(null, methodSelector.className() + "#" + methodSelector.methodName()));
+            }
+            return selectors;
+        }
+
+        private static void applyFilters(Class<?> builderClass, Object builder, TestSelection selection)
+                throws ReflectiveOperationException {
+            List<Object> filters = new ArrayList<>();
+            addClassNameFilters(filters, selection);
+            addTagFilters(filters, selection);
+            if (filters.isEmpty()) {
+                return;
+            }
+            Class<?> filterInterface = Class.forName("org.junit.platform.engine.Filter");
+            Object filterArray = Array.newInstance(filterInterface, filters.size());
+            for (int index = 0; index < filters.size(); index++) {
+                Array.set(filterArray, index, filters.get(index));
+            }
+            builderClass
+                    .getMethod("filters", filterArray.getClass())
+                    .invoke(builder, filterArray);
+        }
+
+        private static void addClassNameFilters(List<Object> filters, TestSelection selection)
                 throws ReflectiveOperationException {
             Class<?> classNameFilterClass = Class.forName("org.junit.platform.engine.discovery.ClassNameFilter");
-            Object standardPattern = classNameFilterClass.getField("STANDARD_INCLUDE_PATTERN").get(null);
+            List<String> patterns = selection.classNameRegexPatterns();
+            if (patterns.isEmpty()
+                    && selection.classSelectors().isEmpty()
+                    && selection.methodSelectors().isEmpty()) {
+                patterns = List.of(classNameFilterClass.getField("STANDARD_INCLUDE_PATTERN").get(null).toString());
+            }
+            if (patterns.isEmpty()) {
+                return;
+            }
             Object classNameFilter = classNameFilterClass
                     .getMethod("includeClassNamePatterns", String[].class)
-                    .invoke(null, (Object) new String[] {standardPattern.toString()});
+                    .invoke(null, (Object) patterns.toArray(String[]::new));
+            filters.add(classNameFilter);
+        }
 
-            Class<?> filterInterface = Class.forName("org.junit.platform.engine.Filter");
-            Object filters = Array.newInstance(filterInterface, 1);
-            Array.set(filters, 0, classNameFilter);
-            builderClass
-                    .getMethod("filters", filters.getClass())
-                    .invoke(builder, filters);
+        private static void addTagFilters(List<Object> filters, TestSelection selection)
+                throws ReflectiveOperationException {
+            Class<?> tagFilterClass = Class.forName("org.junit.platform.launcher.TagFilter");
+            if (!selection.includedTags().isEmpty()) {
+                filters.add(tagFilterClass
+                        .getMethod("includeTags", String[].class)
+                        .invoke(null, (Object) selection.includedTags().toArray(String[]::new)));
+            }
+            if (!selection.excludedTags().isEmpty()) {
+                filters.add(tagFilterClass
+                        .getMethod("excludeTags", String[].class)
+                        .invoke(null, (Object) selection.excludedTags().toArray(String[]::new)));
+            }
         }
 
         private int summarize(Class<?> listenerClass, Object listener) throws ReflectiveOperationException {

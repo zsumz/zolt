@@ -196,7 +196,8 @@ public final class TestRunService {
                 config,
                 compileResult,
                 runnerClasspath,
-                serializedApplicationModel);
+                serializedApplicationModel,
+                testSelection);
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
             QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
@@ -228,7 +229,8 @@ public final class TestRunService {
                     workerClasspath,
                     projectDirectory,
                     runnerClasspath,
-                    compileResult.outputDirectory().toAbsolutePath().normalize());
+                    compileResult.outputDirectory().toAbsolutePath().normalize(),
+                    testSelection);
             failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
@@ -312,7 +314,7 @@ public final class TestRunService {
         }
         for (String pattern : selection.classNamePatterns()) {
             arguments.add("--include-classname");
-            arguments.add(toClassNameRegex(pattern));
+            arguments.add(TestSelection.toClassNameRegex(pattern));
         }
         for (String tag : selection.includedTags()) {
             arguments.add("--include-tag");
@@ -322,26 +324,6 @@ public final class TestRunService {
             arguments.add("--exclude-tag");
             arguments.add(tag);
         }
-    }
-
-    private static String toClassNameRegex(String pattern) {
-        StringBuilder regex = new StringBuilder();
-        if (pattern.indexOf('.') < 0 && pattern.indexOf('*') != 0) {
-            regex.append(".*");
-        }
-        for (int index = 0; index < pattern.length(); index++) {
-            char character = pattern.charAt(index);
-            switch (character) {
-                case '*' -> regex.append(".*");
-                case '?' -> regex.append('.');
-                case '.', '\\', '[', ']', '(', ')', '{', '}', '+', '-', '^', '$', '|' -> {
-                    regex.append('\\');
-                    regex.append(character);
-                }
-                default -> regex.append(character);
-            }
-        }
-        return regex.toString();
     }
 
     private static boolean noTestsFound(String message) {
@@ -387,13 +369,14 @@ public final class TestRunService {
             List<Path> workerClasspath,
             Path projectDirectory,
             List<Path> testRuntimeClasspath,
-            Path testOutputDirectory) {
+            Path testOutputDirectory,
+            TestSelection testSelection) {
         long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
                 .start(projectDirectory, testRuntimeClasspath)) {
             long startupNanos = System.nanoTime() - startupStarted;
             long requestStarted = System.nanoTime();
-            JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory);
+            JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory, testSelection);
             long requestNanos = System.nanoTime() - requestStarted;
             return new PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
         } catch (JunitWorkerClientException exception) {
@@ -508,7 +491,8 @@ public final class TestRunService {
             ProjectConfig config,
             TestCompileResult compileResult,
             List<Path> runnerClasspath,
-            Optional<Path> serializedApplicationModel) {
+            Optional<Path> serializedApplicationModel,
+            TestSelection testSelection) {
         if (!config.frameworkSettings().quarkus().enabled()) {
             return Optional.empty();
         }
@@ -523,7 +507,8 @@ public final class TestRunService {
                     modelPath,
                     projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"),
                     runnerClasspath,
-                    runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar))));
+                    runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar),
+                    testSelection)));
         } catch (QuarkusAugmentationException exception) {
             throw new TestRunException(
                     "Could not write Quarkus test runner descriptor. "
@@ -595,7 +580,8 @@ public final class TestRunService {
                 List<Path> workerClasspath,
                 Path projectDirectory,
                 List<Path> testRuntimeClasspath,
-                Path testOutputDirectory);
+                Path testOutputDirectory,
+                TestSelection testSelection);
     }
 
     record PlainJunitWorkerRunResult(

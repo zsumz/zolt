@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import com.zolt.build.TestSelectionCodec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,7 +41,8 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 QuarkusTestRunnerRequest.RUNNER_MODE,
                 QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
                 request.jbossLogManagerPresent(),
-                request.testRuntimeClasspath());
+                request.testRuntimeClasspath(),
+                request.testSelection());
     }
 
     private static String descriptor(
@@ -57,6 +59,11 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 serializedApplicationModel=%s
                 bootstrapDescriptorFile=%s
                 testRuntimeClasspathFile=%s
+                testSelection.classSelectors=%s
+                testSelection.methodSelectors=%s
+                testSelection.classNamePatterns=%s
+                testSelection.includedTags=%s
+                testSelection.excludedTags=%s
                 """.formatted(
                 QuarkusTestRunnerRequest.RUNNER_MODE,
                 QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
@@ -66,7 +73,12 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 request.testOutputDirectory(),
                 request.serializedApplicationModel(),
                 request.bootstrapDescriptorFile(),
-                testRuntimeClasspathFile);
+                testRuntimeClasspathFile,
+                TestSelectionCodec.encodeStrings(request.testSelection().classSelectors()),
+                TestSelectionCodec.encodeMethods(request.testSelection().methodSelectors()),
+                TestSelectionCodec.encodeStrings(request.testSelection().classNamePatterns()),
+                TestSelectionCodec.encodeStrings(request.testSelection().includedTags()),
+                TestSelectionCodec.encodeStrings(request.testSelection().excludedTags()));
     }
 
     private static void writeClasspath(

@@ -1,5 +1,8 @@
 package com.zolt.quarkus;
 
+import com.zolt.build.TestSelection;
+import com.zolt.build.TestSelectionCodec;
+import com.zolt.build.TestSelectionException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -44,7 +47,8 @@ public final class QuarkusTestRunnerDescriptorReader {
                 required(properties, "runnerMode", descriptorFile),
                 booleanValue(properties, "supportsQuarkusTestAnnotations", descriptorFile),
                 booleanValue(properties, "jbossLogManagerPresent", descriptorFile),
-                classpath(testRuntimeClasspathFile, descriptorFile));
+                classpath(testRuntimeClasspathFile, descriptorFile),
+                testSelection(properties, descriptorFile));
     }
 
     private static Map<String, String> properties(Path descriptorFile) throws IOException {
@@ -97,6 +101,34 @@ public final class QuarkusTestRunnerDescriptorReader {
                         + ". Field `"
                         + key
                         + "` must be true or false.");
+    }
+
+    private static TestSelection testSelection(Map<String, String> properties, Path descriptorFile) {
+        try {
+            return TestSelection.fromFields(
+                    TestSelectionCodec.decodeStrings(
+                            "Quarkus test selection class selectors",
+                            properties.getOrDefault("testSelection.classSelectors", "")),
+                    TestSelectionCodec.decodeMethods(
+                            "Quarkus test selection method selectors",
+                            properties.getOrDefault("testSelection.methodSelectors", "")),
+                    TestSelectionCodec.decodeStrings(
+                            "Quarkus test selection class-name patterns",
+                            properties.getOrDefault("testSelection.classNamePatterns", "")),
+                    TestSelectionCodec.decodeStrings(
+                            "Quarkus test selection included tags",
+                            properties.getOrDefault("testSelection.includedTags", "")),
+                    TestSelectionCodec.decodeStrings(
+                            "Quarkus test selection excluded tags",
+                            properties.getOrDefault("testSelection.excludedTags", "")));
+        } catch (IllegalArgumentException | TestSelectionException exception) {
+            throw new QuarkusAugmentationException(
+                    "Invalid Quarkus test runner descriptor at "
+                            + descriptorFile
+                            + ". Malformed test selection. "
+                            + exception.getMessage(),
+                    exception);
+        }
     }
 
     private static List<Path> classpath(Path classpathFile, Path descriptorFile) {

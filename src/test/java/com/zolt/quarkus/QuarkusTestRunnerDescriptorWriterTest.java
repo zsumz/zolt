@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,7 +27,13 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 projectDir.resolve("target/quarkus/test-application-model.dat"),
                 projectDir.resolve("target/quarkus/zolt-bootstrap.properties"),
                 List.of(projectDir.resolve("target/test-classes"), projectDir.resolve("target/classes"), junitConsole, jbossLogManager),
-                true);
+                true,
+                TestSelection.fromFields(
+                        List.of("com.example.MainTest"),
+                        List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
+                        List.of("*ServiceTest"),
+                        List.of("fast"),
+                        List.of("slow")));
 
         QuarkusTestRunnerDescriptor descriptor = new QuarkusTestRunnerDescriptorWriter().write(request);
 
@@ -47,6 +54,11 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 serializedApplicationModel=%s
                 bootstrapDescriptorFile=%s
                 testRuntimeClasspathFile=%s
+                testSelection.classSelectors=com.example.MainTest
+                testSelection.methodSelectors=com.example.OtherTest#runs
+                testSelection.classNamePatterns=*ServiceTest
+                testSelection.includedTags=fast
+                testSelection.excludedTags=slow
                 """.formatted(
                 root,
                 root.resolve("target/classes"),

@@ -345,6 +345,7 @@ final class TestRunServiceTest {
         List<List<Path>> workerClasspaths = new ArrayList<>();
         List<List<Path>> testRuntimeClasspaths = new ArrayList<>();
         List<Path> testOutputDirectories = new ArrayList<>();
+        List<TestSelection> selections = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     javaCommands.add(command);
@@ -357,10 +358,11 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) -> {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
+                    selections.add(testSelection);
                     return new TestRunService.PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
                             12_000_000L,
@@ -375,6 +377,7 @@ final class TestRunServiceTest {
         assertTrue(javaCommands.isEmpty());
         assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
         assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize(), testOutputDirectories.getFirst());
+        assertTrue(selections.getFirst().emptySelection());
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/test-classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path ->
@@ -400,7 +403,7 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory) ->
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) ->
                         new TestRunService.PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
@@ -575,7 +578,7 @@ final class TestRunServiceTest {
                 quarkusTestWorkerClasspath,
                 quarkusTestWorkerRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
                 },
                 false,
