@@ -202,6 +202,10 @@ final class QuarkusBootstrapWorkerTest {
                 return this;
             }
 
+            public Builder addLocalArtifact(FakeArtifactKey ignored) {
+                return this;
+            }
+
             public WorkerBootstrap build() {
                 return new WorkerBootstrap(targetDirectory);
             }
@@ -361,6 +365,12 @@ final class QuarkusBootstrapWorkerTest {
 
     public static final class FakePlatformImportsImpl implements FakePlatformImports {
         public void setPlatformProperties(java.util.Map<String, String> ignored) {
+        }
+    }
+
+    public record FakeArtifactKey(String groupId, String artifactId, String classifier, String type) {
+        public static FakeArtifactKey of(String groupId, String artifactId, String classifier, String type) {
+            return new FakeArtifactKey(groupId, artifactId, classifier, type);
         }
     }
 

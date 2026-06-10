@@ -28,6 +28,7 @@ public final class QuarkusBootstrapPreparer {
             builderClass.getMethod("setTargetDirectory", Path.class).invoke(builder, targetDirectory(descriptor));
             existingModelSetter(builderClass, applicationModel.applicationModel().getClass())
                     .invoke(builder, applicationModel.applicationModel());
+            addLocalArtifact(builderClass, builder, descriptor);
             setMode(builderClass, api.modeClass(), builder);
             Object bootstrap = builderClass.getMethod("build").invoke(builder);
             return new QuarkusBootstrapHandle(
@@ -71,6 +72,34 @@ public final class QuarkusBootstrapPreparer {
             }
         }
         throw new NoSuchMethodException("setExistingModel(" + applicationModelClass.getName() + ")");
+    }
+
+    private static void addLocalArtifact(
+            Class<?> builderClass,
+            Object builder,
+            QuarkusBootstrapDescriptor descriptor)
+            throws ReflectiveOperationException {
+        Method method = localArtifactAdder(builderClass);
+        Class<?> artifactKeyClass = method.getParameterTypes()[0];
+        QuarkusApplicationArtifact artifact = descriptor.applicationArtifact();
+        Object artifactKey = artifactKeyClass
+                .getMethod("of", String.class, String.class, String.class, String.class)
+                .invoke(
+                        null,
+                        artifact.packageId().groupId(),
+                        artifact.packageId().artifactId(),
+                        artifact.classifier(),
+                        artifact.type());
+        method.invoke(builder, artifactKey);
+    }
+
+    private static Method localArtifactAdder(Class<?> builderClass) throws NoSuchMethodException {
+        for (Method method : builderClass.getMethods()) {
+            if ("addLocalArtifact".equals(method.getName()) && method.getParameterCount() == 1) {
+                return method;
+            }
+        }
+        throw new NoSuchMethodException("addLocalArtifact(ArtifactKey)");
     }
 
     private static Path targetDirectory(QuarkusBootstrapDescriptor descriptor) {

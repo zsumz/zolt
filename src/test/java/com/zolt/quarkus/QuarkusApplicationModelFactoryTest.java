@@ -286,6 +286,11 @@ final class QuarkusApplicationModelFactoryTest {
                 module.artifactSources().stream()
                         .map(io.quarkus.bootstrap.workspace.FakeArtifactSources::classifier)
                         .toList());
+        assertTrue(model.appArtifact().workspaceModuleFlag());
+        assertTrue(model.appArtifact().reloadable());
+        assertEquals(
+                List.of(new FakeArtifactKey("com.example", "demo", "", "jar")),
+                model.reloadableWorkspaceModules());
     }
 
     @Test
@@ -386,7 +391,8 @@ final class QuarkusApplicationModelFactoryTest {
                 FakeApplicationModelBuilder.class.getName(),
                 FakeResolvedDependencyBuilder.class.getName(),
                 FakePlatformImports.class.getName(),
-                FakePlatformImportsImpl.class.getName());
+                FakePlatformImportsImpl.class.getName(),
+                FakeArtifactKey.class.getName());
     }
 
     private static QuarkusApplicationModelApi fakeApiWithArtifactKey() {
@@ -412,6 +418,7 @@ final class QuarkusApplicationModelFactoryTest {
         private final List<FakeResolvedDependencyBuilder> dependencies = new ArrayList<>();
         private final List<FakeArtifactKey> parentFirstArtifacts = new ArrayList<>();
         private final List<FakeArtifactKey> runnerParentFirstArtifacts = new ArrayList<>();
+        private final List<FakeArtifactKey> reloadableWorkspaceModules = new ArrayList<>();
         private final Map<FakeArtifactKey, List<String>> removedResources = new java.util.LinkedHashMap<>();
         private io.quarkus.bootstrap.workspace.FakeWorkspaceModule workspaceModule;
 
@@ -440,6 +447,11 @@ final class QuarkusApplicationModelFactoryTest {
             return this;
         }
 
+        public FakeApplicationModelBuilder addReloadableWorkspaceModule(FakeArtifactKey artifactKey) {
+            reloadableWorkspaceModules.add(artifactKey);
+            return this;
+        }
+
         public FakeApplicationModelBuilder addRemovedResources(
                 FakeArtifactKey artifactKey,
                 java.util.Collection<String> resources) {
@@ -465,6 +477,7 @@ final class QuarkusApplicationModelFactoryTest {
                     List.copyOf(dependencies),
                     List.copyOf(parentFirstArtifacts),
                     List.copyOf(runnerParentFirstArtifacts),
+                    List.copyOf(reloadableWorkspaceModules),
                     Map.copyOf(removedResources));
         }
     }
@@ -475,7 +488,7 @@ final class QuarkusApplicationModelFactoryTest {
         }
 
         public FakeApplicationModel build() {
-            return new FakeApplicationModel(null, null, List.of(), List.of(), List.of(), Map.of());
+            return new FakeApplicationModel(null, null, List.of(), List.of(), List.of(), List.of(), Map.of());
         }
     }
 
@@ -511,6 +524,8 @@ final class QuarkusApplicationModelFactoryTest {
         private boolean direct;
         private boolean runtimeClasspath;
         private boolean deploymentClasspath;
+        private boolean workspaceModuleFlag;
+        private boolean reloadable;
         private io.quarkus.bootstrap.workspace.WorkspaceModule workspaceModule;
 
         public static FakeResolvedDependencyBuilder newInstance() {
@@ -573,6 +588,16 @@ final class QuarkusApplicationModelFactoryTest {
             return this;
         }
 
+        public FakeResolvedDependencyBuilder setWorkspaceModule() {
+            this.workspaceModuleFlag = true;
+            return this;
+        }
+
+        public FakeResolvedDependencyBuilder setReloadable() {
+            this.reloadable = true;
+            return this;
+        }
+
         String groupId() {
             return groupId;
         }
@@ -613,6 +638,14 @@ final class QuarkusApplicationModelFactoryTest {
             return deploymentClasspath;
         }
 
+        boolean workspaceModuleFlag() {
+            return workspaceModuleFlag;
+        }
+
+        boolean reloadable() {
+            return reloadable;
+        }
+
         io.quarkus.bootstrap.workspace.WorkspaceModule workspaceModule() {
             return workspaceModule;
         }
@@ -624,6 +657,7 @@ final class QuarkusApplicationModelFactoryTest {
             List<FakeResolvedDependencyBuilder> dependencies,
             List<FakeArtifactKey> parentFirstArtifacts,
             List<FakeArtifactKey> runnerParentFirstArtifacts,
+            List<FakeArtifactKey> reloadableWorkspaceModules,
             Map<FakeArtifactKey, List<String>> removedResources) {
     }
 }

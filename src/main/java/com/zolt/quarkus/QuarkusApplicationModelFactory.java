@@ -96,6 +96,7 @@ public final class QuarkusApplicationModelFactory {
                 setWorkspaceModule(
                         applicationModelBuilderClass,
                         resolvedDependencyBuilderClass,
+                        Class.forName(api.artifactKeyClass()),
                         modelBuilder,
                         appArtifact,
                         descriptor,
@@ -147,6 +148,7 @@ public final class QuarkusApplicationModelFactory {
     private static void setWorkspaceModule(
             Class<?> applicationModelBuilderClass,
             Class<?> resolvedDependencyBuilderClass,
+            Class<?> artifactKeyClass,
             Object modelBuilder,
             Object appArtifactBuilder,
             QuarkusBootstrapDescriptor descriptor,
@@ -186,6 +188,21 @@ public final class QuarkusApplicationModelFactory {
         resolvedDependencyBuilderClass
                 .getMethod("setWorkspaceModule", workspaceModuleClass)
                 .invoke(appArtifactBuilder, module);
+        resolvedDependencyBuilderClass
+                .getMethod("setWorkspaceModule")
+                .invoke(appArtifactBuilder);
+        resolvedDependencyBuilderClass
+                .getMethod("setReloadable")
+                .invoke(appArtifactBuilder);
+        applicationModelBuilderClass
+                .getMethod("addReloadableWorkspaceModule", artifactKeyClass)
+                .invoke(modelBuilder, artifactKey(
+                        artifactKeyClass,
+                        new QuarkusArtifactKey(
+                                descriptor.applicationArtifact().packageId().groupId(),
+                                descriptor.applicationArtifact().packageId().artifactId(),
+                                Optional.empty(),
+                                Optional.of(descriptor.applicationArtifact().type()))));
     }
 
     private static List<String> additionalTestClasspathElements(QuarkusWorkspaceModuleInputs inputs) {

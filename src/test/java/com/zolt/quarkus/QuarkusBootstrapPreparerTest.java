@@ -33,6 +33,7 @@ final class QuarkusBootstrapPreparerTest {
         assertEquals(Path.of("/repo/target"), bootstrap.targetDirectory());
         assertEquals(FakeBootstrap.Mode.PROD, bootstrap.mode());
         assertSame(model, bootstrap.existingModel());
+        assertEquals(List.of(new FakeArtifactKey("com.example", "demo", "", "jar")), bootstrap.localArtifacts());
     }
 
     @Test
@@ -114,6 +115,7 @@ final class QuarkusBootstrapPreparerTest {
         private final Path targetDirectory;
         private final Mode mode;
         private final FakeApplicationModel existingModel;
+        private final List<FakeArtifactKey> localArtifacts;
 
         private FakeBootstrap(Builder builder) {
             this.applicationRoot = builder.applicationRoot;
@@ -121,6 +123,7 @@ final class QuarkusBootstrapPreparerTest {
             this.targetDirectory = builder.targetDirectory;
             this.mode = builder.mode;
             this.existingModel = builder.existingModel;
+            this.localArtifacts = List.copyOf(builder.localArtifacts);
         }
 
         public static Builder builder() {
@@ -150,12 +153,17 @@ final class QuarkusBootstrapPreparerTest {
             return existingModel;
         }
 
+        List<FakeArtifactKey> localArtifacts() {
+            return localArtifacts;
+        }
+
         public static final class Builder {
             private Path applicationRoot;
             private Path projectRoot;
             private Path targetDirectory;
             private Mode mode;
             private FakeApplicationModel existingModel;
+            private final List<FakeArtifactKey> localArtifacts = new java.util.ArrayList<>();
 
             public Builder setApplicationRoot(Path applicationRoot) {
                 this.applicationRoot = applicationRoot;
@@ -182,6 +190,11 @@ final class QuarkusBootstrapPreparerTest {
                 return this;
             }
 
+            public Builder addLocalArtifact(FakeArtifactKey artifactKey) {
+                localArtifacts.add(artifactKey);
+                return this;
+            }
+
             public FakeBootstrap build() {
                 return new FakeBootstrap(this);
             }
@@ -193,6 +206,12 @@ final class QuarkusBootstrapPreparerTest {
     }
 
     public static final class FakeApplicationModel {
+    }
+
+    public record FakeArtifactKey(String groupId, String artifactId, String classifier, String type) {
+        public static FakeArtifactKey of(String groupId, String artifactId, String classifier, String type) {
+            return new FakeArtifactKey(groupId, artifactId, classifier, type);
+        }
     }
 
     public static final class IncompatibleBootstrap {
