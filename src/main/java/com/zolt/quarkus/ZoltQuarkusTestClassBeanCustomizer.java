@@ -1,15 +1,18 @@
 package com.zolt.quarkus;
 
 import io.quarkus.builder.BuildChainBuilder;
+import io.quarkus.builder.item.BuildItem;
 import io.quarkus.deployment.builditem.TestClassBeanBuildItem;
 import io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
@@ -18,6 +21,8 @@ import org.jboss.jandex.Index;
 
 public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainCustomizerProducer {
     private static final DotName QUARKUS_TEST = DotName.createSimple("io.quarkus.test.junit.QuarkusTest");
+    private static final String ADDITIONAL_BEAN_BUILD_ITEM =
+            "io.quarkus.arc.deployment.AdditionalBeanBuildItem";
     private static final String DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
 
@@ -37,6 +42,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             if (testClasses.isEmpty()) {
                 return;
             }
+            Optional<Class<? extends BuildItem>> additionalBeanBuildItem =
+                    additionalBeanBuildItemClass(builder);
             builder.addBuildStep(context -> {
                         writeDiagnostic(
                                 "buildStep.executed=true",
@@ -49,7 +56,70 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     })
                     .produces(TestClassBeanBuildItem.class)
                     .build();
+            additionalBeanBuildItem.ifPresent(buildItemClass -> builder.addBuildStep(context -> {
+                        writeDiagnostic(
+                                "additionalBeanStep.executed=true",
+                                "additionalBeanStep.additionalBeanBuildItemLoader="
+                                        + classLoaderName(buildItemClass.getClassLoader()),
+                                "additionalBeanStep.produced=" + joined(testClasses));
+                        context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
+                    })
+                    .produces(buildItemClass)
+                    .build());
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Class<? extends BuildItem>> additionalBeanBuildItemClass(BuildChainBuilder builder) {
+        try {
+            ClassLoader classLoader = buildChainClassLoader(builder);
+            Class<?> buildItemClass = Class.forName(ADDITIONAL_BEAN_BUILD_ITEM, false, classLoader);
+            if (!BuildItem.class.isAssignableFrom(buildItemClass)) {
+                writeDiagnostic(
+                        "additionalBeanBuildItem.available=false",
+                        "additionalBeanBuildItem.reason=not-build-item",
+                        "additionalBeanBuildItem.loader=" + classLoaderName(buildItemClass.getClassLoader()));
+                return Optional.empty();
+            }
+            writeDiagnostic(
+                    "additionalBeanBuildItem.available=true",
+                    "additionalBeanBuildItem.loader=" + classLoaderName(buildItemClass.getClassLoader()));
+            return Optional.of((Class<? extends BuildItem>) buildItemClass);
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            writeDiagnostic(
+                    "additionalBeanBuildItem.available=false",
+                    "additionalBeanBuildItem.reason=" + exception.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    private static ClassLoader buildChainClassLoader(BuildChainBuilder builder) throws ReflectiveOperationException {
+        Method getClassLoader = builder.getClass().getDeclaredMethod("getClassLoader");
+        getClassLoader.setAccessible(true);
+        Object classLoader = getClassLoader.invoke(builder);
+        if (classLoader instanceof ClassLoader loader) {
+            return loader;
+        }
+        return builder.getClass().getClassLoader();
+    }
+
+    private static BuildItem additionalBeanBuildItem(
+            Class<? extends BuildItem> buildItemClass,
+            List<String> testClasses) {
+        try {
+            Method builderMethod = buildItemClass.getMethod("builder");
+            Object builder = builderMethod.invoke(null);
+            Method addBeanClass = builder.getClass().getMethod("addBeanClass", String.class);
+            for (String testClass : testClasses) {
+                addBeanClass.invoke(builder, testClass);
+            }
+            Method build = builder.getClass().getMethod("build");
+            return (BuildItem) build.invoke(builder);
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            throw new IllegalStateException(
+                    "Could not produce Quarkus additional bean build item for Zolt test classes.",
+                    exception);
+        }
     }
 
     private static List<String> quarkusTestClasses(Index index) {

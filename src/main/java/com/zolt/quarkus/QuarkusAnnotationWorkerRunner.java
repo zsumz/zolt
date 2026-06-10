@@ -148,6 +148,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (testScopeSetupProviderSplit(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached per-test scope setup, then hit "
+                    + "a runtime service-provider classloader split for TestScopeSetup. Zolt can now produce "
+                    + "Quarkus additional-bean build items for selected @QuarkusTest classes, but the runner "
+                    + "still needs to align Arc test request-scope provider ownership before @QuarkusTest can "
+                    + "be enabled. Keep using plain JUnit tests for now, or run `zolt quarkus test-plan` "
+                    + "to inspect blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             if (testConfigMappingMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution through Zolt's "
                     + "programmatic runner and facade-loader context-classloader handoff, then hit a missing "
@@ -214,6 +225,11 @@ public final class QuarkusAnnotationWorkerRunner {
 
     private static boolean testHttpEndpointProviderSplit(String output) {
         return output.contains("java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestHttpEndpointProvider")
+                && output.contains("not a subtype");
+    }
+
+    private static boolean testScopeSetupProviderSplit(String output) {
+        return output.contains("java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestScopeSetup")
                 && output.contains("not a subtype");
     }
 

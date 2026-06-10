@@ -366,6 +366,36 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsTestScopeSetupClassloaderSplit() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestScopeSetup: io.quarkus.arc.runtime.ArcTestRequestScopeProvider not a subtype
+                                    at java.base/java.util.ServiceLoader.fail(ServiceLoader.java:593)
+                                    at io.quarkus.test.common.TestScopeManager.<clinit>(TestScopeManager.java:14)
+                                    at io.quarkus.test.junit.QuarkusTestExtension.beforeEach(QuarkusTestExtension.java:410)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("reached per-test scope setup"));
+        assertTrue(result.output().contains("runtime service-provider classloader split for TestScopeSetup"));
+        assertTrue(result.output().contains("additional-bean build items"));
+        assertTrue(result.output().contains("Arc test request-scope provider ownership"));
+        assertTrue(result.output().contains("ArcTestRequestScopeProvider not a subtype"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
