@@ -22,6 +22,9 @@ import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.project.ResourceFilteringSettings;
+import com.zolt.project.ResourceMissingTokenPolicy;
+import com.zolt.project.ResourceTokenSettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -62,7 +65,9 @@ public final class ZoltTomlParser {
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
-    private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
+    private static final Set<String> RESOURCES_KEYS = Set.of("main", "test", "filtering", "tokens");
+    private static final Set<String> RESOURCE_FILTERING_KEYS = Set.of("enabled", "test", "includes", "missing");
+    private static final Set<String> RESOURCE_TOKEN_KEYS = Set.of("value", "env", "project");
     private static final Set<String> REPOSITORY_KEYS = Set.of("url", "credentials");
     private static final Set<String> REPOSITORY_CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv");
     private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude");
@@ -340,7 +345,79 @@ public final class ZoltTomlParser {
                 build.groovyTestSources(),
                 stringListOrDefault(resourcesTable, "resources", "main", build.resourceRoots()),
                 stringListOrDefault(resourcesTable, "resources", "test", build.testResourceRoots()),
+                parseResourceFiltering(
+                        optionalTable(resourcesTable, "filtering"),
+                        optionalTable(resourcesTable, "tokens")),
                 build.metadata());
+    }
+
+    private static ResourceFilteringSettings parseResourceFiltering(
+            TomlTable filteringTable,
+            TomlTable tokensTable) {
+        ResourceFilteringSettings defaults = ResourceFilteringSettings.defaults();
+        Map<String, ResourceTokenSettings> tokens = resourceTokens(tokensTable);
+        if (filteringTable == null) {
+            return tokens.isEmpty()
+                    ? defaults
+                    : new ResourceFilteringSettings(
+                            defaults.enabled(),
+                            defaults.testEnabled(),
+                            defaults.includes(),
+                            defaults.missing(),
+                            tokens);
+        }
+        validateKeys("resources.filtering", filteringTable, RESOURCE_FILTERING_KEYS);
+        String rawMissing = stringOrDefault(
+                filteringTable,
+                "resources.filtering",
+                "missing",
+                defaults.missing().configValue());
+        ResourceMissingTokenPolicy missing = ResourceMissingTokenPolicy.fromConfigValue(rawMissing)
+                .orElseThrow(() -> new ZoltConfigException(
+                        "Unsupported resource filtering missing-token policy `"
+                                + rawMissing
+                                + "` in zolt.toml. Supported values are: "
+                                + ResourceMissingTokenPolicy.supportedValues()
+                                + "."));
+        return new ResourceFilteringSettings(
+                booleanOrDefault(filteringTable, "resources.filtering", "enabled", defaults.enabled()),
+                booleanOrDefault(filteringTable, "resources.filtering", "test", defaults.testEnabled()),
+                stringListOrDefault(filteringTable, "resources.filtering", "includes", defaults.includes()),
+                missing,
+                tokens);
+    }
+
+    private static Map<String, ResourceTokenSettings> resourceTokens(TomlTable tokensTable) {
+        if (tokensTable == null) {
+            return Map.of();
+        }
+        Map<String, ResourceTokenSettings> tokens = new LinkedHashMap<>();
+        for (String key : tokensTable.keySet()) {
+            if (key.isBlank()) {
+                throw new ZoltConfigException(
+                        "Invalid resource token name in [resources.tokens]. Use a non-empty token name.");
+            }
+            TomlTable tokenTable = tokensTable.getTable(List.of(key));
+            if (tokenTable == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [resources.tokens]."
+                                + key
+                                + " in zolt.toml. Use exactly one of { value = \"...\" }, { env = \"...\" }, or { project = \"...\" }.");
+            }
+            validateKeys("resources.tokens." + key, tokenTable, RESOURCE_TOKEN_KEYS);
+            Optional<String> value = optionalString(tokenTable, "resources.tokens." + key, "value");
+            Optional<String> env = optionalString(tokenTable, "resources.tokens." + key, "env");
+            Optional<String> project = optionalString(tokenTable, "resources.tokens." + key, "project");
+            int sourceCount = (value.isPresent() ? 1 : 0) + (env.isPresent() ? 1 : 0) + (project.isPresent() ? 1 : 0);
+            if (sourceCount != 1) {
+                throw new ZoltConfigException(
+                        "Invalid value for [resources.tokens]."
+                                + key
+                                + " in zolt.toml. Declare exactly one of value, env, or project.");
+            }
+            tokens.put(key, new ResourceTokenSettings(value, env, project));
+        }
+        return tokens;
     }
 
     private static BuildSettings parseGeneratedSources(TomlTable generatedTable, BuildSettings build) {

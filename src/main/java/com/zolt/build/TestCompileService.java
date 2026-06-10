@@ -122,7 +122,7 @@ public final class TestCompileService {
                         sources.groovyTestSources(),
                         groovyCompileClasspath,
                         outputDirectory);
-        ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config.build());
+        ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config);
         buildFingerprintService.writeTestCompileFingerprint(
                 projectDirectory,
                 config,

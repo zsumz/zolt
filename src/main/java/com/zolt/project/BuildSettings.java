@@ -11,6 +11,7 @@ public record BuildSettings(
         List<String> groovyTestSources,
         List<String> resourceRoots,
         List<String> testResourceRoots,
+        ResourceFilteringSettings resourceFiltering,
         BuildMetadataSettings metadata,
         List<GeneratedSourceStep> generatedMainSources,
         List<GeneratedSourceStep> generatedTestSources) {
@@ -19,6 +20,7 @@ public record BuildSettings(
         groovyTestSources = groovyTestSources == null ? List.of() : List.copyOf(groovyTestSources);
         resourceRoots = resourceRoots == null ? List.of("src/main/resources") : List.copyOf(resourceRoots);
         testResourceRoots = testResourceRoots == null ? List.of("src/test/resources") : List.copyOf(testResourceRoots);
+        resourceFiltering = resourceFiltering == null ? ResourceFilteringSettings.defaults() : resourceFiltering;
         metadata = metadata == null ? BuildMetadataSettings.defaults() : metadata;
         generatedMainSources = generatedMainSources == null ? List.of() : List.copyOf(generatedMainSources);
         generatedTestSources = generatedTestSources == null ? List.of() : List.copyOf(generatedTestSources);
@@ -43,6 +45,33 @@ public record BuildSettings(
                 groovyTestSources,
                 resourceRoots,
                 testResourceRoots,
+                ResourceFilteringSettings.defaults(),
+                metadata,
+                List.of(),
+                List.of());
+    }
+
+    public BuildSettings(
+            String source,
+            String test,
+            String output,
+            String testOutput,
+            List<String> testSources,
+            List<String> groovyTestSources,
+            List<String> resourceRoots,
+            List<String> testResourceRoots,
+            ResourceFilteringSettings resourceFiltering,
+            BuildMetadataSettings metadata) {
+        this(
+                source,
+                test,
+                output,
+                testOutput,
+                testSources,
+                groovyTestSources,
+                resourceRoots,
+                testResourceRoots,
+                resourceFiltering,
                 metadata,
                 List.of(),
                 List.of());
@@ -66,6 +95,7 @@ public record BuildSettings(
                 List.of(),
                 resourceRoots,
                 testResourceRoots,
+                ResourceFilteringSettings.defaults(),
                 metadata,
                 List.of(),
                 List.of());
@@ -87,6 +117,7 @@ public record BuildSettings(
                 groovyTestSources,
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
+                ResourceFilteringSettings.defaults(),
                 BuildMetadataSettings.defaults(),
                 List.of(),
                 List.of());
@@ -108,6 +139,7 @@ public record BuildSettings(
                 List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
+                ResourceFilteringSettings.defaults(),
                 metadata,
                 List.of(),
                 List.of());
@@ -128,6 +160,7 @@ public record BuildSettings(
                 List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
+                ResourceFilteringSettings.defaults(),
                 BuildMetadataSettings.defaults(),
                 List.of(),
                 List.of());
@@ -147,6 +180,7 @@ public record BuildSettings(
                 List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
+                ResourceFilteringSettings.defaults(),
                 BuildMetadataSettings.defaults(),
                 List.of(),
                 List.of());
@@ -172,6 +206,23 @@ public record BuildSettings(
                 groovyTestSources,
                 resourceRoots,
                 testResourceRoots,
+                resourceFiltering,
+                metadata,
+                generatedMainSources,
+                generatedTestSources);
+    }
+
+    public BuildSettings withResourceFiltering(ResourceFilteringSettings resourceFiltering) {
+        return new BuildSettings(
+                source,
+                test,
+                output,
+                testOutput,
+                testSources,
+                groovyTestSources,
+                resourceRoots,
+                testResourceRoots,
+                resourceFiltering,
                 metadata,
                 generatedMainSources,
                 generatedTestSources);

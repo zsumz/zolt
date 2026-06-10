@@ -27,6 +27,9 @@ import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.project.ResourceFilteringSettings;
+import com.zolt.project.ResourceMissingTokenPolicy;
+import com.zolt.project.ResourceTokenSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -591,6 +594,26 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesResourceFilteringWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(BuildSettings.defaults().withResourceFiltering(resourceFilteringSettings()));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[resources.filtering]\n"));
+        assertTrue(toml.contains("enabled = true"));
+        assertTrue(toml.contains("test = true"));
+        assertTrue(toml.contains("includes = [\"**/*.properties\", \"**/*.yml\"]"));
+        assertTrue(toml.contains("missing = \"keep\""));
+        assertTrue(toml.contains("[resources.tokens]\n"));
+        assertTrue(toml.contains("\"literalName\" = { value = \"demo-app\" }"));
+        assertTrue(toml.contains("\"projectVersion\" = { project = \"version\" }"));
+        assertTrue(toml.contains("\"ciBuild\" = { env = \"CI_BUILD_NUMBER\" }"));
+        assertEquals(original.build().resourceFiltering(), parsed.build().resourceFiltering());
+    }
+
+    @Test
     void preservesCompilerSettingsWhenEditingDependencies() {
         ProjectConfig config = configWithCompilerSettings();
         config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
@@ -664,6 +687,18 @@ final class ZoltTomlWriterTest {
 
         assertEquals(config.build().resourceRoots(), parsed.build().resourceRoots());
         assertEquals(config.build().testResourceRoots(), parsed.build().testResourceRoots());
+    }
+
+    @Test
+    void preservesResourceFilteringWhenEditingDependencies() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(BuildSettings.defaults().withResourceFiltering(resourceFilteringSettings()));
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+        config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
+
+        ProjectConfig parsed = parser.parse(writer.write(config));
+
+        assertEquals(config.build().resourceFiltering(), parsed.build().resourceFiltering());
     }
 
     @Test
@@ -1026,6 +1061,18 @@ final class ZoltTomlWriterTest {
                 Map.of(),
                 BuildSettings.defaults(),
                 new NativeSettings("hello-native", "target/native-custom", List.of("--no-fallback")));
+    }
+
+    private static ResourceFilteringSettings resourceFilteringSettings() {
+        return new ResourceFilteringSettings(
+                true,
+                true,
+                List.of("**/*.properties", "**/*.yml"),
+                ResourceMissingTokenPolicy.KEEP,
+                Map.of(
+                        "projectVersion", ResourceTokenSettings.project("version"),
+                        "literalName", ResourceTokenSettings.literal("demo-app"),
+                        "ciBuild", ResourceTokenSettings.env("CI_BUILD_NUMBER")));
     }
 
     private static ProjectConfig configWithCompilerSettings() {

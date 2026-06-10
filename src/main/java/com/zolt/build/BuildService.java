@@ -130,7 +130,7 @@ public final class BuildService {
                         classpaths.processor(),
                         generatedSourcesDirectory,
                         javacOptions(config));
-        ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
+        ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
         buildFingerprintService.writeMainCompileFingerprint(
                 projectDirectory,

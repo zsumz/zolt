@@ -10,6 +10,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.QuarkusPackageMode;
+import com.zolt.project.ResourceMissingTokenPolicy;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -1025,6 +1026,82 @@ final class ZoltTomlParserTest {
         assertEquals(
                 "Invalid value for [resources].main in zolt.toml. Use an array of strings.",
                 exception.getMessage());
+    }
+
+    @Test
+    void parsesResourceFilteringSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [resources.filtering]
+                enabled = true
+                test = true
+                includes = ["**/*.properties", "**/*.yml"]
+                missing = "keep"
+
+                [resources.tokens]
+                projectVersion = { project = "version" }
+                literalName = { value = "demo-app" }
+                ciBuild = { env = "CI_BUILD_NUMBER" }
+                """);
+
+        assertTrue(config.build().resourceFiltering().enabled());
+        assertTrue(config.build().resourceFiltering().testEnabled());
+        assertEquals(List.of("**/*.properties", "**/*.yml"), config.build().resourceFiltering().includes());
+        assertEquals(ResourceMissingTokenPolicy.KEEP, config.build().resourceFiltering().missing());
+        assertEquals(
+                "version",
+                config.build().resourceFiltering().tokens().get("projectVersion").project().orElseThrow());
+        assertEquals(
+                "demo-app",
+                config.build().resourceFiltering().tokens().get("literalName").value().orElseThrow());
+        assertEquals(
+                "CI_BUILD_NUMBER",
+                config.build().resourceFiltering().tokens().get("ciBuild").env().orElseThrow());
+    }
+
+    @Test
+    void rejectsResourceTokenWithMultipleSources() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [resources.tokens]
+                        projectVersion = { project = "version", value = "0.1.0" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [resources.tokens].projectVersion in zolt.toml. Declare exactly one of value, env, or project.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnsupportedResourceFilteringMissingPolicy() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [resources.filtering]
+                        enabled = true
+                        missing = "ignore"
+                        """));
+
+        assertTrue(exception.getMessage().contains("Unsupported resource filtering missing-token policy `ignore`"));
+        assertTrue(exception.getMessage().contains("fail, keep"));
     }
 
     @Test

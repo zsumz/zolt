@@ -20,6 +20,9 @@ import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.project.ResourceFilteringSettings;
+import com.zolt.project.ResourceMissingTokenPolicy;
+import com.zolt.project.ResourceTokenSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -935,13 +938,49 @@ public final class ZoltTomlWriter {
 
     private static void writeResources(StringBuilder toml, BuildSettings build) {
         BuildSettings defaults = BuildSettings.defaults();
-        if (build.resourceRoots().equals(defaults.resourceRoots())
-                && build.testResourceRoots().equals(defaults.testResourceRoots())) {
+        boolean customRoots = !build.resourceRoots().equals(defaults.resourceRoots())
+                || !build.testResourceRoots().equals(defaults.testResourceRoots());
+        if (customRoots) {
+            toml.append("\n[resources]\n");
+            writeStringArray(toml, "main", build.resourceRoots());
+            writeStringArray(toml, "test", build.testResourceRoots());
+        }
+        writeResourceFiltering(toml, build.resourceFiltering());
+    }
+
+    private static void writeResourceFiltering(StringBuilder toml, ResourceFilteringSettings filtering) {
+        if (filtering == null || filtering.equals(ResourceFilteringSettings.defaults())) {
             return;
         }
-        toml.append("\n[resources]\n");
-        writeStringArray(toml, "main", build.resourceRoots());
-        writeStringArray(toml, "test", build.testResourceRoots());
+        toml.append("\n[resources.filtering]\n");
+        writeAssignment(toml, "enabled", filtering.enabled());
+        if (filtering.testEnabled()) {
+            writeAssignment(toml, "test", true);
+        }
+        if (!filtering.includes().isEmpty()) {
+            writeStringArray(toml, "includes", filtering.includes());
+        }
+        if (filtering.missing() != ResourceMissingTokenPolicy.FAIL) {
+            writeAssignment(toml, "missing", filtering.missing().configValue());
+        }
+        if (!filtering.tokens().isEmpty()) {
+            toml.append("\n[resources.tokens]\n");
+            for (Map.Entry<String, ResourceTokenSettings> entry : new TreeMap<>(filtering.tokens()).entrySet()) {
+                toml.append(quote(entry.getKey())).append(" = ");
+                writeResourceToken(toml, entry.getValue());
+                toml.append('\n');
+            }
+        }
+    }
+
+    private static void writeResourceToken(StringBuilder toml, ResourceTokenSettings token) {
+        token.value().ifPresentOrElse(
+                value -> toml.append("{ value = ").append(quote(value)).append(" }"),
+                () -> token.env().ifPresentOrElse(
+                        env -> toml.append("{ env = ").append(quote(env)).append(" }"),
+                        () -> toml.append("{ project = ")
+                                .append(quote(token.project().orElseThrow()))
+                                .append(" }")));
     }
 
     private static void writeGeneratedSources(StringBuilder toml, BuildSettings build) {

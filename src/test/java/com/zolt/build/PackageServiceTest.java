@@ -17,6 +17,9 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.ResourceFilteringSettings;
+import com.zolt.project.ResourceMissingTokenPolicy;
+import com.zolt.project.ResourceTokenSettings;
 import com.zolt.quarkus.QuarkusApplicationArtifact;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusBootstrapDescriptor;
@@ -133,6 +136,28 @@ final class PackageServiceTest {
                     "config/app.properties"), jar.stream().map(JarEntry::getName).toList());
             assertEquals("[]\n", readEntry(jar, "META-INF/native-image/reflect-config.json"));
             assertEquals("name=demo\n", readEntry(jar, "config/app.properties"));
+        }
+    }
+
+    @Test
+    void packagesFilteredResourcesInThinJar() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        source("src/main/resources/application.properties", "name=@projectName@\nversion=@projectVersion@\n");
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(BuildSettings.defaults().withResourceFiltering(resourceFilteringSettings()));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("name=demo\nversion=0.1.0\n", readEntry(jar, "application.properties"));
         }
     }
 
@@ -509,10 +534,11 @@ final class PackageServiceTest {
                     }
                 }
                 """);
-        source("src/main/resources/application.properties", "server.port=0\n");
+        source("src/main/resources/application.properties", "server.port=@serverPort@\nname=@projectName@\n");
         ProjectConfig config = config(Optional.of("com.example.Main"))
                 .withBuildSettings(buildSettingsWithMetadata(new BuildMetadataSettings(true, false, true)))
                 .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+        config = config.withBuildSettings(config.build().withResourceFiltering(resourceFilteringSettings()));
 
         PackageResult result = packageService.packageJar(projectDir, config, cacheRoot);
 
@@ -539,7 +565,7 @@ final class PackageServiceTest {
             assertNotNull(jar.getEntry("org/springframework/"));
             assertNotNull(jar.getEntry("org/springframework/boot/loader/launch/"));
             assertNotNull(jar.getEntry("BOOT-INF/classes/com/example/Main.class"));
-            assertEquals("server.port=0\n", readEntry(jar, "BOOT-INF/classes/application.properties"));
+            assertEquals("server.port=0\nname=demo\n", readEntry(jar, "BOOT-INF/classes/application.properties"));
             assertEquals("""
                     build.artifact=demo
                     build.group=com.example
@@ -793,6 +819,18 @@ final class PackageServiceTest {
                 "target/test-classes",
                 List.of("src/test/java"),
                 metadataSettings);
+    }
+
+    private static ResourceFilteringSettings resourceFilteringSettings() {
+        return new ResourceFilteringSettings(
+                true,
+                false,
+                List.of("**/*.properties"),
+                ResourceMissingTokenPolicy.FAIL,
+                Map.of(
+                        "projectName", ResourceTokenSettings.project("name"),
+                        "projectVersion", ResourceTokenSettings.project("version"),
+                        "serverPort", ResourceTokenSettings.literal("0")));
     }
 
     private void source(String path, String content) throws IOException {
