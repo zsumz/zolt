@@ -1,11 +1,15 @@
 package com.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import io.quarkus.test.config.ConfigLauncherSession;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +47,19 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     }
 
     @Test
+    void skipsQuarkusDiagnosticWhenRuntimeClassLoaderIsUnavailable() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Object launcher = programmaticLauncher(stream(out));
+        Method diagnostic = launcher.getClass()
+                .getDeclaredMethod("writeClassLoaderDiagnostic", List.class, ClassLoader.class);
+        diagnostic.setAccessible(true);
+
+        diagnostic.invoke(launcher, List.of(PassingTest.class.getName()), null);
+
+        assertFalse(output(out).contains("Zolt Quarkus classloader diagnostic"));
+    }
+
+    @Test
     void requiresTestClassArguments() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
@@ -61,6 +78,14 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
 
     private static String output(ByteArrayOutputStream output) {
         return output.toString(StandardCharsets.UTF_8);
+    }
+
+    private static Object programmaticLauncher(PrintStream out) throws Exception {
+        Class<?> launcherClass = Class.forName(
+                "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner$ProgrammaticLauncher");
+        Constructor<?> constructor = launcherClass.getDeclaredConstructor(PrintStream.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(out);
     }
 
     static final class PassingTest {

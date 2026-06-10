@@ -137,7 +137,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                             args[0],
                             testClasses,
                             quarkusRuntimeClassLoader);
-                    case "executionFinished" -> recordResult(args[1], failed);
+                    case "executionFinished" -> recordResult(args[1], failed, testClasses, quarkusRuntimeClassLoader);
                     default -> {
                     }
                 }
@@ -206,13 +206,51 @@ public final class QuarkusAnnotationProgrammaticRunner {
             }
         }
 
-        private void recordResult(Object result, AtomicBoolean failed) throws ReflectiveOperationException {
+        private void recordResult(
+                Object result,
+                AtomicBoolean failed,
+                List<String> testClasses,
+                AtomicReference<ClassLoader> quarkusRuntimeClassLoader) throws ReflectiveOperationException {
             Object status = result.getClass().getMethod("getStatus").invoke(result);
             if ("FAILED".equals(String.valueOf(status))) {
                 failed.set(true);
                 Optional<?> throwable = (Optional<?>) result.getClass().getMethod("getThrowable").invoke(result);
-                throwable.ifPresent(value -> ((Throwable) value).printStackTrace(out));
+                throwable.ifPresent(value -> {
+                    ((Throwable) value).printStackTrace(out);
+                    writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get());
+                });
             }
+        }
+
+        private void writeClassLoaderDiagnostic(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader) {
+            if (testClasses.isEmpty() || quarkusRuntimeClassLoader == null) {
+                return;
+            }
+            String testClassName = testClasses.getFirst();
+            out.println("Zolt Quarkus classloader diagnostic:");
+            out.println("  selectedClass=" + testClassName);
+            try {
+                Class<?> systemClass = Class.forName(testClassName, false, ClassLoader.getSystemClassLoader());
+                out.println("  systemClassLoader=" + classLoaderName(systemClass.getClassLoader()));
+                out.println("  quarkusRuntimeClassLoader=" + classLoaderName(quarkusRuntimeClassLoader));
+                try {
+                    Class<?> runtimeClass = Class.forName(testClassName, false, quarkusRuntimeClassLoader);
+                    out.println("  runtimeClassLoader=" + classLoaderName(runtimeClass.getClassLoader()));
+                    out.println("  sameClassObject=" + (systemClass == runtimeClass));
+                } catch (ReflectiveOperationException | LinkageError exception) {
+                    out.println("  runtimeClass=<unavailable: " + exception.getClass().getSimpleName() + ">");
+                }
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                out.println("  systemClass=<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
+        }
+
+        private static String classLoaderName(ClassLoader classLoader) {
+            if (classLoader == null) {
+                return "<bootstrap>";
+            }
+            return classLoader.getClass().getName() + "@"
+                    + Integer.toHexString(System.identityHashCode(classLoader));
         }
     }
 }
