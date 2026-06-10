@@ -9,8 +9,10 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.PublicationMetadata;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -104,6 +106,7 @@ public final class IdeModelService {
                         projectInfo(config),
                         javaInfo(config),
                         compilerInfo(root, config),
+                        packageInfo(root, config),
                         new IdeModel.PathInfo(root, configPath, lockfilePath),
                         sourceRoots(root, config),
                         resourceRoots(root, config),
@@ -144,6 +147,7 @@ public final class IdeModelService {
                 projectInfo(config),
                 javaInfo(config),
                 compilerInfo(root, config),
+                packageInfo(root, config),
                 new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
                 sourceRoots(root, config),
                 resourceRoots(root, config),
@@ -242,6 +246,55 @@ public final class IdeModelService {
                 compiler.testArgs(),
                 root.resolve(compiler.generatedSources()).normalize(),
                 root.resolve(compiler.generatedTestSources()).normalize());
+    }
+
+    private IdeModel.PackageInfo packageInfo(Path root, ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.PackageInfo(
+                    null,
+                    false,
+                    false,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new IdeModel.PublicationInfo(null, null, null, null, List.of(), null, null));
+        }
+        PackageSettings settings = config.packageSettings();
+        Path mainJar = artifactPath(root, config, "");
+        return new IdeModel.PackageInfo(
+                settings.mode().configValue(),
+                settings.sources(),
+                settings.javadoc(),
+                settings.tests(),
+                mainJar,
+                settings.sources() ? artifactPath(root, config, "sources") : null,
+                settings.javadoc() ? artifactPath(root, config, "javadoc") : null,
+                settings.tests() ? artifactPath(root, config, "tests") : null,
+                publicationInfo(settings.metadata()));
+    }
+
+    private static IdeModel.PublicationInfo publicationInfo(PublicationMetadata metadata) {
+        return new IdeModel.PublicationInfo(
+                blankToNull(metadata.name()),
+                blankToNull(metadata.description()),
+                blankToNull(metadata.url()),
+                blankToNull(metadata.license()),
+                metadata.developers(),
+                blankToNull(metadata.scm()),
+                blankToNull(metadata.issues()));
+    }
+
+    private static Path artifactPath(Path root, ProjectConfig config, String classifier) {
+        String suffix = classifier == null || classifier.isBlank() ? "" : "-" + classifier;
+        return root.resolve("target")
+                .resolve(config.project().name() + "-" + config.project().version() + suffix + ".jar")
+                .normalize();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private List<IdeModel.SourceRoot> sourceRoots(Path root, ProjectConfig config) {

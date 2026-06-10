@@ -14,6 +14,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import java.util.List;
@@ -360,6 +361,37 @@ final class ZoltTomlWriterTest {
 
         assertTrue(toml.contains("[package]\n"));
         assertTrue(toml.contains("mode = \"spring-boot\""));
+        assertFalse(toml.contains("[package.metadata]"));
+        assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void writesLibraryPackageSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", null)
+                .withPackageSettings(new PackageSettings(
+                        PackageMode.THIN,
+                        true,
+                        true,
+                        true,
+                        new PublicationMetadata(
+                                "Hello Library",
+                                "Demo library",
+                                "https://example.com/hello",
+                                "Apache-2.0",
+                                List.of("Shawn"),
+                                "https://example.com/hello.git",
+                                "https://example.com/hello/issues")));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[package]\n"));
+        assertTrue(toml.contains("sources = true"));
+        assertTrue(toml.contains("javadoc = true"));
+        assertTrue(toml.contains("tests = true"));
+        assertTrue(toml.contains("[package.metadata]\n"));
+        assertTrue(toml.contains("name = \"Hello Library\""));
+        assertTrue(toml.contains("developers = [\"Shawn\"]"));
         assertEquals(original.packageSettings(), parsed.packageSettings());
     }
 

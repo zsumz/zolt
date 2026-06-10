@@ -15,6 +15,7 @@ import com.zolt.build.NativeBuildResult;
 import com.zolt.build.NativeBuildService;
 import com.zolt.build.NativeImageException;
 import com.zolt.build.PackageException;
+import com.zolt.build.PackageArtifact;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
@@ -1520,6 +1521,13 @@ public final class ZoltCli implements Runnable {
                             spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
                         }
                         spec.commandLine().getOut().println("Wrote jar to " + member.result().jarPath());
+                        for (PackageArtifact artifact : member.result().artifacts()) {
+                            spec.commandLine().getOut().println(
+                                    "Wrote "
+                                            + artifact.classifier()
+                                            + " jar to "
+                                            + artifact.path());
+                        }
                     }
                     spec.commandLine().getOut().println(
                             "Packaged "
@@ -1578,6 +1586,13 @@ public final class ZoltCli implements Runnable {
                             spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
                 }
                 spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
+                for (PackageArtifact artifact : result.artifacts()) {
+                    spec.commandLine().getOut().println(
+                            "Wrote "
+                                    + artifact.classifier()
+                                    + " jar to "
+                                    + artifact.path());
+                }
             } catch (BuildException
                     | JavacException
                     | GroovyCompileException

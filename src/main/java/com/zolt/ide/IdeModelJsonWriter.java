@@ -14,6 +14,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         compiler(json, model.compiler());
         comma(json);
+        packageInfo(json, model.packageInfo());
+        comma(json);
         paths(json, model.paths());
         comma(json);
         sourceRoots(json, model.sourceRoots());
@@ -60,6 +62,32 @@ public final class IdeModelJsonWriter {
         pathField(json, 2, "generatedSources", compiler.generatedSources(), true);
         pathField(json, 2, "generatedTestSources", compiler.generatedTestSources(), false);
         indent(json, 1).append("}");
+    }
+
+    private static void packageInfo(StringBuilder json, IdeModel.PackageInfo packageInfo) {
+        indent(json, 1).append("\"package\": {\n");
+        stringField(json, 2, "mode", packageInfo.mode(), true);
+        field(json, 2, "sources", packageInfo.sources(), true);
+        field(json, 2, "javadoc", packageInfo.javadoc(), true);
+        field(json, 2, "tests", packageInfo.tests(), true);
+        pathField(json, 2, "mainJar", packageInfo.mainJar(), true);
+        pathField(json, 2, "sourcesJar", packageInfo.sourcesJar(), true);
+        pathField(json, 2, "javadocJar", packageInfo.javadocJar(), true);
+        pathField(json, 2, "testsJar", packageInfo.testsJar(), true);
+        publication(json, packageInfo.metadata());
+        indent(json, 1).append("}");
+    }
+
+    private static void publication(StringBuilder json, IdeModel.PublicationInfo publication) {
+        indent(json, 2).append("\"metadata\": {\n");
+        stringField(json, 3, "name", publication.name(), true);
+        stringField(json, 3, "description", publication.description(), true);
+        stringField(json, 3, "url", publication.url(), true);
+        stringField(json, 3, "license", publication.license(), true);
+        stringArrayField(json, 3, "developers", publication.developers(), true);
+        stringField(json, 3, "scm", publication.scm(), true);
+        stringField(json, 3, "issues", publication.issues(), false);
+        indent(json, 2).append("}\n");
     }
 
     private static void paths(StringBuilder json, IdeModel.PathInfo paths) {

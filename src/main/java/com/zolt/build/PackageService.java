@@ -14,8 +14,10 @@ import com.zolt.resolve.ResolveService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -159,7 +161,7 @@ public final class PackageService {
             Optional<Path> cacheRoot,
             Optional<List<ResolvedClasspathPackage>> classpathPackages) {
         PackageMode mode = config.packageSettings().mode();
-        return switch (mode) {
+        PackageResult result = switch (mode) {
             case THIN -> packageThinJar(projectDirectory, config, buildResult, cacheRoot, classpathPackages);
             case SPRING_BOOT -> packageSpringBootJar(
                     projectDirectory,
@@ -176,6 +178,19 @@ public final class PackageService {
                             "Quarkus package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode quarkus` for now; workspace Quarkus packaging is not wired yet.")));
             case UBER -> throw unsupportedPackageMode(mode);
         };
+        List<PackageArtifact> artifacts = packageSupplementalArtifacts(
+                projectDirectory,
+                config,
+                buildResult,
+                classpathPackages);
+        return new PackageResult(
+                result.buildResult(),
+                result.mode(),
+                result.jarPath(),
+                result.runtimeClasspathPath(),
+                result.entryCount(),
+                result.hasMainClass(),
+                artifacts);
     }
 
     private PackageResult packageThinJar(
@@ -359,6 +374,212 @@ public final class PackageService {
         return projectDirectory
                 .resolve("target")
                 .resolve(config.project().name() + "-" + config.project().version() + ".jar");
+    }
+
+    private static Path classifierJarPath(Path projectDirectory, ProjectConfig config, String classifier) {
+        return projectDirectory
+                .resolve("target")
+                .resolve(config.project().name() + "-" + config.project().version() + "-" + classifier + ".jar");
+    }
+
+    private List<PackageArtifact> packageSupplementalArtifacts(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        List<PackageArtifact> artifacts = new ArrayList<>();
+        if (config.packageSettings().sources()) {
+            artifacts.add(packageSourcesJar(projectDirectory, config));
+        }
+        if (config.packageSettings().javadoc()) {
+            artifacts.add(packageJavadocJar(projectDirectory, config, buildResult, classpathPackages));
+        }
+        if (config.packageSettings().tests()) {
+            artifacts.add(packageTestJar(projectDirectory, config));
+        }
+        return List.copyOf(artifacts);
+    }
+
+    private static PackageArtifact packageSourcesJar(Path projectDirectory, ProjectConfig config) {
+        Path sourceRoot = projectDirectory.resolve(config.build().source()).normalize();
+        Path jarPath = classifierJarPath(projectDirectory, config, "sources");
+        try {
+            Files.createDirectories(jarPath.getParent());
+            List<Path> files = sourceFiles(sourceRoot);
+            writeJarFromFiles(jarPath, sourceRoot, files);
+            return new PackageArtifact("sources", jarPath, files.size());
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not package sources jar at "
+                            + jarPath
+                            + ". Check that source files are readable and target/ is writable.",
+                    exception);
+        }
+    }
+
+    private PackageArtifact packageJavadocJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        Path sourceRoot = projectDirectory.resolve(config.build().source()).normalize();
+        Path javadocDirectory = projectDirectory.resolve("target/javadoc").normalize();
+        Path jarPath = classifierJarPath(projectDirectory, config, "javadoc");
+        try {
+            Files.createDirectories(jarPath.getParent());
+            deleteDirectory(javadocDirectory);
+            Files.createDirectories(javadocDirectory);
+            List<Path> sources = sourceFiles(sourceRoot);
+            if (!sources.isEmpty()) {
+                runJavadoc(
+                        projectDirectory,
+                        sourceRoot,
+                        javadocDirectory,
+                        sources,
+                        javadocClasspath(buildResult, classpathPackages));
+            }
+            List<Path> files = regularFiles(javadocDirectory);
+            writeJarFromFiles(jarPath, javadocDirectory, files);
+            return new PackageArtifact("javadoc", jarPath, files.size());
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not package javadoc jar at "
+                            + jarPath
+                            + ". Check that target/ is writable and retry.",
+                    exception);
+        }
+    }
+
+    private static PackageArtifact packageTestJar(Path projectDirectory, ProjectConfig config) {
+        Path testOutput = projectDirectory.resolve(config.build().testOutput()).normalize();
+        Path jarPath = classifierJarPath(projectDirectory, config, "tests");
+        if (!Files.isDirectory(testOutput)) {
+            throw new PackageException(
+                    "Cannot package test jar because compiled test output is missing at "
+                            + testOutput
+                            + ". Run `zolt test` first, then retry `zolt package`.");
+        }
+        try {
+            Files.createDirectories(jarPath.getParent());
+            List<Path> files = compiledFiles(testOutput);
+            writeJarFromFiles(jarPath, testOutput, files);
+            return new PackageArtifact("tests", jarPath, files.size());
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not package test jar at "
+                            + jarPath
+                            + ". Check that compiled test output is readable and target/ is writable.",
+                    exception);
+        }
+    }
+
+    private List<Path> javadocClasspath(
+            BuildResult buildResult,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        List<Path> entries = new ArrayList<>();
+        entries.add(buildResult.outputDirectory());
+        classpathPackages
+                .map(classpathBuilder::build)
+                .ifPresent(classpaths -> entries.addAll(classpaths.compile().entries()));
+        return entries.stream().map(Path::toAbsolutePath).map(Path::normalize).toList();
+    }
+
+    private static void runJavadoc(
+            Path projectDirectory,
+            Path sourceRoot,
+            Path outputDirectory,
+            List<Path> sources,
+            List<Path> classpath) {
+        List<String> command = new ArrayList<>();
+        command.add(javadocExecutable().toString());
+        command.add("-quiet");
+        command.add("-d");
+        command.add(outputDirectory.toString());
+        command.add("-sourcepath");
+        command.add(sourceRoot.toString());
+        if (!classpath.isEmpty()) {
+            command.add("-classpath");
+            command.add(classpath.stream()
+                    .map(Path::toString)
+                    .collect(Collectors.joining(java.io.File.pathSeparator)));
+        }
+        sources.stream().map(Path::toString).forEach(command::add);
+        try {
+            Process process = new ProcessBuilder(command)
+                    .directory(projectDirectory.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new PackageException(
+                        "javadoc failed with exit code "
+                                + exitCode
+                                + ". Fix Javadoc errors or disable [package].javadoc, then retry.\n"
+                                + output.stripTrailing());
+            }
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not run javadoc. Check that the configured JDK includes the javadoc tool.",
+                    exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new PackageException("javadoc was interrupted. Try packaging again.", exception);
+        }
+    }
+
+    private static Path javadocExecutable() {
+        return Path.of(System.getProperty("java.home"), "bin", executable("javadoc"));
+    }
+
+    private static String executable(String name) {
+        return System.getProperty("os.name", "").toLowerCase().contains("win") ? name + ".exe" : name;
+    }
+
+    private static void writeJarFromFiles(Path jarPath, Path root, List<Path> files) throws IOException {
+        try (OutputStream fileOutput = Files.newOutputStream(jarPath);
+                JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
+            for (Path file : files) {
+                writeEntry(jarOutput, entryName(root, file), Files.readAllBytes(file));
+            }
+        }
+    }
+
+    private static List<Path> sourceFiles(Path sourceRoot) throws IOException {
+        if (!Files.isDirectory(sourceRoot)) {
+            return List.of();
+        }
+        try (var stream = Files.walk(sourceRoot)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .sorted(Comparator.comparing(path -> entryName(sourceRoot, path)))
+                    .toList();
+        }
+    }
+
+    private static List<Path> regularFiles(Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return List.of();
+        }
+        try (var stream = Files.walk(root)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(path -> entryName(root, path)))
+                    .toList();
+        }
+    }
+
+    private static void deleteDirectory(Path directory) throws IOException {
+        if (!Files.exists(directory)) {
+            return;
+        }
+        try (var stream = Files.walk(directory)) {
+            List<Path> paths = stream.sorted(Comparator.reverseOrder()).toList();
+            for (Path path : paths) {
+                Files.delete(path);
+            }
+        }
     }
 
     private void writeRuntimeClasspath(

@@ -133,6 +133,75 @@ final class PackageServiceTest {
     }
 
     @Test
+    void packagesRequestedLibraryArtifacts() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Calculator.java", """
+                package com.example;
+
+                /** Adds numbers. */
+                public final class Calculator {
+                    /** Adds two integers. */
+                    public int add(int left, int right) {
+                        return left + right;
+                    }
+                }
+                """);
+        source("src/test/java/com/example/CalculatorTest.java", """
+                package com.example;
+
+                public final class CalculatorTest {
+                }
+                """);
+        Files.createDirectories(projectDir.resolve("target/test-classes/com/example"));
+        Files.write(projectDir.resolve("target/test-classes/com/example/CalculatorTest.class"), new byte[] {0});
+        ProjectConfig config = config(Optional.empty())
+                .withPackageSettings(new PackageSettings(PackageMode.THIN, true, true, true, null));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(List.of("sources", "javadoc", "tests"), result.artifacts().stream()
+                .map(PackageArtifact::classifier)
+                .toList());
+        try (JarFile sources = new JarFile(projectDir.resolve("target/demo-0.1.0-sources.jar").toFile())) {
+            assertNotNull(sources.getEntry("com/example/Calculator.java"));
+        }
+        try (JarFile javadocs = new JarFile(projectDir.resolve("target/demo-0.1.0-javadoc.jar").toFile())) {
+            assertTrue(javadocs.stream().anyMatch(entry -> entry.getName().endsWith("Calculator.html")));
+        }
+        try (JarFile tests = new JarFile(projectDir.resolve("target/demo-0.1.0-tests.jar").toFile())) {
+            assertNotNull(tests.getEntry("com/example/CalculatorTest.class"));
+        }
+    }
+
+    @Test
+    void javadocFailuresPreserveToolOutputAndNextStep() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Calculator.java", """
+                package com.example;
+
+                public final class Calculator {
+                    /**
+                     * Adds numbers.
+                     * @param missing this parameter does not exist
+                     */
+                    public int add() {
+                        return 1;
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.empty())
+                .withPackageSettings(new PackageSettings(PackageMode.THIN, false, true, false, null));
+
+        PackageException exception = assertThrows(
+                PackageException.class,
+                () -> packageService.packageJar(projectDir, config, projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("javadoc failed with exit code"));
+        assertTrue(exception.getMessage().contains("disable [package].javadoc"));
+        assertTrue(exception.getMessage().contains("missing"));
+    }
+
+    @Test
     void duplicateJarEntriesFailWithActionableError() throws IOException {
         writeLockfile();
         source("src/main/java/com/example/Main.java", """

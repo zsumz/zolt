@@ -8,6 +8,7 @@ public record IdeModel(
         ProjectInfo project,
         JavaInfo java,
         CompilerInfo compiler,
+        PackageInfo packageInfo,
         PathInfo paths,
         List<SourceRoot> sourceRoots,
         List<ResourceRoot> resourceRoots,
@@ -46,6 +47,31 @@ public record IdeModel(
         public CompilerInfo {
             args = List.copyOf(args);
             testArgs = List.copyOf(testArgs);
+        }
+    }
+
+    public record PackageInfo(
+            String mode,
+            boolean sources,
+            boolean javadoc,
+            boolean tests,
+            Path mainJar,
+            Path sourcesJar,
+            Path javadocJar,
+            Path testsJar,
+            PublicationInfo metadata) {
+    }
+
+    public record PublicationInfo(
+            String name,
+            String description,
+            String url,
+            String license,
+            List<String> developers,
+            String scm,
+            String issues) {
+        public PublicationInfo {
+            developers = List.copyOf(developers);
         }
     }
 

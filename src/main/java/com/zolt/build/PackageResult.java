@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.project.PackageMode;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 public record PackageResult(
@@ -10,10 +11,22 @@ public record PackageResult(
         Path jarPath,
         Optional<Path> runtimeClasspathPath,
         int entryCount,
-        boolean hasMainClass) {
+        boolean hasMainClass,
+        List<PackageArtifact> artifacts) {
     public PackageResult {
         mode = mode == null ? PackageMode.THIN : mode;
         runtimeClasspathPath = runtimeClasspathPath == null ? Optional.empty() : runtimeClasspathPath;
+        artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
+    }
+
+    public PackageResult(
+            BuildResult buildResult,
+            PackageMode mode,
+            Path jarPath,
+            Optional<Path> runtimeClasspathPath,
+            int entryCount,
+            boolean hasMainClass) {
+        this(buildResult, mode, jarPath, runtimeClasspathPath, entryCount, hasMainClass, List.of());
     }
 
     public PackageResult(

@@ -458,9 +458,31 @@ final class ZoltTomlParserTest {
 
                 [package]
                 mode = "spring-boot"
+                sources = true
+                javadoc = true
+                tests = true
+
+                [package.metadata]
+                name = "Demo Library"
+                description = "A demo library"
+                url = "https://example.com/demo"
+                license = "Apache-2.0"
+                developers = ["Shawn"]
+                scm = "https://example.com/demo.git"
+                issues = "https://example.com/demo/issues"
                 """);
 
         assertEquals(PackageMode.SPRING_BOOT, config.packageSettings().mode());
+        assertTrue(config.packageSettings().sources());
+        assertTrue(config.packageSettings().javadoc());
+        assertTrue(config.packageSettings().tests());
+        assertEquals("Demo Library", config.packageSettings().metadata().name());
+        assertEquals("A demo library", config.packageSettings().metadata().description());
+        assertEquals("https://example.com/demo", config.packageSettings().metadata().url());
+        assertEquals("Apache-2.0", config.packageSettings().metadata().license());
+        assertEquals(List.of("Shawn"), config.packageSettings().metadata().developers());
+        assertEquals("https://example.com/demo.git", config.packageSettings().metadata().scm());
+        assertEquals("https://example.com/demo/issues", config.packageSettings().metadata().issues());
     }
 
     @Test

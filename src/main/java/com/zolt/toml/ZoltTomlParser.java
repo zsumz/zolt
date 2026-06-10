@@ -9,6 +9,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
@@ -73,7 +74,15 @@ public final class ZoltTomlParser {
             "-s",
             "-sourcepath",
             "--source-path");
-    private static final Set<String> PACKAGE_KEYS = Set.of("mode");
+    private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata");
+    private static final Set<String> PACKAGE_METADATA_KEYS = Set.of(
+            "name",
+            "description",
+            "url",
+            "license",
+            "developers",
+            "scm",
+            "issues");
     private static final Set<String> FRAMEWORK_KEYS = Set.of("quarkus");
     private static final Set<String> QUARKUS_KEYS = Set.of("enabled", "package");
     private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
@@ -334,22 +343,46 @@ public final class ZoltTomlParser {
         }
 
         validateKeys("package", packageTable, PACKAGE_KEYS);
+        PackageSettings defaults = PackageSettings.defaults();
+        PublicationMetadata metadata = parsePublicationMetadata(optionalTable(packageTable, "metadata"));
         Object rawMode = packageTable.get(List.of("mode"));
-        if (rawMode == null) {
-            return PackageSettings.defaults();
-        }
-        if (!(rawMode instanceof String mode) || mode.isBlank()) {
-            throw new ZoltConfigException(
-                    "Invalid value for [package].mode in zolt.toml. Use one of: "
+        PackageMode mode = defaults.mode();
+        if (rawMode != null) {
+            if (!(rawMode instanceof String modeValue) || modeValue.isBlank()) {
+                throw new ZoltConfigException(
+                        "Invalid value for [package].mode in zolt.toml. Use one of: "
+                                + PackageMode.supportedValues()
+                                + ".");
+            }
+            mode = PackageMode.fromConfigValue(modeValue).orElseThrow(() -> new ZoltConfigException(
+                    "Unsupported package mode `"
+                            + modeValue
+                            + "` in zolt.toml. Supported package modes are: "
                             + PackageMode.supportedValues()
-                            + ".");
+                            + "."));
         }
-        return new PackageSettings(PackageMode.fromConfigValue(mode).orElseThrow(() -> new ZoltConfigException(
-                "Unsupported package mode `"
-                        + mode
-                        + "` in zolt.toml. Supported package modes are: "
-                        + PackageMode.supportedValues()
-                        + ".")));
+        return new PackageSettings(
+                mode,
+                booleanOrDefault(packageTable, "package", "sources", defaults.sources()),
+                booleanOrDefault(packageTable, "package", "javadoc", defaults.javadoc()),
+                booleanOrDefault(packageTable, "package", "tests", defaults.tests()),
+                metadata);
+    }
+
+    private static PublicationMetadata parsePublicationMetadata(TomlTable metadataTable) {
+        if (metadataTable == null) {
+            return PublicationMetadata.empty();
+        }
+        validateKeys("package.metadata", metadataTable, PACKAGE_METADATA_KEYS);
+        PublicationMetadata defaults = PublicationMetadata.empty();
+        return new PublicationMetadata(
+                stringOrDefault(metadataTable, "package.metadata", "name", defaults.name()),
+                stringOrDefault(metadataTable, "package.metadata", "description", defaults.description()),
+                stringOrDefault(metadataTable, "package.metadata", "url", defaults.url()),
+                stringOrDefault(metadataTable, "package.metadata", "license", defaults.license()),
+                stringListOrDefault(metadataTable, "package.metadata", "developers", defaults.developers()),
+                stringOrDefault(metadataTable, "package.metadata", "scm", defaults.scm()),
+                stringOrDefault(metadataTable, "package.metadata", "issues", defaults.issues()));
     }
 
     private static FrameworkSettings parseFramework(TomlTable frameworkTable) {

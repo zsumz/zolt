@@ -10,6 +10,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -825,11 +826,51 @@ public final class ZoltTomlWriter {
     }
 
     private static void writePackage(StringBuilder toml, PackageSettings packageSettings) {
-        if (packageSettings == null || packageSettings.mode() == PackageMode.THIN) {
+        if (packageSettings == null || packageSettings.equals(PackageSettings.defaults())) {
             return;
         }
         toml.append("\n[package]\n");
-        writeAssignment(toml, "mode", packageSettings.mode().configValue());
+        if (packageSettings.mode() != PackageMode.THIN) {
+            writeAssignment(toml, "mode", packageSettings.mode().configValue());
+        }
+        if (packageSettings.sources()) {
+            writeAssignment(toml, "sources", true);
+        }
+        if (packageSettings.javadoc()) {
+            writeAssignment(toml, "javadoc", true);
+        }
+        if (packageSettings.tests()) {
+            writeAssignment(toml, "tests", true);
+        }
+        writePublicationMetadata(toml, packageSettings.metadata());
+    }
+
+    private static void writePublicationMetadata(StringBuilder toml, PublicationMetadata metadata) {
+        if (metadata == null || metadata.emptyMetadata()) {
+            return;
+        }
+        toml.append("\n[package.metadata]\n");
+        if (!metadata.name().isBlank()) {
+            writeAssignment(toml, "name", metadata.name());
+        }
+        if (!metadata.description().isBlank()) {
+            writeAssignment(toml, "description", metadata.description());
+        }
+        if (!metadata.url().isBlank()) {
+            writeAssignment(toml, "url", metadata.url());
+        }
+        if (!metadata.license().isBlank()) {
+            writeAssignment(toml, "license", metadata.license());
+        }
+        if (!metadata.developers().isEmpty()) {
+            writeStringArray(toml, "developers", metadata.developers());
+        }
+        if (!metadata.scm().isBlank()) {
+            writeAssignment(toml, "scm", metadata.scm());
+        }
+        if (!metadata.issues().isBlank()) {
+            writeAssignment(toml, "issues", metadata.issues());
+        }
     }
 
     private static void writeFramework(StringBuilder toml, FrameworkSettings frameworkSettings) {
