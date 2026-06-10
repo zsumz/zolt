@@ -1968,6 +1968,33 @@ public final class ZoltCli implements Runnable {
         attributes.put("rawPomCacheMisses", Integer.toString(result.metrics().rawPomCacheMisses()));
         attributes.put("effectivePomCacheHits", Integer.toString(result.metrics().effectivePomCacheHits()));
         attributes.put("effectivePomCacheMisses", Integer.toString(result.metrics().effectivePomCacheMisses()));
+        attributes.put("pomCacheHitMillis", Long.toString(result.metrics().pomCacheHitNanos() / 1_000_000L));
+        attributes.put("pomDownloadMillis", Long.toString(result.metrics().pomDownloadNanos() / 1_000_000L));
+        attributes.put("jarCacheHitMillis", Long.toString(result.metrics().jarCacheHitNanos() / 1_000_000L));
+        attributes.put("jarDownloadMillis", Long.toString(result.metrics().jarDownloadNanos() / 1_000_000L));
+        attributes.put("artifactCacheHitMillis", Long.toString(result.metrics().artifactCacheHitNanos() / 1_000_000L));
+        attributes.put("artifactDownloadMillis", Long.toString(result.metrics().artifactDownloadNanos() / 1_000_000L));
+        attributes.put("rawPomParseMillis", Long.toString(result.metrics().rawPomParseNanos() / 1_000_000L));
+        attributes.put("effectivePomBuildMillis", Long.toString(result.metrics().effectivePomBuildNanos() / 1_000_000L));
+        attributes.put("graphTraversalMillis", Long.toString(result.metrics().graphTraversalNanos() / 1_000_000L));
+        attributes.put("versionSelectionMillis", Long.toString(result.metrics().versionSelectionNanos() / 1_000_000L));
+        attributes.put("lockfileAssemblyMillis", Long.toString(result.metrics().lockfileAssemblyNanos() / 1_000_000L));
+        attributes.put("lockfileWriteMillis", Long.toString(result.metrics().lockfileWriteNanos() / 1_000_000L));
+        attributes.put(
+                "lockfileVerificationMillis", Long.toString(result.metrics().lockfileVerificationNanos() / 1_000_000L));
+        attributes.put("pomCacheHitNanos", Long.toString(result.metrics().pomCacheHitNanos()));
+        attributes.put("pomDownloadNanos", Long.toString(result.metrics().pomDownloadNanos()));
+        attributes.put("jarCacheHitNanos", Long.toString(result.metrics().jarCacheHitNanos()));
+        attributes.put("jarDownloadNanos", Long.toString(result.metrics().jarDownloadNanos()));
+        attributes.put("artifactCacheHitNanos", Long.toString(result.metrics().artifactCacheHitNanos()));
+        attributes.put("artifactDownloadNanos", Long.toString(result.metrics().artifactDownloadNanos()));
+        attributes.put("rawPomParseNanos", Long.toString(result.metrics().rawPomParseNanos()));
+        attributes.put("effectivePomBuildNanos", Long.toString(result.metrics().effectivePomBuildNanos()));
+        attributes.put("graphTraversalNanos", Long.toString(result.metrics().graphTraversalNanos()));
+        attributes.put("versionSelectionNanos", Long.toString(result.metrics().versionSelectionNanos()));
+        attributes.put("lockfileAssemblyNanos", Long.toString(result.metrics().lockfileAssemblyNanos()));
+        attributes.put("lockfileWriteNanos", Long.toString(result.metrics().lockfileWriteNanos()));
+        attributes.put("lockfileVerificationNanos", Long.toString(result.metrics().lockfileVerificationNanos()));
         return attributes;
     }
 

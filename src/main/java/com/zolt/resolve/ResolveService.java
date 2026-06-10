@@ -102,17 +102,22 @@ public final class ResolveService {
 
         ResolveOutput output = resolveLockfile(config, cacheRoot, offline);
         ZoltLockfile lockfile = output.lockfile();
+        ResolveMetrics metrics = output.metrics();
         if (locked) {
+            long started = System.nanoTime();
             verifyLocked(lockfilePath, lockfile);
+            metrics = metrics.withLockfileVerificationNanos(elapsedSince(started));
         } else {
+            long started = System.nanoTime();
             lockfileWriter.write(lockfilePath, lockfile);
+            metrics = metrics.withLockfileWriteNanos(elapsedSince(started));
         }
         return new ResolveResult(
                 lockfile.packages().size(),
                 output.downloadCount(),
                 lockfile.conflicts().size(),
                 lockfilePath,
-                output.metrics());
+                metrics);
     }
 
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
@@ -139,8 +144,13 @@ public final class ResolveService {
 
     private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
         DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
+        long traversalStarted = System.nanoTime();
         ResolutionGraph graph = traverser.traverse(requests);
-        return new ResolutionState(graph, versionSelector.select(requests, graph));
+        context.addGraphTraversalNanos(elapsedSince(traversalStarted));
+        long selectionStarted = System.nanoTime();
+        VersionSelectionResult selection = versionSelector.select(requests, graph);
+        context.addVersionSelectionNanos(elapsedSince(selectionStarted));
+        return new ResolutionState(graph, selection);
     }
 
     private List<DependencyRequest> relocateDirectRequests(
@@ -397,21 +407,26 @@ public final class ResolveService {
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests) {
-        Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
-        List<LockPackage> packages = selection.selectedNodes().stream()
-                .flatMap(node -> selectedScopes
-                        .getOrDefault(node.packageId(), List.of(new SelectedScope(DependencyScope.COMPILE, false)))
-                        .stream()
-                        .map(scope -> lockPackage(context, node, scope, graph)))
-                .toList();
-        List<LockConflict> conflicts = selection.conflicts().stream()
-                .map(conflict -> new LockConflict(
-                        conflict.packageId(),
-                        conflict.selectedVersion(),
-                        conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
-                        conflict.selectionReason()))
-                .toList();
-        return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, packages, conflicts);
+        long started = System.nanoTime();
+        try {
+            Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
+            List<LockPackage> packages = selection.selectedNodes().stream()
+                    .flatMap(node -> selectedScopes
+                            .getOrDefault(node.packageId(), List.of(new SelectedScope(DependencyScope.COMPILE, false)))
+                            .stream()
+                            .map(scope -> lockPackage(context, node, scope, graph)))
+                    .toList();
+            List<LockConflict> conflicts = selection.conflicts().stream()
+                    .map(conflict -> new LockConflict(
+                            conflict.packageId(),
+                            conflict.selectedVersion(),
+                            conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
+                            conflict.selectionReason()))
+                    .toList();
+            return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, packages, conflicts);
+        } finally {
+            context.addLockfileAssemblyNanos(elapsedSince(started));
+        }
     }
 
     private List<DependencyRequest> quarkusDeploymentRequests(
@@ -612,6 +627,10 @@ public final class ResolveService {
         }
     }
 
+    private static long elapsedSince(long started) {
+        return Math.max(0L, System.nanoTime() - started);
+    }
+
     private record SelectedScope(
             DependencyScope scope,
             boolean direct,
@@ -658,6 +677,17 @@ public final class ResolveService {
         private int rawPomCacheMisses;
         private int effectivePomCacheHits;
         private int effectivePomCacheMisses;
+        private long pomCacheHitNanos;
+        private long pomDownloadNanos;
+        private long jarCacheHitNanos;
+        private long jarDownloadNanos;
+        private long artifactCacheHitNanos;
+        private long artifactDownloadNanos;
+        private long rawPomParseNanos;
+        private long effectivePomBuildNanos;
+        private long graphTraversalNanos;
+        private long versionSelectionNanos;
+        private long lockfileAssemblyNanos;
 
         RepositoryContext(ProjectConfig config, LocalArtifactCache cache, boolean offline) {
             this.config = config;
@@ -671,9 +701,12 @@ public final class ResolveService {
         }
 
         CachedArtifact getPom(Coordinate coordinate) {
+            long started = System.nanoTime();
             if (offline) {
+                CachedArtifact artifact = cache.getCachedPom(coordinate);
                 pomCacheHits++;
-                return cache.getCachedPom(coordinate);
+                pomCacheHitNanos += elapsedSince(started);
+                return artifact;
             }
             Path before = cache.pomPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
@@ -681,17 +714,22 @@ public final class ResolveService {
                     repositoryClient.fetchPom(repositoryUri(), requested));
             if (cached) {
                 pomCacheHits++;
+                pomCacheHitNanos += elapsedSince(started);
             } else {
                 pomCacheMisses++;
+                pomDownloadNanos += elapsedSince(started);
                 downloadCount++;
             }
             return artifact;
         }
 
         CachedArtifact getJar(Coordinate coordinate) {
+            long started = System.nanoTime();
             if (offline) {
+                CachedArtifact artifact = cache.getCachedJar(coordinate);
                 jarCacheHits++;
-                return cache.getCachedJar(coordinate);
+                jarCacheHitNanos += elapsedSince(started);
+                return artifact;
             }
             Path before = cache.jarPath(coordinate);
             boolean cached = java.nio.file.Files.isRegularFile(before);
@@ -699,17 +737,23 @@ public final class ResolveService {
                     repositoryClient.fetchJar(repositoryUri(), requested));
             if (cached) {
                 jarCacheHits++;
+                jarCacheHitNanos += elapsedSince(started);
             } else {
                 jarCacheMisses++;
+                jarDownloadNanos += elapsedSince(started);
                 downloadCount++;
             }
             return artifact;
         }
 
         CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
+            long started = System.nanoTime();
             if (offline) {
+                CachedArtifact artifact =
+                        cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
                 artifactCacheHits++;
-                return cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
+                artifactCacheHitNanos += elapsedSince(started);
+                return artifact;
             }
             Path before = cache.artifactPath(descriptor);
             boolean cached = java.nio.file.Files.isRegularFile(before);
@@ -717,8 +761,10 @@ public final class ResolveService {
                     repositoryClient.fetchArtifact(repositoryUri(), descriptor));
             if (cached) {
                 artifactCacheHits++;
+                artifactCacheHitNanos += elapsedSince(started);
             } else {
                 artifactCacheMisses++;
+                artifactDownloadNanos += elapsedSince(started);
                 downloadCount++;
             }
             return artifact;
@@ -739,7 +785,32 @@ public final class ResolveService {
                     rawPomCacheHits,
                     rawPomCacheMisses,
                     effectivePomCacheHits,
-                    effectivePomCacheMisses);
+                    effectivePomCacheMisses,
+                    pomCacheHitNanos,
+                    pomDownloadNanos,
+                    jarCacheHitNanos,
+                    jarDownloadNanos,
+                    artifactCacheHitNanos,
+                    artifactDownloadNanos,
+                    rawPomParseNanos,
+                    effectivePomBuildNanos,
+                    graphTraversalNanos,
+                    versionSelectionNanos,
+                    lockfileAssemblyNanos,
+                    0L,
+                    0L);
+        }
+
+        void addGraphTraversalNanos(long nanos) {
+            graphTraversalNanos += nanos;
+        }
+
+        void addVersionSelectionNanos(long nanos) {
+            versionSelectionNanos += nanos;
+        }
+
+        void addLockfileAssemblyNanos(long nanos) {
+            lockfileAssemblyNanos += nanos;
         }
 
         Map<PackageId, String> projectManagedVersions() {
@@ -816,24 +887,32 @@ public final class ResolveService {
                                 + ". Remove one of the import-scoped dependencyManagement entries.");
             }
 
-            RawPom rawPom = rawPom(coordinate);
-            List<RawPom> parents = loadParents(rawPom);
-            String groupId = rawPom.groupId().or(() -> nearestGroupId(parents)).orElse(coordinate.groupId());
-            String version = rawPom.version().or(() -> nearestVersion(parents)).orElse(coordinate.version().orElseThrow());
-            Map<String, String> properties = inheritedProperties(rawPom, parents);
-            List<RawPomDependency> dependencyManagement = inheritedDependencyManagement(rawPom, parents);
-            EffectiveRawPom base = new EffectiveRawPom(rawPom, parents, groupId, version, properties, dependencyManagement);
-            List<String> nextStack = new ArrayList<>(importStack);
-            nextStack.add(key);
-            EffectiveRawPom effective = new EffectiveRawPom(
-                    rawPom,
-                    parents,
-                    groupId,
-                    version,
-                    properties,
-                    expandedDependencyManagement(base, nextStack));
-            metadata.put(key, effective);
-            return effective;
+            long started = System.nanoTime();
+            try {
+                RawPom rawPom = rawPom(coordinate);
+                List<RawPom> parents = loadParents(rawPom);
+                String groupId = rawPom.groupId().or(() -> nearestGroupId(parents)).orElse(coordinate.groupId());
+                String version = rawPom.version()
+                        .or(() -> nearestVersion(parents))
+                        .orElse(coordinate.version().orElseThrow());
+                Map<String, String> properties = inheritedProperties(rawPom, parents);
+                List<RawPomDependency> dependencyManagement = inheritedDependencyManagement(rawPom, parents);
+                EffectiveRawPom base =
+                        new EffectiveRawPom(rawPom, parents, groupId, version, properties, dependencyManagement);
+                List<String> nextStack = new ArrayList<>(importStack);
+                nextStack.add(key);
+                EffectiveRawPom effective = new EffectiveRawPom(
+                        rawPom,
+                        parents,
+                        groupId,
+                        version,
+                        properties,
+                        expandedDependencyManagement(base, nextStack));
+                metadata.put(key, effective);
+                return effective;
+            } finally {
+                effectivePomBuildNanos += elapsedSince(started);
+            }
         }
 
         private List<RawPom> loadParents(RawPom rawPom) {
@@ -862,7 +941,9 @@ public final class ResolveService {
             }
             rawPomCacheMisses++;
             CachedArtifact pomArtifact = getPom(coordinate);
+            long started = System.nanoTime();
             RawPom parsed = rawPomParser.parse(pomArtifact.bytes());
+            rawPomParseNanos += elapsedSince(started);
             rawPoms.put(key, parsed);
             return parsed;
         }

@@ -96,6 +96,16 @@ final class ResolveServiceTest {
         assertEquals(4, result.downloadCount());
         assertEquals(0, result.conflictCount());
         assertEquals(projectDir.resolve("zolt.lock"), result.lockfilePath());
+        assertTrue(result.metrics().pomDownloadNanos() > 0);
+        assertTrue(result.metrics().artifactDownloadNanos() > 0);
+        assertTrue(result.metrics().pomCacheHitNanos() > 0);
+        assertEquals(0, result.metrics().artifactCacheHitNanos());
+        assertTrue(result.metrics().rawPomParseNanos() > 0);
+        assertTrue(result.metrics().effectivePomBuildNanos() > 0);
+        assertTrue(result.metrics().graphTraversalNanos() > 0);
+        assertTrue(result.metrics().lockfileAssemblyNanos() > 0);
+        assertTrue(result.metrics().lockfileWriteNanos() > 0);
+        assertEquals(0, result.metrics().lockfileVerificationNanos());
         assertTrue(Files.exists(result.lockfilePath()));
 
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
@@ -118,6 +128,13 @@ final class ResolveServiceTest {
         assertEquals(4, first.downloadCount());
         assertEquals(0, second.downloadCount());
         assertEquals(4, second.metrics().pomCacheHits() + second.metrics().jarCacheHits());
+        assertTrue(first.metrics().pomDownloadNanos() > 0);
+        assertTrue(first.metrics().artifactDownloadNanos() > 0);
+        assertTrue(second.metrics().pomCacheHitNanos() > 0);
+        assertTrue(second.metrics().artifactCacheHitNanos() > 0);
+        assertEquals(0, second.metrics().pomDownloadNanos() + second.metrics().artifactDownloadNanos());
+        assertTrue(second.metrics().rawPomParseNanos() > 0);
+        assertTrue(second.metrics().effectivePomBuildNanos() > 0);
     }
 
     @Test

@@ -78,9 +78,13 @@ public final class WorkspaceResolveService {
 
         ZoltLockfile lockfile = aggregate(workspace, memberOutputs);
         if (locked) {
+            long started = System.nanoTime();
             verifyLocked(lockfilePath, lockfile);
+            metrics = metrics.withLockfileVerificationNanos(elapsedSince(started));
         } else {
+            long started = System.nanoTime();
             lockfileWriter.write(lockfilePath, lockfile);
+            metrics = metrics.withLockfileWriteNanos(elapsedSince(started));
         }
         return new ResolveResult(
                 lockfile.packages().size(),
@@ -88,6 +92,10 @@ public final class WorkspaceResolveService {
                 lockfile.conflicts().size(),
                 lockfilePath,
                 metrics);
+    }
+
+    private static long elapsedSince(long started) {
+        return Math.max(0L, System.nanoTime() - started);
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {

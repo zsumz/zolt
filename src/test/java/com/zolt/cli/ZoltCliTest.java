@@ -235,6 +235,15 @@ final class ZoltCliTest {
             assertTrue(lines[1].contains("\"resolvedPackages\":\"1\""));
             assertTrue(lines[1].contains("\"pomCacheMisses\""));
             assertTrue(lines[1].contains("\"rawPomCacheHits\""));
+            assertTrue(lines[1].contains("\"pomDownloadMillis\""));
+            assertTrue(lines[1].contains("\"jarDownloadMillis\""));
+            assertTrue(lines[1].contains("\"pomDownloadNanos\""));
+            assertTrue(lines[1].contains("\"jarDownloadNanos\""));
+            assertTrue(lines[1].contains("\"rawPomParseNanos\""));
+            assertTrue(lines[1].contains("\"effectivePomBuildNanos\""));
+            assertTrue(lines[1].contains("\"graphTraversalNanos\""));
+            assertTrue(lines[1].contains("\"lockfileAssemblyNanos\""));
+            assertTrue(lines[1].contains("\"lockfileWriteNanos\""));
         }
     }
 
