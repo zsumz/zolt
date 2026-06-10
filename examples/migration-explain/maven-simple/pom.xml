@@ -1,0 +1,22 @@
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.zolt.examples</groupId>
+  <artifactId>maven-simple</artifactId>
+  <version>1.0.0</version>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>33.4.8-jre</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

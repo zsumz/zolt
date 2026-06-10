@@ -27,8 +27,8 @@ public final class GradleStaticProjectInspector {
             "testRuntimeOnly",
             "annotationProcessor",
             "testAnnotationProcessor");
-    private static final Pattern INCLUDE_PATTERN = Pattern.compile("\\binclude\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
-    private static final Pattern INCLUDE_BUILD_PATTERN = Pattern.compile("\\bincludeBuild\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
+    private static final Pattern INCLUDE_PATTERN = Pattern.compile("\\binclude\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
+    private static final Pattern INCLUDE_BUILD_PATTERN = Pattern.compile("\\bincludeBuild\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
     private static final Pattern ID_PLUGIN_PATTERN = Pattern.compile("\\bid\\s*(?:\\(\\s*)?['\"]([^'\"]+)['\"]\\s*\\)?(?:\\s*version\\s*['\"]([^'\"]+)['\"])?");
     private static final Pattern GROOVY_PLUGIN_PATTERN = Pattern.compile("(?m)^\\s*([A-Za-z][A-Za-z0-9_-]*)\\s*$");
     private static final Pattern REPOSITORY_URL_PATTERN = Pattern.compile("\\burl\\s*(?:=\\s*)?(?:uri\\s*\\(\\s*)?['\"]([^'\"]+)['\"]");
@@ -103,6 +103,7 @@ public final class GradleStaticProjectInspector {
         Path relativePath = relativePath(root, projectDirectory);
         String project = path(relativePath);
         List<GradlePluginInspection> plugins = parsePlugins(content);
+        List<GradleDependencyInspection> dependencies = parseDependencies(content, versionCatalog);
         for (GradlePluginInspection plugin : plugins) {
             if (isConventionPlugin(plugin.id())) {
                 signals.add(ExplainSignals.GRADLE_PLUGIN_CONVENTION.signal(
@@ -111,6 +112,7 @@ public final class GradleStaticProjectInspector {
             }
         }
         signals.addAll(dynamicSignals(project, content));
+        signals.addAll(dependencySignals(project, dependencies));
         return new GradleProjectInspection(
                 relativePath,
                 relativePath.toString().equals(".") ? projectDirectory.getFileName().toString() : projectDirectory.getFileName().toString(),
@@ -119,7 +121,7 @@ public final class GradleStaticProjectInspector {
                 javaVersion(content),
                 plugins,
                 parseRepositories(content),
-                parseDependencies(content, versionCatalog),
+                dependencies,
                 parseSourceRoots(content, "main", "src/main/java"),
                 parseSourceRoots(content, "test", "src/test/java"));
     }
@@ -281,6 +283,21 @@ public final class GradleStaticProjectInspector {
             signals.add(ExplainSignals.GRADLE_CUSTOM_TASK_DETECTED.signal(
                     project,
                     "Gradle build declares custom tasks."));
+        }
+        return signals;
+    }
+
+    private static List<ExplainSignal> dependencySignals(
+            String project,
+            List<GradleDependencyInspection> dependencies) {
+        List<ExplainSignal> signals = new ArrayList<>();
+        for (GradleDependencyInspection dependency : dependencies) {
+            String version = coordinateVersion(dependency.resolvedCoordinate());
+            if (isDynamicVersion(version)) {
+                signals.add(ExplainSignals.GRADLE_DEPENDENCY_DYNAMIC_VERSION.signal(
+                        project,
+                        "Dependency `" + dependency.resolvedCoordinate() + "` uses dynamic version `" + version + "`."));
+            }
         }
         return signals;
     }
@@ -465,6 +482,22 @@ public final class GradleStaticProjectInspector {
             }
         }
         return false;
+    }
+
+    private static String coordinateVersion(String coordinate) {
+        int lastColon = coordinate.lastIndexOf(':');
+        if (lastColon < 0 || lastColon == coordinate.length() - 1) {
+            return "";
+        }
+        return coordinate.substring(lastColon + 1);
+    }
+
+    private static boolean isDynamicVersion(String version) {
+        if (version.isBlank()) {
+            return false;
+        }
+        String lower = version.toLowerCase();
+        return lower.contains("+") || lower.startsWith("latest.") || lower.endsWith("-snapshot");
     }
 
     private static Path relativePath(Path root, Path projectDirectory) {

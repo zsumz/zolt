@@ -139,6 +139,9 @@ final class GradleStaticProjectInspectorTest {
                     }
                 }
 
+                dependencies {
+                    implementation 'com.example:changing:latest.release'
+                }
                 dependencies.add('implementation', 'com.example:dynamic:1.0')
                 tasks.register('generateStuff')
                 """);
@@ -149,6 +152,7 @@ final class GradleStaticProjectInspectorTest {
 
         GradleInspectionResult result = inspector.inspect(tempDir);
 
+        assertTrue(result.includedProjects().isEmpty());
         assertFalse(Files.exists(marker));
         assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.build-src.detected")
                 && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
@@ -158,6 +162,8 @@ final class GradleStaticProjectInspectorTest {
                 && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
         assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.imperative-dependency-logic")
                 && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.dependency.dynamic-version")
+                && signal.category() == ExplainSignal.Category.NON_DETERMINISM));
         assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.cross-project-build-logic")
                 && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
         assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.custom-task.detected")

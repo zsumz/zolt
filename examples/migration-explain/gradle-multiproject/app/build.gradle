@@ -1,0 +1,14 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation libs.guava
+    implementation project(':lib')
+    testImplementation libs.junit.jupiter
+}

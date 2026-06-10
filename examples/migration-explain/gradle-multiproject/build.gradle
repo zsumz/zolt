@@ -1,0 +1,19 @@
+plugins {
+    id 'com.example.java-conventions'
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+
+    configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    }
+}
+
+dependencies {
+    implementation 'com.example:changing:latest.release'
+}
+
+tasks.register('generateSources')

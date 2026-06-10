@@ -1,0 +1,34 @@
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.zolt.examples</groupId>
+  <artifactId>maven-multimodule</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+  </properties>
+  <modules>
+    <module>app</module>
+  </modules>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>4.0.6</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <profiles>
+    <profile>
+      <id>ci</id>
+      <activation>
+        <property>
+          <name>env.CI</name>
+        </property>
+      </activation>
+    </profile>
+  </profiles>
+</project>

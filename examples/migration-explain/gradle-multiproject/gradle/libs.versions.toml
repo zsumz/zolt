@@ -1,0 +1,9 @@
+[versions]
+guava = "33.4.8-jre"
+junit = "5.11.4"
+commonsLang = "3.17.0"
+
+[libraries]
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commonsLang" }

@@ -1,0 +1,3 @@
+rootProject.name = 'gradle-multiproject'
+include 'app', 'lib'
+includeBuild 'build-logic'
