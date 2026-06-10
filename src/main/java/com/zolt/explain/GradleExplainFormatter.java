@@ -28,18 +28,11 @@ public final class GradleExplainFormatter {
             output.append("    dependencies: ").append(project.dependencies().size()).append('\n');
         }
 
-        output.append("\nSignals\n");
-        if (result.signals().isEmpty()) {
-            output.append("  ok    no static Gradle blockers found in this first inspection pass\n");
-        } else {
-            for (ExplainSignal signal : result.signals()) {
-                output.append("  ")
-                        .append(signal.severity().name().toLowerCase())
-                        .append("  ")
-                        .append(signal.message())
-                        .append('\n');
-            }
-        }
+        signalSection(output, "What Zolt can build", result.signals(), ExplainSignal.Category.BUILDABILITY);
+        signalSection(output, "What can cache", result.signals(), ExplainSignal.Category.CACHEABILITY);
+        signalSection(output, "Non-determinism", result.signals(), ExplainSignal.Category.NON_DETERMINISM);
+        signalSection(output, "Migration blockers", result.signals(), ExplainSignal.Category.MIGRATION_BLOCKER);
+        nextSteps(output, result.signals());
         output.append("\nThis command inspected Gradle metadata statically and did not execute Gradle.\n");
         return output.toString();
     }
@@ -58,6 +51,8 @@ public final class GradleExplainFormatter {
         projects(json, result.projects());
         comma(json);
         signals(json, result.signals());
+        comma(json);
+        migration(json, result.signals());
         json.append("\n}\n");
         return json.toString();
     }
@@ -69,7 +64,9 @@ public final class GradleExplainFormatter {
         field(json, 2, "versionCatalogAliases", result.versionCatalogAliases().size(), true);
         field(json, 2, "signals", result.signals().size(), true);
         field(json, 2, "blockers", count(result.signals(), ExplainSignal.Severity.BLOCK), true);
-        field(json, 2, "warnings", count(result.signals(), ExplainSignal.Severity.WARN), false);
+        field(json, 2, "warnings", count(result.signals(), ExplainSignal.Severity.WARN), true);
+        field(json, 2, "unknown", count(result.signals(), ExplainSignal.Severity.UNKNOWN), true);
+        field(json, 2, "ok", result.signals().isEmpty() ? 1 : 0, false);
         indent(json, 1).append("}");
     }
 
@@ -120,6 +117,71 @@ public final class GradleExplainFormatter {
             indent(json, 1);
         }
         json.append("]");
+    }
+
+    private static void migration(StringBuilder json, List<ExplainSignal> signals) {
+        indent(json, 1).append("\"migration\": {\n");
+        stringField(json, 2, "status", migrationStatus(signals), true);
+        stringArrayField(json, 2, "nextSteps", nextStepValues(signals), false);
+        indent(json, 1).append("}");
+    }
+
+    private static void signalSection(
+            StringBuilder output,
+            String title,
+            List<ExplainSignal> signals,
+            ExplainSignal.Category category) {
+        output.append('\n').append(title).append('\n');
+        List<ExplainSignal> categorySignals = signals.stream()
+                .filter(signal -> signal.category() == category)
+                .toList();
+        if (categorySignals.isEmpty()) {
+            output.append("  ok    no static ").append(categoryLabel(category)).append(" issues found in this first inspection pass\n");
+            return;
+        }
+        for (ExplainSignal signal : categorySignals) {
+            output.append("  ")
+                    .append(signal.severity().name().toLowerCase())
+                    .append("  ")
+                    .append(signal.message())
+                    .append('\n');
+        }
+    }
+
+    private static void nextSteps(StringBuilder output, List<ExplainSignal> signals) {
+        output.append("\nNext steps\n");
+        List<String> steps = nextStepValues(signals);
+        for (int index = 0; index < steps.size(); index++) {
+            output.append("  ").append(index + 1).append(". ").append(steps.get(index)).append('\n');
+        }
+    }
+
+    private static List<String> nextStepValues(List<ExplainSignal> signals) {
+        List<String> steps = signals.stream()
+                .filter(signal -> signal.severity() == ExplainSignal.Severity.BLOCK
+                        || signal.severity() == ExplainSignal.Severity.UNKNOWN)
+                .map(ExplainSignal::nextStep)
+                .distinct()
+                .toList();
+        if (steps.isEmpty()) {
+            return List.of("Review the static report, then create zolt.toml and run zolt resolve.");
+        }
+        return steps;
+    }
+
+    private static String migrationStatus(List<ExplainSignal> signals) {
+        if (signals.stream().anyMatch(signal -> signal.severity() == ExplainSignal.Severity.BLOCK)) {
+            return "blocked";
+        }
+        if (signals.stream().anyMatch(signal -> signal.severity() == ExplainSignal.Severity.UNKNOWN
+                || signal.severity() == ExplainSignal.Severity.WARN)) {
+            return "manual-review";
+        }
+        return "ready";
+    }
+
+    private static String categoryLabel(ExplainSignal.Category category) {
+        return category.name().toLowerCase().replace('_', '-');
     }
 
     private static void signals(StringBuilder json, List<ExplainSignal> signals) {
