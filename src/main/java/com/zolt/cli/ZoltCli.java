@@ -246,6 +246,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
         private boolean workspace;
 
+        @Option(names = "--offline", description = "Use only artifacts already present in the local cache for checks that need dependency metadata.")
+        private boolean offline;
+
         @Option(names = "--all", description = "Select every workspace member.")
         private boolean all;
 
@@ -261,6 +264,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
         @Mixin
         private TimingOptions timingOptions = new TimingOptions();
 
@@ -274,6 +280,8 @@ public final class ZoltCli implements Runnable {
                     "run quality checks",
                     () -> new QualityCheckService().check(new QualityCheckRequest(
                             workingDirectory,
+                            cacheRoot,
+                            offline,
                             workspace,
                             checks,
                             workspaceSelection(all, members, memberGroups))),

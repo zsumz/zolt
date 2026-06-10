@@ -6,11 +6,14 @@ import java.util.List;
 
 public record QualityCheckRequest(
         Path projectRoot,
+        Path cacheRoot,
+        boolean offline,
         boolean workspace,
         List<String> checks,
         WorkspaceSelectionRequest workspaceSelection) {
     public QualityCheckRequest {
         projectRoot = projectRoot.toAbsolutePath().normalize();
+        cacheRoot = cacheRoot.toAbsolutePath().normalize();
         checks = List.copyOf(checks);
     }
 }

@@ -147,11 +147,11 @@ final class ZoltCliTest {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-planned"));
 
-        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "lockfile");
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "dependency-metadata");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("skip lockfile lockfile Quality check `lockfile` is planned but not implemented yet."));
-        assertTrue(result.stdout().contains("followUps/-add-lockfile-and-project-model-checks.md"));
+        assertTrue(result.stdout().contains("skip dependency-metadata dependency-metadata Quality check `dependency-metadata` is planned but not implemented yet."));
+        assertTrue(result.stdout().contains("followUps/-add-dependency-metadata-checks.md"));
         assertEquals("", result.stderr());
     }
 
@@ -203,8 +203,130 @@ final class ZoltCliTest {
                 "--cwd", fixture.workspaceDir().toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("ok command-surface check-workspace zolt check selected 1 workspace members"));
+        assertTrue(result.stdout().contains("ok command-surface check-workspace zolt check selected 2 workspace members"));
         assertTrue(result.stdout().contains("no Maven, Gradle, or shell hooks are run."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkLockfileReportsMissingLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("check-missing-lock");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-missing-lock"));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "lockfile");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error lockfile zolt.lock zolt.lock is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve`."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkLockfilePassesWhenLockedResolveMatches() throws IOException {
+        Path projectDir = tempDir.resolve("check-lock-ok");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-lock-ok"));
+        CommandResult resolve = execute("resolve", "--cwd", projectDir.toString(), "--cache-root", tempDir.resolve("cache").toString());
+        assertEquals(0, resolve.exitCode());
+
+        CommandResult result = execute(
+                "check",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--check", "lockfile");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkLockfileReportsStaleLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("check-lock-stale");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-lock-stale"));
+        CommandResult resolve = execute("resolve", "--cwd", projectDir.toString(), "--cache-root", tempDir.resolve("cache").toString());
+        assertEquals(0, resolve.exitCode());
+        Files.writeString(projectDir.resolve("zolt.lock"), Files.readString(projectDir.resolve("zolt.lock")) + "# stale\n");
+
+        CommandResult result = execute(
+                "check",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--check", "lockfile");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error lockfile zolt.lock zolt.lock is out of date."));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve`."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceLockfileVerifiesRootLockfile() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-lock");
+        Path memberDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(memberDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-lock"
+                members = ["modules/core"]
+                """);
+        Files.writeString(memberDir.resolve("zolt.toml"), memberConfig("core"));
+        CommandResult resolve = execute("resolve", "--workspace", "--cwd", workspaceDir.toString(), "--cache-root", tempDir.resolve("cache").toString());
+        assertEquals(0, resolve.exitCode());
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--check", "lockfile");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok lockfile zolt.lock Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkProjectModelReportsInvalidProjectPaths() throws IOException {
+        Path projectDir = tempDir.resolve("check-invalid-model");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-invalid-model") + """
+
+                [build]
+                source = "/tmp/source"
+                """);
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "project-model");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error project-model [build].source Path `/tmp/source` must be project-relative"));
+        assertTrue(result.stdout().contains("next: Edit zolt.toml to use a relative path"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkProjectModelJsonReportsCompilerReleaseFailures() throws IOException {
+        Path projectDir = tempDir.resolve("check-release-model");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-release-model") + """
+
+                [compiler]
+                release = "99"
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--format", "json",
+                "--cwd", projectDir.toString(),
+                "--check", "project-model");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("\"status\":\"error\""));
+        assertTrue(result.stdout().contains("\"id\":\"project-model\""));
+        assertTrue(result.stdout().contains("\"subject\":\"[compiler].release\""));
+        assertTrue(result.stdout().contains("Compiler release `99` is newer than [project].java"));
         assertEquals("", result.stderr());
     }
 
