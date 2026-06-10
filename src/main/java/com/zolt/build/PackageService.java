@@ -129,7 +129,13 @@ public final class PackageService {
             Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectRoot(projectDirectory), config, buildResult, Optional.of(cacheRoot), Optional.empty());
+        return packageJar(
+                projectRoot(projectDirectory),
+                config,
+                buildResult,
+                Optional.of(cacheRoot),
+                Optional.empty(),
+                Optional.empty());
     }
 
     public PackageResult packageJar(
@@ -144,7 +150,8 @@ public final class PackageService {
                 config,
                 buildResult.buildResult(),
                 Optional.of(cacheRoot),
-                Optional.of(buildResult.classpathPackages()));
+                Optional.of(buildResult.classpathPackages()),
+                Optional.empty());
     }
 
     public PackageResult packageJar(
@@ -153,7 +160,29 @@ public final class PackageService {
             BuildResult buildResult) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectRoot(projectDirectory), config, buildResult, Optional.empty(), Optional.empty());
+        return packageJar(
+                projectRoot(projectDirectory),
+                config,
+                buildResult,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+    }
+
+    public PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            ClasspathSet classpaths) {
+        PackageMode mode = config.packageSettings().mode();
+        ensureSupportedPackageMode(mode);
+        return packageJar(
+                projectRoot(projectDirectory),
+                config,
+                buildResult,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(classpaths));
     }
 
     private static Path projectRoot(Path projectDirectory) {
@@ -165,7 +194,8 @@ public final class PackageService {
             ProjectConfig config,
             BuildResult buildResult,
             Optional<Path> cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            Optional<ClasspathSet> classpaths) {
         PackageMode mode = config.packageSettings().mode();
         PackageResult result = switch (mode) {
             case THIN -> packageThinJar(projectDirectory, config, buildResult, cacheRoot, classpathPackages);
@@ -188,7 +218,8 @@ public final class PackageService {
                 projectDirectory,
                 config,
                 buildResult,
-                classpathPackages);
+                classpathPackages,
+                classpaths);
         return new PackageResult(
                 result.buildResult(),
                 result.mode(),
@@ -392,13 +423,14 @@ public final class PackageService {
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            Optional<ClasspathSet> classpaths) {
         List<PackageArtifact> artifacts = new ArrayList<>();
         if (config.packageSettings().sources()) {
             artifacts.add(packageSourcesJar(projectDirectory, config));
         }
         if (config.packageSettings().javadoc()) {
-            artifacts.add(packageJavadocJar(projectDirectory, config, buildResult, classpathPackages));
+            artifacts.add(packageJavadocJar(projectDirectory, config, buildResult, classpathPackages, classpaths));
         }
         if (config.packageSettings().tests()) {
             artifacts.add(packageTestJar(projectDirectory, config));
@@ -427,7 +459,8 @@ public final class PackageService {
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            Optional<ClasspathSet> classpaths) {
         Path sourceRoot = projectDirectory.resolve(config.build().source()).normalize();
         Path javadocDirectory = projectDirectory.resolve("target/javadoc").normalize();
         Path jarPath = classifierJarPath(projectDirectory, config, "javadoc");
@@ -442,7 +475,7 @@ public final class PackageService {
                         sourceRoot,
                         javadocDirectory,
                         sources,
-                        javadocClasspath(buildResult, classpathPackages));
+                        javadocClasspath(buildResult, classpathPackages, classpaths));
             }
             List<Path> files = regularFiles(javadocDirectory);
             writeJarFromFiles(jarPath, javadocDirectory, files);
@@ -481,12 +514,17 @@ public final class PackageService {
 
     private List<Path> javadocClasspath(
             BuildResult buildResult,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            Optional<ClasspathSet> classpaths) {
         List<Path> entries = new ArrayList<>();
         entries.add(buildResult.outputDirectory());
-        classpathPackages
-                .map(classpathBuilder::build)
-                .ifPresent(classpaths -> entries.addAll(classpaths.compile().entries()));
+        if (classpaths.isPresent()) {
+            entries.addAll(classpaths.orElseThrow().compile().entries());
+        } else {
+            classpathPackages
+                    .map(classpathBuilder::build)
+                    .ifPresent(resolvedClasspaths -> entries.addAll(resolvedClasspaths.compile().entries()));
+        }
         return entries.stream().map(Path::toAbsolutePath).map(Path::normalize).toList();
     }
 

@@ -155,7 +155,9 @@ public final class WorkspaceResolveService {
                 config.build(),
                 config.nativeSettings(),
                 config.compilerSettings(),
-                config.packageSettings());
+                config.packageSettings(),
+                config.frameworkSettings(),
+                config.dependencyMetadata());
     }
 
     private static Map<String, String> mergedPolicy(

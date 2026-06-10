@@ -82,7 +82,8 @@ public final class WorkspacePackageService {
                     packageService.packageJar(
                             member.directory(),
                             memberConfig,
-                            memberBuild.result())));
+                            memberBuild.result(),
+                            memberBuild.classpaths())));
         }
         return new WorkspacePackageResult(buildResult.resolveResult(), buildResult.members(), results);
     }

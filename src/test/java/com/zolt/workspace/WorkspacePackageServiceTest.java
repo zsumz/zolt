@@ -95,6 +95,60 @@ final class WorkspacePackageServiceTest {
         }
     }
 
+    @Test
+    void packagesWorkspaceMemberJavadocsWithWorkspaceCompileClasspath() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["modules/api", "modules/binding"]
+                """);
+        member("modules/api", "api", "");
+        source("modules/api/src/main/java/com/acme/api/Logger.java", """
+                package com.acme.api;
+
+                /** Public logging API. */
+                public interface Logger {
+                    /** Logs a message. */
+                    void info(String message);
+                }
+                """);
+        member("modules/binding", "binding", """
+
+                [api.dependencies]
+                "com.acme:api" = { workspace = "modules/api" }
+
+                [package]
+                sources = true
+                javadoc = true
+                """);
+        source("modules/binding/src/main/java/com/acme/binding/SimpleLogger.java", """
+                package com.acme.binding;
+
+                import com.acme.api.Logger;
+
+                /** Simple logger implementation. */
+                public final class SimpleLogger implements Logger {
+                    /** Logs a message. */
+                    public void info(String message) {
+                    }
+                }
+                """);
+
+        WorkspacePackageResult result = service.packageJars(
+                tempDir,
+                tempDir.resolve("cache"),
+                new WorkspaceSelectionRequest(false, List.of("modules/binding")));
+
+        assertEquals(List.of("sources", "javadoc"), result.members().getFirst().result().artifacts().stream()
+                .map(com.zolt.build.PackageArtifact::classifier)
+                .toList());
+        Path javadocJar = tempDir.resolve("modules/binding/target/binding-0.1.0-javadoc.jar");
+        assertTrue(Files.exists(javadocJar));
+        try (JarFile jar = new JarFile(javadocJar.toFile())) {
+            assertNotNull(jar.getEntry("com/acme/binding/SimpleLogger.html"));
+        }
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }

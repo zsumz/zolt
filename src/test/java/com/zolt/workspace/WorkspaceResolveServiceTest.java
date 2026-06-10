@@ -216,6 +216,32 @@ final class WorkspaceResolveServiceTest {
     }
 
     @Test
+    void preservesDependencyMetadataWhenMergingWorkspacePolicy() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:app" = { version = "1.0.0", exclusions = [{ group = "com.example", artifact = "lib" }] }
+                """);
+
+        ResolveResult result = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+
+        assertEquals(1, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "app"))));
+        assertFalse(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "lib"))));
+    }
+
+    @Test
     void recordsExportedManagedApiDependencies() throws IOException {
         addPom("com.example", "platform", "1.0.0", """
                 <project>
