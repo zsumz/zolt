@@ -251,7 +251,9 @@ final class QuarkusApplicationModelFactoryTest {
         assertEquals(
                 Map.of(
                         new FakeArtifactKey("io.quarkus", "quarkus-rest", "", "jar"),
-                        List.of("META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider")),
+                        List.of("META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider"),
+                        new FakeArtifactKey("io.quarkus", "quarkus-arc", "", "jar"),
+                        List.of("META-INF/services/io.quarkus.runtime.test.TestScopeSetup")),
                 model.removedResources());
     }
 

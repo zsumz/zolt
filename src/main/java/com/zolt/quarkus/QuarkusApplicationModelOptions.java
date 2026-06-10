@@ -24,8 +24,12 @@ public record QuarkusApplicationModelOptions(
             new QuarkusArtifactKey("io.smallrye.config", "smallrye-config-core", Optional.empty(), Optional.of("jar"));
     private static final QuarkusArtifactKey QUARKUS_REST =
             new QuarkusArtifactKey("io.quarkus", "quarkus-rest", Optional.empty(), Optional.of("jar"));
+    private static final QuarkusArtifactKey QUARKUS_ARC =
+            new QuarkusArtifactKey("io.quarkus", "quarkus-arc", Optional.empty(), Optional.of("jar"));
     private static final String TEST_HTTP_ENDPOINT_PROVIDER_SERVICE =
             "META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider";
+    private static final String TEST_SCOPE_SETUP_SERVICE =
+            "META-INF/services/io.quarkus.runtime.test.TestScopeSetup";
     public static final QuarkusApplicationModelOptions DEFAULT =
             new QuarkusApplicationModelOptions(List.of(), List.of(), Map.of());
     public static final QuarkusApplicationModelOptions TEST_BOOTSTRAP =
@@ -37,7 +41,11 @@ public record QuarkusApplicationModelOptions(
                             SMALLRYE_CONFIG_COMMON,
                             SMALLRYE_CONFIG_CORE),
                     List.of(),
-                    Map.of(QUARKUS_REST, List.of(TEST_HTTP_ENDPOINT_PROVIDER_SERVICE)));
+                    Map.of(
+                            QUARKUS_REST,
+                            List.of(TEST_HTTP_ENDPOINT_PROVIDER_SERVICE),
+                            QUARKUS_ARC,
+                            List.of(TEST_SCOPE_SETUP_SERVICE)));
 
     public QuarkusApplicationModelOptions {
         if (parentFirstArtifacts == null) {

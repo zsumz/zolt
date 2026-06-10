@@ -396,6 +396,38 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsMissingApplicationClassDuringHttpRequest() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                HTTP/1.1 500 Internal Server Error
+                                {
+                                    "details": "java.lang.NoClassDefFoundError: com/example/quarkus/HelloResource"
+                                }
+                                at com.example.quarkus.HelloResource$quarkusrestinvoker$hello.invoke(Unknown Source)
+                                java.lang.AssertionError: 1 expectation failed.
+                                Expected status code <200> but was <500>.
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("reached REST Assured HTTP execution"));
+        assertTrue(result.output().contains("could not load an application class"));
+        assertTrue(result.output().contains("application class visibility"));
+        assertTrue(result.output().contains("NoClassDefFoundError"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();

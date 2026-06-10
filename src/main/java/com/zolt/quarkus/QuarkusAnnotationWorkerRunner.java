@@ -159,6 +159,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (applicationClassMissingDuringHttpRequest(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached REST Assured HTTP execution, then "
+                    + "the running Quarkus application could not load an application class. Zolt moved this "
+                    + "descriptor-enabled probe past Arc test bean registration and Arc test request-scope "
+                    + "service loading, but the runner still needs to align application class visibility in "
+                    + "the Quarkus runtime classloader before @QuarkusTest can be enabled. Keep using plain "
+                    + "JUnit tests for now, or run `zolt quarkus test-plan` to inspect blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             if (testConfigMappingMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution through Zolt's "
                     + "programmatic runner and facade-loader context-classloader handoff, then hit a missing "
@@ -231,6 +242,12 @@ public final class QuarkusAnnotationWorkerRunner {
     private static boolean testScopeSetupProviderSplit(String output) {
         return output.contains("java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestScopeSetup")
                 && output.contains("not a subtype");
+    }
+
+    private static boolean applicationClassMissingDuringHttpRequest(String output) {
+        return output.contains("HTTP/1.1 500 Internal Server Error")
+                && output.contains("java.lang.NoClassDefFoundError")
+                && output.contains("quarkusrestinvoker");
     }
 
     private static boolean testClassBeanMissing(String output) {
