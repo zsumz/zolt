@@ -116,21 +116,21 @@ final class ZoltCliTest {
     }
 
     @Test
-    void explainTextPlaceholderIsActionable() {
-        CommandResult result = execute("explain", "--cwd", tempDir.toString(), "--source", "maven");
+    void explainTextPlaceholderIsActionableWhenSourceIsUnknown() {
+        CommandResult result = execute("explain", "--cwd", tempDir.toString());
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("zolt explain is not implemented yet."));
         assertTrue(result.stdout().contains("audit Maven and Gradle project metadata statically"));
         assertTrue(result.stdout().contains("This command will not execute Maven or Gradle"));
-        assertTrue(result.stdout().contains("Requested source: maven"));
+        assertTrue(result.stdout().contains("Requested source: auto"));
         assertTrue(result.stdout().contains("Project root: " + tempDir.toAbsolutePath().normalize()));
         assertTrue(result.stdout().contains("followUps/-add-zolt-explain-command-scaffold.md"));
         assertEquals("", result.stderr());
     }
 
     @Test
-    void explainJsonPlaceholderIsDeterministic() {
+    void explainGradleJsonPlaceholderIsDeterministic() {
         CommandResult result = execute(
                 "explain",
                 "--cwd", tempDir.toString(),
@@ -144,6 +144,80 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"root\":\"" + jsonPath(tempDir.toAbsolutePath().normalize()) + "\""));
         assertTrue(result.stdout().contains("without executing Maven or Gradle"));
         assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainMavenTextInspectsPomStatically() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                  </properties>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.google.guava</groupId>
+                      <artifactId>guava</artifactId>
+                      <version>33.4.8-jre</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        CommandResult result = execute("explain", "--cwd", tempDir.toString(), "--source", "maven");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Zolt explain: Maven project"));
+        assertTrue(result.stdout().contains("Projects: 1"));
+        assertTrue(result.stdout().contains("demo, packaging=jar, java=21"));
+        assertTrue(result.stdout().contains("dependencies: 1"));
+        assertTrue(result.stdout().contains("did not execute Maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainMavenJsonInspectsPomDeterministically() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <artifactId>demo</artifactId>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.junit.jupiter</groupId>
+                      <artifactId>junit-jupiter</artifactId>
+                      <version>5.11.4</version>
+                      <scope>test</scope>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "maven",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"source\": \"maven\""));
+        assertTrue(result.stdout().contains("\"root\": \"" + jsonPath(tempDir.toAbsolutePath().normalize()) + "\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"org.junit.jupiter:junit-jupiter:5.11.4\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainMavenReportsMalformedPomCleanly() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project><artifactId>broken</project>");
+
+        CommandResult result = execute("explain", "--cwd", tempDir.toString(), "--source", "maven");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not inspect Maven project."));
+        assertTrue(result.stderr().contains("Fix malformed POM XML"));
     }
 
     @Test
@@ -171,6 +245,11 @@ final class ZoltCliTest {
     void explainScaffoldDoesNotExecuteMavenOrGradleWrappers() throws IOException {
         Path projectDir = tempDir.resolve("legacy");
         Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                  <artifactId>legacy</artifactId>
+                </project>
+                """);
         Path marker = projectDir.resolve("executed.txt");
         Path mvnw = projectDir.resolve("mvnw");
         Path gradlew = projectDir.resolve("gradlew");
@@ -182,7 +261,7 @@ final class ZoltCliTest {
         CommandResult maven = execute("explain", "--cwd", projectDir.toString(), "--source", "maven");
         CommandResult gradle = execute("explain", "--cwd", projectDir.toString(), "--source", "gradle");
 
-        assertEquals(1, maven.exitCode());
+        assertEquals(0, maven.exitCode());
         assertEquals(1, gradle.exitCode());
         assertFalse(Files.exists(marker));
     }

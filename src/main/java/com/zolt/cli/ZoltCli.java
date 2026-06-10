@@ -38,6 +38,10 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.doctor.SelfHostingCheckResult;
 import com.zolt.doctor.SelfHostingCheckService;
+import com.zolt.explain.MavenExplainFormatter;
+import com.zolt.explain.MavenInspectionResult;
+import com.zolt.explain.MavenStaticProjectInspector;
+import com.zolt.explain.MigrationExplainException;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
 import com.zolt.ide.WorkspaceIdeModelJsonWriter;
@@ -735,10 +739,26 @@ public final class ZoltCli implements Runnable {
         @Override
         public Integer call() {
             Path root = workingDirectory.toAbsolutePath().normalize();
+            Source detectedSource = detectSource(root);
+            if (detectedSource == Source.MAVEN) {
+                try {
+                    MavenInspectionResult result = new MavenStaticProjectInspector().inspect(root);
+                    MavenExplainFormatter formatter = new MavenExplainFormatter();
+                    if (format == Format.JSON) {
+                        spec.commandLine().getOut().print(formatter.json(result));
+                    } else {
+                        spec.commandLine().getOut().print(formatter.text(result));
+                    }
+                    return 0;
+                } catch (MigrationExplainException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                }
+            }
             if (format == Format.JSON) {
                 spec.commandLine().getOut().println("""
                         {"schemaVersion":1,"command":"explain","status":"not-implemented","source":"%s","root":"%s","message":"zolt explain is a future migration-audit command. It will inspect Maven and Gradle metadata statically without executing Maven or Gradle.","nextStep":"Track implementation in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md."}
-                        """.formatted(source.name().toLowerCase(), jsonEscape(root.toString())).stripTrailing());
+                        """.formatted(detectedSource.name().toLowerCase(), jsonEscape(root.toString())).stripTrailing());
                 return 1;
             }
             spec.commandLine().getOut().println("""
@@ -755,8 +775,24 @@ public final class ZoltCli implements Runnable {
                     Requested source: %s
                     Project root: %s
                     Track this work in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md.
-                    """.formatted(source.name().toLowerCase(), root).stripTrailing());
+                    """.formatted(detectedSource.name().toLowerCase(), root).stripTrailing());
             return 1;
+        }
+
+        private Source detectSource(Path root) {
+            if (source != Source.AUTO) {
+                return source;
+            }
+            if (java.nio.file.Files.isRegularFile(root.resolve("pom.xml"))) {
+                return Source.MAVEN;
+            }
+            if (java.nio.file.Files.isRegularFile(root.resolve("settings.gradle"))
+                    || java.nio.file.Files.isRegularFile(root.resolve("settings.gradle.kts"))
+                    || java.nio.file.Files.isRegularFile(root.resolve("build.gradle"))
+                    || java.nio.file.Files.isRegularFile(root.resolve("build.gradle.kts"))) {
+                return Source.GRADLE;
+            }
+            return Source.AUTO;
         }
     }
 
