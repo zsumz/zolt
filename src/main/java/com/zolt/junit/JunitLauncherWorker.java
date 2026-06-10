@@ -125,7 +125,24 @@ public final class JunitLauncherWorker {
             Class<?> builderClass = Class.forName("org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder");
             Object builder = builderClass.getMethod("request").invoke(null);
             builderClass.getMethod("selectors", List.class).invoke(builder, selectors);
+            applyDefaultClassNameFilter(builderClass, builder);
             return builderClass.getMethod("build").invoke(builder);
+        }
+
+        private static void applyDefaultClassNameFilter(Class<?> builderClass, Object builder)
+                throws ReflectiveOperationException {
+            Class<?> classNameFilterClass = Class.forName("org.junit.platform.engine.discovery.ClassNameFilter");
+            Object standardPattern = classNameFilterClass.getField("STANDARD_INCLUDE_PATTERN").get(null);
+            Object classNameFilter = classNameFilterClass
+                    .getMethod("includeClassNamePatterns", String[].class)
+                    .invoke(null, (Object) new String[] {standardPattern.toString()});
+
+            Class<?> filterInterface = Class.forName("org.junit.platform.engine.Filter");
+            Object filters = Array.newInstance(filterInterface, 1);
+            Array.set(filters, 0, classNameFilter);
+            builderClass
+                    .getMethod("filters", filters.getClass())
+                    .invoke(builder, filters);
         }
 
         private int summarize(Class<?> listenerClass, Object listener) throws ReflectiveOperationException {

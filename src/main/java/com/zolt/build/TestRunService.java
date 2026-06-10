@@ -4,6 +4,10 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.junit.JunitWorkerClient;
+import com.zolt.junit.JunitWorkerClientException;
+import com.zolt.junit.JunitWorkerProcess;
+import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
@@ -36,6 +40,9 @@ public final class TestRunService {
     private final QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter;
     private final Supplier<List<Path>> quarkusTestWorkerClasspath;
     private final QuarkusTestWorkerRunner quarkusTestWorkerRunner;
+    private final Supplier<List<Path>> plainJunitWorkerClasspath;
+    private final PlainJunitWorkerRunner plainJunitWorkerRunner;
+    private final boolean plainJunitWorkerEnabled;
     private final String pathSeparator;
 
     public TestRunService() {
@@ -52,6 +59,9 @@ public final class TestRunService {
                 TestRunService::currentWorkerClasspath,
                 (javaExecutable, workerClasspath, descriptor) ->
                         new QuarkusTestWorkerLauncher(javaExecutable, workerClasspath).run(descriptor),
+                TestRunService::currentWorkerClasspath,
+                TestRunService::runPlainJunitWorker,
+                Boolean.getBoolean("zolt.junit.worker"),
                 java.io.File.pathSeparator);
     }
 
@@ -63,6 +73,9 @@ public final class TestRunService {
             QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter,
             Supplier<List<Path>> quarkusTestWorkerClasspath,
             QuarkusTestWorkerRunner quarkusTestWorkerRunner,
+            Supplier<List<Path>> plainJunitWorkerClasspath,
+            PlainJunitWorkerRunner plainJunitWorkerRunner,
+            boolean plainJunitWorkerEnabled,
             String pathSeparator) {
         this.testCompileService = testCompileService;
         this.jdkDetector = jdkDetector;
@@ -71,6 +84,9 @@ public final class TestRunService {
         this.quarkusTestRunnerDescriptorWriter = quarkusTestRunnerDescriptorWriter;
         this.quarkusTestWorkerClasspath = quarkusTestWorkerClasspath;
         this.quarkusTestWorkerRunner = quarkusTestWorkerRunner;
+        this.plainJunitWorkerClasspath = plainJunitWorkerClasspath;
+        this.plainJunitWorkerRunner = plainJunitWorkerRunner;
+        this.plainJunitWorkerEnabled = plainJunitWorkerEnabled;
         this.pathSeparator = pathSeparator;
     }
 
@@ -160,6 +176,29 @@ public final class TestRunService {
             failOnHiddenQuarkusBootstrapFailure(config, output);
             return new TestRunResult(compileResult, output, runnerClasspath.size(), workerClasspath.size(), 1);
         }
+        if (plainJunitWorkerEnabled) {
+            List<Path> workerClasspath = plainJunitWorkerClasspath.get();
+            JunitWorkerClient.WorkerRunResult result = plainJunitWorkerRunner.run(
+                    jdkStatus.java().orElseThrow(),
+                    workerClasspath,
+                    projectDirectory,
+                    runnerClasspath,
+                    compileResult.outputDirectory().toAbsolutePath().normalize());
+            failOnHiddenQuarkusBootstrapFailure(config, result.output());
+            if (result.exitCode() != 0) {
+                throw new TestRunException(
+                        "JUnit worker tests failed with exit code "
+                                + result.exitCode()
+                                + ". Fix failing tests, then run `zolt test` again.\n"
+                                + result.output().stripTrailing());
+            }
+            return new TestRunResult(
+                    compileResult,
+                    result.output(),
+                    runnerClasspath.size(),
+                    workerClasspath.size() + runnerClasspath.size(),
+                    1);
+        }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
                 new Classpath(launcherClasspath),
@@ -196,6 +235,20 @@ public final class TestRunService {
         try {
             return quarkusTestWorkerRunner.run(javaExecutable, workerClasspath, descriptor);
         } catch (QuarkusAugmentationException exception) {
+            throw new TestRunException(exception.getMessage(), exception);
+        }
+    }
+
+    private static JunitWorkerClient.WorkerRunResult runPlainJunitWorker(
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            Path projectDirectory,
+            List<Path> testRuntimeClasspath,
+            Path testOutputDirectory) {
+        try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
+                .start(projectDirectory, testRuntimeClasspath)) {
+            return process.run(testOutputDirectory);
+        } catch (JunitWorkerClientException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }
     }
@@ -367,10 +420,11 @@ public final class TestRunService {
         List<Path> entries = Arrays.stream(classpath.split(java.io.File.pathSeparator))
                 .filter(entry -> !entry.isBlank())
                 .map(Path::of)
+                .map(path -> path.toAbsolutePath().normalize())
                 .toList();
         if (entries.isEmpty()) {
             throw new TestRunException(
-                    "Could not determine Zolt worker classpath for Quarkus tests. "
+                    "Could not determine Zolt worker classpath for test execution. "
                             + "Run zolt test from the packaged launcher or check java.class.path.");
         }
         return entries;
@@ -384,5 +438,15 @@ public final class TestRunService {
     @FunctionalInterface
     interface QuarkusTestWorkerRunner {
         String run(Path javaExecutable, List<Path> workerClasspath, QuarkusTestRunnerDescriptor descriptor);
+    }
+
+    @FunctionalInterface
+    interface PlainJunitWorkerRunner {
+        JunitWorkerClient.WorkerRunResult run(
+                Path javaExecutable,
+                List<Path> workerClasspath,
+                Path projectDirectory,
+                List<Path> testRuntimeClasspath,
+                Path testOutputDirectory);
     }
 }

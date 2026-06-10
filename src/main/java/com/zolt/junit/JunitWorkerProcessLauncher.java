@@ -78,10 +78,10 @@ public final class JunitWorkerProcessLauncher {
     private String joinedClasspath(List<Path> testRuntimeClasspath) {
         StringJoiner joiner = new StringJoiner(pathSeparator);
         for (Path entry : workerClasspath) {
-            joiner.add(entry.normalize().toString());
+            joiner.add(entry.toAbsolutePath().normalize().toString());
         }
         for (Path entry : testRuntimeClasspath) {
-            joiner.add(entry.normalize().toString());
+            joiner.add(entry.toAbsolutePath().normalize().toString());
         }
         return joiner.toString();
     }

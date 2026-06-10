@@ -64,6 +64,7 @@ final class JunitWorkerClientTest {
         assertEquals("RUN\tjunit-1\ttarget/test-classes\n", input.toString());
         assertTrue(exception.getMessage().contains("exited before sending a result"));
         assertTrue(exception.getMessage().contains("junit-1"));
+        assertTrue(exception.getMessage().contains("Tests found: 1"));
     }
 
     @Test

@@ -77,8 +77,13 @@ public final class JunitWorkerClient implements AutoCloseable {
         } catch (IllegalArgumentException exception) {
             throw new JunitWorkerClientException(exception.getMessage(), exception);
         }
+        String output = workerOutput.toString().stripTrailing();
+        if (output.isBlank()) {
+            throw new JunitWorkerClientException(
+                    "JUnit worker exited before sending a result for request `" + requestId + "`.");
+        }
         throw new JunitWorkerClientException(
-                "JUnit worker exited before sending a result for request `" + requestId + "`.");
+                "JUnit worker exited before sending a result for request `" + requestId + "`.\n" + output);
     }
 
     private void writeFrame(String frame) {
