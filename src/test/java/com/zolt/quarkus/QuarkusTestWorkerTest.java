@@ -303,6 +303,37 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerExplainsMissingTestClassBean() {
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> new QuarkusAnnotationJvmRunner.Result(1, """
+                                java.lang.RuntimeException: java.lang.RuntimeException: Error running Quarkus test
+                                    at io.quarkus.test.junit.QuarkusTestExtension.throwBootFailureException(QuarkusTestExtension.java:672)
+                                Caused by: jakarta.enterprise.inject.UnsatisfiedResolutionException:
+                                No bean found for required type [class com.example.quarkus.HelloResourceQuarkusTest]
+                                    at io.quarkus.test.junit.QuarkusTestExtension.runExtensionMethod(QuarkusTestExtension.java:949)
+                                """))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("started the Quarkus application"));
+        assertTrue(result.output().contains("Arc could not instantiate the selected @QuarkusTest class"));
+        assertTrue(result.output().contains("test-location and test-class indexing path"));
+        assertTrue(result.output().contains("TestClassBeanBuildItem"));
+        assertTrue(result.output().contains("No bean found for required type"));
+    }
+
+    @Test
     void returnsPlainJunitFailureCodeAndOutput() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();

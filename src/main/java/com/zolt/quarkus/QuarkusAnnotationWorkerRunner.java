@@ -128,6 +128,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (testClassBeanMissing(result.output())) {
+                return "error: Quarkus annotation test bootstrap started the Quarkus application, then Arc could "
+                    + "not instantiate the selected @QuarkusTest class as a CDI bean. Zolt moved this "
+                    + "descriptor-enabled probe past runtime service loading, but still needs to align Quarkus' "
+                    + "test-location and test-class indexing path so Quarkus JUnit can produce a "
+                    + "TestClassBeanBuildItem for compiled test classes. Keep using plain JUnit tests for now, "
+                    + "or run `zolt quarkus test-plan` to inspect blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             return result.output();
         }
         return "error: Quarkus annotation test bootstrap hit a Quarkus classloader split while loading "
@@ -171,6 +182,12 @@ public final class QuarkusAnnotationWorkerRunner {
     private static boolean testHttpEndpointProviderSplit(String output) {
         return output.contains("java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestHttpEndpointProvider")
                 && output.contains("not a subtype");
+    }
+
+    private static boolean testClassBeanMissing(String output) {
+        return output.contains("jakarta.enterprise.inject.UnsatisfiedResolutionException")
+                && output.contains("No bean found for required type")
+                && output.contains("io.quarkus.test.junit");
     }
 
     public record Result(int exitCode, String output) {
