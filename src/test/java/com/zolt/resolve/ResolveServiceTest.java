@@ -22,6 +22,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.toml.ZoltTomlParser;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -133,6 +134,69 @@ final class ResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "app")) && lockPackage.direct()));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib")) && !lockPackage.direct()));
+    }
+
+    @Test
+    void resolveTriesRepositoriesInStableOrderUntilArtifactIsFound() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        ProjectConfig config = new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                "empty" = "%s"
+                "test" = "%s"
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+                """.formatted(
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/empty/",
+                baseUri));
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(1, requestCount("/empty/com/example/app/1.0.0/app-1.0.0.pom"));
+        assertEquals(1, requestCount("/maven2/com/example/app/1.0.0/app-1.0.0.pom"));
+    }
+
+    @Test
+    void credentialedRepositoryFailsBeforeNetworkWhenEnvironmentIsMissing() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        ProjectConfig config = new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                "company" = { url = "%s", credentials = "company-artifactory" }
+
+                [repositoryCredentials.company-artifactory]
+                usernameEnv = "ZOLT_TEST_MISSING_REPOSITORY_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_REPOSITORY_PASSWORD"
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+                """.formatted(baseUri));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config, cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Repository `company` requires credentials `company-artifactory`"));
+        assertTrue(exception.getMessage().contains("ZOLT_TEST_MISSING_REPOSITORY_USERNAME"));
+        assertTrue(exception.getMessage().contains("ZOLT_TEST_MISSING_REPOSITORY_PASSWORD"));
+        assertTrue(exception.getMessage().contains("Secret values are never written to zolt.lock or command output."));
+        assertEquals(0, totalRequests.get());
     }
 
     @Test
@@ -2093,6 +2157,10 @@ final class ResolveServiceTest {
             return;
         }
         respond(exchange, 200, body);
+    }
+
+    private int requestCount(String path) {
+        return requestCounts.getOrDefault(path, new AtomicInteger()).get();
     }
 
     private static void sleepServing(long millis) throws InterruptedException {

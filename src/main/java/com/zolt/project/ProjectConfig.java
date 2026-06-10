@@ -4,11 +4,14 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public record ProjectConfig(
         ProjectMetadata project,
         Map<String, String> repositories,
+        Map<String, RepositorySettings> repositorySettings,
+        Map<String, RepositoryCredentialSettings> repositoryCredentials,
         Map<String, String> platforms,
         Map<String, String> apiDependencies,
         Set<String> managedApiDependencies,
@@ -38,7 +41,13 @@ public record ProjectConfig(
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
-        repositories = orderedMap(repositories);
+        repositorySettings = repositorySettings == null || repositorySettings.isEmpty()
+                ? repositorySettingsFromUrls(repositories)
+                : orderedRepositorySettings(repositorySettings);
+        repositories = repositories == null || repositories.isEmpty()
+                ? repositoryUrls(repositorySettings)
+                : orderedMap(repositories);
+        repositoryCredentials = orderedRepositoryCredentials(repositoryCredentials);
         platforms = orderedMap(platforms);
         apiDependencies = orderedMap(apiDependencies);
         managedApiDependencies = orderedSet(managedApiDependencies);
@@ -96,6 +105,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -153,6 +164,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -208,6 +221,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -260,6 +275,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -306,6 +323,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 Map.of(),
                 Set.of(),
@@ -351,6 +370,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 Map.of(),
                 Set.of(),
@@ -398,6 +419,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 Map.of(),
                 Set.of(),
@@ -439,6 +462,8 @@ public record ProjectConfig(
         this(
                 project,
                 repositories,
+                repositorySettingsFromUrls(repositories),
+                Map.of(),
                 platforms,
                 Map.of(),
                 Set.of(),
@@ -515,11 +540,58 @@ public record ProjectConfig(
         return Map.of("central", MAVEN_CENTRAL);
     }
 
+    public static Map<String, RepositorySettings> defaultRepositorySettings() {
+        return repositorySettingsFromUrls(defaultRepositories());
+    }
+
     private static Map<String, String> orderedMap(Map<String, String> values) {
+        if (values == null) {
+            return Map.of();
+        }
         return Collections.unmodifiableMap(new LinkedHashMap<>(values));
     }
 
+    private static Map<String, RepositorySettings> orderedRepositorySettings(Map<String, RepositorySettings> values) {
+        if (values == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
+    private static Map<String, RepositoryCredentialSettings> orderedRepositoryCredentials(
+            Map<String, RepositoryCredentialSettings> values) {
+        if (values == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
+    private static Map<String, RepositorySettings> repositorySettingsFromUrls(Map<String, String> repositories) {
+        if (repositories == null || repositories.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, RepositorySettings> settings = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : repositories.entrySet()) {
+            settings.put(entry.getKey(), new RepositorySettings(entry.getKey(), entry.getValue(), Optional.empty()));
+        }
+        return Collections.unmodifiableMap(settings);
+    }
+
+    private static Map<String, String> repositoryUrls(Map<String, RepositorySettings> repositorySettings) {
+        if (repositorySettings == null || repositorySettings.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> urls = new LinkedHashMap<>();
+        for (Map.Entry<String, RepositorySettings> entry : repositorySettings.entrySet()) {
+            urls.put(entry.getKey(), entry.getValue().url());
+        }
+        return Collections.unmodifiableMap(urls);
+    }
+
     private static Set<String> orderedSet(Set<String> values) {
+        if (values == null) {
+            return Set.of();
+        }
         return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 
@@ -534,6 +606,8 @@ public record ProjectConfig(
         return new ProjectConfig(
                 project,
                 repositories,
+                repositorySettings,
+                repositoryCredentials,
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -566,6 +640,8 @@ public record ProjectConfig(
         return new ProjectConfig(
                 project,
                 repositories,
+                repositorySettings,
+                repositoryCredentials,
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -598,6 +674,8 @@ public record ProjectConfig(
         return new ProjectConfig(
                 project,
                 repositories,
+                repositorySettings,
+                repositoryCredentials,
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -630,6 +708,8 @@ public record ProjectConfig(
         return new ProjectConfig(
                 project,
                 repositories,
+                repositorySettings,
+                repositoryCredentials,
                 platforms,
                 apiDependencies,
                 managedApiDependencies,

@@ -16,6 +16,8 @@ import com.zolt.project.ProjectMetadata;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.RepositoryCredentialSettings;
+import com.zolt.project.RepositorySettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ public final class ZoltTomlParser {
     private static final Set<String> TOP_LEVEL_SECTIONS = Set.of(
             "project",
             "repositories",
+            "repositoryCredentials",
             "platforms",
             "api",
             "dependencies",
@@ -54,6 +57,8 @@ public final class ZoltTomlParser {
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
+    private static final Set<String> REPOSITORY_KEYS = Set.of("url", "credentials");
+    private static final Set<String> REPOSITORY_CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv");
     private static final Set<String> GENERATED_KEYS = Set.of("main", "test");
     private static final Set<String> GENERATED_SOURCE_KEYS =
             Set.of("kind", "language", "output", "inputs", "required", "clean");
@@ -125,10 +130,15 @@ public final class ZoltTomlParser {
                 requiredString(projectTable, "project", "java"),
                 optionalString(projectTable, "project", "main"));
 
-        Map<String, String> repositories = stringMap(optionalTable(result, "repositories"), "repositories");
-        if (repositories.isEmpty()) {
-            repositories = ProjectConfig.defaultRepositories();
+        Map<String, RepositorySettings> repositorySettings =
+                repositorySettings(optionalTable(result, "repositories"));
+        if (repositorySettings.isEmpty()) {
+            repositorySettings = ProjectConfig.defaultRepositorySettings();
         }
+        Map<String, String> repositories = repositoryUrls(repositorySettings);
+        Map<String, RepositoryCredentialSettings> repositoryCredentials =
+                repositoryCredentials(optionalTable(result, "repositoryCredentials"));
+        validateRepositoryCredentialReferences(repositorySettings, repositoryCredentials);
 
         Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
         Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
@@ -220,6 +230,8 @@ public final class ZoltTomlParser {
         return new ProjectConfig(
                 project,
                 repositories,
+                repositorySettings,
+                repositoryCredentials,
                 platforms,
                 apiDependencies.versioned(),
                 apiDependencies.managed(),
@@ -614,6 +626,82 @@ public final class ZoltTomlParser {
             values.put(key, value);
         }
         return values;
+    }
+
+    private static Map<String, RepositorySettings> repositorySettings(TomlTable table) {
+        if (table == null) {
+            return Map.of();
+        }
+
+        Map<String, RepositorySettings> values = new LinkedHashMap<>();
+        for (String key : table.keySet()) {
+            Object rawValue = table.get(List.of(key));
+            if (rawValue instanceof String value) {
+                if (value.isBlank()) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [repositories]." + key + " in zolt.toml. Use a non-empty URL string or { url = \"...\", credentials = \"...\" }.");
+                }
+                values.put(key, RepositorySettings.unauthenticated(key, value));
+                continue;
+            }
+            if (rawValue instanceof TomlTable repositoryTable) {
+                validateKeys("repositories." + key, repositoryTable, REPOSITORY_KEYS);
+                String url = requiredString(repositoryTable, "repositories." + key, "url");
+                Optional<String> credentials = optionalString(repositoryTable, "repositories." + key, "credentials");
+                values.put(key, new RepositorySettings(key, url, credentials));
+                continue;
+            }
+            throw new ZoltConfigException(
+                    "Invalid value for [repositories]." + key + " in zolt.toml. Use a non-empty URL string or { url = \"...\", credentials = \"...\" }.");
+        }
+        return values;
+    }
+
+    private static Map<String, String> repositoryUrls(Map<String, RepositorySettings> repositorySettings) {
+        Map<String, String> urls = new LinkedHashMap<>();
+        for (Map.Entry<String, RepositorySettings> entry : repositorySettings.entrySet()) {
+            urls.put(entry.getKey(), entry.getValue().url());
+        }
+        return urls;
+    }
+
+    private static Map<String, RepositoryCredentialSettings> repositoryCredentials(TomlTable table) {
+        if (table == null) {
+            return Map.of();
+        }
+
+        Map<String, RepositoryCredentialSettings> values = new LinkedHashMap<>();
+        for (String key : table.keySet()) {
+            TomlTable credentialTable = table.getTable(List.of(key));
+            if (credentialTable == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [repositoryCredentials]." + key + " in zolt.toml. Use a table with usernameEnv and passwordEnv.");
+            }
+            validateKeys("repositoryCredentials." + key, credentialTable, REPOSITORY_CREDENTIAL_KEYS);
+            values.put(key, new RepositoryCredentialSettings(
+                    key,
+                    requiredString(credentialTable, "repositoryCredentials." + key, "usernameEnv"),
+                    requiredString(credentialTable, "repositoryCredentials." + key, "passwordEnv")));
+        }
+        return values;
+    }
+
+    private static void validateRepositoryCredentialReferences(
+            Map<String, RepositorySettings> repositories,
+            Map<String, RepositoryCredentialSettings> credentials) {
+        for (RepositorySettings repository : repositories.values()) {
+            Optional<String> credentialId = repository.credentials();
+            if (credentialId.isPresent() && !credentials.containsKey(credentialId.orElseThrow())) {
+                throw new ZoltConfigException(
+                        "Repository `"
+                                + repository.id()
+                                + "` references credentials `"
+                                + credentialId.orElseThrow()
+                                + "`, but [repositoryCredentials."
+                                + credentialId.orElseThrow()
+                                + "] is not defined.");
+            }
+        }
     }
 
     private static DependencyDeclarations dependencyDeclarations(

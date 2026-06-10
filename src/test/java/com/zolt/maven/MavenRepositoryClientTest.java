@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -188,6 +189,31 @@ final class MavenRepositoryClientTest {
 
         assertEquals(1, attempts.get());
         assertTrue(exception.getMessage().contains("Repository returned HTTP 400"));
+    }
+
+    @Test
+    void sendsBasicAuthenticationHeaderWhenConfigured() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/auth/", exchange -> {
+            attempts.incrementAndGet();
+            String expected = "Basic " + Base64.getEncoder()
+                    .encodeToString("zolt-user:zolt-secret".getBytes(StandardCharsets.UTF_8));
+            if (!expected.equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                respond(exchange, 401, "unauthorized".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            respond(exchange, 200, "<project/>".getBytes(StandardCharsets.UTF_8));
+        });
+        URI authBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/auth/");
+
+        RepositoryArtifact artifact = client.fetchPom(
+                authBaseUri,
+                coordinate,
+                Optional.of(new RepositoryAuthentication("zolt-user", "zolt-secret")));
+
+        assertEquals(1, attempts.get());
+        assertArrayEquals("<project/>".getBytes(StandardCharsets.UTF_8), artifact.bytes());
     }
 
     private void put(String path, String body) {

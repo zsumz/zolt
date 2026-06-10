@@ -21,6 +21,8 @@ import com.zolt.project.ProjectMetadata;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.RepositoryCredentialSettings;
+import com.zolt.project.RepositorySettings;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -86,6 +88,64 @@ final class ZoltTomlWriterTest {
         assertEquals(original.build(), parsed.build());
         assertEquals(original.compilerSettings(), parsed.compilerSettings());
         assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void writesCredentialedRepositories() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("enterprise", "0.1.0", "com.acme", "17", Optional.empty()),
+                Map.of(),
+                Map.of(
+                        "central", RepositorySettings.unauthenticated("central", ProjectConfig.MAVEN_CENTRAL),
+                        "company", new RepositorySettings(
+                                "company",
+                                "https://repo.acme.example/maven",
+                                Optional.of("company-artifactory"))),
+                Map.of(
+                        "company-artifactory",
+                        new RepositoryCredentialSettings(
+                                "company-artifactory",
+                                "ARTIFACTORY_USERNAME",
+                                "ARTIFACTORY_ACCESS_TOKEN")),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                null,
+                null,
+                null,
+                null,
+                Map.of());
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"company\" = { url = \"https://repo.acme.example/maven\", credentials = \"company-artifactory\" }"));
+        assertTrue(toml.contains("[repositoryCredentials.\"company-artifactory\"]"));
+        assertFalse(toml.contains("ReadPermanent"));
+        assertEquals(
+                "company-artifactory",
+                parsed.repositorySettings().get("company").credentials().orElseThrow());
+        assertEquals(
+                "ARTIFACTORY_ACCESS_TOKEN",
+                parsed.repositoryCredentials().get("company-artifactory").passwordEnv());
     }
 
     @Test

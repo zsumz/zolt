@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Optional;
 
 public final class MavenRepositoryClient {
     private final HttpClient httpClient;
@@ -29,23 +30,49 @@ public final class MavenRepositoryClient {
     }
 
     public RepositoryArtifact fetchPom(URI repositoryBaseUri, Coordinate coordinate) {
-        return fetch(repositoryBaseUri, coordinate, pathBuilder.pomPath(coordinate));
+        return fetchPom(repositoryBaseUri, coordinate, RepositoryAuthentication.none());
+    }
+
+    public RepositoryArtifact fetchPom(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            Optional<RepositoryAuthentication> authentication) {
+        return fetch(repositoryBaseUri, coordinate, pathBuilder.pomPath(coordinate), authentication);
     }
 
     public RepositoryArtifact fetchJar(URI repositoryBaseUri, Coordinate coordinate) {
-        return fetchArtifact(repositoryBaseUri, ArtifactDescriptor.jar(coordinate));
+        return fetchJar(repositoryBaseUri, coordinate, RepositoryAuthentication.none());
+    }
+
+    public RepositoryArtifact fetchJar(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            Optional<RepositoryAuthentication> authentication) {
+        return fetchArtifact(repositoryBaseUri, ArtifactDescriptor.jar(coordinate), authentication);
     }
 
     public RepositoryArtifact fetchArtifact(URI repositoryBaseUri, ArtifactDescriptor descriptor) {
-        return fetch(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor));
+        return fetchArtifact(repositoryBaseUri, descriptor, RepositoryAuthentication.none());
     }
 
-    private RepositoryArtifact fetch(URI repositoryBaseUri, Coordinate coordinate, String path) {
+    public RepositoryArtifact fetchArtifact(
+            URI repositoryBaseUri,
+            ArtifactDescriptor descriptor,
+            Optional<RepositoryAuthentication> authentication) {
+        return fetch(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor), authentication);
+    }
+
+    private RepositoryArtifact fetch(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            String path,
+            Optional<RepositoryAuthentication> authentication) {
         URI artifactUri = artifactUri(repositoryBaseUri, path);
-        HttpRequest request = HttpRequest.newBuilder(artifactUri)
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
                 .timeout(httpPolicy.requestTimeout())
-                .GET()
-                .build();
+                .GET();
+        authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
+        HttpRequest request = requestBuilder.build();
 
         IOException lastIoException = null;
         for (int attempt = 1; attempt <= httpPolicy.maxAttempts(); attempt++) {

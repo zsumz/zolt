@@ -130,6 +130,53 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesCredentialedRepositories() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [repositories]
+                "company" = { url = "https://repo.acme.example/maven", credentials = "company-artifactory" }
+                "central" = "https://repo.maven.apache.org/maven2"
+
+                [repositoryCredentials.company-artifactory]
+                usernameEnv = "ARTIFACTORY_USERNAME"
+                passwordEnv = "ARTIFACTORY_ACCESS_TOKEN"
+                """);
+
+        assertEquals("https://repo.acme.example/maven", config.repositories().get("company"));
+        assertEquals(
+                "company-artifactory",
+                config.repositorySettings().get("company").credentials().orElseThrow());
+        assertEquals(
+                "ARTIFACTORY_USERNAME",
+                config.repositoryCredentials().get("company-artifactory").usernameEnv());
+        assertEquals(
+                "ARTIFACTORY_ACCESS_TOKEN",
+                config.repositoryCredentials().get("company-artifactory").passwordEnv());
+    }
+
+    @Test
+    void rejectsRepositoryCredentialReferenceWithoutDefinition() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [repositories]
+                "company" = { url = "https://repo.acme.example/maven", credentials = "missing" }
+                """));
+
+        assertTrue(exception.getMessage().contains("Repository `company` references credentials `missing`"));
+        assertTrue(exception.getMessage().contains("[repositoryCredentials.missing] is not defined"));
+    }
+
+    @Test
     void parsesApiDependencies() {
         ProjectConfig config = parser.parse("""
                 [project]

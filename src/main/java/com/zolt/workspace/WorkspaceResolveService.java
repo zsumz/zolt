@@ -5,6 +5,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.RepositorySettings;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
@@ -119,14 +120,17 @@ public final class WorkspaceResolveService {
 
     private static ProjectConfig mergeWorkspacePolicy(Workspace workspace, WorkspaceMember member) {
         ProjectConfig config = member.config();
+        Map<String, String> repositories = mergedPolicy(
+                "repository",
+                workspace,
+                member,
+                workspace.config().repositories(),
+                config.repositories());
         return new ProjectConfig(
                 config.project(),
-                mergedPolicy(
-                        "repository",
-                        workspace,
-                        member,
-                        workspace.config().repositories(),
-                        config.repositories()),
+                repositories,
+                repositorySettings(repositories),
+                Map.of(),
                 mergedPolicy(
                         "platform",
                         workspace,
@@ -187,6 +191,14 @@ public final class WorkspaceResolveService {
             }
         }
         return merged;
+    }
+
+    private static Map<String, RepositorySettings> repositorySettings(Map<String, String> repositories) {
+        Map<String, RepositorySettings> settings = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : repositories.entrySet()) {
+            settings.put(entry.getKey(), RepositorySettings.unauthenticated(entry.getKey(), entry.getValue()));
+        }
+        return settings;
     }
 
     private static ZoltLockfile aggregate(Workspace workspace, List<MemberResolveOutput> memberOutputs) {
