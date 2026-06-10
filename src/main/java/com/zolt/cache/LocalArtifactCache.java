@@ -61,6 +61,21 @@ public final class LocalArtifactCache {
         return getOrFetch(descriptor.coordinate(), pathBuilder.artifactPath(descriptor), fetcher);
     }
 
+    public CachedArtifact materializeOverlayPom(Coordinate coordinate, String overlayId, Path sourcePath) {
+        return materializeOverlayArtifact(coordinate, overlayPath(overlayId, pathBuilder.pomPath(coordinate)), sourcePath, "POM");
+    }
+
+    public CachedArtifact materializeOverlayArtifact(
+            ArtifactDescriptor descriptor,
+            String overlayId,
+            Path sourcePath) {
+        return materializeOverlayArtifact(
+                descriptor.coordinate(),
+                overlayPath(overlayId, pathBuilder.artifactPath(descriptor)),
+                sourcePath,
+                descriptor.extension().toUpperCase(java.util.Locale.ROOT));
+    }
+
     public CachedArtifact getCachedPom(Coordinate coordinate) {
         return getCached(coordinate, pathBuilder.pomPath(coordinate), "POM");
     }
@@ -115,8 +130,33 @@ public final class LocalArtifactCache {
         return new CachedArtifact(coordinate, repositoryPath, cachePath, bytes);
     }
 
+    private CachedArtifact materializeOverlayArtifact(
+            Coordinate coordinate,
+            String repositoryPath,
+            Path sourcePath,
+            String artifactKind) {
+        byte[] bytes = read(sourcePath);
+        if (bytes.length == 0) {
+            throw new ArtifactCacheException(
+                    "Local repository overlay "
+                            + artifactKind
+                            + " for "
+                            + coordinate
+                            + " at "
+                            + sourcePath
+                            + " is empty. Reinstall the artifact locally or remove it so Zolt can fall back to configured repositories.");
+        }
+        Path cachePath = cachePath(repositoryPath);
+        writeAtomically(cachePath, bytes);
+        return new CachedArtifact(coordinate, repositoryPath, cachePath, bytes);
+    }
+
     private Path cachePath(String repositoryPath) {
         return root.resolve(repositoryPath).normalize();
+    }
+
+    private static String overlayPath(String overlayId, String repositoryPath) {
+        return "overlays/" + overlayId + "/" + repositoryPath;
     }
 
     private static byte[] read(Path path) {

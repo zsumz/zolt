@@ -88,7 +88,9 @@ import com.zolt.quarkus.QuarkusTestPlan;
 import com.zolt.quarkus.QuarkusTestPlanFormatter;
 import com.zolt.quarkus.QuarkusTestPlanService;
 import com.zolt.resolve.PackageId;
+import com.zolt.resolve.RepositoryOverlay;
 import com.zolt.resolve.ResolveException;
+import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import com.zolt.release.ReleaseArchiveException;
@@ -663,6 +665,16 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
         private boolean offline;
 
+        @Option(
+                names = "--repository-overlay",
+                description = "Opt into a user-local repository overlay. Supported values: maven-local, local-maven.")
+        private List<String> repositoryOverlays = List.of();
+
+        @Option(
+                names = "--no-local-overlays",
+                description = "Reject lockfile packages resolved from local repository overlays.")
+        private boolean noLocalOverlays;
+
         @Option(names = "--workspace", description = "Resolve the discovered workspace and write the root zolt.lock.")
         private boolean workspace;
 
@@ -671,6 +683,9 @@ public final class ZoltCli implements Runnable {
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Option(names = "--maven-local-root", hidden = true)
+        private Path mavenLocalRoot = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
         @Mixin
         private TimingOptions timingOptions = new TimingOptions();
@@ -683,6 +698,11 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
+                    if (!repositoryOverlays.isEmpty() || noLocalOverlays) {
+                        throw new ResolveException(
+                                "Repository overlay options are currently supported for single-project resolve only. "
+                                        + "Run without --workspace or wait for workspace overlay policy support.");
+                    }
                     ResolveResult result = timings.measure(
                             "resolve workspace",
                             () -> new WorkspaceResolveService().resolve(
@@ -704,7 +724,7 @@ public final class ZoltCli implements Runnable {
                                 config,
                                 cacheRoot,
                                 locked,
-                                offline),
+                                resolveOptions()),
                         ZoltCli::resolveAttributes);
                 printResolveResult(spec, result, !locked);
             } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
@@ -713,6 +733,25 @@ public final class ZoltCli implements Runnable {
             } finally {
                 printTimings(spec, "resolve", workingDirectory, timingOptions, timings);
             }
+        }
+
+        private ResolveOptions resolveOptions() {
+            List<RepositoryOverlay> overlays = new ArrayList<>();
+            for (String overlay : repositoryOverlays) {
+                overlays.add(repositoryOverlay(overlay));
+            }
+            return new ResolveOptions(offline, overlays, noLocalOverlays);
+        }
+
+        private RepositoryOverlay repositoryOverlay(String value) {
+            String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+            return switch (normalized) {
+                case "maven-local", "local-maven" -> RepositoryOverlay.mavenLocal(mavenLocalRoot);
+                default -> throw new ResolveException(
+                        "Unsupported repository overlay `"
+                                + value
+                                + "`. Supported overlays: maven-local.");
+            };
         }
     }
 

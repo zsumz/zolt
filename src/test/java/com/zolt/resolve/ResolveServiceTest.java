@@ -170,6 +170,102 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void mavenLocalOverlayTakesPrecedenceOverConfiguredRepositoriesAndRecordsSafeOrigin() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        Path mavenLocalRoot = tempDir.resolve("m2/repository");
+        createDirectory(projectDir);
+        writeLocalArtifact(mavenLocalRoot, "com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """, Map.of("local.txt", "local overlay wins\n"));
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                config(),
+                cacheRoot,
+                false,
+                new ResolveOptions(false, List.of(RepositoryOverlay.mavenLocal(mavenLocalRoot)), false));
+
+        assertEquals(1, result.resolvedCount());
+        assertEquals(0, requestCount("/maven2/com/example/app/1.0.0/app-1.0.0.pom"));
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        LockPackage app = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "app")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("local-overlay:maven-local", app.source());
+        assertEquals(
+                Optional.of("overlays/maven-local/com/example/app/1.0.0/app-1.0.0.jar"),
+                app.jar());
+        assertEquals(
+                Optional.of("overlays/maven-local/com/example/app/1.0.0/app-1.0.0.pom"),
+                app.pom());
+        assertTrue(app.jar().orElseThrow().startsWith("overlays/maven-local/"));
+        assertTrue(app.pom().orElseThrow().startsWith("overlays/maven-local/"));
+        assertTrue(app.jar().orElseThrow().contains("app-1.0.0.jar"));
+        assertTrue(app.jar().orElseThrow().indexOf(tempDir.toString()) < 0);
+        assertTrue(Files.isRegularFile(cacheRoot.resolve(app.jar().orElseThrow())));
+    }
+
+    @Test
+    void mavenLocalOverlayFallsBackToConfiguredRepositoriesWhenArtifactIsMissing() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        Path mavenLocalRoot = tempDir.resolve("empty-m2/repository");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                config(),
+                cacheRoot,
+                false,
+                new ResolveOptions(false, List.of(RepositoryOverlay.mavenLocal(mavenLocalRoot)), false));
+
+        assertEquals(2, result.resolvedCount());
+        assertEquals(1, requestCount("/maven2/com/example/app/1.0.0/app-1.0.0.pom"));
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream()
+                .allMatch(lockPackage -> "maven-central".equals(lockPackage.source())));
+    }
+
+    @Test
+    void lockedResolveCanRejectExistingLocalOverlayOrigins() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        Path mavenLocalRoot = tempDir.resolve("m2/repository");
+        createDirectory(projectDir);
+        writeLocalArtifact(mavenLocalRoot, "com.example", "app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """, Map.of());
+        resolveService.resolve(
+                projectDir,
+                config(),
+                cacheRoot,
+                false,
+                new ResolveOptions(false, List.of(RepositoryOverlay.mavenLocal(mavenLocalRoot)), false));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(
+                        projectDir,
+                        config(),
+                        cacheRoot,
+                        true,
+                        new ResolveOptions(false, List.of(), true)));
+
+        assertTrue(exception.getMessage().contains("Local repository overlay artifacts are not allowed"));
+        assertTrue(exception.getMessage().contains("refresh zolt.lock from configured repositories"));
+    }
+
+    @Test
     void credentialedRepositoryFailsBeforeNetworkWhenEnvironmentIsMissing() {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
@@ -2272,6 +2368,27 @@ final class ResolveServiceTest {
                 </project>
                 """.formatted(groupId, artifactId, version).getBytes(StandardCharsets.UTF_8));
         responses.put(base + "." + extension, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeLocalArtifact(
+            Path root,
+            String groupId,
+            String artifactId,
+            String version,
+            String pom,
+            Map<String, String> jarEntries) {
+        String base = groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        writeFile(root.resolve(base + ".pom"), pom.getBytes(StandardCharsets.UTF_8));
+        writeFile(root.resolve(base + ".jar"), jarBytes(jarEntries));
+    }
+
+    private static void writeFile(Path path, byte[] bytes) {
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, bytes);
+        } catch (IOException exception) {
+            throw new AssertionError("Could not write test file " + path, exception);
+        }
     }
 
     private void addJUnitConsoleArtifact(String version) {

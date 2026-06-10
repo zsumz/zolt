@@ -11,6 +11,7 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
+import com.zolt.maven.MavenRepositoryPathBuilder;
 import com.zolt.maven.PomInterpolationException;
 import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
@@ -105,6 +106,15 @@ public final class ResolveService {
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean locked, boolean offline) {
+        return resolve(projectDirectory, config, cacheRoot, locked, ResolveOptions.offline(offline));
+    }
+
+    public ResolveResult resolve(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            boolean locked,
+            ResolveOptions options) {
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
         if (locked && !Files.isRegularFile(lockfilePath)) {
             throw new ResolveException(
@@ -112,9 +122,15 @@ public final class ResolveService {
                             + lockfilePath
                             + ". Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
         }
+        if (locked && options.rejectLocalOverlays()) {
+            rejectExistingLocalOverlayLockfile(lockfilePath);
+        }
 
-        ResolveOutput output = resolveLockfile(config, cacheRoot, offline);
+        ResolveOutput output = resolveLockfile(config, cacheRoot, options);
         ZoltLockfile lockfile = output.lockfile();
+        if (options.rejectLocalOverlays()) {
+            rejectLocalOverlayLockfile(lockfile);
+        }
         ResolveMetrics metrics = output.metrics();
         if (locked) {
             long started = System.nanoTime();
@@ -134,7 +150,11 @@ public final class ResolveService {
     }
 
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
-        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
+        return resolveLockfile(config, cacheRoot, ResolveOptions.offline(offline));
+    }
+
+    public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, ResolveOptions options) {
+        RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), options);
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
         List<DependencyRequest> directRequests = directRequests(config, managedVersions);
         validateDirectRequestsAllowed(config, directRequests);
@@ -155,6 +175,40 @@ public final class ResolveService {
                 : resolveGraph(context, allRequests);
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
+    }
+
+    private void rejectExistingLocalOverlayLockfile(Path lockfilePath) {
+        String existing;
+        try {
+            existing = Files.readString(lockfilePath);
+        } catch (IOException exception) {
+            throw new ResolveException(
+                    "Could not read zolt.lock at "
+                            + lockfilePath
+                            + " while checking local overlay origins. Check that the file exists and is readable.",
+                    exception);
+        }
+        if (existing.contains("source = \"local-overlay:")) {
+            throw new ResolveException(localOverlayRejectedMessage());
+        }
+    }
+
+    private void rejectLocalOverlayLockfile(ZoltLockfile lockfile) {
+        boolean hasLocalOverlay = lockfile.packages().stream()
+                .anyMatch(lockPackage -> localOverlaySource(lockPackage.source()));
+        if (hasLocalOverlay) {
+            throw new ResolveException(localOverlayRejectedMessage());
+        }
+    }
+
+    private static boolean localOverlaySource(String source) {
+        return source != null && source.startsWith("local-overlay:");
+    }
+
+    private static String localOverlayRejectedMessage() {
+        return "Local repository overlay artifacts are not allowed for this resolve. "
+                + "Run `zolt resolve` without local overlays to refresh zolt.lock from configured repositories, "
+                + "or remove --no-local-overlays for a local development-only resolve.";
     }
 
     private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
@@ -684,7 +738,7 @@ public final class ResolveService {
         return new LockPackage(
                 node.packageId(),
                 node.selectedVersion(),
-                "maven-central",
+                context.sourceFor(artifact),
                 selectedScope.scope(),
                 selectedScope.direct(),
                 jarArtifact ? Optional.of(artifact.repositoryPath()) : Optional.empty(),
@@ -843,11 +897,13 @@ public final class ResolveService {
     private final class RepositoryContext implements DependencyMetadataSource {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
-        private final boolean offline;
+        private final ResolveOptions options;
+        private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<RawPom>> rawPomLoads = new ConcurrentHashMap<>();
+        private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
         private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private int downloadCount;
         private int pomCacheHits;
@@ -872,10 +928,10 @@ public final class ResolveService {
         private long versionSelectionNanos;
         private long lockfileAssemblyNanos;
 
-        RepositoryContext(ProjectConfig config, LocalArtifactCache cache, boolean offline) {
+        RepositoryContext(ProjectConfig config, LocalArtifactCache cache, ResolveOptions options) {
             this.config = config;
             this.cache = cache;
-            this.offline = offline;
+            this.options = options;
         }
 
         @Override
@@ -919,7 +975,12 @@ public final class ResolveService {
 
         CachedArtifact getPom(Coordinate coordinate) {
             long started = System.nanoTime();
-            if (offline) {
+            Optional<CachedArtifact> overlayArtifact = materializeOverlayPom(coordinate);
+            if (overlayArtifact.isPresent()) {
+                recordPomCacheHit(elapsedSince(started));
+                return overlayArtifact.orElseThrow();
+            }
+            if (options.offline()) {
                 CachedArtifact artifact = cache.getCachedPom(coordinate);
                 recordPomCacheHit(elapsedSince(started));
                 return artifact;
@@ -938,7 +999,12 @@ public final class ResolveService {
 
         CachedArtifact getJar(Coordinate coordinate) {
             long started = System.nanoTime();
-            if (offline) {
+            Optional<CachedArtifact> overlayArtifact = materializeOverlayArtifact(ArtifactDescriptor.jar(coordinate));
+            if (overlayArtifact.isPresent()) {
+                recordJarCacheHit(elapsedSince(started));
+                return overlayArtifact.orElseThrow();
+            }
+            if (options.offline()) {
                 CachedArtifact artifact = cache.getCachedJar(coordinate);
                 recordJarCacheHit(elapsedSince(started));
                 return artifact;
@@ -957,7 +1023,12 @@ public final class ResolveService {
 
         CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
             long started = System.nanoTime();
-            if (offline) {
+            Optional<CachedArtifact> overlayArtifact = materializeOverlayArtifact(descriptor);
+            if (overlayArtifact.isPresent()) {
+                recordArtifactCacheHit(elapsedSince(started));
+                return overlayArtifact.orElseThrow();
+            }
+            if (options.offline()) {
                 CachedArtifact artifact =
                         cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
                 recordArtifactCacheHit(elapsedSince(started));
@@ -973,6 +1044,42 @@ public final class ResolveService {
                 recordArtifactDownload(elapsedSince(started));
             }
             return artifact;
+        }
+
+        String sourceFor(CachedArtifact artifact) {
+            return artifactSources.getOrDefault(artifact.repositoryPath(), "maven-central");
+        }
+
+        private Optional<CachedArtifact> materializeOverlayPom(Coordinate coordinate) {
+            for (RepositoryOverlay overlay : options.repositoryOverlays()) {
+                if (overlay.kind() != RepositoryOverlayKind.MAVEN_LOCAL) {
+                    continue;
+                }
+                Path sourcePath = overlay.root().resolve(repositoryPathBuilder.pomPath(coordinate)).normalize();
+                if (!Files.isRegularFile(sourcePath)) {
+                    continue;
+                }
+                CachedArtifact artifact = cache.materializeOverlayPom(coordinate, overlay.id(), sourcePath);
+                artifactSources.put(artifact.repositoryPath(), overlay.lockfileSource());
+                return Optional.of(artifact);
+            }
+            return Optional.empty();
+        }
+
+        private Optional<CachedArtifact> materializeOverlayArtifact(ArtifactDescriptor descriptor) {
+            for (RepositoryOverlay overlay : options.repositoryOverlays()) {
+                if (overlay.kind() != RepositoryOverlayKind.MAVEN_LOCAL) {
+                    continue;
+                }
+                Path sourcePath = overlay.root().resolve(repositoryPathBuilder.artifactPath(descriptor)).normalize();
+                if (!Files.isRegularFile(sourcePath)) {
+                    continue;
+                }
+                CachedArtifact artifact = cache.materializeOverlayArtifact(descriptor, overlay.id(), sourcePath);
+                artifactSources.put(artifact.repositoryPath(), overlay.lockfileSource());
+                return Optional.of(artifact);
+            }
+            return Optional.empty();
         }
 
         Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
