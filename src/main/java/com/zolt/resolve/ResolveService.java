@@ -31,11 +31,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -671,6 +672,23 @@ public final class ResolveService {
         return new ResolveException(message.toString());
     }
 
+    private static ResolveException pomMetadataException(List<PomMetadataFailure> failures) {
+        List<PomMetadataFailure> sorted = failures.stream()
+                .sorted(Comparator.comparing(PomMetadataFailure::coordinate))
+                .toList();
+        StringBuilder message = new StringBuilder("POM metadata fetch failed:");
+        for (PomMetadataFailure failure : sorted) {
+            message.append(System.lineSeparator())
+                    .append("- ")
+                    .append(failure.coordinate())
+                    .append(": ")
+                    .append(failure.message());
+        }
+        message.append(System.lineSeparator())
+                .append("Retry the command or check your repository and network settings.");
+        return new ResolveException(message.toString());
+    }
+
     private static String failureMessage(Throwable cause) {
         if (cause == null || cause.getMessage() == null || cause.getMessage().isBlank()) {
             return cause == null ? "download failed" : cause.getClass().getSimpleName();
@@ -710,6 +728,9 @@ public final class ResolveService {
     private record ArtifactDownloadFailure(String artifactKey, String message) {
     }
 
+    private record PomMetadataFailure(String coordinate, String message) {
+    }
+
     @FunctionalInterface
     interface DependencyGraphTraverserFactory {
         DependencyGraphTraverser create(DependencyMetadataSource source);
@@ -719,8 +740,10 @@ public final class ResolveService {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final boolean offline;
-        private final Map<String, EffectiveRawPom> metadata = new HashMap<>();
-        private final Map<String, RawPom> rawPoms = new HashMap<>();
+        private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
+        private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
+        private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
+        private final Map<String, CompletableFuture<RawPom>> rawPomLoads = new ConcurrentHashMap<>();
         private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private int downloadCount;
         private int pomCacheHits;
@@ -754,6 +777,40 @@ public final class ResolveService {
         @Override
         public EffectiveRawPom load(Coordinate coordinate) {
             return effectivePom(coordinate, List.of());
+        }
+
+        @Override
+        public void preload(List<Coordinate> coordinates) {
+            Map<String, Coordinate> uniqueCoordinates = new LinkedHashMap<>();
+            coordinates.stream()
+                    .sorted(Comparator.comparing(Coordinate::toString))
+                    .forEach(coordinate -> uniqueCoordinates.putIfAbsent(coordinate.toString(), coordinate));
+            if (uniqueCoordinates.isEmpty()) {
+                return;
+            }
+            try (ExecutorService executor = Executors.newFixedThreadPool(cache.downloadConcurrency())) {
+                Map<String, Future<EffectiveRawPom>> futures = new LinkedHashMap<>();
+                for (Map.Entry<String, Coordinate> entry : uniqueCoordinates.entrySet()) {
+                    futures.put(entry.getKey(), executor.submit(() -> load(entry.getValue())));
+                }
+
+                List<PomMetadataFailure> failures = new ArrayList<>();
+                for (Map.Entry<String, Future<EffectiveRawPom>> entry : futures.entrySet()) {
+                    try {
+                        entry.getValue().get();
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        failures.add(new PomMetadataFailure(
+                                entry.getKey(),
+                                "interrupted while fetching POM metadata"));
+                    } catch (ExecutionException exception) {
+                        failures.add(new PomMetadataFailure(entry.getKey(), failureMessage(exception.getCause())));
+                    }
+                }
+                if (!failures.isEmpty()) {
+                    throw pomMetadataException(failures);
+                }
+            }
         }
 
         CachedArtifact getPom(Coordinate coordinate) {
@@ -884,6 +941,68 @@ public final class ResolveService {
             downloadCount++;
         }
 
+        private synchronized void recordRawPomCacheHit() {
+            rawPomCacheHits++;
+        }
+
+        private synchronized void recordRawPomCacheMiss() {
+            rawPomCacheMisses++;
+        }
+
+        private synchronized void recordRawPomParse(long elapsedNanos) {
+            rawPomParseNanos += elapsedNanos;
+        }
+
+        private synchronized void recordEffectivePomCacheHit() {
+            effectivePomCacheHits++;
+        }
+
+        private synchronized void recordEffectivePomCacheMiss() {
+            effectivePomCacheMisses++;
+        }
+
+        private synchronized void recordEffectivePomBuild(long elapsedNanos) {
+            effectivePomBuildNanos += elapsedNanos;
+        }
+
+        private EffectiveRawPom awaitEffectivePom(String key, CompletableFuture<EffectiveRawPom> future) {
+            return awaitPomFuture("effective POM", key, future);
+        }
+
+        private RawPom awaitRawPom(String key, CompletableFuture<RawPom> future) {
+            return awaitPomFuture("raw POM", key, future);
+        }
+
+        private <T> T awaitPomFuture(String kind, String key, CompletableFuture<T> future) {
+            try {
+                return future.get();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new ResolveException(
+                        "Interrupted while waiting for in-flight "
+                                + kind
+                                + " metadata "
+                                + key
+                                + ". Try again.",
+                        exception);
+            } catch (ExecutionException exception) {
+                Throwable cause = exception.getCause();
+                if (cause instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (cause instanceof Error error) {
+                    throw error;
+                }
+                throw new ResolveException(
+                        "Could not load in-flight "
+                                + kind
+                                + " metadata "
+                                + key
+                                + ". Try again.",
+                        cause);
+            }
+        }
+
         int downloadCount() {
             return downloadCount;
         }
@@ -988,10 +1107,9 @@ public final class ResolveService {
             String key = coordinate.toString();
             EffectiveRawPom cached = metadata.get(key);
             if (cached != null) {
-                effectivePomCacheHits++;
+                recordEffectivePomCacheHit();
                 return cached;
             }
-            effectivePomCacheMisses++;
             if (importStack.contains(key)) {
                 throw new ResolveException(
                         "Imported BOM cycle detected: "
@@ -1001,6 +1119,13 @@ public final class ResolveService {
                                 + ". Remove one of the import-scoped dependencyManagement entries.");
             }
 
+            CompletableFuture<EffectiveRawPom> pending = new CompletableFuture<>();
+            CompletableFuture<EffectiveRawPom> existing = metadataLoads.putIfAbsent(key, pending);
+            if (existing != null) {
+                recordEffectivePomCacheHit();
+                return awaitEffectivePom(key, existing);
+            }
+            recordEffectivePomCacheMiss();
             long started = System.nanoTime();
             try {
                 RawPom rawPom = rawPom(coordinate);
@@ -1023,9 +1148,17 @@ public final class ResolveService {
                         properties,
                         expandedDependencyManagement(base, nextStack));
                 metadata.put(key, effective);
+                pending.complete(effective);
                 return effective;
+            } catch (RuntimeException exception) {
+                pending.completeExceptionally(exception);
+                throw exception;
+            } catch (Error error) {
+                pending.completeExceptionally(error);
+                throw error;
             } finally {
-                effectivePomBuildNanos += elapsedSince(started);
+                metadataLoads.remove(key, pending);
+                recordEffectivePomBuild(elapsedSince(started));
             }
         }
 
@@ -1050,16 +1183,33 @@ public final class ResolveService {
             String key = coordinate.toString();
             RawPom cached = rawPoms.get(key);
             if (cached != null) {
-                rawPomCacheHits++;
+                recordRawPomCacheHit();
                 return cached;
             }
-            rawPomCacheMisses++;
-            CachedArtifact pomArtifact = getPom(coordinate);
-            long started = System.nanoTime();
-            RawPom parsed = rawPomParser.parse(pomArtifact.bytes());
-            rawPomParseNanos += elapsedSince(started);
-            rawPoms.put(key, parsed);
-            return parsed;
+            CompletableFuture<RawPom> pending = new CompletableFuture<>();
+            CompletableFuture<RawPom> existing = rawPomLoads.putIfAbsent(key, pending);
+            if (existing != null) {
+                recordRawPomCacheHit();
+                return awaitRawPom(key, existing);
+            }
+            recordRawPomCacheMiss();
+            try {
+                CachedArtifact pomArtifact = getPom(coordinate);
+                long started = System.nanoTime();
+                RawPom parsed = rawPomParser.parse(pomArtifact.bytes());
+                recordRawPomParse(elapsedSince(started));
+                rawPoms.put(key, parsed);
+                pending.complete(parsed);
+                return parsed;
+            } catch (RuntimeException exception) {
+                pending.completeExceptionally(exception);
+                throw exception;
+            } catch (Error error) {
+                pending.completeExceptionally(error);
+                throw error;
+            } finally {
+                rawPomLoads.remove(key, pending);
+            }
         }
 
         private URI repositoryUri() {

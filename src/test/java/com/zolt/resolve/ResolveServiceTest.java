@@ -47,7 +47,10 @@ final class ResolveServiceTest {
     private final ResolveService resolveService = new ResolveService();
     private final ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
     private final Map<String, byte[]> responses = new HashMap<>();
+    private final Set<String> slowPomPaths = ConcurrentHashMap.newKeySet();
     private final Set<String> slowArtifactPaths = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger activePomRequests = new AtomicInteger();
+    private final AtomicInteger maxPomRequests = new AtomicInteger();
     private final AtomicInteger activeArtifactRequests = new AtomicInteger();
     private final AtomicInteger maxArtifactRequests = new AtomicInteger();
 
@@ -172,6 +175,56 @@ final class ResolveServiceTest {
 
         assertEquals(3, result.resolvedCount());
         assertTrue(maxArtifactRequests.get() > 1);
+
+        Path secondProjectDir = tempDir.resolve("project-second");
+        Path secondCacheRoot = tempDir.resolve("cache-second");
+        createDirectory(secondProjectDir);
+        ResolveResult second = resolveService.resolve(secondProjectDir, config, secondCacheRoot);
+
+        assertEquals(Files.readString(result.lockfilePath()), Files.readString(second.lockfilePath()));
+    }
+
+    @Test
+    void pomFrontierMetadataIsFetchedConcurrentlyWithStableLockfile() throws IOException {
+        addArtifact("com.example", "frontier-root", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>frontier-root</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>alpha</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>beta</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>gamma</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "alpha", "1.0.0", simplePom("com.example", "alpha", "1.0.0"));
+        addArtifact("com.example", "beta", "1.0.0", simplePom("com.example", "beta", "1.0.0"));
+        addArtifact("com.example", "gamma", "1.0.0", simplePom("com.example", "gamma", "1.0.0"));
+        slowPomPaths.add(pomRepositoryPath("com.example", "alpha", "1.0.0"));
+        slowPomPaths.add(pomRepositoryPath("com.example", "beta", "1.0.0"));
+        slowPomPaths.add(pomRepositoryPath("com.example", "gamma", "1.0.0"));
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        ProjectConfig config = configWithDependencies(Map.of("com.example:frontier-root", "1.0.0"));
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+
+        assertEquals(4, result.resolvedCount());
+        assertTrue(maxPomRequests.get() > 1);
 
         Path secondProjectDir = tempDir.resolve("project-second");
         Path secondCacheRoot = tempDir.resolve("cache-second");
@@ -1815,6 +1868,20 @@ final class ResolveServiceTest {
                 + ".jar";
     }
 
+    private static String pomRepositoryPath(String groupId, String artifactId, String version) {
+        return "/maven2/"
+                + groupId.replace('.', '/')
+                + "/"
+                + artifactId
+                + "/"
+                + version
+                + "/"
+                + artifactId
+                + "-"
+                + version
+                + ".pom";
+    }
+
     private void addClassifierJar(
             String groupId,
             String artifactId,
@@ -1875,6 +1942,18 @@ final class ResolveServiceTest {
 
     private void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
+        if (slowPomPaths.contains(path)) {
+            int active = activePomRequests.incrementAndGet();
+            maxPomRequests.accumulateAndGet(active, Math::max);
+            try {
+                Thread.sleep(150L);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while serving slow test POM.", exception);
+            } finally {
+                activePomRequests.decrementAndGet();
+            }
+        }
         if (slowArtifactPaths.contains(path)) {
             int active = activeArtifactRequests.incrementAndGet();
             maxArtifactRequests.accumulateAndGet(active, Math::max);
