@@ -2,6 +2,7 @@ package com.zolt.ide;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 public record IdeModel(
         int schemaVersion,
@@ -59,7 +60,11 @@ public record IdeModel(
             Path sourcesJar,
             Path javadocJar,
             Path testsJar,
-            PublicationInfo metadata) {
+            PublicationInfo metadata,
+            Map<String, String> manifestAttributes) {
+        public PackageInfo {
+            manifestAttributes = Map.copyOf(manifestAttributes);
+        }
     }
 
     public record PublicationInfo(

@@ -260,7 +260,8 @@ public final class IdeModelService {
                     null,
                     null,
                     null,
-                    new IdeModel.PublicationInfo(null, null, null, null, List.of(), null, null));
+                    new IdeModel.PublicationInfo(null, null, null, null, List.of(), null, null),
+                    Map.of());
         }
         PackageSettings settings = config.packageSettings();
         Path mainJar = artifactPath(root, config, "");
@@ -273,7 +274,8 @@ public final class IdeModelService {
                 settings.sources() ? artifactPath(root, config, "sources") : null,
                 settings.javadoc() ? artifactPath(root, config, "javadoc") : null,
                 settings.tests() ? artifactPath(root, config, "tests") : null,
-                publicationInfo(settings.metadata()));
+                publicationInfo(settings.metadata()),
+                settings.manifestAttributes());
     }
 
     private static IdeModel.PublicationInfo publicationInfo(PublicationMetadata metadata) {

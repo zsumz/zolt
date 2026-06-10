@@ -75,6 +75,38 @@ final class PackageServiceTest {
     }
 
     @Test
+    void packagesCustomManifestAttributesInThinJar() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withPackageSettings(new PackageSettings(
+                        PackageMode.THIN,
+                        false,
+                        false,
+                        false,
+                        null,
+                        Map.of(
+                                "Automatic-Module-Name", "com.example.demo",
+                                "Bundle-SymbolicName", "com.example.demo")));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            Attributes attributes = jar.getManifest().getMainAttributes();
+            assertEquals("com.example.demo", attributes.getValue("Automatic-Module-Name"));
+            assertEquals("com.example.demo", attributes.getValue("Bundle-SymbolicName"));
+            assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
+        }
+    }
+
+    @Test
     void packagesResourcesAndNativeImageConfigDeterministically() throws IOException {
         writeLockfile();
         source("src/main/java/com/example/Main.java", """

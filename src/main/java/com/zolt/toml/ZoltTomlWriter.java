@@ -972,6 +972,7 @@ public final class ZoltTomlWriter {
             writeAssignment(toml, "tests", true);
         }
         writePublicationMetadata(toml, packageSettings.metadata());
+        writeManifestAttributes(toml, packageSettings.manifestAttributes());
     }
 
     private static void writePublicationMetadata(StringBuilder toml, PublicationMetadata metadata) {
@@ -1000,6 +1001,16 @@ public final class ZoltTomlWriter {
         if (!metadata.issues().isBlank()) {
             writeAssignment(toml, "issues", metadata.issues());
         }
+    }
+
+    private static void writeManifestAttributes(StringBuilder toml, Map<String, String> attributes) {
+        if (attributes == null || attributes.isEmpty()) {
+            return;
+        }
+        if (toml.length() > 1 && toml.charAt(toml.length() - 1) == '\n' && toml.charAt(toml.length() - 2) != '\n') {
+            toml.append('\n');
+        }
+        writeStringMap(toml, "package.manifest", attributes);
     }
 
     private static void writeFramework(StringBuilder toml, FrameworkSettings frameworkSettings) {

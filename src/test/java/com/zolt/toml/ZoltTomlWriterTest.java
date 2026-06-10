@@ -382,7 +382,10 @@ final class ZoltTomlWriterTest {
                                 "Apache-2.0",
                                 List.of("Shawn"),
                                 "https://example.com/hello.git",
-                                "https://example.com/hello/issues")));
+                                "https://example.com/hello/issues"),
+                        Map.of(
+                                "Automatic-Module-Name", "com.example.hello",
+                                "Bundle-SymbolicName", "com.example.hello")));
 
         String toml = writer.write(original);
         ProjectConfig parsed = parser.parse(toml);
@@ -394,6 +397,9 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("[package.metadata]\n"));
         assertTrue(toml.contains("name = \"Hello Library\""));
         assertTrue(toml.contains("developers = [\"Shawn\"]"));
+        assertTrue(toml.contains("[package.manifest]\n"));
+        assertTrue(toml.contains("\"Automatic-Module-Name\" = \"com.example.hello\""));
+        assertTrue(toml.contains("\"Bundle-SymbolicName\" = \"com.example.hello\""));
         assertEquals(original.packageSettings(), parsed.packageSettings());
     }
 

@@ -12,6 +12,7 @@ import com.zolt.project.QuarkusPackageMode;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlParserTest {
@@ -504,6 +505,10 @@ final class ZoltTomlParserTest {
                 developers = ["Shawn"]
                 scm = "https://example.com/demo.git"
                 issues = "https://example.com/demo/issues"
+
+                [package.manifest]
+                "Automatic-Module-Name" = "com.example.boot"
+                "Bundle-SymbolicName" = "com.example.boot"
                 """);
 
         assertEquals(PackageMode.SPRING_BOOT, config.packageSettings().mode());
@@ -517,6 +522,9 @@ final class ZoltTomlParserTest {
         assertEquals(List.of("Shawn"), config.packageSettings().metadata().developers());
         assertEquals("https://example.com/demo.git", config.packageSettings().metadata().scm());
         assertEquals("https://example.com/demo/issues", config.packageSettings().metadata().issues());
+        assertEquals(Map.of(
+                "Automatic-Module-Name", "com.example.boot",
+                "Bundle-SymbolicName", "com.example.boot"), config.packageSettings().manifestAttributes());
     }
 
     @Test

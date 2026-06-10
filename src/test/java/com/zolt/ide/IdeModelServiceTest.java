@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -254,6 +255,9 @@ final class IdeModelServiceTest {
                 developers = ["Zolt Team"]
                 scm = "https://example.com/library.git"
                 issues = "https://example.com/library/issues"
+
+                [package.manifest]
+                "Automatic-Module-Name" = "com.example.library"
                 """);
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
@@ -276,13 +280,16 @@ final class IdeModelServiceTest {
                                 "Apache-2.0",
                                 List.of("Zolt Team"),
                                 "https://example.com/library.git",
-                                "https://example.com/library/issues")),
+                                "https://example.com/library/issues"),
+                        Map.of("Automatic-Module-Name", "com.example.library")),
                 model.packageInfo());
         String json = new IdeModelJsonWriter().write(model);
         assertTrue(json.contains("\"package\": {"));
         assertTrue(json.contains("\"sourcesJar\": \""));
         assertTrue(json.contains("\"metadata\": {"));
         assertTrue(json.contains("\"developers\": ["));
+        assertTrue(json.contains("\"manifestAttributes\": {"));
+        assertTrue(json.contains("\"Automatic-Module-Name\": \"com.example.library\""));
     }
 
     @Test

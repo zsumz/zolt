@@ -76,7 +76,7 @@ public final class ZoltTomlParser {
             "-s",
             "-sourcepath",
             "--source-path");
-    private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata");
+    private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata", "manifest");
     private static final Set<String> PACKAGE_METADATA_KEYS = Set.of(
             "name",
             "description",
@@ -357,6 +357,7 @@ public final class ZoltTomlParser {
         validateKeys("package", packageTable, PACKAGE_KEYS);
         PackageSettings defaults = PackageSettings.defaults();
         PublicationMetadata metadata = parsePublicationMetadata(optionalTable(packageTable, "metadata"));
+        Map<String, String> manifestAttributes = stringMap(optionalTable(packageTable, "manifest"), "package.manifest");
         Object rawMode = packageTable.get(List.of("mode"));
         PackageMode mode = defaults.mode();
         if (rawMode != null) {
@@ -378,7 +379,8 @@ public final class ZoltTomlParser {
                 booleanOrDefault(packageTable, "package", "sources", defaults.sources()),
                 booleanOrDefault(packageTable, "package", "javadoc", defaults.javadoc()),
                 booleanOrDefault(packageTable, "package", "tests", defaults.tests()),
-                metadata);
+                metadata,
+                manifestAttributes);
     }
 
     private static PublicationMetadata parsePublicationMetadata(TomlTable metadataTable) {

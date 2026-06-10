@@ -2,6 +2,8 @@ package com.zolt.ide;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public final class IdeModelJsonWriter {
     public String write(IdeModel model) {
@@ -75,6 +77,8 @@ public final class IdeModelJsonWriter {
         pathField(json, 2, "javadocJar", packageInfo.javadocJar(), true);
         pathField(json, 2, "testsJar", packageInfo.testsJar(), true);
         publication(json, packageInfo.metadata());
+        comma(json);
+        stringMap(json, 2, "manifestAttributes", packageInfo.manifestAttributes(), false);
         indent(json, 1).append("}");
     }
 
@@ -87,7 +91,7 @@ public final class IdeModelJsonWriter {
         stringArrayField(json, 3, "developers", publication.developers(), true);
         stringField(json, 3, "scm", publication.scm(), true);
         stringField(json, 3, "issues", publication.issues(), false);
-        indent(json, 2).append("}\n");
+        indent(json, 2).append("}");
     }
 
     private static void paths(StringBuilder json, IdeModel.PathInfo paths) {
@@ -296,6 +300,37 @@ public final class IdeModelJsonWriter {
             indent(json, level);
         }
         json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void stringMap(
+            StringBuilder json,
+            int level,
+            String name,
+            Map<String, String> values,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": {");
+        if (!values.isEmpty()) {
+            json.append('\n');
+            int index = 0;
+            Map<String, String> sorted = new TreeMap<>(values);
+            for (Map.Entry<String, String> entry : sorted.entrySet()) {
+                indent(json, level + 1);
+                string(json, entry.getKey());
+                json.append(": ");
+                string(json, entry.getValue());
+                if (index < sorted.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+                index++;
+            }
+            indent(json, level);
+        }
+        json.append("}");
         if (trailingComma) {
             json.append(',');
         }

@@ -1888,7 +1888,8 @@ final class ZoltCliTest {
                       "developers": [],
                       "scm": null,
                       "issues": null
-                    }
+                    },
+                    "manifestAttributes": {}
                   },
                   "paths": {
                     "root": "%s",
