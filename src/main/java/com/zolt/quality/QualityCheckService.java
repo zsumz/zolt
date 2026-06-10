@@ -8,6 +8,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
@@ -43,6 +44,7 @@ public final class QualityCheckService {
     public static final String DEPENDENCY_METADATA = "dependency-metadata";
     public static final String PACKAGE_METADATA = "package-metadata";
     public static final String MANIFEST_METADATA = "manifest-metadata";
+    public static final String GENERATED_SOURCES = "generated-sources";
 
     private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
             COMMAND_SURFACE,
@@ -50,9 +52,9 @@ public final class QualityCheckService {
             PROJECT_MODEL,
             DEPENDENCY_METADATA,
             PACKAGE_METADATA,
-            MANIFEST_METADATA);
-    private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of(
-            "generated-sources", "followUps/-add-generated-source-quality-checks.md");
+            MANIFEST_METADATA,
+            GENERATED_SOURCES);
+    private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of();
     private static final Set<String> ZOLT_OWNED_MANIFEST_ATTRIBUTES = Set.of(
             "manifest-version",
             "main-class");
@@ -173,6 +175,10 @@ public final class QualityCheckService {
                 case MANIFEST_METADATA -> results.add(checkManifestMetadata(
                         Optional.empty(),
                         config));
+                case GENERATED_SOURCES -> results.addAll(checkGeneratedSources(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        config));
                 default -> results.add(unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -214,6 +220,15 @@ public final class QualityCheckService {
                         WorkspaceMember member = members.get(memberPath);
                         results.add(checkManifestMetadata(
                                 Optional.of(member.path()),
+                                member.config()));
+                    }
+                }
+                case GENERATED_SOURCES -> {
+                    for (String memberPath : selection.includedMembers()) {
+                        WorkspaceMember member = members.get(memberPath);
+                        results.addAll(checkGeneratedSources(
+                                Optional.of(member.path()),
+                                member.directory(),
                                 member.config()));
                     }
                 }
@@ -590,6 +605,146 @@ public final class QualityCheckService {
         return fileName.endsWith(".java") || fileName.endsWith(".groovy");
     }
 
+    private static List<QualityCheckResult> checkGeneratedSources(
+            Optional<String> member,
+            Path projectRoot,
+            ProjectConfig config) {
+        List<GeneratedSourceCheckStep> steps = generatedSourceSteps(config.build());
+        if (steps.isEmpty()) {
+            return List.of(QualityCheckResult.passed(
+                    GENERATED_SOURCES,
+                    member,
+                    config.project().name(),
+                    "No declared generated-source steps require validation."));
+        }
+
+        List<QualityCheckResult> results = new ArrayList<>();
+        Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
+        for (GeneratedSourceCheckStep checkStep : steps) {
+            GeneratedSourceStep step = checkStep.step();
+            Optional<QualityCheckResult> invalid = invalidGeneratedSourceStep(member, normalizedRoot, checkStep);
+            if (invalid.isPresent()) {
+                results.add(invalid.orElseThrow());
+                continue;
+            }
+
+            Path output = normalizedRoot.resolve(step.output()).normalize();
+            String subject = generatedSection(checkStep);
+            if (!Files.isDirectory(output)) {
+                if (step.required()) {
+                    results.add(QualityCheckResult.failed(
+                            GENERATED_SOURCES,
+                            member,
+                            subject,
+                            "Generated source root `" + step.output() + "` is missing.",
+                            "Run the generator that produces it, commit the generated sources, or remove "
+                                    + subject
+                                    + " until Zolt supports that generator."));
+                    continue;
+                }
+                results.add(QualityCheckResult.skipped(
+                        GENERATED_SOURCES,
+                        member,
+                        subject,
+                        "Optional generated source root `" + step.output() + "` is missing.",
+                        "Generate it when needed, or set required = true if the root must exist for builds."));
+                continue;
+            }
+
+            results.add(QualityCheckResult.passed(
+                    GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Generated source root `"
+                            + step.output()
+                            + "` is declared and exported as IDE source root `generated-"
+                            + checkStep.scope()
+                            + "-"
+                            + step.id()
+                            + "`."));
+        }
+        return List.copyOf(results);
+    }
+
+    private static List<GeneratedSourceCheckStep> generatedSourceSteps(BuildSettings build) {
+        List<GeneratedSourceCheckStep> steps = new ArrayList<>();
+        for (GeneratedSourceStep step : build.generatedMainSources()) {
+            steps.add(new GeneratedSourceCheckStep("main", step));
+        }
+        for (GeneratedSourceStep step : build.generatedTestSources()) {
+            steps.add(new GeneratedSourceCheckStep("test", step));
+        }
+        return List.copyOf(steps);
+    }
+
+    private static Optional<QualityCheckResult> invalidGeneratedSourceStep(
+            Optional<String> member,
+            Path projectRoot,
+            GeneratedSourceCheckStep checkStep) {
+        GeneratedSourceStep step = checkStep.step();
+        String subject = generatedSection(checkStep);
+        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT) {
+            return Optional.of(QualityCheckResult.failed(
+                    GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Unsupported generated source kind `" + step.kind().configValue() + "`.",
+                    "Use declared-root for already generated Java sources."));
+        }
+        if (!"java".equals(step.language())) {
+            return Optional.of(QualityCheckResult.failed(
+                    GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Unsupported generated source language `" + step.language() + "`.",
+                    "Use language = \"java\" for MVP generated-source steps."));
+        }
+        Optional<QualityCheckResult> invalidOutput = invalidGeneratedPath(
+                member,
+                projectRoot,
+                checkStep,
+                "output",
+                step.output());
+        if (invalidOutput.isPresent()) {
+            return invalidOutput;
+        }
+        for (String input : step.inputs()) {
+            Optional<QualityCheckResult> invalidInput = invalidGeneratedPath(
+                    member,
+                    projectRoot,
+                    checkStep,
+                    "inputs",
+                    input);
+            if (invalidInput.isPresent()) {
+                return invalidInput;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<QualityCheckResult> invalidGeneratedPath(
+            Optional<String> member,
+            Path projectRoot,
+            GeneratedSourceCheckStep checkStep,
+            String field,
+            String configuredPath) {
+        Path configured = Path.of(configuredPath);
+        Path resolved = projectRoot.resolve(configured).normalize();
+        if (configured.isAbsolute() || !resolved.startsWith(projectRoot) || resolved.equals(projectRoot)) {
+            return Optional.of(QualityCheckResult.failed(
+                    GENERATED_SOURCES,
+                    member,
+                    generatedSection(checkStep) + "." + field,
+                    "Invalid generated source " + field + " path `" + configuredPath + "`.",
+                    "Use a project-relative path under the project directory."));
+        }
+        return Optional.empty();
+    }
+
+    private static String generatedSection(GeneratedSourceCheckStep checkStep) {
+        return "[generated." + checkStep.scope() + "." + checkStep.step().id() + "]";
+    }
+
     private List<QualityCheckResult> checkProjectDependencyMetadata(
             Optional<String> member,
             Path root,
@@ -896,5 +1051,8 @@ public final class QualityCheckService {
     }
 
     private record PathField(String name, String value) {
+    }
+
+    private record GeneratedSourceCheckStep(String scope, GeneratedSourceStep step) {
     }
 }

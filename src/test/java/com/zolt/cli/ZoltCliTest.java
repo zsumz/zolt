@@ -142,16 +142,113 @@ final class ZoltCliTest {
     }
 
     @Test
-    void checkReportsPlannedChecksAsSkipped() throws IOException {
-        Path projectDir = tempDir.resolve("check-planned");
+    void checkGeneratedSourcesReportsNoDeclaredSteps() throws IOException {
+        Path projectDir = tempDir.resolve("check-no-generated-sources");
         Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-planned"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-no-generated-sources"));
 
         CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("skip generated-sources generated-sources Quality check `generated-sources` is planned but not implemented yet."));
-        assertTrue(result.stdout().contains("followUps/-add-generated-source-quality-checks.md"));
+        assertTrue(result.stdout().contains("ok generated-sources check-no-generated-sources No declared generated-source steps require validation."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesPassesForExistingDeclaredRoots() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-ok");
+        Files.createDirectories(projectDir.resolve("target/generated/sources/openapi/com/example"));
+        Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java"), """
+                package com.example;
+                public final class GeneratedApi {}
+                """);
+        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-ok")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok generated-sources [generated.main.openapi] Generated source root `target/generated/sources/openapi` is declared"));
+        assertTrue(result.stdout().contains("exported as IDE source root `generated-main-openapi`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesReportsMalformedPaths() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-invalid-path");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-invalid-path")
+                + generatedSourceConfig("main", "openapi", "../generated/openapi", "src/main/openapi/api.yaml", true));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error generated-sources [generated.main.openapi].output Invalid generated source output path `../generated/openapi`."));
+        assertTrue(result.stdout().contains("next: Use a project-relative path under the project directory."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesReportsMissingRequiredOutputs() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-missing-required");
+        Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-missing-required")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error generated-sources [generated.main.openapi] Generated source root `target/generated/sources/openapi` is missing."));
+        assertTrue(result.stdout().contains("next: Run the generator that produces it, commit the generated sources"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesSkipsOptionalMissingOutputs() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-optional");
+        Files.createDirectories(projectDir.resolve("src/test/fixtures"));
+        Files.writeString(projectDir.resolve("src/test/fixtures/schema.json"), "{}\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-optional")
+                + generatedSourceConfig("test", "fixtures", "target/generated/test-sources/fixtures", "src/test/fixtures/schema.json", false));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("skip generated-sources [generated.test.fixtures] Optional generated source root `target/generated/test-sources/fixtures` is missing."));
+        assertTrue(result.stdout().contains("next: Generate it when needed, or set required = true"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceGeneratedSourcesIdentifyMemberPaths() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-generated-sources");
+        Path apiDir = workspaceDir.resolve("modules/api");
+        Path implDir = workspaceDir.resolve("modules/impl");
+        Files.createDirectories(apiDir.resolve("target/generated/sources/openapi"));
+        Files.createDirectories(apiDir.resolve("src/main/openapi"));
+        Files.createDirectories(implDir);
+        Files.writeString(apiDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-generated-sources"
+                members = ["modules/api", "modules/impl"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+        Files.writeString(implDir.resolve("zolt.toml"), memberConfig("impl"));
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "modules/api",
+                "--cwd", workspaceDir.toString(),
+                "--check", "generated-sources");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok generated-sources modules/api [generated.main.openapi] Generated source root `target/generated/sources/openapi` is declared"));
         assertEquals("", result.stderr());
     }
 
@@ -4612,6 +4709,23 @@ final class ZoltCliTest {
                 moduleName,
                 moduleName,
                 moduleName);
+    }
+
+    private static String generatedSourceConfig(
+            String scope,
+            String id,
+            String output,
+            String input,
+            boolean required) {
+        return """
+
+                [generated.%s.%s]
+                kind = "declared-root"
+                language = "java"
+                output = "%s"
+                inputs = ["%s"]
+                required = %s
+                """.formatted(scope, id, output, input, required);
     }
 
     private static String pom(String groupId, String artifactId, String version) {
