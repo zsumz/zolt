@@ -206,6 +206,48 @@ final class PackageServiceTest {
     }
 
     @Test
+    void packagesJavadocsWhenProjectDirectoryIsRelative() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Calculator.java", """
+                package com.example;
+
+                /** Adds numbers. */
+                public final class Calculator {
+                    /** Adds two integers. */
+                    public int add(int left, int right) {
+                        return left + right;
+                    }
+                }
+                """);
+        Path classFile = projectDir.resolve("target/classes/com/example/Calculator.class");
+        Files.createDirectories(classFile.getParent());
+        Files.write(classFile, new byte[] {0});
+        ProjectConfig config = config(Optional.empty())
+                .withPackageSettings(new PackageSettings(PackageMode.THIN, false, true, false, null));
+        Path relativeProjectDir = Path.of("")
+                .toAbsolutePath()
+                .normalize()
+                .relativize(projectDir.toAbsolutePath().normalize());
+        BuildResult buildResult = new BuildResult(
+                Optional.empty(),
+                1,
+                0,
+                relativeProjectDir.resolve("target/classes"),
+                "",
+                false);
+
+        PackageResult result = packageService.packageJar(relativeProjectDir, config, buildResult, projectDir.resolve("cache"));
+
+        assertEquals(projectDir.resolve("target/demo-0.1.0.jar"), result.jarPath());
+        assertEquals(List.of("javadoc"), result.artifacts().stream()
+                .map(PackageArtifact::classifier)
+                .toList());
+        try (JarFile javadocs = new JarFile(projectDir.resolve("target/demo-0.1.0-javadoc.jar").toFile())) {
+            assertTrue(javadocs.stream().anyMatch(entry -> entry.getName().endsWith("Calculator.html")));
+        }
+    }
+
+    @Test
     void javadocFailuresPreserveToolOutputAndNextStep() throws IOException {
         writeLockfile();
         source("src/main/java/com/example/Calculator.java", """

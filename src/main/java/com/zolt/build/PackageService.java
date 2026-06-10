@@ -82,22 +82,24 @@ public final class PackageService {
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        Path projectRoot = projectRoot(projectDirectory);
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        preparePackageToolingIfNeeded(projectDirectory, config, cacheRoot);
+        preparePackageToolingIfNeeded(projectRoot, config, cacheRoot);
         BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
-                projectDirectory,
+                projectRoot,
                 config,
                 cacheRoot,
                 false);
-        return packageJar(projectDirectory, config, buildResult, cacheRoot);
+        return packageJar(projectRoot, config, buildResult, cacheRoot);
     }
 
     public void preparePackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        Path projectRoot = projectRoot(projectDirectory);
         if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
             return;
         }
-        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        Path lockfilePath = projectRoot.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath)) {
             return;
         }
@@ -105,7 +107,7 @@ public final class PackageService {
         if (containsSpringBootLoader(lockfile) || !canResolveSpringBootLoader(config)) {
             return;
         }
-        resolveService.resolve(projectDirectory, config, cacheRoot);
+        resolveService.resolve(projectRoot, config, cacheRoot);
     }
 
     private static boolean containsSpringBootLoader(ZoltLockfile lockfile) {
@@ -127,7 +129,7 @@ public final class PackageService {
             Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectDirectory, config, buildResult, Optional.of(cacheRoot), Optional.empty());
+        return packageJar(projectRoot(projectDirectory), config, buildResult, Optional.of(cacheRoot), Optional.empty());
     }
 
     public PackageResult packageJar(
@@ -138,7 +140,7 @@ public final class PackageService {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
         return packageJar(
-                projectDirectory,
+                projectRoot(projectDirectory),
                 config,
                 buildResult.buildResult(),
                 Optional.of(cacheRoot),
@@ -151,7 +153,11 @@ public final class PackageService {
             BuildResult buildResult) {
         PackageMode mode = config.packageSettings().mode();
         ensureSupportedPackageMode(mode);
-        return packageJar(projectDirectory, config, buildResult, Optional.empty(), Optional.empty());
+        return packageJar(projectRoot(projectDirectory), config, buildResult, Optional.empty(), Optional.empty());
+    }
+
+    private static Path projectRoot(Path projectDirectory) {
+        return projectDirectory.toAbsolutePath().normalize();
     }
 
     private PackageResult packageJar(
