@@ -30,6 +30,9 @@ import java.util.function.Supplier;
 
 public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
+    private static final String JUNIT_CONSOLE_RUNNER = "junit-console";
+    private static final String PLAIN_JUNIT_WORKER_RUNNER = "zolt-junit-worker";
+    private static final String QUARKUS_TEST_WORKER_RUNNER = "quarkus-test-worker";
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
@@ -174,7 +177,13 @@ public final class TestRunService {
                     workerClasspath,
                     descriptor);
             failOnHiddenQuarkusBootstrapFailure(config, output);
-            return new TestRunResult(compileResult, output, runnerClasspath.size(), workerClasspath.size(), 1);
+            return new TestRunResult(
+                    compileResult,
+                    output,
+                    QUARKUS_TEST_WORKER_RUNNER,
+                    runnerClasspath.size(),
+                    workerClasspath.size(),
+                    1);
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
@@ -195,6 +204,7 @@ public final class TestRunService {
             return new TestRunResult(
                     compileResult,
                     result.output(),
+                    PLAIN_JUNIT_WORKER_RUNNER,
                     runnerClasspath.size(),
                     workerClasspath.size() + runnerClasspath.size(),
                     1);
@@ -211,7 +221,13 @@ public final class TestRunService {
                         "--scan-class-path=" + compileResult.outputDirectory().toAbsolutePath().normalize(),
                         "--details", "summary"));
         failOnHiddenQuarkusBootstrapFailure(config, result.output());
-        return new TestRunResult(compileResult, result.output(), runnerClasspath.size(), launcherClasspath.size(), 1);
+        return new TestRunResult(
+                compileResult,
+                result.output(),
+                JUNIT_CONSOLE_RUNNER,
+                runnerClasspath.size(),
+                launcherClasspath.size(),
+                1);
     }
 
     private String joined(List<Path> classpath) {

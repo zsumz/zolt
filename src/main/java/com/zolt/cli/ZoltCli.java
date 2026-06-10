@@ -2002,6 +2002,7 @@ public final class ZoltCli implements Runnable {
                 "testResourceFiles", Integer.toString(result.compileResult().resourceCount()),
                 "mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()),
                 "testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()),
+                "testRunner", result.testRunner(),
                 "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
                 "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
                 "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),
@@ -2019,6 +2020,7 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> testExecutionAttributes(TestRunResult result) {
         return Map.of(
+                "testRunner", result.testRunner(),
                 "testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()),
                 "testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()),
                 "testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()),

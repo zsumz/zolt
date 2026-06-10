@@ -46,6 +46,7 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         assertEquals("Tests successful\n", result.output());
+        assertEquals("junit-console", result.testRunner());
         assertEquals(3, result.testRuntimeClasspathEntries());
         assertEquals(1, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
@@ -155,6 +156,7 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         String launcherClasspath = launcherClasspath(commands.getFirst());
+        assertEquals("junit-console", result.testRunner());
         assertEquals(10, result.testRuntimeClasspathEntries());
         assertEquals(7, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
@@ -250,6 +252,7 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
 
         assertEquals("worker tests passed\n", result.output());
+        assertEquals("zolt-junit-worker", result.testRunner());
         assertTrue(javaCommands.isEmpty());
         assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
         assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize(), testOutputDirectories.getFirst());
@@ -316,6 +319,7 @@ final class TestRunServiceTest {
         TestRunResult result = service.runTests(projectDir, quarkusConfig(), projectDir.resolve("cache"));
 
         assertEquals("Worker tests successful\n", result.output());
+        assertEquals("quarkus-test-worker", result.testRunner());
         assertEquals(4, result.testRuntimeClasspathEntries());
         assertEquals(1, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
