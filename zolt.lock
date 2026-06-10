@@ -13,6 +13,54 @@ pomSha256 = "2d2248cccf487ad9ce208dec751745df15cd1e1924a4cc3d36841b5f1990c6fb"
 dependencies = []
 
 [[package]]
+id = "io.quarkus:quarkus-builder"
+version = "3.33.2"
+source = "maven-central"
+scope = "provided"
+direct = true
+jar = "io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"
+pom = "io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.pom"
+jarSha256 = "2f10a8ee6d5ecfa0fc4b4d51f9ab0c2def7ec879128ce6f999ce9aa1b4ec4928"
+pomSha256 = "8676462f2559cd6e51bff0e50afda15396a55ad9897ba1d7b9bdc6550cff6164"
+dependencies = []
+
+[[package]]
+id = "io.quarkus:quarkus-core-deployment"
+version = "3.33.2"
+source = "maven-central"
+scope = "provided"
+direct = true
+jar = "io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.jar"
+pom = "io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.pom"
+jarSha256 = "d73e8090cd13594f5e7ef7f9e8f5a5bbc2d1d7ba39f549b3814fff2498f144a0"
+pomSha256 = "027af06e691fc12e1eeaedb3a9938a9a4e2cd6002b3c21f673b98244f02f4fad"
+dependencies = []
+
+[[package]]
+id = "io.quarkus:quarkus-junit"
+version = "3.33.2"
+source = "maven-central"
+scope = "provided"
+direct = true
+jar = "io/quarkus/quarkus-junit/3.33.2/quarkus-junit-3.33.2.jar"
+pom = "io/quarkus/quarkus-junit/3.33.2/quarkus-junit-3.33.2.pom"
+jarSha256 = "3ffe1fcae45fe825b2359764a19635c2fc34793465d89712ff44b9b845f8e5dd"
+pomSha256 = "a0d599ce2e2c0eeeddbffb994a92d0805252a0dc081afbdd7a1a8df011b0f4a5"
+dependencies = []
+
+[[package]]
+id = "io.smallrye:jandex"
+version = "3.5.3"
+source = "maven-central"
+scope = "provided"
+direct = true
+jar = "io/smallrye/jandex/3.5.3/jandex-3.5.3.jar"
+pom = "io/smallrye/jandex/3.5.3/jandex-3.5.3.pom"
+jarSha256 = "45c2bf6d360cd9d4cb836273af712c5f9734e04b592030c12ac04601e60578a3"
+pomSha256 = "47c886cb6c896a178c98b09be28db9571dc8e827d91efeb0004086e44163bb76"
+dependencies = []
+
+[[package]]
 id = "org.antlr:antlr4-runtime"
 version = "4.11.1"
 source = "maven-central"

@@ -12,6 +12,12 @@ central = "https://repo.maven.apache.org/maven2"
 "info.picocli:picocli" = "4.7.6"
 "org.tomlj:tomlj" = "1.1.1"
 
+[provided.dependencies]
+"io.quarkus:quarkus-builder" = "3.33.2"
+"io.quarkus:quarkus-junit" = "3.33.2"
+"io.quarkus:quarkus-core-deployment" = "3.33.2"
+"io.smallrye:jandex" = "3.5.3"
+
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 

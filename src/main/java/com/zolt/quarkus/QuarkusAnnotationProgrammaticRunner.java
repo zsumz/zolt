@@ -6,16 +6,26 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.net.URL;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class QuarkusAnnotationProgrammaticRunner {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner";
     public static final String TEST_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.test-output-dir";
+    private static final String TEST_BUILD_CHAIN_FUNCTION = "io.quarkus.test.junit.TestBuildChainFunction";
+    private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SPI =
+            "io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
+    private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE =
+            "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
 
     public static void main(String[] args) {
         int exitCode = new QuarkusAnnotationProgrammaticRunner().run(args, System.out, System.err);
@@ -218,6 +228,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 throwable.ifPresent(value -> {
                     ((Throwable) value).printStackTrace(out);
                     writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get());
+                    writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader.get());
                 });
             }
         }
@@ -251,6 +262,60 @@ public final class QuarkusAnnotationProgrammaticRunner {
             }
             return classLoader.getClass().getName() + "@"
                     + Integer.toHexString(System.identityHashCode(classLoader));
+        }
+
+        private void writeBuildChainCustomizerDiagnostic(ClassLoader quarkusRuntimeClassLoader) {
+            out.println("Zolt Quarkus build-chain diagnostic:");
+            writeBuildChainCustomizerDiagnostic("system", ClassLoader.getSystemClassLoader());
+            if (quarkusRuntimeClassLoader != null
+                    && quarkusRuntimeClassLoader != ClassLoader.getSystemClassLoader()) {
+                writeBuildChainCustomizerDiagnostic("quarkusRuntime", quarkusRuntimeClassLoader);
+            }
+        }
+
+        private void writeBuildChainCustomizerDiagnostic(String label, ClassLoader classLoader) {
+            out.println("  " + label + "Loader=" + classLoaderName(classLoader));
+            try {
+                Class<?> buildChainFunction = Class.forName(TEST_BUILD_CHAIN_FUNCTION, false, classLoader);
+                ClassLoader buildChainLoader = buildChainFunction.getClassLoader();
+                out.println("    TestBuildChainFunction.loader=" + classLoaderName(buildChainLoader));
+                out.println("    serviceResources=" + serviceResources(buildChainLoader));
+                out.println("    providers=" + serviceProviders(buildChainLoader));
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                out.println("    TestBuildChainFunction=<unavailable: "
+                        + exception.getClass().getSimpleName()
+                        + ">");
+            }
+        }
+
+        private List<String> serviceResources(ClassLoader classLoader) {
+            try {
+                Enumeration<URL> resources = classLoader.getResources(TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE);
+                List<String> urls = new ArrayList<>();
+                while (resources.hasMoreElements()) {
+                    urls.add(resources.nextElement().toString());
+                }
+                return urls.isEmpty() ? List.of("<none>") : List.copyOf(urls);
+            } catch (java.io.IOException exception) {
+                return List.of("<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private List<String> serviceProviders(ClassLoader classLoader) {
+            try {
+                Class<?> spi = Class.forName(TEST_BUILD_CHAIN_CUSTOMIZER_SPI, false, classLoader);
+                ServiceLoader<?> serviceLoader = ServiceLoader.load((Class) spi, classLoader);
+                List<String> providers = new ArrayList<>();
+                for (Object provider : serviceLoader) {
+                    providers.add(provider.getClass().getName()
+                            + "@"
+                            + classLoaderName(provider.getClass().getClassLoader()));
+                }
+                return providers.isEmpty() ? List.of("<none>") : List.copyOf(providers);
+            } catch (ReflectiveOperationException | LinkageError | ServiceConfigurationError exception) {
+                return List.of("<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
         }
     }
 }

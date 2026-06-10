@@ -38,7 +38,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 descriptor,
                 api,
                 testClasses,
-                jvmArguments(descriptor),
+                jvmArguments(descriptor, testClasses),
                 classpathPlan.launcherClasspath(),
                 runnerArguments(testClasses));
     }
@@ -69,7 +69,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return relativePath.substring(0, relativePath.length() - ".class".length()).replace('/', '.');
     }
 
-    private static List<String> jvmArguments(QuarkusTestRunnerDescriptor descriptor) {
+    private static List<String> jvmArguments(QuarkusTestRunnerDescriptor descriptor, List<String> testClasses) {
         List<String> arguments = new ArrayList<>();
         arguments.add("-Duser.dir=" + descriptor.projectDirectory());
         arguments.add("-D"
@@ -80,6 +80,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY
                 + "="
                 + descriptor.testOutputDirectory());
+        arguments.add("-Dquarkus.arc.unremovable-types=" + String.join(",", testClasses));
         if (descriptor.jbossLogManagerPresent()) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
         }

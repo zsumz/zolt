@@ -18,6 +18,12 @@ import java.util.jar.Manifest;
 public final class QuarkusAnnotationLauncherClasspathPlanner {
     private static final String LAUNCHER_SESSION_LISTENER_SERVICE =
             "META-INF/services/org.junit.platform.launcher.LauncherSessionListener";
+    private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE =
+            "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
+    private static final String ZOLT_TEST_CLASS_BEAN_CUSTOMIZER =
+            "com.zolt.quarkus.ZoltQuarkusTestClassBeanCustomizer";
+    private static final String ZOLT_TEST_CLASS_BEAN_CUSTOMIZER_CLASS =
+            "com/zolt/quarkus/ZoltQuarkusTestClassBeanCustomizer.class";
 
     private final BootstrapDescriptorReader bootstrapDescriptorReader;
 
@@ -57,6 +63,10 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
                 Path filteredArtifact = filteredQuarkusJunitConfigJar(descriptor, entry);
                 classpath.add(filteredArtifact);
                 filteredArtifacts.add(filteredArtifact);
+            } else if (isQuarkusJunitJar(entry)) {
+                Path augmentedArtifact = augmentedQuarkusJunitJar(descriptor, entry);
+                classpath.add(augmentedArtifact);
+                filteredArtifacts.add(augmentedArtifact);
             } else {
                 classpath.add(entry);
             }
@@ -111,6 +121,79 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
         }
     }
 
+    private static Path augmentedQuarkusJunitJar(QuarkusTestRunnerDescriptor descriptor, Path sourceJar) {
+        Path outputDirectory = descriptor.descriptorFile()
+                .getParent()
+                .resolve("annotation-runner");
+        Path outputJar = outputDirectory.resolve("zolt-augmented-" + fileName(sourceJar));
+        try {
+            Files.createDirectories(outputDirectory);
+            Path temporaryJar = Files.createTempFile(outputDirectory, outputJar.getFileName().toString(), ".tmp");
+            writeJarWithZoltTestClassBeanCustomizer(sourceJar, temporaryJar);
+            Files.move(temporaryJar, outputJar, StandardCopyOption.REPLACE_EXISTING);
+            return outputJar.toAbsolutePath().normalize();
+        } catch (IOException exception) {
+            throw new QuarkusAugmentationException(
+                    "Could not prepare Quarkus annotation runner classpath. "
+                            + "Zolt needs to add its @QuarkusTest class-bean customizer to "
+                            + sourceJar
+                            + " so Quarkus test augmentation can see Zolt-owned test classes. "
+                            + "Clean target/quarkus and run `zolt test` again.",
+                    exception);
+        }
+    }
+
+    private static void writeJarWithZoltTestClassBeanCustomizer(Path sourceJar, Path targetJar) throws IOException {
+        try (InputStream input = Files.newInputStream(sourceJar);
+                JarInputStream jarInput = new JarInputStream(input);
+                OutputStream output = Files.newOutputStream(targetJar)) {
+            Manifest manifest = jarInput.getManifest();
+            JarOutputStream jarOutput = manifest == null
+                    ? new JarOutputStream(output)
+                    : new JarOutputStream(output, manifest);
+            JarEntry entry = jarInput.getNextJarEntry();
+            try (jarOutput) {
+                while (entry != null) {
+                    if (!TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE.equals(entry.getName())
+                            && !ZOLT_TEST_CLASS_BEAN_CUSTOMIZER_CLASS.equals(entry.getName())) {
+                        JarEntry copy = new JarEntry(entry.getName());
+                        copy.setTime(0L);
+                        jarOutput.putNextEntry(copy);
+                        jarInput.transferTo(jarOutput);
+                        jarOutput.closeEntry();
+                    }
+                    jarInput.closeEntry();
+                    entry = jarInput.getNextJarEntry();
+                }
+                writeEntry(jarOutput, TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE, ZOLT_TEST_CLASS_BEAN_CUSTOMIZER + "\n");
+                writeEntry(jarOutput, ZOLT_TEST_CLASS_BEAN_CUSTOMIZER_CLASS, zoltCustomizerClassBytes());
+            }
+        }
+    }
+
+    private static byte[] zoltCustomizerClassBytes() throws IOException {
+        try (InputStream input = QuarkusAnnotationLauncherClasspathPlanner.class
+                .getClassLoader()
+                .getResourceAsStream(ZOLT_TEST_CLASS_BEAN_CUSTOMIZER_CLASS)) {
+            if (input == null) {
+                throw new IOException("Missing class resource " + ZOLT_TEST_CLASS_BEAN_CUSTOMIZER_CLASS);
+            }
+            return input.readAllBytes();
+        }
+    }
+
+    private static void writeEntry(JarOutputStream jarOutput, String name, String content) throws IOException {
+        writeEntry(jarOutput, name, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static void writeEntry(JarOutputStream jarOutput, String name, byte[] content) throws IOException {
+        JarEntry entry = new JarEntry(name);
+        entry.setTime(0L);
+        jarOutput.putNextEntry(entry);
+        jarOutput.write(content);
+        jarOutput.closeEntry();
+    }
+
     private List<Path> sharedClasspath(
             QuarkusTestRunnerDescriptor descriptor,
             List<Path> launcherClasspath) {
@@ -154,6 +237,13 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
 
     private static boolean isQuarkusJunitConfigJar(Path path) {
         return fileName(path).startsWith("quarkus-junit-config-") && fileName(path).endsWith(".jar");
+    }
+
+    private static boolean isQuarkusJunitJar(Path path) {
+        String fileName = fileName(path);
+        return fileName.startsWith("quarkus-junit-")
+                && fileName.endsWith(".jar")
+                && fileName.substring("quarkus-junit-".length()).matches("\\d.*");
     }
 
     private static String fileName(Path path) {

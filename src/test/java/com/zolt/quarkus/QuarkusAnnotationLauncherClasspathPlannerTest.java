@@ -70,6 +70,35 @@ final class QuarkusAnnotationLauncherClasspathPlannerTest {
     }
 
     @Test
+    void augmentsQuarkusJunitWithZoltTestClassBeanCustomizer() throws IOException {
+        Path quarkusJunit = tempDir.resolve("quarkus-junit-3.33.2.jar");
+        writeJar(
+                quarkusJunit,
+                List.of(
+                        "io/quarkus/test/junit/TestBuildChainFunction.class",
+                        "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer"));
+        QuarkusAnnotationLauncherClasspathPlanner planner = new QuarkusAnnotationLauncherClasspathPlanner(
+                descriptorFile -> bootstrapDescriptor(List.of()));
+
+        QuarkusAnnotationLauncherClasspathPlan plan = planner.plan(descriptor(
+                List.of(Path.of("/repo/target/test-classes"), quarkusJunit),
+                tempDir.resolve("target/quarkus/zolt-test-bootstrap.properties")));
+
+        Path augmentedJar = tempDir.resolve("target/quarkus/annotation-runner/zolt-augmented-quarkus-junit-3.33.2.jar");
+        assertEquals(List.of(Path.of("/repo/target/test-classes"), augmentedJar), plan.launcherClasspath());
+        assertEquals(List.of(augmentedJar), plan.serviceFilteredArtifacts());
+        try (JarFile jar = new JarFile(augmentedJar.toFile())) {
+            assertTrue(jar.getEntry("io/quarkus/test/junit/TestBuildChainFunction.class") != null);
+            assertTrue(jar.getEntry("com/zolt/quarkus/ZoltQuarkusTestClassBeanCustomizer.class") != null);
+            JarEntry service = jar.getJarEntry(
+                    "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer");
+            assertTrue(service != null);
+            String serviceContent = new String(jar.getInputStream(service).readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals("com.zolt.quarkus.ZoltQuarkusTestClassBeanCustomizer\n", serviceContent);
+        }
+    }
+
+    @Test
     void reportsBuilderApiVisibilityWithoutDeploymentOverlap() {
         Path quarkusBuilder = Path.of("/cache/io/quarkus/quarkus-builder-3.33.2.jar");
         QuarkusAnnotationLauncherClasspathPlanner planner = new QuarkusAnnotationLauncherClasspathPlanner(
