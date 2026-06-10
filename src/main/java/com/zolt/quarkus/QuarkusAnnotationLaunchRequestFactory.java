@@ -76,6 +76,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY
                 + "="
                 + descriptor.serializedApplicationModel());
+        arguments.add("-D"
+                + QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY
+                + "="
+                + descriptor.testOutputDirectory());
         if (descriptor.jbossLogManagerPresent()) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
         }

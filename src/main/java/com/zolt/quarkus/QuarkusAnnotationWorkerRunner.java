@@ -5,13 +5,15 @@ public final class QuarkusAnnotationWorkerRunner {
     private final LaunchRequestFactory launchRequestFactory;
     private final LaunchRunner launchRunner;
     private final QuarkusAnnotationClasspathSplitDiagnostic classpathSplitDiagnostic;
+    private final TestIndexWriter testIndexWriter;
 
     public QuarkusAnnotationWorkerRunner() {
         this(
                 new QuarkusAnnotationApiProbe()::probe,
                 new QuarkusAnnotationLaunchRequestFactory()::create,
                 new QuarkusAnnotationJvmRunner()::run,
-                new QuarkusAnnotationClasspathSplitDiagnostic());
+                new QuarkusAnnotationClasspathSplitDiagnostic(),
+                new ReflectiveTestIndexWriter());
     }
 
     QuarkusAnnotationWorkerRunner(ApiProbe apiProbe) {
@@ -19,7 +21,9 @@ public final class QuarkusAnnotationWorkerRunner {
                 apiProbe,
                 new QuarkusAnnotationLaunchRequestFactory()::create,
                 new QuarkusAnnotationJvmRunner()::run,
-                new QuarkusAnnotationClasspathSplitDiagnostic());
+                new QuarkusAnnotationClasspathSplitDiagnostic(),
+                request -> {
+                });
     }
 
     QuarkusAnnotationWorkerRunner(
@@ -32,7 +36,13 @@ public final class QuarkusAnnotationWorkerRunner {
             ApiProbe apiProbe,
             LaunchRequestFactory launchRequestFactory,
             LaunchRunner launchRunner) {
-        this(apiProbe, launchRequestFactory, launchRunner, new QuarkusAnnotationClasspathSplitDiagnostic());
+        this(
+                apiProbe,
+                launchRequestFactory,
+                launchRunner,
+                new QuarkusAnnotationClasspathSplitDiagnostic(),
+                request -> {
+                });
     }
 
     QuarkusAnnotationWorkerRunner(
@@ -40,6 +50,21 @@ public final class QuarkusAnnotationWorkerRunner {
             LaunchRequestFactory launchRequestFactory,
             LaunchRunner launchRunner,
             QuarkusAnnotationClasspathSplitDiagnostic classpathSplitDiagnostic) {
+        this(
+                apiProbe,
+                launchRequestFactory,
+                launchRunner,
+                classpathSplitDiagnostic,
+                request -> {
+                });
+    }
+
+    QuarkusAnnotationWorkerRunner(
+            ApiProbe apiProbe,
+            LaunchRequestFactory launchRequestFactory,
+            LaunchRunner launchRunner,
+            QuarkusAnnotationClasspathSplitDiagnostic classpathSplitDiagnostic,
+            TestIndexWriter testIndexWriter) {
         if (apiProbe == null) {
             throw new QuarkusAugmentationException("Quarkus annotation worker API probe is required.");
         }
@@ -53,10 +78,15 @@ public final class QuarkusAnnotationWorkerRunner {
             throw new QuarkusAugmentationException(
                     "Quarkus annotation worker classpath split diagnostic is required.");
         }
+        if (testIndexWriter == null) {
+            throw new QuarkusAugmentationException(
+                    "Quarkus annotation worker test index writer is required.");
+        }
         this.apiProbe = apiProbe;
         this.launchRequestFactory = launchRequestFactory;
         this.launchRunner = launchRunner;
         this.classpathSplitDiagnostic = classpathSplitDiagnostic;
+        this.testIndexWriter = testIndexWriter;
     }
 
     public Result run(QuarkusTestWorkerPlan plan) {
@@ -65,6 +95,7 @@ public final class QuarkusAnnotationWorkerRunner {
         }
         QuarkusAnnotationApi api = apiProbe.probe(plan.descriptor());
         QuarkusAnnotationLaunchRequest launchRequest = launchRequestFactory.create(plan, api);
+        testIndexWriter.write(launchRequest);
         QuarkusAnnotationJvmRunner.Result result = launchRunner.run(launchRequest);
         return new Result(result.exitCode(), diagnosedOutput(launchRequest, result));
     }
@@ -206,5 +237,42 @@ public final class QuarkusAnnotationWorkerRunner {
     @FunctionalInterface
     interface LaunchRunner {
         QuarkusAnnotationJvmRunner.Result run(QuarkusAnnotationLaunchRequest request);
+    }
+
+    @FunctionalInterface
+    interface TestIndexWriter {
+        void write(QuarkusAnnotationLaunchRequest request);
+    }
+
+    private static final class ReflectiveTestIndexWriter implements TestIndexWriter {
+        @Override
+        public void write(QuarkusAnnotationLaunchRequest request) {
+            if (request.testClasses().isEmpty()) {
+                return;
+            }
+            try {
+                java.nio.file.Path outputDirectory = request.descriptor()
+                        .testOutputDirectory()
+                        .toAbsolutePath()
+                        .normalize();
+                Class<?> testClassIndexer = Class.forName("io.quarkus.test.common.TestClassIndexer");
+                Object index = testClassIndexer
+                        .getMethod("indexTestClasses", java.nio.file.Path.class)
+                        .invoke(null, outputDirectory);
+                Class<?> indexClass = Class.forName("org.jboss.jandex.Index");
+                Class<?> firstTestClass = Class.forName(
+                        request.testClasses().getFirst(),
+                        false,
+                        ClassLoader.getSystemClassLoader());
+                testClassIndexer
+                        .getMethod("writeIndex", indexClass, java.nio.file.Path.class, Class.class)
+                        .invoke(null, index, outputDirectory, firstTestClass);
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                throw new QuarkusAugmentationException(
+                        "Could not write Quarkus test class index before annotation execution. "
+                                + "Check that quarkus-test-common and Jandex are on the test runtime classpath.",
+                        exception);
+            }
+        }
     }
 }

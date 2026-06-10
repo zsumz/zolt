@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class QuarkusAnnotationProgrammaticRunner {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner";
+    public static final String TEST_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.test-output-dir";
 
     public static void main(String[] args) {
         int exitCode = new QuarkusAnnotationProgrammaticRunner().run(args, System.out, System.err);
@@ -44,6 +46,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
         }
 
         private int execute(List<String> testClasses) throws ReflectiveOperationException {
+            writeQuarkusTestIndex(testClasses);
             Class<?> listenerInterface = Class.forName("org.junit.platform.launcher.TestExecutionListener");
             AtomicBoolean containsTests = new AtomicBoolean(false);
             AtomicBoolean failed = new AtomicBoolean(false);
@@ -81,6 +84,26 @@ public final class QuarkusAnnotationProgrammaticRunner {
             }
             out.println("Tests passed");
             return 0;
+        }
+
+        private void writeQuarkusTestIndex(List<String> testClasses) throws ReflectiveOperationException {
+            String testOutputDirectory = System.getProperty(TEST_OUTPUT_DIRECTORY_PROPERTY, "");
+            if (testOutputDirectory.isBlank() || testClasses.isEmpty()) {
+                return;
+            }
+            Path outputDirectory = Path.of(testOutputDirectory).toAbsolutePath().normalize();
+            Class<?> testClassIndexer = Class.forName("io.quarkus.test.common.TestClassIndexer");
+            Object index = testClassIndexer
+                    .getMethod("indexTestClasses", Path.class)
+                    .invoke(null, outputDirectory);
+            Class<?> indexClass = Class.forName("org.jboss.jandex.Index");
+            Class<?> firstTestClass = Class.forName(
+                    testClasses.getFirst(),
+                    false,
+                    ClassLoader.getSystemClassLoader());
+            testClassIndexer
+                    .getMethod("writeIndex", indexClass, Path.class, Class.class)
+                    .invoke(null, index, outputDirectory, firstTestClass);
         }
 
         private Object discoveryRequest(List<String> testClasses) throws ReflectiveOperationException {

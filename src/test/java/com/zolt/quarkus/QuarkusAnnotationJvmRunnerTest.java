@@ -20,6 +20,7 @@ final class QuarkusAnnotationJvmRunnerTest {
                         "/jdk/bin/java",
                         "-Duser.dir=/repo",
                         "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                        "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
                         "-classpath",
                         "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
@@ -92,6 +93,7 @@ final class QuarkusAnnotationJvmRunnerTest {
                 List.of(
                         "-Duser.dir=/repo",
                         "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                        "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"),
                 List.of(
                         Path.of("/repo/target/test-classes"),

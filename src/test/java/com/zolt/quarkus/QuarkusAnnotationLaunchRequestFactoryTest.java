@@ -24,6 +24,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
         assertEquals(List.of(
                 "-Duser.dir=/repo",
                 "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                 "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"),
                 request.jvmArguments());
         assertEquals(List.of(
@@ -50,7 +51,8 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
 
         assertEquals(List.of(
                 "-Duser.dir=/repo",
-                "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat"),
+                "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes"),
                 request.jvmArguments());
     }
 

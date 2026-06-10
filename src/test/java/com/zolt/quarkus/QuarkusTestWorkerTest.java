@@ -134,6 +134,36 @@ final class QuarkusTestWorkerTest {
     }
 
     @Test
+    void annotationRunnerWritesTestIndexBeforeLaunchingJvm() {
+        List<String> events = new java.util.ArrayList<>();
+        QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
+                        descriptor -> api(),
+                        (plan, api) -> new QuarkusAnnotationLaunchRequest(
+                                plan.descriptor(),
+                                api,
+                                List.of("com.example.HttpTest"),
+                                List.of("-Duser.dir=/repo"),
+                                List.of(
+                                        Path.of("/cache/io/quarkus/quarkus-core-3.33.2.jar"),
+                                        Path.of("/cache/io/quarkus/quarkus-rest-3.33.2.jar"),
+                                        Path.of("/cache/junit-platform-console.jar")),
+                                List.of("org.junit.platform.console.ConsoleLauncher")),
+                        request -> {
+                            events.add("launch:" + request.testClasses().getFirst());
+                            return new QuarkusAnnotationJvmRunner.Result(0, "Quarkus annotation tests passed\n");
+                        },
+                        new QuarkusAnnotationClasspathSplitDiagnostic(),
+                        request -> events.add("index:" + request.testClasses().getFirst()))
+                .run(new QuarkusTestWorkerPlan(
+                        descriptor(true),
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
+                        List.of()));
+
+        assertEquals(0, result.exitCode());
+        assertEquals(List.of("index:com.example.HttpTest", "launch:com.example.HttpTest"), events);
+    }
+
+    @Test
     void annotationRunnerExplainsBuildChainBuilderClassloaderSplit() {
         QuarkusAnnotationWorkerRunner.Result result = new QuarkusAnnotationWorkerRunner(
                         descriptor -> api(),
