@@ -778,11 +778,16 @@ public final class ZoltTomlWriter {
     }
 
     private static void writeTestSources(StringBuilder toml, BuildSettings build) {
-        if (build.testSources().equals(List.of(build.test()))) {
+        if (build.testSources().equals(List.of(build.test())) && build.groovyTestSources().isEmpty()) {
             return;
         }
         toml.append("[test.sources]\n");
-        writeStringArray(toml, "java", build.testSources());
+        if (!build.testSources().equals(List.of(build.test()))) {
+            writeStringArray(toml, "java", build.testSources());
+        }
+        if (!build.groovyTestSources().isEmpty()) {
+            writeStringArray(toml, "groovy", build.groovyTestSources());
+        }
         toml.append('\n');
     }
 

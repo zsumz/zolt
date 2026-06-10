@@ -43,9 +43,9 @@ public final class SelfHostingCheckService {
                 config.build().source() + " exists",
                 "create " + config.build().source() + " or update [build].source");
         add(checks, "test sources",
-                config.build().testSources().stream().anyMatch(testSource -> Files.isDirectory(root.resolve(testSource))),
+                testSourceRoots(config).stream().anyMatch(testSource -> Files.isDirectory(root.resolve(testSource))),
                 "at least one configured test source root exists",
-                "create a configured test source root or update [test.sources].java");
+                "create a configured test source root or update [test.sources]");
         add(checks, "JUnit Platform Console",
                 declaresJUnitPlatformConsole(config),
                 JUNIT_PLATFORM_CONSOLE + " is declared",
@@ -69,6 +69,13 @@ public final class SelfHostingCheckService {
     private static boolean declaresJUnitPlatformConsole(ProjectConfig config) {
         return config.testDependencies().containsKey(JUNIT_PLATFORM_CONSOLE)
                 || config.managedTestDependencies().contains(JUNIT_PLATFORM_CONSOLE);
+    }
+
+    private static List<String> testSourceRoots(ProjectConfig config) {
+        List<String> roots = new ArrayList<>();
+        roots.addAll(config.build().testSources());
+        roots.addAll(config.build().groovyTestSources());
+        return List.copyOf(roots);
     }
 
     private static void add(

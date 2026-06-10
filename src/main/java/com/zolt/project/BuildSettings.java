@@ -8,14 +8,56 @@ public record BuildSettings(
         String output,
         String testOutput,
         List<String> testSources,
+        List<String> groovyTestSources,
         List<String> resourceRoots,
         List<String> testResourceRoots,
         BuildMetadataSettings metadata) {
     public BuildSettings {
         testSources = testSources == null ? List.of(test) : List.copyOf(testSources);
+        groovyTestSources = groovyTestSources == null ? List.of() : List.copyOf(groovyTestSources);
         resourceRoots = resourceRoots == null ? List.of("src/main/resources") : List.copyOf(resourceRoots);
         testResourceRoots = testResourceRoots == null ? List.of("src/test/resources") : List.copyOf(testResourceRoots);
         metadata = metadata == null ? BuildMetadataSettings.defaults() : metadata;
+    }
+
+    public BuildSettings(
+            String source,
+            String test,
+            String output,
+            String testOutput,
+            List<String> testSources,
+            List<String> resourceRoots,
+            List<String> testResourceRoots,
+            BuildMetadataSettings metadata) {
+        this(
+                source,
+                test,
+                output,
+                testOutput,
+                testSources,
+                List.of(),
+                resourceRoots,
+                testResourceRoots,
+                metadata);
+    }
+
+    public BuildSettings(
+            String source,
+            String test,
+            String output,
+            String testOutput,
+            List<String> testSources,
+            List<String> groovyTestSources) {
+        this(
+                source,
+                test,
+                output,
+                testOutput,
+                testSources,
+                groovyTestSources,
+                List.of("src/main/resources"),
+                List.of("src/test/resources"),
+                BuildMetadataSettings.defaults());
     }
 
     public BuildSettings(
@@ -31,6 +73,7 @@ public record BuildSettings(
                 output,
                 testOutput,
                 testSources,
+                List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 metadata);
@@ -48,6 +91,7 @@ public record BuildSettings(
                 output,
                 testOutput,
                 testSources,
+                List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 BuildMetadataSettings.defaults());
@@ -64,6 +108,7 @@ public record BuildSettings(
                 output,
                 testOutput,
                 List.of(test),
+                List.of(),
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 BuildMetadataSettings.defaults());

@@ -541,6 +541,30 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void preservesExplicitGroovyTestSourceRootsWhenEditingDependencies() {
+        ProjectConfig config = new ProjectConfig(
+                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        List.of("src/test/groovy")));
+        config = writer.addDependency(config, DependencySection.TEST, "org.spockframework:spock-core", "2.4-M5-groovy-4.0");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[test.sources]\ngroovy = [\"src/test/groovy\"]"));
+        assertEquals(config.build().groovyTestSources(), parsed.build().groovyTestSources());
+        assertEquals("2.4-M5-groovy-4.0", parsed.testDependencies().get("org.spockframework:spock-core"));
+    }
+
+    @Test
     void removesDependenciesFromCorrectSections() {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
         config = writer.addDependency(config, DependencySection.MAIN, "com.google.guava:guava", "33.4.0-jre");

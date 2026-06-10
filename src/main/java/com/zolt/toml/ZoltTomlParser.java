@@ -210,6 +210,7 @@ public final class ZoltTomlParser {
                 stringOrDefault(buildTable, "build", "output", defaults.output()),
                 stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()),
                 defaults.testSources(),
+                defaults.groovyTestSources(),
                 defaults.resourceRoots(),
                 defaults.testResourceRoots(),
                 metadata);
@@ -235,13 +236,14 @@ public final class ZoltTomlParser {
         if (sourcesTable == null) {
             return build;
         }
-        validateKeys("test.sources", sourcesTable, Set.of("java"));
+        validateKeys("test.sources", sourcesTable, Set.of("java", "groovy"));
         return new BuildSettings(
                 build.source(),
                 build.test(),
                 build.output(),
                 build.testOutput(),
                 stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
+                stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
                 build.resourceRoots(),
                 build.testResourceRoots(),
                 build.metadata());
@@ -258,6 +260,7 @@ public final class ZoltTomlParser {
                 build.output(),
                 build.testOutput(),
                 build.testSources(),
+                build.groovyTestSources(),
                 stringListOrDefault(resourcesTable, "resources", "main", build.resourceRoots()),
                 stringListOrDefault(resourcesTable, "resources", "test", build.testResourceRoots()),
                 build.metadata());

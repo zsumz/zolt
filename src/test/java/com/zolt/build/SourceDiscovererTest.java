@@ -52,6 +52,30 @@ final class SourceDiscovererTest {
     }
 
     @Test
+    void findsGroovyTestsFromExplicitRootsDeterministically() throws IOException {
+        Path unit = source("src/test/groovy/com/example/MainSpec.groovy");
+        Path integration = source("src/integration-test/groovy/com/example/MainITSpec.groovy");
+        source("src/test/groovy/com/example/NotGroovy.java");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        "target/classes",
+                        "target/test-classes",
+                        List.of("src/test/java"),
+                        List.of("src/integration-test/groovy", "src/test/groovy"),
+                        List.of("src/main/resources"),
+                        List.of("src/test/resources"),
+                        com.zolt.project.BuildMetadataSettings.defaults()));
+
+        assertEquals(List.of(integration, unit), result.groovyTestSources());
+        assertEquals(List.of(), result.testSources());
+        assertEquals(List.of(integration, unit), result.allTestSources());
+    }
+
+    @Test
     void deDuplicatesOverlappingTestRoots() throws IOException {
         Path test = source("src/test/java/com/example/MainTest.java");
 

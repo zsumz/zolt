@@ -129,6 +129,40 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void exportsGroovyTestRootsDeterministically() throws IOException {
+        Path projectDir = tempDir.resolve("groovy-tests");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "groovy-tests"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.sources]
+                java = ["src/test/java"]
+                groovy = ["src/test/groovy", "src/integrationTest/groovy"]
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        assertTrue(model.sourceRoots().contains(new IdeModel.SourceRoot(
+                "test-groovy-1",
+                "test",
+                "groovy",
+                root.resolve("src/test/groovy"),
+                false)));
+        assertTrue(model.sourceRoots().contains(new IdeModel.SourceRoot(
+                "test-groovy-2",
+                "test",
+                "groovy",
+                root.resolve("src/integrationTest/groovy"),
+                false)));
+    }
+
+    @Test
     void exportsConfiguredResourceRootsDeterministically() throws IOException {
         Path projectDir = tempDir.resolve("resource-roots");
         Files.createDirectories(projectDir);

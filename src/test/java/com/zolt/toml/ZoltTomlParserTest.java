@@ -650,6 +650,26 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesExplicitGroovyTestSourceRoots() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.sources]
+                java = ["src/test/java"]
+                groovy = ["src/test/groovy", "src/integration-test/groovy"]
+                """);
+
+        assertEquals(List.of("src/test/java"), config.build().testSources());
+        assertEquals(
+                List.of("src/test/groovy", "src/integration-test/groovy"),
+                config.build().groovyTestSources());
+    }
+
+    @Test
     void parsesExplicitResourceRoots() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -723,11 +743,11 @@ final class ZoltTomlParserTest {
                         java = "21"
 
                         [test.sources]
-                        groovy = ["src/test/groovy"]
+                        kotlin = ["src/test/kotlin"]
                         """));
 
         assertEquals(
-                "Unknown field [test.sources].groovy in zolt.toml. Remove it or check the spelling.",
+                "Unknown field [test.sources].kotlin in zolt.toml. Remove it or check the spelling.",
                 exception.getMessage());
     }
 

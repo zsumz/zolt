@@ -15,32 +15,35 @@ public final class SourceDiscoverer {
         Path output = projectDirectory.resolve(settings.output()).normalize();
         Path testOutput = projectDirectory.resolve(settings.testOutput()).normalize();
         return new SourceDiscoveryResult(
-                discoverSources(projectDirectory.resolve(settings.source()).normalize(), output, testOutput),
+                discoverSources(projectDirectory.resolve(settings.source()).normalize(), output, testOutput, ".java"),
                 discoverSources(settings.testSources().stream()
                         .map(root -> projectDirectory.resolve(root).normalize())
-                        .toList(), output, testOutput));
+                        .toList(), output, testOutput, ".java"),
+                discoverSources(settings.groovyTestSources().stream()
+                        .map(root -> projectDirectory.resolve(root).normalize())
+                        .toList(), output, testOutput, ".groovy"));
     }
 
-    private static List<Path> discoverSources(Path root, Path output, Path testOutput) {
-        return discoverSources(List.of(root), output, testOutput);
+    private static List<Path> discoverSources(Path root, Path output, Path testOutput, String extension) {
+        return discoverSources(List.of(root), output, testOutput, extension);
     }
 
-    private static List<Path> discoverSources(List<Path> roots, Path output, Path testOutput) {
+    private static List<Path> discoverSources(List<Path> roots, Path output, Path testOutput, String extension) {
         return roots.stream()
-                .flatMap(root -> discoverSourcesFromRoot(root, output, testOutput).stream())
+                .flatMap(root -> discoverSourcesFromRoot(root, output, testOutput, extension).stream())
                 .distinct()
                 .sorted()
                 .toList();
     }
 
-    private static List<Path> discoverSourcesFromRoot(Path root, Path output, Path testOutput) {
+    private static List<Path> discoverSourcesFromRoot(Path root, Path output, Path testOutput, String extension) {
         if (!Files.isDirectory(root)) {
             return List.of();
         }
         try (Stream<Path> paths = Files.walk(root)) {
             return paths
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .filter(path -> path.getFileName().toString().endsWith(extension))
                     .map(Path::normalize)
                     .filter(path -> !path.startsWith(output))
                     .filter(path -> !path.startsWith(testOutput))
@@ -49,7 +52,7 @@ public final class SourceDiscoverer {
                     .toList();
         } catch (IOException exception) {
             throw new SourceDiscoveryException(
-                    "Could not discover Java sources under "
+                    "Could not discover sources under "
                             + root
                             + ". Check that the directory is readable.",
                     exception);

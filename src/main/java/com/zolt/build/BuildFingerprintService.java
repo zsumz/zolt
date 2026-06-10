@@ -83,9 +83,9 @@ public final class BuildFingerprintService {
                 projectDirectory,
                 config,
                 lockfilePath,
-                config.build().testSources(),
+                testSourceRoots(config.build()),
                 config.build().testResourceRoots(),
-                sources.testSources(),
+                sources.allTestSources(),
                 compileClasspath,
                 processorClasspath,
                 outputDirectory,
@@ -107,15 +107,22 @@ public final class BuildFingerprintService {
                 projectDirectory,
                 config,
                 lockfilePath,
-                config.build().testSources(),
+                testSourceRoots(config.build()),
                 config.build().testResourceRoots(),
-                sources.testSources(),
+                sources.allTestSources(),
                 compileClasspath,
                 processorClasspath,
                 outputDirectory,
                 config.build().testOutput(),
                 generatedSourcesDirectory,
                 TEST_FILE_NAME);
+    }
+
+    private static List<String> testSourceRoots(BuildSettings settings) {
+        List<String> roots = new ArrayList<>();
+        roots.addAll(settings.testSources());
+        roots.addAll(settings.groovyTestSources());
+        return List.copyOf(roots);
     }
 
     private boolean isCompileCurrent(
@@ -352,12 +359,17 @@ public final class BuildFingerprintService {
         }
         Path relative = sourceRoot.orElseThrow().relativize(source);
         String fileName = relative.getFileName().toString();
-        if (!fileName.endsWith(".java")) {
+        String extension;
+        if (fileName.endsWith(".java")) {
+            extension = ".java";
+        } else if (fileName.endsWith(".groovy")) {
+            extension = ".groovy";
+        } else {
             return Optional.empty();
         }
         Path classRelative = relative.getParent() == null
-                ? Path.of(fileName.substring(0, fileName.length() - ".java".length()) + ".class")
-                : relative.getParent().resolve(fileName.substring(0, fileName.length() - ".java".length()) + ".class");
+                ? Path.of(fileName.substring(0, fileName.length() - extension.length()) + ".class")
+                : relative.getParent().resolve(fileName.substring(0, fileName.length() - extension.length()) + ".class");
         return Optional.of(outputDirectory.resolve(classRelative).normalize());
     }
 

@@ -250,6 +250,14 @@ public final class IdeModelService {
                     root.resolve(settings.testSources().get(index)).normalize(),
                     false));
         }
+        for (int index = 0; index < settings.groovyTestSources().size(); index++) {
+            roots.add(new IdeModel.SourceRoot(
+                    "test-groovy-" + (index + 1),
+                    "test",
+                    "groovy",
+                    root.resolve(settings.groovyTestSources().get(index)).normalize(),
+                    false));
+        }
         roots.add(new IdeModel.SourceRoot(
                 "test-generated-java",
                 "test",

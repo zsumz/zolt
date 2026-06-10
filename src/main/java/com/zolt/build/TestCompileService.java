@@ -17,6 +17,7 @@ public final class TestCompileService {
     private final BuildFingerprintService buildFingerprintService;
     private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
+    private final GroovyCompilerRunner groovyCompilerRunner;
 
     public TestCompileService() {
         this(new JdkDetector());
@@ -29,7 +30,8 @@ public final class TestCompileService {
                 new ResourceCopier(),
                 new BuildFingerprintService(),
                 jdkDetector,
-                new JavacRunner());
+                new JavacRunner(),
+                new GroovyCompilerRunner());
     }
 
     TestCompileService(
@@ -38,13 +40,15 @@ public final class TestCompileService {
             ResourceCopier resourceCopier,
             BuildFingerprintService buildFingerprintService,
             JdkChecker jdkDetector,
-            JavacRunner javacRunner) {
+            JavacRunner javacRunner,
+            GroovyCompilerRunner groovyCompilerRunner) {
         this.buildService = buildService;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
         this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
+        this.groovyCompilerRunner = groovyCompilerRunner;
     }
 
     public TestCompileResult compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -85,6 +89,10 @@ public final class TestCompileService {
         testCompileEntries.addAll(classpaths.test().entries());
         Path outputDirectory = projectDirectory.resolve(config.build().testOutput());
         Classpath testCompileClasspath = new Classpath(testCompileEntries);
+        List<Path> groovyCompileEntries = new ArrayList<>();
+        groovyCompileEntries.add(outputDirectory);
+        groovyCompileEntries.addAll(testCompileEntries);
+        Classpath groovyCompileClasspath = new Classpath(groovyCompileEntries);
         Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedTestSources());
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
         boolean compileSkipped = buildFingerprintService.isTestCompileCurrent(
@@ -105,6 +113,13 @@ public final class TestCompileService {
                         outputDirectory,
                         classpaths.testProcessor(),
                         generatedSourcesDirectory);
+        JavacResult groovyResult = compileSkipped
+                ? new JavacResult(sources.groovyTestSources().size(), outputDirectory, "")
+                : groovyCompilerRunner.compile(
+                        jdkStatus.java().orElseThrow(),
+                        sources.groovyTestSources(),
+                        groovyCompileClasspath,
+                        outputDirectory);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config.build());
         buildFingerprintService.writeTestCompileFingerprint(
                 projectDirectory,
@@ -117,11 +132,24 @@ public final class TestCompileService {
                 generatedSourcesDirectory);
         return new TestCompileResult(
                 buildResult,
-                javacResult.sourceCount(),
+                javacResult.sourceCount() + groovyResult.sourceCount(),
                 resourceResult.resourceCount(),
                 javacResult.outputDirectory(),
-                javacResult.output(),
+                combinedOutput(javacResult.output(), groovyResult.output()),
                 compileSkipped);
+    }
+
+    private static String combinedOutput(String first, String second) {
+        if (first == null || first.isEmpty()) {
+            return second == null ? "" : second;
+        }
+        if (second == null || second.isEmpty()) {
+            return first;
+        }
+        if (first.endsWith("\n")) {
+            return first + second;
+        }
+        return first + "\n" + second;
     }
 
     private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {

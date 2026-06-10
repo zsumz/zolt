@@ -7,6 +7,7 @@ import com.zolt.build.BuildService;
 import com.zolt.build.CleanException;
 import com.zolt.build.CleanResult;
 import com.zolt.build.CleanService;
+import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ManifestGenerationException;
@@ -1126,6 +1127,7 @@ public final class ZoltCli implements Runnable {
             } catch (BuildException
                     | ArtifactCacheException
                     | JavacException
+                    | GroovyCompileException
                     | QuarkusAugmentationException
                     | QuarkusPlanException
                     | ResourceCopyException
@@ -1244,6 +1246,7 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | ResourceCopyException
                     | RunException
                     | QuarkusAugmentationException
@@ -1403,6 +1406,7 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println("Tests passed");
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | JavaRunException
                     | ResourceCopyException
                     | TestRunException
@@ -1551,6 +1555,7 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | ManifestGenerationException
                     | PackageException
                     | ResourceCopyException
@@ -1678,6 +1683,7 @@ public final class ZoltCli implements Runnable {
                         + result.packageResult().jarPath());
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | JavaRunException
                     | ManifestGenerationException
                     | PackageException
@@ -1728,6 +1734,7 @@ public final class ZoltCli implements Runnable {
                         + result.nativeImageResult().logFile());
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | ManifestGenerationException
                     | NativeImageException
                     | PackageException
@@ -1946,6 +1953,7 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getOut().println("Jar entries match");
             } catch (BuildException
                     | JavacException
+                    | GroovyCompileException
                     | ManifestGenerationException
                     | PackageException
                     | ResourceCopyException
