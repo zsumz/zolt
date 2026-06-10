@@ -140,6 +140,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.TreeCommand.class,
                 ZoltCli.WhyCommand.class,
                 ZoltCli.ConflictsCommand.class,
+                ZoltCli.ExplainCommand.class,
                 ZoltCli.ClasspathCommand.class,
                 ZoltCli.IdeCommand.class,
                 ZoltCli.QuarkusCommand.class,
@@ -700,6 +701,62 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
+        }
+    }
+
+    @Command(
+            name = "explain",
+            mixinStandardHelpOptions = true,
+            description = "Audit a Maven or Gradle project for future Zolt migration.")
+    public static final class ExplainCommand implements Callable<Integer> {
+        enum Format {
+            TEXT,
+            JSON
+        }
+
+        enum Source {
+            AUTO,
+            MAVEN,
+            GRADLE
+        }
+
+        @Option(names = "--format", description = "Output format: text or json.")
+        private Format format = Format.TEXT;
+
+        @Option(names = "--source", description = "Project source type: auto, maven, or gradle.")
+        private Source source = Source.AUTO;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public Integer call() {
+            Path root = workingDirectory.toAbsolutePath().normalize();
+            if (format == Format.JSON) {
+                spec.commandLine().getOut().println("""
+                        {"schemaVersion":1,"command":"explain","status":"not-implemented","source":"%s","root":"%s","message":"zolt explain is a future migration-audit command. It will inspect Maven and Gradle metadata statically without executing Maven or Gradle.","nextStep":"Track implementation in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md."}
+                        """.formatted(source.name().toLowerCase(), jsonEscape(root.toString())).stripTrailing());
+                return 1;
+            }
+            spec.commandLine().getOut().println("""
+                    zolt explain is not implemented yet.
+
+                    Planned behavior:
+                      - audit Maven and Gradle project metadata statically
+                      - report what Zolt can build, test, package, and cache
+                      - report non-determinism and migration blockers
+                      - emit deterministic text or JSON reports
+
+                    This command will not execute Maven or Gradle and will not create compatibility mode.
+
+                    Requested source: %s
+                    Project root: %s
+                    Track this work in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md.
+                    """.formatted(source.name().toLowerCase(), root).stripTrailing());
+            return 1;
         }
     }
 
@@ -2253,6 +2310,30 @@ public final class ZoltCli implements Runnable {
     private static void printAndFlush(CommandSpec spec, String output) {
         spec.commandLine().getOut().print(output);
         spec.commandLine().getOut().flush();
+    }
+
+    private static String jsonEscape(String value) {
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (character < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        escaped.append(character);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 
     private static Optional<PackageMode> packageModeOverride(String value) {
