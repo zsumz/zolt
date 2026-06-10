@@ -317,7 +317,10 @@ public final class IdeModelJsonWriter {
                 stringField(json, level + 2, "coordinate", dependency.coordinate(), true);
                 stringField(json, level + 2, "version", dependency.version(), true);
                 field(json, level + 2, "managed", dependency.managed(), true);
-                stringField(json, level + 2, "workspace", dependency.workspace(), false);
+                stringField(json, level + 2, "workspace", dependency.workspace(), true);
+                field(json, level + 2, "optional", dependency.optional(), true);
+                field(json, level + 2, "publishOnly", dependency.publishOnly(), true);
+                stringArrayField(json, level + 2, "exclusions", dependency.exclusions(), false);
                 indent(json, level + 1).append("}");
                 if (index < values.size() - 1) {
                     json.append(',');

@@ -244,7 +244,7 @@ public final class DependencyGraphTraverser {
             return new TraversalItem(
                     Optional.empty(),
                     request,
-                    List.of(),
+                    request.exclusions(),
                     DependencyTraversalDecision.include("direct dependency"));
         }
 

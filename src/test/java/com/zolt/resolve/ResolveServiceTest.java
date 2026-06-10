@@ -13,6 +13,8 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.DependencyExclusionSpec;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -131,6 +133,33 @@ final class ResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "app")) && lockPackage.direct()));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib")) && !lockPackage.direct()));
+    }
+
+    @Test
+    void directDependencyMetadataExclusionsReachResolverRequests() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        ProjectConfig config = config().withDependencyMetadata(Map.of(
+                DependencyMetadata.key("dependencies", "com.example:app"),
+                new DependencyMetadata(
+                        "dependencies",
+                        "com.example:app",
+                        "1.0.0",
+                        false,
+                        null,
+                        false,
+                        false,
+                        List.of(new DependencyExclusionSpec("com.example", "lib")))));
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+
+        assertEquals(1, result.resolvedCount());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "app"))));
+        assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "lib"))));
     }
 
     @Test

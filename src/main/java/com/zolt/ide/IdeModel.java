@@ -126,7 +126,21 @@ public record IdeModel(
             String coordinate,
             String version,
             boolean managed,
-            String workspace) {
+            String workspace,
+            boolean optional,
+            boolean publishOnly,
+            List<String> exclusions) {
+        public DependencyDeclaration {
+            exclusions = List.copyOf(exclusions);
+        }
+
+        public DependencyDeclaration(
+                String coordinate,
+                String version,
+                boolean managed,
+                String workspace) {
+            this(coordinate, version, managed, workspace, false, false, List.of());
+        }
     }
 
     public record ClasspathInfo(

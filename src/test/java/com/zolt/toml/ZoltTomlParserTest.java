@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.QuarkusPackageMode;
@@ -283,8 +284,41 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [api.dependencies].com.acme:contract in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member.",
+                "Invalid value for [api.dependencies].com.acme:contract in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
+    }
+
+    @Test
+    void parsesDependencyMetadata() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "library"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:core" = { version = "1.0.0", optional = true, exclusions = [{ group = "com.example", artifact = "legacy-logging" }] }
+                "com.example:publish-helper" = { version = "2.0.0", publishOnly = true }
+                "com.example:managed-publish" = { publishOnly = true }
+                """);
+
+        DependencyMetadata core = config.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "com.example:core"));
+        DependencyMetadata publish = config.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "com.example:publish-helper"));
+        DependencyMetadata managedPublish = config.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "com.example:managed-publish"));
+        assertEquals("1.0.0", config.dependencies().get("com.example:core"));
+        assertFalse(config.dependencies().containsKey("com.example:publish-helper"));
+        assertFalse(config.managedDependencies().contains("com.example:managed-publish"));
+        assertTrue(core.optional());
+        assertFalse(core.publishOnly());
+        assertEquals("com.example:legacy-logging", core.exclusions().getFirst().coordinate());
+        assertEquals("2.0.0", publish.version());
+        assertTrue(publish.publishOnly());
+        assertTrue(managedPublish.managed());
+        assertTrue(managedPublish.publishOnly());
     }
 
     @Test
@@ -669,7 +703,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version or {} for a platform-managed version.",
+                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version or {} for a platform-managed version. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 
@@ -936,7 +970,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member.",
+                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 

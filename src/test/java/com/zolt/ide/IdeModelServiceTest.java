@@ -305,7 +305,8 @@ final class IdeModelServiceTest {
                 "com.example:workspace-api" = { workspace = "modules/api" }
 
                 [dependencies]
-                "com.example:impl" = "1.0.0"
+                "com.example:impl" = { version = "1.0.0", optional = true, exclusions = [{ group = "com.example", artifact = "legacy-logging" }] }
+                "com.example:publish-helper" = { version = "2.0.0", publishOnly = true }
 
                 [runtime.dependencies]
                 "com.example:runtime-only" = {}
@@ -332,7 +333,23 @@ final class IdeModelServiceTest {
                         new IdeModel.DependencyDeclaration("com.example:workspace-api", null, false, "modules/api")),
                 model.dependencies().api());
         assertEquals(
-                List.of(new IdeModel.DependencyDeclaration("com.example:impl", "1.0.0", false, null)),
+                List.of(
+                        new IdeModel.DependencyDeclaration(
+                                "com.example:impl",
+                                "1.0.0",
+                                false,
+                                null,
+                                true,
+                                false,
+                                List.of("com.example:legacy-logging")),
+                        new IdeModel.DependencyDeclaration(
+                                "com.example:publish-helper",
+                                "2.0.0",
+                                false,
+                                null,
+                                false,
+                                true,
+                                List.of())),
                 model.dependencies().implementation());
         assertEquals(
                 List.of(new IdeModel.DependencyDeclaration("com.example:runtime-only", null, true, null)),
@@ -358,6 +375,8 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"provided\": ["));
         assertTrue(json.contains("\"dev\": ["));
         assertTrue(json.contains("\"coordinate\": \"com.example:workspace-api\""));
+        assertTrue(json.contains("\"publishOnly\": true"));
+        assertTrue(json.contains("\"exclusions\": ["));
         assertTrue(json.contains("\"workspace\": \"modules/api\""));
         assertTrue(json.contains("\"managed\": true"));
     }

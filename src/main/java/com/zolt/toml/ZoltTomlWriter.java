@@ -3,6 +3,8 @@ package com.zolt.toml;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.DependencyExclusionSpec;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.NativeSettings;
@@ -15,6 +17,7 @@ import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public final class ZoltTomlWriter {
     public ProjectConfig defaultApplicationConfig(String name, String group, String mainClass) {
@@ -52,44 +56,52 @@ public final class ZoltTomlWriter {
                 "api.dependencies",
                 config.apiDependencies(),
                 config.managedApiDependencies(),
-                config.workspaceApiDependencies());
+                config.workspaceApiDependencies(),
+                config.dependencyMetadata());
         writeDependencies(
                 toml,
                 "dependencies",
                 config.dependencies(),
                 config.managedDependencies(),
-                config.workspaceDependencies());
+                config.workspaceDependencies(),
+                config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "runtime.dependencies",
                 config.runtimeDependencies(),
-                config.managedRuntimeDependencies());
+                config.managedRuntimeDependencies(),
+                config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "provided.dependencies",
                 config.providedDependencies(),
-                config.managedProvidedDependencies());
+                config.managedProvidedDependencies(),
+                config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "dev.dependencies",
                 config.devDependencies(),
-                config.managedDevDependencies());
+                config.managedDevDependencies(),
+                config.dependencyMetadata());
         writeDependencies(
                 toml,
                 "test.dependencies",
                 config.testDependencies(),
                 config.managedTestDependencies(),
-                config.workspaceTestDependencies());
+                config.workspaceTestDependencies(),
+                config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "annotationProcessors",
                 config.annotationProcessors(),
-                config.managedAnnotationProcessors());
+                config.managedAnnotationProcessors(),
+                config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "test.annotationProcessors",
                 config.testAnnotationProcessors(),
-                config.managedTestAnnotationProcessors());
+                config.managedTestAnnotationProcessors(),
+                config.dependencyMetadata());
         writeTestSources(toml, config.build());
         writeBuild(toml, config.build());
         writeBuildMetadata(toml, config.build().metadata());
@@ -747,7 +759,124 @@ public final class ZoltTomlWriter {
                 config.nativeSettings(),
                 config.compilerSettings(),
                 config.packageSettings(),
-                config.frameworkSettings());
+                config.frameworkSettings(),
+                retainedDependencyMetadata(
+                        config.dependencyMetadata(),
+                        apiDependencies,
+                        managedApiDependencies,
+                        workspaceApiDependencies,
+                        dependencies,
+                        managedDependencies,
+                        workspaceDependencies,
+                        runtimeDependencies,
+                        managedRuntimeDependencies,
+                        providedDependencies,
+                        managedProvidedDependencies,
+                        devDependencies,
+                        managedDevDependencies,
+                        testDependencies,
+                        managedTestDependencies,
+                        workspaceTestDependencies,
+                        annotationProcessors,
+                        managedAnnotationProcessors,
+                        testAnnotationProcessors,
+                        managedTestAnnotationProcessors));
+    }
+
+    private static Map<String, DependencyMetadata> retainedDependencyMetadata(
+            Map<String, DependencyMetadata> metadata,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
+            Map<String, String> devDependencies,
+            Set<String> managedDevDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors) {
+        Map<String, DependencyMetadata> retained = new LinkedHashMap<>();
+        for (DependencyMetadata value : metadata.values()) {
+            if (value.publishOnly() || containsDependency(
+                    value.section(),
+                    value.coordinate(),
+                    apiDependencies,
+                    managedApiDependencies,
+                    workspaceApiDependencies,
+                    dependencies,
+                    managedDependencies,
+                    workspaceDependencies,
+                    runtimeDependencies,
+                    managedRuntimeDependencies,
+                    providedDependencies,
+                    managedProvidedDependencies,
+                    devDependencies,
+                    managedDevDependencies,
+                    testDependencies,
+                    managedTestDependencies,
+                    workspaceTestDependencies,
+                    annotationProcessors,
+                    managedAnnotationProcessors,
+                    testAnnotationProcessors,
+                    managedTestAnnotationProcessors)) {
+                retained.put(DependencyMetadata.key(value.section(), value.coordinate()), value);
+            }
+        }
+        return retained;
+    }
+
+    private static boolean containsDependency(
+            String section,
+            String coordinate,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
+            Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
+            Map<String, String> devDependencies,
+            Set<String> managedDevDependencies,
+            Map<String, String> testDependencies,
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors) {
+        return switch (section) {
+            case "api.dependencies" -> contains(apiDependencies, managedApiDependencies, workspaceApiDependencies, coordinate);
+            case "dependencies" -> contains(dependencies, managedDependencies, workspaceDependencies, coordinate);
+            case "runtime.dependencies" -> contains(runtimeDependencies, managedRuntimeDependencies, Map.of(), coordinate);
+            case "provided.dependencies" -> contains(providedDependencies, managedProvidedDependencies, Map.of(), coordinate);
+            case "dev.dependencies" -> contains(devDependencies, managedDevDependencies, Map.of(), coordinate);
+            case "test.dependencies" -> contains(testDependencies, managedTestDependencies, workspaceTestDependencies, coordinate);
+            case "annotationProcessors" -> contains(annotationProcessors, managedAnnotationProcessors, Map.of(), coordinate);
+            case "test.annotationProcessors" -> contains(testAnnotationProcessors, managedTestAnnotationProcessors, Map.of(), coordinate);
+            default -> false;
+        };
+    }
+
+    private static boolean contains(
+            Map<String, String> versioned,
+            Set<String> managed,
+            Map<String, String> workspace,
+            String coordinate) {
+        return versioned.containsKey(coordinate)
+                || managed.contains(coordinate)
+                || workspace.containsKey(coordinate);
     }
 
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
@@ -914,20 +1043,16 @@ public final class ZoltTomlWriter {
             String section,
             Map<String, String> versioned,
             Set<String> managed,
-            Map<String, String> workspace) {
+            Map<String, String> workspace,
+            Map<String, DependencyMetadata> dependencyMetadata) {
         toml.append('[').append(section).append("]\n");
-        for (String coordinate : sortedCoordinates(versioned, managed, workspace)) {
+        for (String coordinate : sortedCoordinates(versioned, managed, workspace, dependencyMetadata, section)) {
             toml.append(quote(coordinate)).append(" = ");
-            String workspacePath = workspace.get(coordinate);
-            if (workspacePath != null) {
-                toml.append("{ workspace = ").append(quote(workspacePath)).append(" }");
+            DependencyMetadata metadata = dependencyMetadata.get(DependencyMetadata.key(section, coordinate));
+            if (metadata != null && (!metadata.emptyMetadata() || metadata.publishOnly())) {
+                writeDependencyMetadata(toml, coordinate, versioned, managed, workspace, metadata);
             } else {
-                String version = versioned.get(coordinate);
-                if (version == null) {
-                    toml.append("{}");
-                } else {
-                    toml.append(quote(version));
-                }
+                writeSimpleDependency(toml, coordinate, versioned, workspace);
             }
             toml.append('\n');
         }
@@ -938,11 +1063,12 @@ public final class ZoltTomlWriter {
             StringBuilder toml,
             String section,
             Map<String, String> versioned,
-            Set<String> managed) {
-        if (versioned.isEmpty() && managed.isEmpty()) {
+            Set<String> managed,
+            Map<String, DependencyMetadata> dependencyMetadata) {
+        if (versioned.isEmpty() && managed.isEmpty() && !hasDependencyMetadata(dependencyMetadata, section)) {
             return;
         }
-        writeDependencies(toml, section, versioned, managed, Map.of());
+        writeDependencies(toml, section, versioned, managed, Map.of(), dependencyMetadata);
     }
 
     private static void writeOptionalDependencies(
@@ -950,11 +1076,77 @@ public final class ZoltTomlWriter {
             String section,
             Map<String, String> versioned,
             Set<String> managed,
-            Map<String, String> workspace) {
-        if (versioned.isEmpty() && managed.isEmpty() && workspace.isEmpty()) {
+            Map<String, String> workspace,
+            Map<String, DependencyMetadata> dependencyMetadata) {
+        if (versioned.isEmpty()
+                && managed.isEmpty()
+                && workspace.isEmpty()
+                && !hasDependencyMetadata(dependencyMetadata, section)) {
             return;
         }
-        writeDependencies(toml, section, versioned, managed, workspace);
+        writeDependencies(toml, section, versioned, managed, workspace, dependencyMetadata);
+    }
+
+    private static void writeSimpleDependency(
+            StringBuilder toml,
+            String coordinate,
+            Map<String, String> versioned,
+            Map<String, String> workspace) {
+        String workspacePath = workspace.get(coordinate);
+        if (workspacePath != null) {
+            toml.append("{ workspace = ").append(quote(workspacePath)).append(" }");
+            return;
+        }
+        String version = versioned.get(coordinate);
+        if (version == null) {
+            toml.append("{}");
+        } else {
+            toml.append(quote(version));
+        }
+    }
+
+    private static void writeDependencyMetadata(
+            StringBuilder toml,
+            String coordinate,
+            Map<String, String> versioned,
+            Set<String> managed,
+            Map<String, String> workspace,
+            DependencyMetadata metadata) {
+        List<String> parts = new ArrayList<>();
+        String version = metadata.version() == null ? versioned.get(coordinate) : metadata.version();
+        String workspacePath = metadata.workspace() == null ? workspace.get(coordinate) : metadata.workspace();
+        boolean managedDependency = metadata.managed() || managed.contains(coordinate);
+        if (version != null) {
+            parts.add("version = " + quote(version));
+        } else if (workspacePath != null) {
+            parts.add("workspace = " + quote(workspacePath));
+        } else if (!managedDependency) {
+            parts.add("version = " + quote(""));
+        }
+        if (metadata.optional()) {
+            parts.add("optional = true");
+        }
+        if (metadata.publishOnly()) {
+            parts.add("publishOnly = true");
+        }
+        if (!metadata.exclusions().isEmpty()) {
+            parts.add("exclusions = [" + exclusions(metadata.exclusions()) + "]");
+        }
+        toml.append("{ ").append(String.join(", ", parts)).append(" }");
+    }
+
+    private static String exclusions(List<DependencyExclusionSpec> exclusions) {
+        return exclusions.stream()
+                .map(exclusion -> "{ group = "
+                        + quote(exclusion.group())
+                        + ", artifact = "
+                        + quote(exclusion.artifact())
+                        + " }")
+                .collect(Collectors.joining(", "));
+    }
+
+    private static boolean hasDependencyMetadata(Map<String, DependencyMetadata> dependencyMetadata, String section) {
+        return dependencyMetadata.values().stream().anyMatch(metadata -> metadata.section().equals(section));
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
@@ -1007,11 +1199,17 @@ public final class ZoltTomlWriter {
     private static Set<String> sortedCoordinates(
             Map<String, String> versioned,
             Set<String> managed,
-            Map<String, String> workspace) {
+            Map<String, String> workspace,
+            Map<String, DependencyMetadata> dependencyMetadata,
+            String section) {
         TreeSet<String> coordinates = new TreeSet<>();
         coordinates.addAll(versioned.keySet());
         coordinates.addAll(managed);
         coordinates.addAll(workspace.keySet());
+        dependencyMetadata.values().stream()
+                .filter(metadata -> metadata.section().equals(section))
+                .map(DependencyMetadata::coordinate)
+                .forEach(coordinates::add);
         return coordinates;
     }
 

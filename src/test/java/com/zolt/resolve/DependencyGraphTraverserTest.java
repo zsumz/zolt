@@ -142,6 +142,31 @@ final class DependencyGraphTraverserTest {
     }
 
     @Test
+    void directRequestExclusionAppliesOnlyThroughDeclaringEdge() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependency("com.example", "shared", "1.0.0"),
+                dependency("com.example", "excluded", "1.0.0"))));
+        source.put("com.example:other:1.0.0", pom("com.example", "other", "1.0.0", List.of(
+                dependency("com.example", "excluded", "1.0.0"))));
+        source.put("com.example:shared:1.0.0", pom("com.example", "shared", "1.0.0", List.of()));
+        source.put("com.example:excluded:1.0.0", pom("com.example", "excluded", "1.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(source).traverse(List.of(
+                directWithExclusion("com.example", "root", "1.0.0", "com.example", "excluded"),
+                direct("com.example", "other", "1.0.0")));
+
+        assertEquals(List.of(
+                "com.example:other:1.0.0",
+                "com.example:root:1.0.0",
+                "com.example:excluded:1.0.0",
+                "com.example:shared:1.0.0"), nodeStrings(graph));
+        assertEquals(List.of(
+                "com.example:other:1.0.0->com.example:excluded:1.0.0",
+                "com.example:root:1.0.0->com.example:shared:1.0.0"), edgeStrings(graph));
+    }
+
+    @Test
     void skipsTransitiveTestAndProvidedDependenciesFromMainGraph() {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
         source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
@@ -263,6 +288,20 @@ final class DependencyGraphTraverserTest {
 
     private static DependencyRequest direct(String groupId, String artifactId, String version) {
         return new DependencyRequest(new PackageId(groupId, artifactId), version, DependencyScope.COMPILE, RequestOrigin.DIRECT);
+    }
+
+    private static DependencyRequest directWithExclusion(
+            String groupId,
+            String artifactId,
+            String version,
+            String excludedGroupId,
+            String excludedArtifactId) {
+        return new DependencyRequest(
+                new PackageId(groupId, artifactId),
+                version,
+                DependencyScope.COMPILE,
+                RequestOrigin.DIRECT,
+                List.of(new DependencyExclusion(excludedGroupId, excludedArtifactId)));
     }
 
     private static DependencyRequest directTest(String groupId, String artifactId, String version) {

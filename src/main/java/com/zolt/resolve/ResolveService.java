@@ -16,6 +16,7 @@ import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusArtifactKey;
@@ -190,143 +191,180 @@ public final class ResolveService {
         List<DependencyRequest> requests = new ArrayList<>();
         for (Map.Entry<String, String> dependency : config.apiDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "api.dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.COMPILE,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.COMPILE));
         }
         for (String dependency : config.managedApiDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "api.dependencies",
                     packageId,
                     managedVersion("api.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.COMPILE,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.COMPILE));
         }
         for (Map.Entry<String, String> dependency : config.dependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.COMPILE,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.COMPILE));
         }
         for (String dependency : config.managedDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "dependencies",
                     packageId,
                     managedVersion("dependencies", packageId, projectManagedVersions),
-                    DependencyScope.COMPILE,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.COMPILE));
         }
         for (Map.Entry<String, String> dependency : config.runtimeDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "runtime.dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.RUNTIME,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.RUNTIME));
         }
         for (String dependency : config.managedRuntimeDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "runtime.dependencies",
                     packageId,
                     managedVersion("runtime.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.RUNTIME,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.RUNTIME));
         }
         for (Map.Entry<String, String> dependency : config.providedDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "provided.dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.PROVIDED,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.PROVIDED));
         }
         for (String dependency : config.managedProvidedDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "provided.dependencies",
                     packageId,
                     managedVersion("provided.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.PROVIDED,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.PROVIDED));
         }
         for (Map.Entry<String, String> dependency : config.devDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "dev.dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.DEV,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.DEV));
         }
         for (String dependency : config.managedDevDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "dev.dependencies",
                     packageId,
                     managedVersion("dev.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.DEV,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.DEV));
         }
         for (Map.Entry<String, String> dependency : config.testDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "test.dependencies",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.TEST,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.TEST));
         }
         for (String dependency : config.managedTestDependencies()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "test.dependencies",
                     packageId,
                     managedVersion("test.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.TEST,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.TEST));
         }
         for (Map.Entry<String, String> dependency : config.annotationProcessors().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "annotationProcessors",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.PROCESSOR,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.PROCESSOR));
         }
         for (String dependency : config.managedAnnotationProcessors()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "annotationProcessors",
                     packageId,
                     managedVersion("annotationProcessors", packageId, projectManagedVersions),
-                    DependencyScope.PROCESSOR,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.PROCESSOR));
         }
         for (Map.Entry<String, String> dependency : config.testAnnotationProcessors().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "test.annotationProcessors",
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    DependencyScope.TEST_PROCESSOR,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.TEST_PROCESSOR));
         }
         for (String dependency : config.managedTestAnnotationProcessors()) {
             Coordinate coordinate = coordinateParser.parse(dependency);
             PackageId packageId = PackageId.from(coordinate);
-            requests.add(new DependencyRequest(
+            requests.add(directDependencyRequest(
+                    config,
+                    "test.annotationProcessors",
                     packageId,
                     managedVersion("test.annotationProcessors", packageId, projectManagedVersions),
-                    DependencyScope.TEST_PROCESSOR,
-                    RequestOrigin.DIRECT));
+                    DependencyScope.TEST_PROCESSOR));
         }
         addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
         return requests;
+    }
+
+    private static DependencyRequest directDependencyRequest(
+            ProjectConfig config,
+            String section,
+            PackageId packageId,
+            String version,
+            DependencyScope scope) {
+        DependencyMetadata metadata = config.dependencyMetadata()
+                .get(DependencyMetadata.key(section, packageId.toString()));
+        if (metadata == null || metadata.exclusions().isEmpty()) {
+            return new DependencyRequest(packageId, version, scope, RequestOrigin.DIRECT);
+        }
+        return new DependencyRequest(
+                packageId,
+                version,
+                scope,
+                RequestOrigin.DIRECT,
+                metadata.exclusions().stream()
+                        .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
+                        .toList());
     }
 
     private void addTestToolRequests(

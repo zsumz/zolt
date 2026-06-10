@@ -33,7 +33,8 @@ public record ProjectConfig(
         NativeSettings nativeSettings,
         CompilerSettings compilerSettings,
         PackageSettings packageSettings,
-        FrameworkSettings frameworkSettings) {
+        FrameworkSettings frameworkSettings,
+        Map<String, DependencyMetadata> dependencyMetadata) {
     public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
 
     public ProjectConfig {
@@ -62,6 +63,7 @@ public record ProjectConfig(
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
         packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
         frameworkSettings = frameworkSettings == null ? FrameworkSettings.defaults() : frameworkSettings;
+        dependencyMetadata = orderedMetadataMap(dependencyMetadata);
     }
 
     public ProjectConfig(
@@ -118,7 +120,8 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
-                FrameworkSettings.defaults());
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -173,7 +176,9 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                PackageSettings.defaults());
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -226,7 +231,9 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                PackageSettings.defaults());
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -277,7 +284,8 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
-                FrameworkSettings.defaults());
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -320,7 +328,10 @@ public record ProjectConfig(
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                compilerSettings);
+                compilerSettings,
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -341,17 +352,31 @@ public record ProjectConfig(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
+                Map.of(),
                 annotationProcessors,
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                CompilerSettings.defaults());
+                CompilerSettings.defaults(),
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -395,7 +420,10 @@ public record ProjectConfig(
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                CompilerSettings.defaults());
+                CompilerSettings.defaults(),
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -422,6 +450,8 @@ public record ProjectConfig(
                 Set.of(),
                 Map.of(),
                 Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 Map.of(),
@@ -431,7 +461,10 @@ public record ProjectConfig(
                 Set.of(),
                 build,
                 nativeSettings,
-                CompilerSettings.defaults());
+                CompilerSettings.defaults(),
+                PackageSettings.defaults(),
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
     public ProjectConfig(
@@ -490,6 +523,13 @@ public record ProjectConfig(
         return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 
+    private static Map<String, DependencyMetadata> orderedMetadataMap(Map<String, DependencyMetadata> values) {
+        if (values == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
     public ProjectConfig withBuildSettings(BuildSettings build) {
         return new ProjectConfig(
                 project,
@@ -518,7 +558,8 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
-                frameworkSettings);
+                frameworkSettings,
+                dependencyMetadata);
     }
 
     public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
@@ -549,7 +590,8 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
-                frameworkSettings);
+                frameworkSettings,
+                dependencyMetadata);
     }
 
     public ProjectConfig withFrameworkSettings(FrameworkSettings frameworkSettings) {
@@ -580,6 +622,39 @@ public record ProjectConfig(
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
-                frameworkSettings);
+                frameworkSettings,
+                dependencyMetadata);
+    }
+
+    public ProjectConfig withDependencyMetadata(Map<String, DependencyMetadata> dependencyMetadata) {
+        return new ProjectConfig(
+                project,
+                repositories,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings,
+                frameworkSettings,
+                dependencyMetadata);
     }
 }
