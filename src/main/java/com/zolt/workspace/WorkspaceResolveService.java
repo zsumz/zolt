@@ -156,6 +156,7 @@ public final class WorkspaceResolveService {
                 config.managedAnnotationProcessors(),
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
+                config.dependencyPolicy(),
                 config.build(),
                 config.nativeSettings(),
                 config.compilerSettings(),

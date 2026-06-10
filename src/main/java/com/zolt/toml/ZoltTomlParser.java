@@ -3,8 +3,12 @@ package com.zolt.toml;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.DependencyConstraint;
+import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.project.DependencyPolicyExclusion;
+import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
@@ -39,6 +43,8 @@ public final class ZoltTomlParser {
             "repositories",
             "repositoryCredentials",
             "platforms",
+            "dependencyPolicy",
+            "dependencyConstraints",
             "api",
             "dependencies",
             "runtime",
@@ -59,6 +65,9 @@ public final class ZoltTomlParser {
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
     private static final Set<String> REPOSITORY_KEYS = Set.of("url", "credentials");
     private static final Set<String> REPOSITORY_CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv");
+    private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude");
+    private static final Set<String> DEPENDENCY_POLICY_EXCLUSION_KEYS = Set.of("group", "artifact", "reason");
+    private static final Set<String> DEPENDENCY_CONSTRAINT_KEYS = Set.of("version", "kind", "reason");
     private static final Set<String> GENERATED_KEYS = Set.of("main", "test");
     private static final Set<String> GENERATED_SOURCE_KEYS =
             Set.of("kind", "language", "output", "inputs", "required", "clean");
@@ -141,6 +150,9 @@ public final class ZoltTomlParser {
         validateRepositoryCredentialReferences(repositorySettings, repositoryCredentials);
 
         Map<String, String> platforms = stringMap(optionalTable(result, "platforms"), "platforms");
+        DependencyPolicySettings dependencyPolicy = dependencyPolicy(
+                optionalTable(result, "dependencyPolicy"),
+                optionalTable(result, "dependencyConstraints"));
         Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
 
         TomlTable apiTable = optionalTable(result, "api");
@@ -252,6 +264,7 @@ public final class ZoltTomlParser {
                 annotationProcessors.managed(),
                 testAnnotationProcessors.versioned(),
                 testAnnotationProcessors.managed(),
+                dependencyPolicy,
                 build,
                 nativeSettings,
                 compilerSettings,
@@ -701,6 +714,111 @@ public final class ZoltTomlParser {
                                 + credentialId.orElseThrow()
                                 + "] is not defined.");
             }
+        }
+    }
+
+    private static DependencyPolicySettings dependencyPolicy(
+            TomlTable policyTable,
+            TomlTable constraintsTable) {
+        List<DependencyPolicyExclusion> exclusions = dependencyPolicyExclusions(policyTable);
+        Map<String, DependencyConstraint> constraints = dependencyConstraints(constraintsTable);
+        if (exclusions.isEmpty() && constraints.isEmpty()) {
+            return DependencyPolicySettings.defaults();
+        }
+        return new DependencyPolicySettings(exclusions, constraints);
+    }
+
+    private static List<DependencyPolicyExclusion> dependencyPolicyExclusions(TomlTable policyTable) {
+        if (policyTable == null) {
+            return List.of();
+        }
+        validateKeys("dependencyPolicy", policyTable, DEPENDENCY_POLICY_KEYS);
+        Object rawExclusions = policyTable.get(List.of("exclude"));
+        if (rawExclusions == null) {
+            return List.of();
+        }
+        if (!(rawExclusions instanceof TomlArray array)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [dependencyPolicy].exclude in zolt.toml. Use an array of { group, artifact, reason } tables.");
+        }
+        List<DependencyPolicyExclusion> exclusions = new ArrayList<>();
+        for (int index = 0; index < array.size(); index++) {
+            TomlTable exclusion = array.getTable(index);
+            if (exclusion == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [dependencyPolicy].exclude[" + index + "] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.");
+            }
+            String section = "dependencyPolicy.exclude[" + index + "]";
+            validateKeys(section, exclusion, DEPENDENCY_POLICY_EXCLUSION_KEYS);
+            exclusions.add(new DependencyPolicyExclusion(
+                    requiredString(exclusion, section, "group"),
+                    requiredString(exclusion, section, "artifact"),
+                    optionalString(exclusion, section, "reason")));
+        }
+        return List.copyOf(exclusions);
+    }
+
+    private static Map<String, DependencyConstraint> dependencyConstraints(TomlTable constraintsTable) {
+        if (constraintsTable == null) {
+            return Map.of();
+        }
+        Map<String, DependencyConstraint> constraints = new LinkedHashMap<>();
+        for (String coordinate : constraintsTable.keySet()) {
+            validatePackageCoordinate("dependencyConstraints", coordinate);
+            TomlTable constraintTable = constraintsTable.getTable(List.of(coordinate));
+            if (constraintTable == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [dependencyConstraints]."
+                                + coordinate
+                                + " in zolt.toml. Use { version = \"...\", kind = \"strict\" }.");
+            }
+            validateKeys("dependencyConstraints." + coordinate, constraintTable, DEPENDENCY_CONSTRAINT_KEYS);
+            String kindValue = stringOrDefault(
+                    constraintTable,
+                    "dependencyConstraints." + coordinate,
+                    "kind",
+                    DependencyConstraintKind.STRICT.configValue());
+            DependencyConstraintKind kind = DependencyConstraintKind.fromConfigValue(kindValue)
+                    .orElseThrow(() -> new ZoltConfigException(
+                            "Unsupported dependency constraint kind `"
+                                    + kindValue
+                                    + "` in zolt.toml. Supported dependency constraint kinds are: "
+                                    + DependencyConstraintKind.supportedValues()
+                                    + "."));
+            constraints.put(coordinate, new DependencyConstraint(
+                    coordinate,
+                    requiredString(constraintTable, "dependencyConstraints." + coordinate, "version"),
+                    kind,
+                    optionalString(constraintTable, "dependencyConstraints." + coordinate, "reason")));
+        }
+        return constraints;
+    }
+
+    private static void validatePackageCoordinate(String section, String coordinate) {
+        if (coordinate == null || coordinate.isBlank() || !coordinate.equals(coordinate.trim())) {
+            throw new ZoltConfigException(
+                    "Invalid coordinate in ["
+                            + section
+                            + "]. Use `group:artifact` without leading or trailing whitespace.");
+        }
+        for (int index = 0; index < coordinate.length(); index++) {
+            if (Character.isWhitespace(coordinate.charAt(index))) {
+                throw new ZoltConfigException(
+                        "Invalid coordinate `"
+                                + coordinate
+                                + "` in ["
+                                + section
+                                + "]. Use `group:artifact` without whitespace.");
+            }
+        }
+        String[] parts = coordinate.split(":", -1);
+        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+            throw new ZoltConfigException(
+                    "Invalid coordinate `"
+                            + coordinate
+                            + "` in ["
+                            + section
+                            + "]. Use `group:artifact`.");
         }
     }
 

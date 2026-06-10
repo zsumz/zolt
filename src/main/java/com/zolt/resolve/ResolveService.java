@@ -18,7 +18,10 @@ import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
 import com.zolt.maven.RepositoryAuthentication;
 import com.zolt.maven.RepositoryMissingArtifactException;
+import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.project.DependencyPolicyExclusion;
+import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
@@ -133,7 +136,9 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), offline);
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
-        List<DependencyRequest> directRequests = relocateDirectRequests(context, directRequests(config, managedVersions));
+        List<DependencyRequest> directRequests = directRequests(config, managedVersions);
+        validateDirectRequestsAllowed(config, directRequests);
+        directRequests = relocateDirectRequests(context, directRequests);
         ResolutionState initial = resolveGraph(context, directRequests);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         if (config.frameworkSettings().quarkus().enabled()) {
@@ -153,7 +158,7 @@ public final class ResolveService {
     }
 
     private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
-        DependencyGraphTraverser traverser = graphTraverserFactory.create(context);
+        DependencyGraphTraverser traverser = graphTraverserFactory.create(context, context.config.dependencyPolicy());
         long traversalStarted = System.nanoTime();
         ResolutionGraph graph = traverser.traverse(requests);
         context.addGraphTraversalNanos(elapsedSince(traversalStarted));
@@ -369,6 +374,31 @@ public final class ResolveService {
                 metadata.exclusions().stream()
                         .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
                         .toList());
+    }
+
+    private static void validateDirectRequestsAllowed(
+            ProjectConfig config,
+            List<DependencyRequest> directRequests) {
+        List<DependencyPolicyExclusion> exclusions = config.dependencyPolicy().exclusions();
+        if (exclusions.isEmpty()) {
+            return;
+        }
+        for (DependencyRequest request : directRequests) {
+            for (DependencyPolicyExclusion exclusion : exclusions) {
+                if (exclusion.group().equals(request.packageId().groupId())
+                        && exclusion.artifact().equals(request.packageId().artifactId())) {
+                    String reason = exclusion.reason()
+                            .map(value -> " Reason: " + value + ".")
+                            .orElse("");
+                    throw new ResolveException(
+                            "Dependency policy excludes direct dependency `"
+                                    + request.packageId()
+                                    + "`."
+                                    + reason
+                                    + " Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry, then run `zolt resolve` again.");
+                }
+            }
+        }
     }
 
     private void addTestToolRequests(
@@ -660,7 +690,8 @@ public final class ResolveService {
                 jarArtifact ? Optional.empty() : Optional.of(artifact.repositoryPath()),
                 jarArtifact ? Optional.empty() : Optional.of(descriptor.extension()),
                 jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
-                dependenciesFor(node, graph));
+                dependenciesFor(node, graph),
+                policiesFor(node, selectedScope, context.config.dependencyPolicy().constraints()));
     }
 
     private static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
@@ -669,6 +700,23 @@ public final class ResolveService {
                 .map(edge -> edge.to().packageId() + ":" + edge.to().selectedVersion())
                 .sorted()
                 .toList();
+    }
+
+    private static List<String> policiesFor(
+            PackageNode node,
+            SelectedScope selectedScope,
+            Map<String, DependencyConstraint> constraints) {
+        if (selectedScope.direct()) {
+            return List.of();
+        }
+        DependencyConstraint constraint = constraints.get(node.packageId().toString());
+        if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
+            return List.of();
+        }
+        String policy = "strict-version: " + node.packageId() + " -> " + constraint.version();
+        return List.of(constraint.reason()
+                .map(reason -> policy + " (" + reason + ")")
+                .orElse(policy));
     }
 
     private static String sha256(byte[] bytes) {
@@ -785,7 +833,7 @@ public final class ResolveService {
 
     @FunctionalInterface
     interface DependencyGraphTraverserFactory {
-        DependencyGraphTraverser create(DependencyMetadataSource source);
+        DependencyGraphTraverser create(DependencyMetadataSource source, DependencyPolicySettings dependencyPolicy);
     }
 
     private final class RepositoryContext implements DependencyMetadataSource {

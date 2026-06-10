@@ -177,6 +177,72 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesDependencyPolicyAndConstraints() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [dependencyPolicy]
+                exclude = [
+                  { group = "commons-logging", artifact = "commons-logging", reason = "Use jcl-over-slf4j" },
+                  { group = "log4j", artifact = "log4j" }
+                ]
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { version = "10.1.40", kind = "strict", reason = "Container baseline" }
+                """);
+
+        assertEquals(2, config.dependencyPolicy().exclusions().size());
+        assertEquals("commons-logging", config.dependencyPolicy().exclusions().getFirst().group());
+        assertEquals(
+                "Use jcl-over-slf4j",
+                config.dependencyPolicy().exclusions().getFirst().reason().orElseThrow());
+        assertEquals(
+                "10.1.40",
+                config.dependencyPolicy()
+                        .constraints()
+                        .get("org.apache.tomcat.embed:tomcat-embed-core")
+                        .version());
+    }
+
+    @Test
+    void rejectsMalformedDependencyConstraintCoordinate() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [dependencyConstraints]
+                "org.example:bad:1.0.0" = { version = "2.0.0", kind = "strict" }
+                """));
+
+        assertTrue(exception.getMessage().contains("Invalid coordinate `org.example:bad:1.0.0`"));
+        assertTrue(exception.getMessage().contains("Use `group:artifact`"));
+    }
+
+    @Test
+    void rejectsUnsupportedDependencyConstraintKind() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [dependencyConstraints]
+                "org.example:library" = { version = "2.0.0", kind = "prefer" }
+                """));
+
+        assertTrue(exception.getMessage().contains("Unsupported dependency constraint kind `prefer`"));
+        assertTrue(exception.getMessage().contains("strict"));
+    }
+
+    @Test
     void parsesApiDependencies() {
         ProjectConfig config = parser.parse("""
                 [project]

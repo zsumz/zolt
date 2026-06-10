@@ -134,7 +134,8 @@ public final class ZoltLockfileReader {
                 optionalString(table, "workspaceOutput"),
                 stringArray(table, "dependencies"),
                 optionalStringArray(table, "members"),
-                optionalStringArray(table, "exportedBy"));
+                optionalStringArray(table, "exportedBy"),
+                optionalStringArray(table, "policies"));
     }
 
     private static List<LockConflict> conflicts(TomlArray conflictArray) {

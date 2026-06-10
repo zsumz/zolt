@@ -7,8 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.DependencyConstraint;
+import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.project.DependencyPolicyExclusion;
+import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
@@ -85,6 +89,7 @@ final class ZoltTomlWriterTest {
         assertEquals(original.managedAnnotationProcessors(), parsed.managedAnnotationProcessors());
         assertEquals(original.testAnnotationProcessors(), parsed.testAnnotationProcessors());
         assertEquals(original.managedTestAnnotationProcessors(), parsed.managedTestAnnotationProcessors());
+        assertEquals(original.dependencyPolicy(), parsed.dependencyPolicy());
         assertEquals(original.build(), parsed.build());
         assertEquals(original.compilerSettings(), parsed.compilerSettings());
         assertEquals(original.packageSettings(), parsed.packageSettings());
@@ -146,6 +151,32 @@ final class ZoltTomlWriterTest {
         assertEquals(
                 "ARTIFACTORY_ACCESS_TOKEN",
                 parsed.repositoryCredentials().get("company-artifactory").passwordEnv());
+    }
+
+    @Test
+    void writesDependencyPolicyAndConstraints() {
+        ProjectConfig config = writer.defaultApplicationConfig("enterprise", "com.acme", "com.acme.Main")
+                .withDependencyPolicy(new DependencyPolicySettings(
+                        List.of(new DependencyPolicyExclusion(
+                                "commons-logging",
+                                "commons-logging",
+                                Optional.of("Use jcl-over-slf4j"))),
+                        Map.of(
+                                "org.apache.tomcat.embed:tomcat-embed-core",
+                                new DependencyConstraint(
+                                        "org.apache.tomcat.embed:tomcat-embed-core",
+                                        "10.1.40",
+                                        DependencyConstraintKind.STRICT,
+                                        Optional.of("Container baseline")))));
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[dependencyPolicy]"));
+        assertTrue(toml.contains("exclude = [{ group = \"commons-logging\", artifact = \"commons-logging\", reason = \"Use jcl-over-slf4j\" }]"));
+        assertTrue(toml.contains("[dependencyConstraints]"));
+        assertTrue(toml.contains("\"org.apache.tomcat.embed:tomcat-embed-core\" = { version = \"10.1.40\", kind = \"strict\", reason = \"Container baseline\" }"));
+        assertEquals(config.dependencyPolicy(), parsed.dependencyPolicy());
     }
 
     @Test

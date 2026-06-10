@@ -22,7 +22,8 @@ public record LockPackage(
         Optional<String> workspaceOutput,
         List<String> dependencies,
         List<String> members,
-        List<String> exportedBy) {
+        List<String> exportedBy,
+        List<String> policies) {
     public LockPackage {
         jar = jar == null ? Optional.empty() : jar;
         pom = pom == null ? Optional.empty() : pom;
@@ -36,6 +37,7 @@ public record LockPackage(
         dependencies = List.copyOf(dependencies);
         members = members == null ? List.of() : List.copyOf(members);
         exportedBy = exportedBy == null ? List.of() : List.copyOf(exportedBy);
+        policies = policies == null ? List.of() : List.copyOf(policies);
     }
 
     public LockPackage(
@@ -66,7 +68,83 @@ public record LockPackage(
                 Optional.empty(),
                 dependencies,
                 List.of(),
+                List.of(),
                 List.of());
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            Optional<String> artifact,
+            Optional<String> artifactType,
+            Optional<String> artifactSha256,
+            Optional<String> workspace,
+            Optional<String> workspaceOutput,
+            List<String> dependencies,
+            List<String> members,
+            List<String> exportedBy) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                artifact,
+                artifactType,
+                artifactSha256,
+                workspace,
+                workspaceOutput,
+                dependencies,
+                members,
+                exportedBy,
+                List.of());
+    }
+
+    public LockPackage(
+            PackageId packageId,
+            String version,
+            String source,
+            DependencyScope scope,
+            boolean direct,
+            Optional<String> jar,
+            Optional<String> pom,
+            Optional<String> jarSha256,
+            Optional<String> pomSha256,
+            Optional<String> artifact,
+            Optional<String> artifactType,
+            Optional<String> artifactSha256,
+            List<String> dependencies,
+            List<String> policies) {
+        this(
+                packageId,
+                version,
+                source,
+                scope,
+                direct,
+                jar,
+                pom,
+                jarSha256,
+                pomSha256,
+                artifact,
+                artifactType,
+                artifactSha256,
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                List.of(),
+                List.of(),
+                policies);
     }
 
     public LockPackage(
@@ -100,6 +178,7 @@ public record LockPackage(
                 Optional.empty(),
                 dependencies,
                 List.of(),
+                List.of(),
                 List.of());
     }
 
@@ -132,6 +211,7 @@ public record LockPackage(
                 workspace,
                 workspaceOutput,
                 dependencies,
+                List.of(),
                 List.of(),
                 List.of());
     }
@@ -167,6 +247,7 @@ public record LockPackage(
                 workspaceOutput,
                 dependencies,
                 members,
+                List.of(),
                 List.of());
     }
 
@@ -202,6 +283,7 @@ public record LockPackage(
                 workspaceOutput,
                 dependencies,
                 members,
-                exportedBy);
+                exportedBy,
+                List.of());
     }
 }

@@ -4,6 +4,8 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.PomDependencyManager;
 import com.zolt.maven.RawPomDependency;
+import com.zolt.project.DependencyConstraint;
+import com.zolt.project.DependencyPolicySettings;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,25 +23,37 @@ public final class DependencyGraphTraverser {
     private final DependencyNormalizer normalizer;
     private final DependencyTraversalPolicy traversalPolicy;
     private final DependencyRelocator relocator;
+    private final List<DependencyExclusion> globalExclusions;
+    private final Map<PackageId, DependencyConstraint> strictConstraints;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
+        this(metadataSource, DependencyPolicySettings.defaults());
+    }
+
+    public DependencyGraphTraverser(
+            DependencyMetadataSource metadataSource,
+            DependencyPolicySettings dependencyPolicy) {
         this(
                 metadataSource,
                 new PomDependencyManager(),
                 new DependencyNormalizer(),
-                new DependencyTraversalPolicy());
+                new DependencyTraversalPolicy(),
+                dependencyPolicy);
     }
 
     DependencyGraphTraverser(
             DependencyMetadataSource metadataSource,
             PomDependencyManager dependencyManager,
             DependencyNormalizer normalizer,
-            DependencyTraversalPolicy traversalPolicy) {
+            DependencyTraversalPolicy traversalPolicy,
+            DependencyPolicySettings dependencyPolicy) {
         this.metadataSource = metadataSource;
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
         this.traversalPolicy = traversalPolicy;
         this.relocator = new DependencyRelocator(metadataSource);
+        this.globalExclusions = globalExclusions(dependencyPolicy);
+        this.strictConstraints = strictConstraints(dependencyPolicy);
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
@@ -84,7 +98,7 @@ public final class DependencyGraphTraverser {
 
                 for (NormalizedDependency dependency : dependencies) {
                     Coordinate candidate = coordinate(dependency.rawDependency());
-                    if (item.excludes(candidate)) {
+                    if (item.excludes(candidate) || globallyExcludes(candidate)) {
                         continue;
                     }
 
@@ -97,19 +111,25 @@ public final class DependencyGraphTraverser {
                         continue;
                     }
 
-                    String requestedVersion = dependency.rawDependency().version()
-                            .orElseThrow(() -> new GraphTraversalException(
-                                    "Dependency "
-                                            + dependency.rawDependency().groupId()
-                                            + ":"
-                                            + dependency.rawDependency().artifactId()
-                                            + " from "
-                                            + node.packageId()
-                                            + ":"
-                                            + node.selectedVersion()
-                                            + " does not declare or inherit a version."));
+                    PackageId packageId = new PackageId(
+                            dependency.rawDependency().groupId(),
+                            dependency.rawDependency().artifactId());
+                    DependencyConstraint constraint = strictConstraints.get(packageId);
+                    String requestedVersion = constraint == null
+                            ? dependency.rawDependency().version()
+                                    .orElseThrow(() -> new GraphTraversalException(
+                                            "Dependency "
+                                                    + dependency.rawDependency().groupId()
+                                                    + ":"
+                                                    + dependency.rawDependency().artifactId()
+                                                    + " from "
+                                                    + node.packageId()
+                                                    + ":"
+                                                    + node.selectedVersion()
+                                                    + " does not declare or inherit a version."))
+                            : constraint.version();
                     DependencyRequest transitiveRequest = new DependencyRequest(
-                            new PackageId(dependency.rawDependency().groupId(), dependency.rawDependency().artifactId()),
+                            packageId,
                             requestedVersion,
                             requestScope.orElseThrow(),
                             RequestOrigin.TRANSITIVE);
@@ -153,6 +173,33 @@ public final class DependencyGraphTraverser {
                 Optional.ofNullable(request.requestedVersion()));
     }
 
+    private static List<DependencyExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
+        if (dependencyPolicy == null) {
+            return List.of();
+        }
+        return dependencyPolicy.exclusions().stream()
+                .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
+                .toList();
+    }
+
+    private static Map<PackageId, DependencyConstraint> strictConstraints(DependencyPolicySettings dependencyPolicy) {
+        if (dependencyPolicy == null) {
+            return Map.of();
+        }
+        Map<PackageId, DependencyConstraint> constraints = new LinkedHashMap<>();
+        for (DependencyConstraint constraint : dependencyPolicy.constraints().values()) {
+            String[] parts = constraint.coordinate().split(":", -1);
+            if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+                throw new GraphTraversalException(
+                        "Invalid dependency constraint coordinate `"
+                                + constraint.coordinate()
+                                + "`. Use `group:artifact`.");
+            }
+            constraints.put(new PackageId(parts[0], parts[1]), constraint);
+        }
+        return Map.copyOf(constraints);
+    }
+
     private static Optional<DependencyScope> transitiveScope(DependencyScope parentScope, DependencyScope dependencyScope) {
         if (dependencyScope == DependencyScope.TEST || dependencyScope == DependencyScope.PROVIDED) {
             return Optional.empty();
@@ -179,6 +226,10 @@ public final class DependencyGraphTraverser {
             return Optional.of(dependencyScope);
         }
         return Optional.empty();
+    }
+
+    private boolean globallyExcludes(Coordinate coordinate) {
+        return globalExclusions.stream().anyMatch(exclusion -> exclusion.matches(coordinate));
     }
 
     private static String requestSortKey(DependencyRequest request) {
