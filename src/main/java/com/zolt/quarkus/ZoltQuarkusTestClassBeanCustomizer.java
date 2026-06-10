@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.DotName;
@@ -23,6 +24,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
     private static final DotName QUARKUS_TEST = DotName.createSimple("io.quarkus.test.junit.QuarkusTest");
     private static final String ADDITIONAL_BEAN_BUILD_ITEM =
             "io.quarkus.arc.deployment.AdditionalBeanBuildItem";
+    private static final String APPLICATION_CLASS_PREDICATE_BUILD_ITEM =
+            "io.quarkus.deployment.builditem.ApplicationClassPredicateBuildItem";
     private static final String DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
 
@@ -42,6 +45,21 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             if (testClasses.isEmpty()) {
                 return;
             }
+            Optional<Class<? extends BuildItem>> applicationClassPredicateBuildItem =
+                    applicationClassPredicateBuildItemClass(builder);
+            applicationClassPredicateBuildItem.ifPresent(buildItemClass -> builder.addBuildStep(context -> {
+                        writeDiagnostic(
+                                "applicationClassPredicateStep.executed=true",
+                                "applicationClassPredicateStep.buildItemLoader="
+                                        + classLoaderName(buildItemClass.getClassLoader()),
+                                "applicationClassPredicateStep.mainOutputDirectory="
+                                        + ZoltQuarkusApplicationClassPredicate.normalizedMainOutputDirectory()
+                                                .map(Path::toString)
+                                                .orElse("<none>"));
+                        context.produce(applicationClassPredicateBuildItem(buildItemClass));
+                    })
+                    .produces(buildItemClass)
+                    .build());
             Optional<Class<? extends BuildItem>> additionalBeanBuildItem =
                     additionalBeanBuildItemClass(builder);
             builder.addBuildStep(context -> {
@@ -67,6 +85,30 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     .produces(buildItemClass)
                     .build());
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Class<? extends BuildItem>> applicationClassPredicateBuildItemClass(BuildChainBuilder builder) {
+        try {
+            ClassLoader classLoader = buildChainClassLoader(builder);
+            Class<?> buildItemClass = Class.forName(APPLICATION_CLASS_PREDICATE_BUILD_ITEM, false, classLoader);
+            if (!BuildItem.class.isAssignableFrom(buildItemClass)) {
+                writeDiagnostic(
+                        "applicationClassPredicateBuildItem.available=false",
+                        "applicationClassPredicateBuildItem.reason=not-build-item",
+                        "applicationClassPredicateBuildItem.loader=" + classLoaderName(buildItemClass.getClassLoader()));
+                return Optional.empty();
+            }
+            writeDiagnostic(
+                    "applicationClassPredicateBuildItem.available=true",
+                    "applicationClassPredicateBuildItem.loader=" + classLoaderName(buildItemClass.getClassLoader()));
+            return Optional.of((Class<? extends BuildItem>) buildItemClass);
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            writeDiagnostic(
+                    "applicationClassPredicateBuildItem.available=false",
+                    "applicationClassPredicateBuildItem.reason=" + exception.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -101,6 +143,18 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             return loader;
         }
         return builder.getClass().getClassLoader();
+    }
+
+    private static BuildItem applicationClassPredicateBuildItem(Class<? extends BuildItem> buildItemClass) {
+        try {
+            return buildItemClass
+                    .getConstructor(Predicate.class)
+                    .newInstance((Predicate<String>) ZoltQuarkusApplicationClassPredicate::test);
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            throw new IllegalStateException(
+                    "Could not produce Quarkus application-class predicate build item for Zolt output classes.",
+                    exception);
+        }
     }
 
     private static BuildItem additionalBeanBuildItem(
