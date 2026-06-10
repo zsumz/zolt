@@ -10,6 +10,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import io.quarkus.test.config.ConfigLauncherSession;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +89,22 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
         assertTrue(output.contains("generatedInvoker.runtimeClass=<unavailable: ClassNotFoundException>"));
         assertTrue(output.contains("failingClass=com.example.MissingResource"));
         assertTrue(output.contains("failing.runtimeClass=<unavailable: ClassNotFoundException>"));
+    }
+
+    @Test
+    void loadedClassLoaderReportsActualLoaderForReachableClasses() throws Exception {
+        Object launcher = programmaticLauncher(stream(new ByteArrayOutputStream()));
+        Method loadedClassLoader = launcher.getClass()
+                .getDeclaredMethod("loadedClassLoader", String.class, ClassLoader.class);
+        loadedClassLoader.setAccessible(true);
+
+        Optional<?> loader = (Optional<?>) loadedClassLoader.invoke(
+                launcher,
+                PassingTest.class.getName(),
+                QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader());
+
+        assertTrue(loader.isPresent());
+        assertEquals(PassingTest.class.getClassLoader(), loader.orElseThrow());
     }
 
     @Test

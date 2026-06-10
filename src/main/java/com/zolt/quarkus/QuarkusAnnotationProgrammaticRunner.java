@@ -262,6 +262,39 @@ public final class QuarkusAnnotationProgrammaticRunner {
             generatedInvokerClass(failure).ifPresent(className -> {
                 out.println("  generatedInvokerClass=" + className);
                 writeClassVisibility("generatedInvoker", className, quarkusRuntimeClassLoader);
+                loadedClassLoader(className, quarkusRuntimeClassLoader).ifPresent(classLoader -> {
+                    out.println("  generatedInvoker.loadedClassActualClassLoader=" + classLoaderName(classLoader));
+                    firstApplicationClass()
+                            .ifPresent(applicationClass -> writeAlternateClassVisibility(
+                                    "application.generatedInvokerLoader",
+                                    applicationClass,
+                                    classLoader));
+                    failingClass(failure)
+                            .ifPresent(failingClass -> writeAlternateClassVisibility(
+                                    "failing.generatedInvokerLoader",
+                                    failingClass,
+                                    classLoader));
+                });
+            });
+            runningApplicationClassLoader().ifPresent(classLoader -> {
+                out.println("  runningApplicationClassLoader=" + classLoaderName(classLoader));
+                if (classLoader != quarkusRuntimeClassLoader) {
+                    firstApplicationClass()
+                            .ifPresent(className -> writeAlternateClassVisibility(
+                                    "application.runningApplication",
+                                    className,
+                                    classLoader));
+                    failingClass(failure)
+                            .ifPresent(className -> writeAlternateClassVisibility(
+                                    "failing.runningApplication",
+                                    className,
+                                    classLoader));
+                    generatedInvokerClass(failure)
+                            .ifPresent(className -> writeAlternateClassVisibility(
+                                    "generatedInvoker.runningApplication",
+                                    className,
+                                    classLoader));
+                }
             });
         }
 
@@ -291,6 +324,51 @@ public final class QuarkusAnnotationProgrammaticRunner {
             if (systemClass != null && runtimeClass != null) {
                 out.println("  " + label + ".sameClassObject=" + (systemClass == runtimeClass));
             }
+        }
+
+        private Optional<ClassLoader> loadedClassLoader(String className, ClassLoader classLoader) {
+            try {
+                Class<?> loadedClass = Class.forName(className, false, classLoader);
+                return Optional.ofNullable(loadedClass.getClassLoader());
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return Optional.empty();
+            }
+        }
+
+        private void writeAlternateClassVisibility(
+                String label,
+                String className,
+                ClassLoader classLoader) {
+            out.println("  " + label + ".classLoader=" + classLoaderName(classLoader));
+            try {
+                Class<?> loadedClass = Class.forName(className, false, classLoader);
+                out.println("  " + label + ".loadedClassLoader=" + classLoaderName(loadedClass.getClassLoader()));
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                out.println("  " + label + ".loadedClass=<unavailable: "
+                        + exception.getClass().getSimpleName()
+                        + ">");
+            }
+        }
+
+        private Optional<ClassLoader> runningApplicationClassLoader() {
+            try {
+                Class<?> extensionClass = Class.forName("io.quarkus.test.junit.AbstractJvmQuarkusTestExtension");
+                Field field = extensionClass.getDeclaredField("runningQuarkusApplication");
+                field.setAccessible(true);
+                Object runningApplication = field.get(null);
+                if (runningApplication == null) {
+                    return Optional.empty();
+                }
+                Method getClassLoader = runningApplication.getClass().getMethod("getClassLoader");
+                getClassLoader.setAccessible(true);
+                Object classLoader = getClassLoader.invoke(runningApplication);
+                if (classLoader instanceof ClassLoader loader) {
+                    return Optional.of(loader);
+                }
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return Optional.empty();
+            }
+            return Optional.empty();
         }
 
         private Optional<String> firstApplicationClass() {
