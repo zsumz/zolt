@@ -50,6 +50,11 @@ public final class RunPackageService {
             ProjectConfig config,
             Path cacheRoot,
             List<String> arguments) {
+        if (config.packageSettings().mode() == PackageMode.WAR) {
+            throw new RunPackageException(
+                    "Package mode `war` creates a servlet container deployment artifact and cannot be run directly. "
+                            + "Deploy it to a servlet container, or use package mode `spring-boot-war` for java -jar.");
+        }
         String mainClass = config.project().main().orElseThrow(() -> new RunPackageException(
                 "No main class is configured. Add [project].main to zolt.toml to run a packaged application."));
         packageService.preparePackageToolingIfNeeded(projectDirectory, config, cacheRoot);
@@ -64,7 +69,8 @@ public final class RunPackageService {
             throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
 
-        if (packageResult.mode() == PackageMode.SPRING_BOOT) {
+        if (packageResult.mode() == PackageMode.SPRING_BOOT
+                || packageResult.mode() == PackageMode.SPRING_BOOT_WAR) {
             JavaRunResult javaRunResult = javaRunner.runJar(
                     jdkStatus.java().orElseThrow(),
                     packageResult.jarPath(),

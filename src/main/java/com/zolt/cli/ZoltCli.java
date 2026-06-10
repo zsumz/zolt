@@ -1532,7 +1532,7 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
         private List<String> memberGroups = List.of();
 
-        @Option(names = "--mode", description = "Package mode: thin, spring-boot, quarkus, or uber.")
+        @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
         private String mode;
 
         @Option(names = "--cwd", hidden = true)
@@ -1588,7 +1588,7 @@ public final class ZoltCli implements Runnable {
                         if (member.result().hasMainClass()) {
                             spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
                         }
-                        spec.commandLine().getOut().println("Wrote jar to " + member.result().jarPath());
+                        spec.commandLine().getOut().println("Wrote archive to " + member.result().jarPath());
                         for (PackageArtifact artifact : member.result().artifacts()) {
                             spec.commandLine().getOut().println(
                                     "Wrote "
@@ -1636,16 +1636,24 @@ public final class ZoltCli implements Runnable {
                     spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
                     if (result.mode() == PackageMode.SPRING_BOOT) {
                         spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
+                    } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
+                        spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot-war -- [args]");
                     } else if (result.mode() == PackageMode.QUARKUS) {
                         spec.commandLine().getOut().println("Run with Zolt: zolt run");
                     } else {
                         spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
                     }
+                } else if (result.mode() == PackageMode.WAR) {
+                    spec.commandLine().getOut().println("WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.");
                 } else {
                     spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
                 }
                 if (result.mode() == PackageMode.SPRING_BOOT) {
                     spec.commandLine().getOut().println("Spring Boot jar: dependencies are nested under BOOT-INF/lib.");
+                } else if (result.mode() == PackageMode.WAR) {
+                    spec.commandLine().getOut().println("WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.");
+                } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
+                    spec.commandLine().getOut().println("Spring Boot WAR: runtime dependencies are under WEB-INF/lib and provided dependencies are under WEB-INF/lib-provided.");
                 } else if (result.mode() == PackageMode.QUARKUS) {
                     spec.commandLine().getOut().println("Quarkus fast-jar: deploy the whole target/quarkus-app directory.");
                 } else {
@@ -1653,7 +1661,7 @@ public final class ZoltCli implements Runnable {
                     result.runtimeClasspathPath().ifPresent(path ->
                             spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
                 }
-                spec.commandLine().getOut().println("Wrote jar to " + result.jarPath());
+                spec.commandLine().getOut().println("Wrote archive to " + result.jarPath());
                 for (PackageArtifact artifact : result.artifacts()) {
                     spec.commandLine().getOut().println(
                             "Wrote "
@@ -1697,7 +1705,7 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
         private List<String> memberGroups = List.of();
 
-        @Option(names = "--mode", description = "Package mode: thin, spring-boot, quarkus, or uber.")
+        @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
         private String mode;
 
         @Option(names = "--cwd", hidden = true)
@@ -2563,11 +2571,15 @@ public final class ZoltCli implements Runnable {
         if (result.mode() == PackageMode.QUARKUS) {
             return "Packaged Quarkus fast-jar layout with " + result.entryCount() + " files";
         }
+        String extension = (result.mode() == PackageMode.WAR || result.mode() == PackageMode.SPRING_BOOT_WAR)
+                ? "war"
+                : "jar";
         return "Packaged "
                 + result.entryCount()
                 + " compiled files as "
                 + result.mode().configValue()
-                + " jar";
+                + " "
+                + extension;
     }
 
     private static ProjectConfig withPackageModeOverride(

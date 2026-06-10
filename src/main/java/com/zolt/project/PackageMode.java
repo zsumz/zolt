@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 public enum PackageMode {
     THIN("thin"),
     SPRING_BOOT("spring-boot"),
+    WAR("war"),
+    SPRING_BOOT_WAR("spring-boot-war"),
     QUARKUS("quarkus"),
     UBER("uber");
 

@@ -4033,7 +4033,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Thin jar: dependencies are not bundled."));
         assertTrue(result.stdout().contains(
                 "Wrote runtime classpath to " + projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
-        assertTrue(result.stdout().contains("Wrote jar to " + jarPath));
+        assertTrue(result.stdout().contains("Wrote archive to " + jarPath));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
         try (JarFile jar = new JarFile(jarPath.toFile())) {
@@ -4186,12 +4186,12 @@ final class ZoltCliTest {
     void packageRejectsUnknownModeOverride() {
         CommandResult result = execute(
                 "package",
-                "--mode", "war",
+                "--mode", "ear",
                 "--cwd", tempDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("Unsupported package mode `war`"));
-        assertTrue(result.stderr().contains("thin, spring-boot, quarkus, uber"));
+        assertTrue(result.stderr().contains("Unsupported package mode `ear`"));
+        assertTrue(result.stderr().contains("thin, spring-boot, war, spring-boot-war, quarkus, uber"));
     }
 
     @Test

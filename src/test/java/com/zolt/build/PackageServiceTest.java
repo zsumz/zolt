@@ -364,6 +364,194 @@ final class PackageServiceTest {
     }
 
     @Test
+    void packagesWarLayoutWithRuntimeDependenciesOnly() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path providedJar = cacheRoot.resolve("jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar");
+        Path devJar = cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar");
+        createJarWithEntry(runtimeJar, "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(providedJar, "jakarta/servlet/Servlet.class");
+        createJarWithEntry(devJar, "com/example/dev/DevTools.class");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "jakarta.servlet:jakarta.servlet-api"
+                version = "6.1.0"
+                source = "maven-central"
+                scope = "provided"
+                direct = true
+                jar = "jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        source("src/main/resources/application.properties", "name=@projectName@\n");
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withPackageSettings(new PackageSettings(PackageMode.WAR));
+        config = config.withBuildSettings(config.build().withResourceFiltering(resourceFilteringSettings()));
+
+        PackageResult result = packageService.packageJar(projectDir, config, cacheRoot);
+
+        assertEquals(PackageMode.WAR, result.mode());
+        assertEquals(projectDir.resolve("target/demo-0.1.0.war"), result.jarPath());
+        assertEquals(Optional.empty(), result.runtimeClasspathPath());
+        assertFalse(result.hasMainClass());
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertNotNull(jar.getEntry("META-INF/MANIFEST.MF"));
+            assertFalse(jar.getManifest().getMainAttributes().containsKey(Attributes.Name.MAIN_CLASS));
+            assertNotNull(jar.getEntry("WEB-INF/"));
+            assertNotNull(jar.getEntry("WEB-INF/classes/"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/"));
+            assertNotNull(jar.getEntry("WEB-INF/classes/com/example/Main.class"));
+            assertEquals("name=demo\n", readEntry(jar, "WEB-INF/classes/application.properties"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/runtime-lib-1.0.0.jar"));
+            assertEquals(JarEntry.STORED, jar.getEntry("WEB-INF/lib/runtime-lib-1.0.0.jar").getMethod());
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/jakarta.servlet-api-6.1.0.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/devtools-1.0.0.jar")));
+        }
+    }
+
+    @Test
+    void packagesSpringBootWarLayoutWithProvidedDependencies() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path springBootJar = cacheRoot.resolve("org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar");
+        Path loaderJar = cacheRoot.resolve(
+                "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Path providedJar = cacheRoot.resolve("org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar");
+        Path devJar = cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar");
+        createJarWithEntry(springBootJar, "org/springframework/boot/SpringApplication.class");
+        createJarWithEntry(loaderJar, "org/springframework/boot/loader/launch/WarLauncher.class");
+        createJarWithEntry(runtimeJar, "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(providedJar, "org/apache/catalina/startup/Tomcat.class");
+        createJarWithEntry(devJar, "com/example/dev/DevTools.class");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot"
+                version = "4.0.6"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot-loader"
+                version = "4.0.6"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.apache.tomcat.embed:tomcat-embed-core"
+                version = "10.1.40"
+                source = "maven-central"
+                scope = "provided"
+                direct = true
+                jar = "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR));
+
+        PackageResult result = packageService.packageJar(projectDir, config, cacheRoot);
+
+        assertEquals(PackageMode.SPRING_BOOT_WAR, result.mode());
+        assertEquals(projectDir.resolve("target/demo-0.1.0.war"), result.jarPath());
+        assertTrue(result.hasMainClass());
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            Attributes attributes = jar.getManifest().getMainAttributes();
+            assertEquals(
+                    "org.springframework.boot.loader.launch.WarLauncher",
+                    attributes.getValue(Attributes.Name.MAIN_CLASS));
+            assertEquals("com.example.Main", attributes.getValue("Start-Class"));
+            assertEquals("4.0.6", attributes.getValue("Spring-Boot-Version"));
+            assertEquals("WEB-INF/classes/", attributes.getValue("Spring-Boot-Classes"));
+            assertEquals("WEB-INF/lib/", attributes.getValue("Spring-Boot-Lib"));
+            assertEquals("WEB-INF/lib-provided/", attributes.getValue("Spring-Boot-Lib-Provided"));
+            assertNotNull(jar.getEntry("org/springframework/boot/loader/launch/WarLauncher.class"));
+            assertNotNull(jar.getEntry("WEB-INF/classes/com/example/Main.class"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/runtime-lib-1.0.0.jar"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/spring-boot-4.0.6.jar"));
+            assertNotNull(jar.getEntry("WEB-INF/lib-provided/tomcat-embed-core-10.1.40.jar"));
+            assertEquals(1, jar.stream()
+                    .filter(entry -> entry.getName().equals("WEB-INF/lib/runtime-lib-1.0.0.jar"))
+                    .count());
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/spring-boot-loader-4.0.6.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/devtools-1.0.0.jar")));
+        }
+    }
+
+    @Test
     void unsupportedUberPackageModeFailsBeforeWritingJar() throws IOException {
         writeLockfile();
         source("src/main/java/com/example/Main.java", """

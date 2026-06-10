@@ -16,20 +16,36 @@ public final class ManifestGenerator {
         return generate(config.project(), config.packageSettings().manifestAttributes());
     }
 
+    public GeneratedManifest generateWithoutMain(ProjectConfig config) {
+        return generate(config.project(), config.packageSettings().manifestAttributes(), false);
+    }
+
     public GeneratedManifest generate(ProjectMetadata project) {
         return generate(project, Map.of());
     }
 
     public GeneratedManifest generate(ProjectMetadata project, Map<String, String> manifestAttributes) {
+        return generate(project, manifestAttributes, true);
+    }
+
+    private GeneratedManifest generate(
+            ProjectMetadata project,
+            Map<String, String> manifestAttributes,
+            boolean includeMainClass) {
         Map<String, String> attributes = validateAttributes(manifestAttributes);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         writeAttribute(output, Attributes.Name.MANIFEST_VERSION.toString(), "1.0");
-        project.main().ifPresent(mainClass -> writeAttribute(output, Attributes.Name.MAIN_CLASS.toString(), mainClass));
+        if (includeMainClass) {
+            project.main().ifPresent(mainClass -> writeAttribute(output, Attributes.Name.MAIN_CLASS.toString(), mainClass));
+        }
         attributes.forEach((name, value) -> writeAttribute(output, name, value));
         output.write('\r');
         output.write('\n');
 
-        return new GeneratedManifest(GeneratedManifest.DEFAULT_PATH, output.toByteArray(), project.main());
+        return new GeneratedManifest(
+                GeneratedManifest.DEFAULT_PATH,
+                output.toByteArray(),
+                includeMainClass ? project.main() : java.util.Optional.empty());
     }
 
     private static Map<String, String> validateAttributes(Map<String, String> manifestAttributes) {

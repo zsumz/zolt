@@ -91,6 +91,13 @@ public final class WorkspaceRunPackageService {
         for (WorkspacePackageResult.MemberPackageResult memberPackage : packageResult.members()) {
             WorkspaceMember member = membersByPath.get(memberPackage.member());
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPackage.member());
+            if (memberPackage.result().mode() == PackageMode.WAR) {
+                throw new RunPackageException(
+                        "Workspace member `"
+                                + member.path()
+                                + "` packaged as `war`, which cannot be run directly. "
+                                + "Deploy it to a servlet container, or use package mode `spring-boot-war` for java -jar.");
+            }
             String mainClass = member.config().project().main().orElseThrow(() -> new RunPackageException(
                     "Workspace member `"
                             + member.path()
@@ -99,7 +106,8 @@ public final class WorkspaceRunPackageService {
             if (!jdkStatus.ok()) {
                 throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
             }
-            if (memberPackage.result().mode() == PackageMode.SPRING_BOOT) {
+            if (memberPackage.result().mode() == PackageMode.SPRING_BOOT
+                    || memberPackage.result().mode() == PackageMode.SPRING_BOOT_WAR) {
                 JavaRunResult javaRunResult = javaRunner.runJar(
                         jdkStatus.java().orElseThrow(),
                         memberPackage.result().jarPath(),

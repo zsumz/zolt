@@ -799,6 +799,34 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesWarPackageModes() {
+        ProjectConfig war = parser.parse("""
+                [project]
+                name = "webapp"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "war"
+                """);
+        ProjectConfig springBootWar = parser.parse("""
+                [project]
+                name = "boot-webapp"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "spring-boot-war"
+                """);
+
+        assertEquals(PackageMode.WAR, war.packageSettings().mode());
+        assertEquals(PackageMode.SPRING_BOOT_WAR, springBootWar.packageSettings().mode());
+    }
+
+
+    @Test
     void parsesQuarkusFrameworkSettings() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -882,11 +910,11 @@ final class ZoltTomlParserTest {
                         java = "21"
 
                         [package]
-                        mode = "war"
+                        mode = "ear"
                         """));
 
         assertEquals(
-                "Unsupported package mode `war` in zolt.toml. Supported package modes are: thin, spring-boot, quarkus, uber.",
+                "Unsupported package mode `ear` in zolt.toml. Supported package modes are: thin, spring-boot, war, spring-boot-war, quarkus, uber.",
                 exception.getMessage());
     }
 

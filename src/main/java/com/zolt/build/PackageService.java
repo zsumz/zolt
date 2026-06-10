@@ -9,6 +9,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusBuildAugmentationService;
+import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveService;
 import java.io.ByteArrayOutputStream;
@@ -38,9 +39,15 @@ public final class PackageService {
     private static final long DETERMINISTIC_ENTRY_TIME = 0L;
     private static final String BOOT_CLASSES_PREFIX = "BOOT-INF/classes/";
     private static final String BOOT_LIB_PREFIX = "BOOT-INF/lib/";
+    private static final String WEB_INF_PREFIX = "WEB-INF/";
+    private static final String WEB_INF_CLASSES_PREFIX = "WEB-INF/classes/";
+    private static final String WEB_INF_LIB_PREFIX = "WEB-INF/lib/";
+    private static final String WEB_INF_LIB_PROVIDED_PREFIX = "WEB-INF/lib-provided/";
     private static final String BOOT_LOADER_PREFIX = "org/springframework/boot/loader/";
     private static final String BOOT_LAUNCHER = "org.springframework.boot.loader.launch.JarLauncher";
+    private static final String BOOT_WAR_LAUNCHER = "org.springframework.boot.loader.launch.WarLauncher";
     private static final String LEGACY_BOOT_LAUNCHER = "org.springframework.boot.loader.JarLauncher";
+    private static final String LEGACY_BOOT_WAR_LAUNCHER = "org.springframework.boot.loader.WarLauncher";
     private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
             ".zolt-build-main.fingerprint",
             ".zolt-build-test.fingerprint");
@@ -96,7 +103,7 @@ public final class PackageService {
 
     public void preparePackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         Path projectRoot = projectRoot(projectDirectory);
-        if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
+        if (!isSpringBootArchive(config.packageSettings().mode())) {
             return;
         }
         Path lockfilePath = projectRoot.resolve("zolt.lock");
@@ -120,6 +127,10 @@ public final class PackageService {
         return !config.platforms().isEmpty()
                 || config.dependencies().containsKey(SPRING_BOOT_LOADER_PACKAGE.toString())
                 || config.apiDependencies().containsKey(SPRING_BOOT_LOADER_PACKAGE.toString());
+    }
+
+    private static boolean isSpringBootArchive(PackageMode mode) {
+        return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
     }
 
     public PackageResult packageJar(
@@ -205,6 +216,20 @@ public final class PackageService {
                     buildResult,
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")),
+                    classpathPackages);
+            case WAR -> packageWar(
+                    projectDirectory,
+                    config,
+                    buildResult,
+                    cacheRoot.orElseThrow(() -> new PackageException(
+                            "WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode war` for now; workspace WAR packaging is not wired yet.")),
+                    classpathPackages);
+            case SPRING_BOOT_WAR -> packageSpringBootWar(
+                    projectDirectory,
+                    config,
+                    buildResult,
+                    cacheRoot.orElseThrow(() -> new PackageException(
+                            "Spring Boot WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot-war` for now; workspace Spring Boot WAR packaging is not wired yet.")),
                     classpathPackages);
             case QUARKUS -> packageQuarkusFastJar(
                     projectDirectory,
@@ -336,6 +361,129 @@ public final class PackageService {
         }
     }
 
+    private PackageResult packageWar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Path cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        Path outputDirectory = requireOutputDirectory(buildResult);
+        Path warPath = archivePath(projectDirectory, config, "war");
+        List<RuntimeJar> runtimeJars = classpathPackages
+                .map(this::runtimeJars)
+                .orElseGet(() -> runtimeJars(lockfileReader.read(projectDirectory.resolve("zolt.lock")), cacheRoot));
+        GeneratedManifest manifest = manifestGenerator.generateWithoutMain(config);
+
+        try {
+            Files.createDirectories(warPath.getParent());
+            List<Path> files = compiledFiles(outputDirectory);
+            try (OutputStream fileOutput = Files.newOutputStream(warPath);
+                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
+                writeEntry(jarOutput, manifest.path(), manifest.content());
+                Set<String> directoryEntries = new LinkedHashSet<>();
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_PREFIX);
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_CLASSES_PREFIX);
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PREFIX);
+                for (Path file : files) {
+                    String warEntryName = WEB_INF_CLASSES_PREFIX + entryName(outputDirectory, file);
+                    writeParentDirectoryEntries(jarOutput, directoryEntries, warEntryName);
+                    writeEntry(jarOutput, warEntryName, Files.readAllBytes(file));
+                }
+                for (RuntimeJar runtimeJar : runtimeJars) {
+                    writeStoredEntry(
+                            jarOutput,
+                            WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
+                            readRuntimeJar(runtimeJar));
+                }
+            }
+            return new PackageResult(
+                    buildResult,
+                    PackageMode.WAR,
+                    warPath,
+                    Optional.empty(),
+                    files.size(),
+                    false);
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not package WAR at "
+                            + warPath
+                            + ". Check that target/ is writable and try again.",
+                    exception);
+        }
+    }
+
+    private PackageResult packageSpringBootWar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Path cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        String startClass = config.project().main().orElseThrow(() -> new PackageException(
+                "Spring Boot WAR package mode requires [project].main in zolt.toml. Add the application main class and retry."));
+        Path outputDirectory = requireOutputDirectory(buildResult);
+        Path warPath = archivePath(projectDirectory, config, "war");
+        List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
+                .orElseGet(() -> lockfileReader.classpathPackages(
+                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
+                        cacheRoot));
+        List<RuntimeJar> runtimeJars = runtimeJars(resolvedPackages);
+        List<RuntimeJar> providedJars = providedJars(resolvedPackages);
+        SpringBootLoader loader = springBootWarLoader(runtimeJars);
+
+        try {
+            Files.createDirectories(warPath.getParent());
+            List<Path> files = compiledFiles(outputDirectory);
+            try (OutputStream fileOutput = Files.newOutputStream(warPath);
+                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
+                writeEntry(jarOutput, GeneratedManifest.DEFAULT_PATH, springBootWarManifest(startClass, loader));
+                Set<String> directoryEntries = new LinkedHashSet<>();
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_PREFIX);
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_CLASSES_PREFIX);
+                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PREFIX);
+                if (!providedJars.isEmpty()) {
+                    writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PROVIDED_PREFIX);
+                }
+                for (Map.Entry<String, byte[]> entry : loader.entries().entrySet()) {
+                    writeParentDirectoryEntries(jarOutput, directoryEntries, entry.getKey());
+                    writeEntry(jarOutput, entry.getKey(), entry.getValue());
+                }
+                for (Path file : files) {
+                    String warEntryName = WEB_INF_CLASSES_PREFIX + entryName(outputDirectory, file);
+                    writeParentDirectoryEntries(jarOutput, directoryEntries, warEntryName);
+                    writeEntry(jarOutput, warEntryName, Files.readAllBytes(file));
+                }
+                for (RuntimeJar runtimeJar : runtimeJars) {
+                    if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
+                        continue;
+                    }
+                    writeStoredEntry(
+                            jarOutput,
+                            WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
+                            readRuntimeJar(runtimeJar));
+                }
+                for (RuntimeJar providedJar : providedJars) {
+                    writeStoredEntry(
+                            jarOutput,
+                            WEB_INF_LIB_PROVIDED_PREFIX + nestedJarName(providedJar),
+                            readRuntimeJar(providedJar));
+                }
+            }
+            return new PackageResult(
+                    buildResult,
+                    PackageMode.SPRING_BOOT_WAR,
+                    warPath,
+                    Optional.empty(),
+                    files.size(),
+                    true);
+        } catch (IOException exception) {
+            throw new PackageException(
+                    "Could not package Spring Boot WAR at "
+                            + warPath
+                            + ". Check that target/ is writable and try again.",
+                    exception);
+        }
+    }
+
     private PackageResult packageQuarkusFastJar(
             Path projectDirectory,
             ProjectConfig config,
@@ -408,9 +556,13 @@ public final class PackageService {
     }
 
     private static Path jarPath(Path projectDirectory, ProjectConfig config) {
+        return archivePath(projectDirectory, config, "jar");
+    }
+
+    private static Path archivePath(Path projectDirectory, ProjectConfig config, String extension) {
         return projectDirectory
                 .resolve("target")
-                .resolve(config.project().name() + "-" + config.project().version() + ".jar");
+                .resolve(config.project().name() + "-" + config.project().version() + "." + extension);
     }
 
     private static Path classifierJarPath(Path projectDirectory, ProjectConfig config, String classifier) {
@@ -664,6 +816,19 @@ public final class PackageService {
         return List.copyOf(runtimeJars.values());
     }
 
+    private List<RuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
+        Map<String, RuntimeJar> providedJars = new LinkedHashMap<>();
+        classpathPackages.stream()
+                .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
+                .sorted(Comparator.comparing(PackageService::classpathSortKey))
+                .map(dependency -> new RuntimeJar(
+                        dependency.resolvedPackage().packageId(),
+                        dependency.resolvedPackage().selectedVersion(),
+                        dependency.resolvedPackage().jarPath()))
+                .forEach(runtimeJar -> providedJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
+        return List.copyOf(providedJars.values());
+    }
+
     private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
         return packagedClasspathPackages(lockfileReader.classpathPackages(lockfile, cacheRoot));
     }
@@ -687,6 +852,14 @@ public final class PackageService {
     }
 
     private static SpringBootLoader springBootLoader(List<RuntimeJar> runtimeJars) {
+        return springBootLoader(runtimeJars, false);
+    }
+
+    private static SpringBootLoader springBootWarLoader(List<RuntimeJar> runtimeJars) {
+        return springBootLoader(runtimeJars, true);
+    }
+
+    private static SpringBootLoader springBootLoader(List<RuntimeJar> runtimeJars, boolean war) {
         RuntimeJar loaderJar = runtimeJars.stream()
                 .filter(runtimeJar -> runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE))
                 .findFirst()
@@ -709,7 +882,7 @@ public final class PackageService {
                             + BOOT_LOADER_PREFIX
                             + " classes. Check the resolved org.springframework.boot:spring-boot-loader artifact.");
         }
-        String launcherClass = launcherClass(entries);
+        String launcherClass = war ? warLauncherClass(entries) : launcherClass(entries);
         return new SpringBootLoader(loaderJar, launcherClass, entries);
     }
 
@@ -756,6 +929,21 @@ public final class PackageService {
                         + ".");
     }
 
+    private static String warLauncherClass(Map<String, byte[]> loaderEntries) {
+        if (loaderEntries.containsKey(classEntryName(BOOT_WAR_LAUNCHER))) {
+            return BOOT_WAR_LAUNCHER;
+        }
+        if (loaderEntries.containsKey(classEntryName(LEGACY_BOOT_WAR_LAUNCHER))) {
+            return LEGACY_BOOT_WAR_LAUNCHER;
+        }
+        throw new PackageException(
+                "Spring Boot loader classes were found, but WarLauncher is missing. Expected "
+                        + BOOT_WAR_LAUNCHER
+                        + " or "
+                        + LEGACY_BOOT_WAR_LAUNCHER
+                        + ".");
+    }
+
     private static byte[] springBootManifest(String startClass, SpringBootLoader loader) throws IOException {
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
@@ -765,6 +953,22 @@ public final class PackageService {
         attributes.put(new Attributes.Name("Spring-Boot-Version"), loader.jar().version());
         attributes.put(new Attributes.Name("Spring-Boot-Classes"), BOOT_CLASSES_PREFIX);
         attributes.put(new Attributes.Name("Spring-Boot-Lib"), BOOT_LIB_PREFIX);
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        manifest.write(output);
+        return output.toByteArray();
+    }
+
+    private static byte[] springBootWarManifest(String startClass, SpringBootLoader loader) throws IOException {
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        attributes.put(Attributes.Name.MAIN_CLASS, loader.launcherClass());
+        attributes.put(new Attributes.Name("Start-Class"), startClass);
+        attributes.put(new Attributes.Name("Spring-Boot-Version"), loader.jar().version());
+        attributes.put(new Attributes.Name("Spring-Boot-Classes"), WEB_INF_CLASSES_PREFIX);
+        attributes.put(new Attributes.Name("Spring-Boot-Lib"), WEB_INF_LIB_PREFIX);
+        attributes.put(new Attributes.Name("Spring-Boot-Lib-Provided"), WEB_INF_LIB_PROVIDED_PREFIX);
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         manifest.write(output);

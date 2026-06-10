@@ -440,7 +440,7 @@ public final class ResolveService {
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions,
             List<DependencyRequest> requests) {
-        if (config.packageSettings().mode() != PackageMode.SPRING_BOOT) {
+        if (!isSpringBootArchive(config.packageSettings().mode())) {
             return;
         }
         boolean loaderAlreadyOnMainRuntimeClasspath = requests.stream()
@@ -461,6 +461,10 @@ public final class ResolveService {
                 version,
                 DependencyScope.RUNTIME,
                 RequestOrigin.TRANSITIVE));
+    }
+
+    private static boolean isSpringBootArchive(PackageMode mode) {
+        return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
     }
 
     private static String managedVersion(

@@ -1057,6 +1057,52 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void springBootWarPackageModeAddsLoaderFromProjectPlatform() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-loader</artifactId>
+                        <version>4.0.6</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        addArtifact("org.springframework.boot", "spring-boot-loader", "4.0.6", """
+                <project>
+                  <groupId>org.springframework.boot</groupId>
+                  <artifactId>spring-boot-loader</artifactId>
+                  <version>4.0.6</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, springBootWarPlatformConfig(), cacheRoot);
+
+        assertEquals(3, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.springframework.boot", "spring-boot-loader"))
+                        && lockPackage.version().equals("4.0.6")
+                        && lockPackage.scope() == DependencyScope.RUNTIME
+                        && !lockPackage.direct()));
+    }
+
+
+    @Test
     void springBootPackageModeKeepsExplicitLoaderDependencyDirect() {
         addArtifact("org.springframework.boot", "spring-boot-loader", "4.0.6", """
                 <project>
@@ -1190,6 +1236,25 @@ final class ResolveServiceTest {
         assertTrue(exception.getMessage().contains("Add the Spring Boot platform to [platforms]"));
         assertTrue(exception.getMessage().contains("run `zolt resolve`"));
     }
+
+    @Test
+    void springBootWarPackageModeFailsClearlyWithoutManagedLoaderVersion() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(
+                        projectDir,
+                        config().withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR)),
+                        cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Spring Boot package mode requires package tool artifact"));
+        assertTrue(exception.getMessage().contains("Add the Spring Boot platform to [platforms]"));
+        assertTrue(exception.getMessage().contains("run `zolt resolve`"));
+    }
+
 
     @Test
     void projectPlatformProvidesManagedVersionForDirectTestDependency() {
@@ -2052,6 +2117,10 @@ final class ResolveServiceTest {
 
     private ProjectConfig springBootPlatformConfig() {
         return platformConfig().withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+    }
+
+    private ProjectConfig springBootWarPlatformConfig() {
+        return platformConfig().withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR));
     }
 
     private ProjectConfig processorConfig() {

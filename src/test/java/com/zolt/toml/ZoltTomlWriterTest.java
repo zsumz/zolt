@@ -500,6 +500,19 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesSpringBootWarPackageSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[package]\n"));
+        assertTrue(toml.contains("mode = \"spring-boot-war\""));
+        assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
     void writesLibraryPackageSettingsWhenConfigured() {
         ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", null)
                 .withPackageSettings(new PackageSettings(
