@@ -15,6 +15,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -91,6 +93,40 @@ final class LocalArtifactCacheTest {
             assertEquals(1, fetchCount.get());
             assertEquals("<project/>", Files.readString(cache.pomPath(coordinate)));
         }
+    }
+
+    @Test
+    void manyConcurrentDuplicateJarFetchesDownloadOnce() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir, new DownloadCoordinator(4));
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger fetchCount = new AtomicInteger();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(12)) {
+            List<Future<CachedArtifact>> futures = new ArrayList<>();
+            for (int index = 0; index < 12; index++) {
+                futures.add(executor.submit(() -> cache.getOrFetchJar(coordinate, requested -> {
+                    fetchCount.incrementAndGet();
+                    firstStarted.countDown();
+                    await(release);
+                    return new RepositoryArtifact(
+                            requested,
+                            "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar",
+                            URI.create("https://repo.example/guava.jar"),
+                            jarBytes);
+                })));
+            }
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
+            release.countDown();
+            for (Future<CachedArtifact> future : futures) {
+                assertArrayEquals(jarBytes, future.get().bytes());
+            }
+        }
+
+        assertEquals(1, fetchCount.get());
+        assertArrayEquals(jarBytes, Files.readAllBytes(cache.jarPath(coordinate)));
     }
 
     @Test

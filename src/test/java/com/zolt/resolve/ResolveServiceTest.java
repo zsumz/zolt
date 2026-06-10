@@ -49,6 +49,9 @@ final class ResolveServiceTest {
     private final Map<String, byte[]> responses = new HashMap<>();
     private final Set<String> slowPomPaths = ConcurrentHashMap.newKeySet();
     private final Set<String> slowArtifactPaths = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> responseDelayMillis = new ConcurrentHashMap<>();
+    private final Map<String, AtomicInteger> requestCounts = new ConcurrentHashMap<>();
+    private final AtomicInteger totalRequests = new AtomicInteger();
     private final AtomicInteger activePomRequests = new AtomicInteger();
     private final AtomicInteger maxPomRequests = new AtomicInteger();
     private final AtomicInteger activeArtifactRequests = new AtomicInteger();
@@ -175,6 +178,7 @@ final class ResolveServiceTest {
 
         assertEquals(3, result.resolvedCount());
         assertTrue(maxArtifactRequests.get() > 1);
+        assertTrue(maxArtifactRequests.get() <= 4);
 
         Path secondProjectDir = tempDir.resolve("project-second");
         Path secondCacheRoot = tempDir.resolve("cache-second");
@@ -225,6 +229,7 @@ final class ResolveServiceTest {
 
         assertEquals(4, result.resolvedCount());
         assertTrue(maxPomRequests.get() > 1);
+        assertTrue(maxPomRequests.get() <= 4);
 
         Path secondProjectDir = tempDir.resolve("project-second");
         Path secondCacheRoot = tempDir.resolve("cache-second");
@@ -232,6 +237,67 @@ final class ResolveServiceTest {
         ResolveResult second = resolveService.resolve(secondProjectDir, config, secondCacheRoot);
 
         assertEquals(Files.readString(result.lockfilePath()), Files.readString(second.lockfilePath()));
+    }
+
+    @Test
+    void randomizedRepositoryResponseTimingKeepsLockfileStable() throws IOException {
+        Map<String, String> dependencies = new java.util.LinkedHashMap<>();
+        dependencies.put("com.example:alpha", "1.0.0");
+        dependencies.put("com.example:beta", "1.0.0");
+        dependencies.put("com.example:gamma", "1.0.0");
+        dependencies.put("com.example:delta", "1.0.0");
+        dependencies.put("com.example:epsilon", "1.0.0");
+        dependencies.keySet().forEach(coordinate -> {
+            String artifactId = coordinate.substring(coordinate.indexOf(':') + 1);
+            addArtifact("com.example", artifactId, "1.0.0", simplePom("com.example", artifactId, "1.0.0"));
+        });
+        setResponseDelays(Map.of(
+                "alpha", 120L,
+                "beta", 10L,
+                "gamma", 70L,
+                "delta", 30L,
+                "epsilon", 90L));
+        Path projectDir = tempDir.resolve("project-randomized");
+        Path cacheRoot = tempDir.resolve("cache-randomized");
+        createDirectory(projectDir);
+        ProjectConfig config = configWithDependencies(dependencies);
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+
+        responseDelayMillis.clear();
+        setResponseDelays(Map.of(
+                "alpha", 5L,
+                "beta", 130L,
+                "gamma", 25L,
+                "delta", 100L,
+                "epsilon", 45L));
+        Path secondProjectDir = tempDir.resolve("project-randomized-second");
+        Path secondCacheRoot = tempDir.resolve("cache-randomized-second");
+        createDirectory(secondProjectDir);
+        ResolveResult second = resolveService.resolve(secondProjectDir, config, secondCacheRoot);
+
+        assertEquals(Files.readString(result.lockfilePath()), Files.readString(second.lockfilePath()));
+    }
+
+    @Test
+    void parallelArtifactDownloadFailuresAreReportedInSortedOrder() {
+        addPom("com.example", "zeta-missing", "1.0.0", simplePom("com.example", "zeta-missing", "1.0.0"));
+        addPom("com.example", "alpha-missing", "1.0.0", simplePom("com.example", "alpha-missing", "1.0.0"));
+        Path projectDir = tempDir.resolve("project-missing-artifacts");
+        Path cacheRoot = tempDir.resolve("cache-missing-artifacts");
+        createDirectory(projectDir);
+        Map<String, String> dependencies = new java.util.LinkedHashMap<>();
+        dependencies.put("com.example:zeta-missing", "1.0.0");
+        dependencies.put("com.example:alpha-missing", "1.0.0");
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, configWithDependencies(dependencies), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Selected artifact downloads failed:"));
+        assertTrue(exception.getMessage().indexOf("com.example:alpha-missing:1.0.0")
+                < exception.getMessage().indexOf("com.example:zeta-missing:1.0.0"));
+        assertTrue(exception.getMessage().contains("Retry the command or check your repository and network settings."));
     }
 
     @Test
@@ -343,11 +409,14 @@ final class ResolveServiceTest {
         createDirectory(projectDir);
         resolveService.resolve(projectDir, config(), cacheRoot);
         responses.clear();
+        resetRequestCounts();
 
         ResolveResult result = resolveService.resolve(projectDir, config(), cacheRoot, false, true);
 
         assertEquals(2, result.resolvedCount());
         assertEquals(0, result.downloadCount());
+        assertEquals(0, totalRequests.get());
+        assertTrue(requestCounts.isEmpty());
     }
 
     @Test
@@ -1882,6 +1951,18 @@ final class ResolveServiceTest {
                 + ".pom";
     }
 
+    private void setResponseDelays(Map<String, Long> artifactDelaysMillis) {
+        artifactDelaysMillis.forEach((artifactId, delayMillis) -> {
+            responseDelayMillis.put(pomRepositoryPath("com.example", artifactId, "1.0.0"), delayMillis);
+            responseDelayMillis.put(jarRepositoryPath("com.example", artifactId, "1.0.0"), delayMillis);
+        });
+    }
+
+    private void resetRequestCounts() {
+        requestCounts.clear();
+        totalRequests.set(0);
+    }
+
     private void addClassifierJar(
             String groupId,
             String artifactId,
@@ -1942,11 +2023,13 @@ final class ResolveServiceTest {
 
     private void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
+        requestCounts.computeIfAbsent(path, ignored -> new AtomicInteger()).incrementAndGet();
+        totalRequests.incrementAndGet();
         if (slowPomPaths.contains(path)) {
             int active = activePomRequests.incrementAndGet();
             maxPomRequests.accumulateAndGet(active, Math::max);
             try {
-                Thread.sleep(150L);
+                sleepServing(150L);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while serving slow test POM.", exception);
@@ -1958,12 +2041,21 @@ final class ResolveServiceTest {
             int active = activeArtifactRequests.incrementAndGet();
             maxArtifactRequests.accumulateAndGet(active, Math::max);
             try {
-                Thread.sleep(150L);
+                sleepServing(150L);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while serving slow test artifact.", exception);
             } finally {
                 activeArtifactRequests.decrementAndGet();
+            }
+        }
+        Long delayMillis = responseDelayMillis.get(path);
+        if (delayMillis != null && delayMillis > 0) {
+            try {
+                sleepServing(delayMillis);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while serving delayed test response.", exception);
             }
         }
         byte[] body = responses.get(path);
@@ -1972,6 +2064,10 @@ final class ResolveServiceTest {
             return;
         }
         respond(exchange, 200, body);
+    }
+
+    private static void sleepServing(long millis) throws InterruptedException {
+        Thread.sleep(millis);
     }
 
     private static void respond(HttpExchange exchange, int statusCode, byte[] body) throws IOException {
