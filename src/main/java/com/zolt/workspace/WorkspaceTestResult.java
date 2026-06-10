@@ -78,6 +78,46 @@ public record WorkspaceTestResult(
                 .sum();
     }
 
+    public int testClassSelectorCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::testSelection)
+                .mapToInt(selection -> selection.classSelectors().size())
+                .sum();
+    }
+
+    public int testMethodSelectorCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::testSelection)
+                .mapToInt(selection -> selection.methodSelectors().size())
+                .sum();
+    }
+
+    public int testPatternCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::testSelection)
+                .mapToInt(selection -> selection.classNamePatterns().size())
+                .sum();
+    }
+
+    public int testIncludedTagCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::testSelection)
+                .mapToInt(selection -> selection.includedTags().size())
+                .sum();
+    }
+
+    public int testExcludedTagCount() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::testSelection)
+                .mapToInt(selection -> selection.excludedTags().size())
+                .sum();
+    }
+
     public record MemberTestRunResult(
             String member,
             TestRunResult result) {

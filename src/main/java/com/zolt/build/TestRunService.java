@@ -94,9 +94,22 @@ public final class TestRunService {
     }
 
     public TestRunResult runTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return runTests(projectDirectory, config, cacheRoot, TestSelection.empty());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
-        return runCompiledTests(projectDirectory, config, compileResult.classpaths(), compileResult.testCompileResult());
+        return runCompiledTests(
+                projectDirectory,
+                config,
+                compileResult.classpaths(),
+                compileResult.testCompileResult(),
+                selection);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -112,7 +125,16 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             TestCompileResult compileResult) {
-        return runTests(projectDirectory, config, classpaths, compileResult);
+        return runCompiledTests(projectDirectory, config, classpaths, compileResult, TestSelection.empty());
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection);
     }
 
     public TestRunResult runTests(
@@ -120,8 +142,17 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult) {
+        return runTests(projectDirectory, config, classpaths, buildResult, TestSelection.empty());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            TestSelection selection) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult);
+        return runTests(projectDirectory, config, classpaths, compileResult, selection);
     }
 
     public TestCompileResult compileTests(
@@ -140,7 +171,9 @@ public final class TestRunService {
             Path projectDirectory,
             ProjectConfig config,
             ClasspathSet classpaths,
-            TestCompileResult compileResult) {
+            TestCompileResult compileResult,
+            TestSelection selection) {
+        TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -183,7 +216,10 @@ public final class TestRunService {
                     QUARKUS_TEST_WORKER_RUNNER,
                     runnerClasspath.size(),
                     workerClasspath.size(),
-                    1);
+                    1,
+                    -1L,
+                    -1L,
+                    testSelection);
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
@@ -209,7 +245,8 @@ public final class TestRunService {
                     workerClasspath.size() + runnerClasspath.size(),
                     1,
                     result.startupNanos(),
-                    result.requestNanos());
+                    result.requestNanos(),
+                    testSelection);
         }
         JavaRunResult result = javaRunner.run(
                 jdkStatus.java().orElseThrow(),
@@ -229,7 +266,10 @@ public final class TestRunService {
                 JUNIT_CONSOLE_RUNNER,
                 runnerClasspath.size(),
                 launcherClasspath.size(),
-                1);
+                1,
+                -1L,
+                -1L,
+                testSelection);
     }
 
     private String joined(List<Path> classpath) {

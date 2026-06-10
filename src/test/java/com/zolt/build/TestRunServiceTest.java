@@ -70,6 +70,33 @@ final class TestRunServiceTest {
     }
 
     @Test
+    void recordsTestSelectionWithoutChangingConsoleArgumentsYet() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+        TestSelection selection = TestSelection.fromCli(
+                List.of("com.example.MainTest", "com.example.MainTest#runs"),
+                List.of("*MainTest"),
+                List.of("fast"),
+                List.of("slow"));
+
+        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"), selection);
+
+        assertEquals(selection, result.testSelection());
+        List<String> command = commands.getFirst();
+        assertFalse(command.contains("--select-class"));
+        assertFalse(command.contains("--select-method"));
+        assertFalse(command.contains("--include-classname"));
+        assertFalse(command.contains("--include-tag"));
+        assertFalse(command.contains("--exclude-tag"));
+    }
+
+    @Test
     void compilesAdditionalJavaTestRootsBeforeRunningJUnitConsole() throws IOException {
         writeConsoleLockfile();
         source("src/main/java/com/example/Main.java", """

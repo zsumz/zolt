@@ -8,7 +8,33 @@ public record TestRunResult(
         int testLauncherClasspathEntries,
         int testDiscoveryScanRoots,
         long testRunnerStartupNanos,
-        long testRunnerRequestNanos) {
+        long testRunnerRequestNanos,
+        TestSelection testSelection) {
+    public TestRunResult {
+        testSelection = testSelection == null ? TestSelection.empty() : testSelection;
+    }
+
+    public TestRunResult(
+            TestCompileResult compileResult,
+            String output,
+            String testRunner,
+            int testRuntimeClasspathEntries,
+            int testLauncherClasspathEntries,
+            int testDiscoveryScanRoots,
+            long testRunnerStartupNanos,
+            long testRunnerRequestNanos) {
+        this(
+                compileResult,
+                output,
+                testRunner,
+                testRuntimeClasspathEntries,
+                testLauncherClasspathEntries,
+                testDiscoveryScanRoots,
+                testRunnerStartupNanos,
+                testRunnerRequestNanos,
+                TestSelection.empty());
+    }
+
     public TestRunResult(TestCompileResult compileResult, String output) {
         this(compileResult, output, "unknown", 0, 0, 0, -1L, -1L);
     }

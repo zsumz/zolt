@@ -106,6 +106,27 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testHelpShowsSelectionOptions() {
+        CommandResult result = execute("test", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--test"));
+        assertTrue(result.stdout().contains("--tests"));
+        assertTrue(result.stdout().contains("--include-tag"));
+        assertTrue(result.stdout().contains("--exclude-tag"));
+    }
+
+    @Test
+    void testRejectsInvalidSelectionBeforeReadingProjectConfig() {
+        CommandResult result = execute("test", "--cwd", tempDir.toString(), "--test", "*ServiceTest");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Invalid --test selector `*ServiceTest`"));
+        assertTrue(result.stderr().contains("Use --tests for class-name patterns"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
+
+    @Test
     void explainHelpShowsMigrationAuditCommand() {
         CommandResult result = execute("explain", "--help");
 

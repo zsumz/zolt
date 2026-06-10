@@ -1,5 +1,6 @@
 package com.zolt.workspace;
 
+import com.zolt.build.TestSelection;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -38,9 +39,17 @@ public final class WorkspaceTestService {
             Path startDirectory,
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest) {
+        return test(startDirectory, cacheRoot, selectionRequest, TestSelection.empty());
+    }
+
+    public WorkspaceTestResult test(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            TestSelection testSelection) {
         WorkspaceBuildPlan plan = planTests(startDirectory, cacheRoot, selectionRequest);
         WorkspaceBuildResult buildResult = buildTestInputs(plan, cacheRoot);
-        return runTests(plan, buildResult, cacheRoot);
+        return runTests(plan, buildResult, cacheRoot, testSelection);
     }
 
     public WorkspaceBuildPlan planTests(
@@ -58,6 +67,14 @@ public final class WorkspaceTestService {
             WorkspaceBuildPlan plan,
             WorkspaceBuildResult buildResult,
             Path cacheRoot) {
+        return runTests(plan, buildResult, cacheRoot, TestSelection.empty());
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection) {
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
@@ -72,7 +89,8 @@ public final class WorkspaceTestService {
                             member.directory(),
                             member.config(),
                             memberBuild.classpaths(),
-                            memberBuild.result())));
+                            memberBuild.result(),
+                            testSelection)));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }

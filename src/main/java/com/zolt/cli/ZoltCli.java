@@ -29,6 +29,8 @@ import com.zolt.build.TestCompileResultWithClasspaths;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
+import com.zolt.build.TestSelection;
+import com.zolt.build.TestSelectionException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathFormatter;
@@ -174,7 +176,10 @@ public final class ZoltCli implements Runnable {
     }
 
     static CommandLine newCommandLine() {
-        return new CommandLine(new ZoltCli()).setCaseInsensitiveEnumValuesAllowed(true);
+        return new CommandLine(new ZoltCli())
+                .setCaseInsensitiveEnumValuesAllowed(true)
+                .setExecutionExceptionHandler((exception, commandLine, parseResult) ->
+                        commandLine.getCommandSpec().exitCodeOnExecutionException());
     }
 
     @Override
@@ -1256,7 +1261,10 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    @Command(name = "test", description = "Compile and run tests, starting with JUnit support.")
+    @Command(
+            name = "test",
+            mixinStandardHelpOptions = true,
+            description = "Compile and run tests, starting with JUnit support.")
     public static final class TestCommand implements Runnable {
         @Option(names = "--workspace", description = "Test workspace members in dependency order.")
         private boolean workspace;
@@ -1269,6 +1277,18 @@ public final class ZoltCli implements Runnable {
 
         @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
         private List<String> memberGroups = List.of();
+
+        @Option(names = "--test", description = "Select one test class or method. May be repeated.")
+        private List<String> testSelectors = List.of();
+
+        @Option(names = "--tests", description = "Select test classes by glob-style class-name pattern. May be repeated.")
+        private List<String> testPatterns = List.of();
+
+        @Option(names = "--include-tag", description = "Include tests with a JUnit Platform tag. May be repeated.")
+        private List<String> includedTags = List.of();
+
+        @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
+        private List<String> excludedTags = List.of();
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -1286,6 +1306,11 @@ public final class ZoltCli implements Runnable {
         public void run() {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
+                TestSelection testSelection = TestSelection.fromCli(
+                        testSelectors,
+                        testPatterns,
+                        includedTags,
+                        excludedTags);
                 if (workspace) {
                     WorkspaceTestService workspaceTestService = new WorkspaceTestService();
                     WorkspaceTestResult result = timings.measure(
@@ -1304,7 +1329,11 @@ public final class ZoltCli implements Runnable {
                                         ZoltCli::workspaceBuildAttributes);
                                 return timings.measure(
                                         "run workspace test members",
-                                        () -> workspaceTestService.runTests(plan, buildResult, cacheRoot),
+                                        () -> workspaceTestService.runTests(
+                                                plan,
+                                                buildResult,
+                                                cacheRoot,
+                                                testSelection),
                                         ZoltCli::workspaceTestAttributes);
                             },
                             ZoltCli::workspaceTestAttributes);
@@ -1362,7 +1391,8 @@ public final class ZoltCli implements Runnable {
                                             workingDirectory,
                                             config,
                                             compileResult.classpaths(),
-                                            compileResult.testCompileResult()),
+                                            compileResult.testCompileResult(),
+                                            testSelection),
                                     ZoltCli::testExecutionAttributes);
                         },
                         ZoltCli::testRunAttributes);
@@ -1376,6 +1406,7 @@ public final class ZoltCli implements Runnable {
                     | JavaRunException
                     | ResourceCopyException
                     | TestRunException
+                    | TestSelectionException
                     | SourceDiscoveryException
                     | LockfileReadException
                     | ResolveException
@@ -2126,6 +2157,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        addTestSelectionAttributes(attributes, result.testSelection());
         addPlainJunitWorkerTimingAttributes(attributes, result);
         attributes.put("outputBytes", Integer.toString(result.output().length()));
         return attributes;
@@ -2146,6 +2178,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        addTestSelectionAttributes(attributes, result.testSelection());
         addPlainJunitWorkerTimingAttributes(attributes, result);
         attributes.put("outputBytes", Integer.toString(result.output().length()));
         return attributes;
@@ -2162,6 +2195,14 @@ public final class ZoltCli implements Runnable {
         }
     }
 
+    private static void addTestSelectionAttributes(Map<String, String> attributes, TestSelection selection) {
+        attributes.put("testClassSelectors", Integer.toString(selection.classSelectors().size()));
+        attributes.put("testMethodSelectors", Integer.toString(selection.methodSelectors().size()));
+        attributes.put("testPatterns", Integer.toString(selection.classNamePatterns().size()));
+        attributes.put("testIncludedTags", Integer.toString(selection.includedTags().size()));
+        attributes.put("testExcludedTags", Integer.toString(selection.excludedTags().size()));
+    }
+
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
         attributes.put("members", Integer.toString(result.members().size()));
@@ -2174,6 +2215,11 @@ public final class ZoltCli implements Runnable {
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntryCount()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntryCount()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRootCount()));
+        attributes.put("testClassSelectors", Integer.toString(result.testClassSelectorCount()));
+        attributes.put("testMethodSelectors", Integer.toString(result.testMethodSelectorCount()));
+        attributes.put("testPatterns", Integer.toString(result.testPatternCount()));
+        attributes.put("testIncludedTags", Integer.toString(result.testIncludedTagCount()));
+        attributes.put("testExcludedTags", Integer.toString(result.testExcludedTagCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         return attributes;
     }
