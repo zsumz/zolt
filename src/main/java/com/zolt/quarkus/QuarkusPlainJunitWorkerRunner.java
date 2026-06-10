@@ -92,9 +92,12 @@ public final class QuarkusPlainJunitWorkerRunner {
             command.add("--select-method");
             command.add(methodSelector.className() + "#" + methodSelector.methodName());
         }
-        for (String pattern : testSelection.classNamePatterns()) {
+        List<String> classNamePatterns = testSelection.classNamePatterns().isEmpty() && !hasClassOrMethodSelectors
+                ? TestSelection.defaultScanClassNamePatterns()
+                : testSelection.classNameRegexPatterns();
+        for (String pattern : classNamePatterns) {
             command.add("--include-classname");
-            command.add(TestSelection.toClassNameRegex(pattern));
+            command.add(pattern);
         }
         for (String tag : testSelection.includedTags()) {
             command.add("--include-tag");

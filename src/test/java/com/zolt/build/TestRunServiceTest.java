@@ -59,6 +59,9 @@ final class TestRunServiceTest {
         assertTrue(command.contains("--disable-banner"));
         assertTrue(command.contains("--scan-class-path="
                 + projectDir.resolve("target/test-classes").toAbsolutePath().normalize()));
+        assertTrue(command.contains("--include-classname"));
+        assertTrue(command.contains("^(Test.*|.+[.$]Test.*|.*Tests?)$"));
+        assertTrue(command.contains(".*Spec"));
         assertTrue(command.contains("--details"));
         String launcherClasspath = launcherClasspath(command);
         assertTrue(launcherClasspath.contains("junit-platform-console-standalone-1.11.4.jar"));
@@ -140,6 +143,7 @@ final class TestRunServiceTest {
         assertTrue(command.contains("--include-classname"));
         assertTrue(command.contains(".*MainTest"));
         assertTrue(command.contains("com\\.example\\..therTest"));
+        assertFalse(command.contains(".*Spec"));
         assertEquals("fast", commandArgumentAfter(command, "--include-tag"));
         assertEquals("slow", commandArgumentAfter(command, "--exclude-tag"));
         assertFalse(command.contains("--select-method"));

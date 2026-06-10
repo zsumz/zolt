@@ -312,9 +312,12 @@ public final class TestRunService {
             arguments.add("--select-method");
             arguments.add(methodSelector.className() + "#" + methodSelector.methodName());
         }
-        for (String pattern : selection.classNamePatterns()) {
+        List<String> classNamePatterns = selection.classNamePatterns().isEmpty() && !hasClassOrMethodSelectors
+                ? TestSelection.defaultScanClassNamePatterns()
+                : selection.classNameRegexPatterns();
+        for (String pattern : classNamePatterns) {
             arguments.add("--include-classname");
-            arguments.add(TestSelection.toClassNameRegex(pattern));
+            arguments.add(pattern);
         }
         for (String tag : selection.includedTags()) {
             arguments.add("--include-tag");

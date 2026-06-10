@@ -9,6 +9,8 @@ public record TestSelection(
         List<String> classNamePatterns,
         List<String> includedTags,
         List<String> excludedTags) {
+    private static final String JUNIT_STANDARD_INCLUDE_PATTERN = "^(Test.*|.+[.$]Test.*|.*Tests?)$";
+    private static final String SPOCK_SPEC_INCLUDE_PATTERN = ".*Spec";
     private static final String JAVA_IDENTIFIER = "[A-Za-z_$][A-Za-z0-9_$]*";
     private static final String CLASS_NAME = JAVA_IDENTIFIER + "(\\." + JAVA_IDENTIFIER + ")*";
     private static final String METHOD_NAME = JAVA_IDENTIFIER;
@@ -99,6 +101,10 @@ public record TestSelection(
         return classNamePatterns.stream()
                 .map(TestSelection::toClassNameRegex)
                 .toList();
+    }
+
+    public static List<String> defaultScanClassNamePatterns() {
+        return List.of(JUNIT_STANDARD_INCLUDE_PATTERN, SPOCK_SPEC_INCLUDE_PATTERN);
     }
 
     public static String toClassNameRegex(String pattern) {

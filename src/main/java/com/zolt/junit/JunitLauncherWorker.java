@@ -184,7 +184,7 @@ public final class JunitLauncherWorker {
             if (patterns.isEmpty()
                     && selection.classSelectors().isEmpty()
                     && selection.methodSelectors().isEmpty()) {
-                patterns = List.of(classNameFilterClass.getField("STANDARD_INCLUDE_PATTERN").get(null).toString());
+                patterns = TestSelection.defaultScanClassNamePatterns();
             }
             if (patterns.isEmpty()) {
                 return;

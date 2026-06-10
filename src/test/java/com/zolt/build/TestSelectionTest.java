@@ -73,4 +73,11 @@ final class TestSelectionTest {
 
         assertEquals(List.of(".*ServiceTest", "com\\.example\\..serTest"), selection.classNameRegexPatterns());
     }
+
+    @Test
+    void defaultsScanToJUnitAndSpockClassNames() {
+        assertEquals(
+                List.of("^(Test.*|.+[.$]Test.*|.*Tests?)$", ".*Spec"),
+                TestSelection.defaultScanClassNamePatterns());
+    }
 }

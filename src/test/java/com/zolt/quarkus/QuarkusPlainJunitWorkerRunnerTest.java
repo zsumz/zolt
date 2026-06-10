@@ -30,6 +30,10 @@ final class QuarkusPlainJunitWorkerRunnerTest {
                         "--class-path",
                         "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
                         "--scan-class-path=/repo/target/test-classes",
+                        "--include-classname",
+                        "^(Test.*|.+[.$]Test.*|.*Tests?)$",
+                        "--include-classname",
+                        ".*Spec",
                         "--details",
                         "summary"),
                 runner.command(descriptor));
