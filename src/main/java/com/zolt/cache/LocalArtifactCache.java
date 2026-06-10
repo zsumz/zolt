@@ -33,6 +33,10 @@ public final class LocalArtifactCache {
         return Path.of(System.getProperty("user.home"), ".zolt", "cache");
     }
 
+    public int downloadConcurrency() {
+        return downloadCoordinator.concurrency();
+    }
+
     public Path pomPath(Coordinate coordinate) {
         return cachePath(pathBuilder.pomPath(coordinate));
     }

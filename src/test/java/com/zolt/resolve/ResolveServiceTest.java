@@ -32,6 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.AfterEach;
@@ -43,17 +47,23 @@ final class ResolveServiceTest {
     private final ResolveService resolveService = new ResolveService();
     private final ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
     private final Map<String, byte[]> responses = new HashMap<>();
+    private final Set<String> slowArtifactPaths = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger activeArtifactRequests = new AtomicInteger();
+    private final AtomicInteger maxArtifactRequests = new AtomicInteger();
 
     @TempDir
     private Path tempDir;
 
     private HttpServer server;
+    private ExecutorService serverExecutor;
     private URI baseUri;
 
     @BeforeEach
     void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", this::handle);
+        serverExecutor = Executors.newCachedThreadPool();
+        server.setExecutor(serverExecutor);
         server.start();
         baseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/");
         addArtifact("com.example", "app", "1.0.0", """
@@ -82,6 +92,7 @@ final class ResolveServiceTest {
     @AfterEach
     void stopServer() {
         server.stop(0);
+        serverExecutor.shutdownNow();
     }
 
     @Test
@@ -135,6 +146,39 @@ final class ResolveServiceTest {
         assertEquals(0, second.metrics().pomDownloadNanos() + second.metrics().artifactDownloadNanos());
         assertTrue(second.metrics().rawPomParseNanos() > 0);
         assertTrue(second.metrics().effectivePomBuildNanos() > 0);
+    }
+
+    @Test
+    void selectedArtifactsAreMaterializedConcurrentlyAfterGraphSelection() throws IOException {
+        addArtifact("com.example", "alpha", "1.0.0", simplePom("com.example", "alpha", "1.0.0"));
+        addArtifact("com.example", "beta", "1.0.0", simplePom("com.example", "beta", "1.0.0"));
+        addArtifact("com.example", "gamma", "1.0.0", simplePom("com.example", "gamma", "1.0.0"));
+        slowArtifactPaths.add(jarRepositoryPath("com.example", "alpha", "1.0.0"));
+        slowArtifactPaths.add(jarRepositoryPath("com.example", "beta", "1.0.0"));
+        slowArtifactPaths.add(jarRepositoryPath("com.example", "gamma", "1.0.0"));
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        Map<String, String> dependencies = new java.util.LinkedHashMap<>();
+        dependencies.put("com.example:alpha", "1.0.0");
+        dependencies.put("com.example:beta", "1.0.0");
+        dependencies.put("com.example:gamma", "1.0.0");
+        ProjectConfig config = configWithDependencies(dependencies);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                config,
+                cacheRoot);
+
+        assertEquals(3, result.resolvedCount());
+        assertTrue(maxArtifactRequests.get() > 1);
+
+        Path secondProjectDir = tempDir.resolve("project-second");
+        Path secondCacheRoot = tempDir.resolve("cache-second");
+        createDirectory(secondProjectDir);
+        ResolveResult second = resolveService.resolve(secondProjectDir, config, secondCacheRoot);
+
+        assertEquals(Files.readString(result.lockfilePath()), Files.readString(second.lockfilePath()));
     }
 
     @Test
@@ -1736,6 +1780,16 @@ final class ResolveServiceTest {
         addArtifact(groupId, artifactId, version, pom, Map.of());
     }
 
+    private static String simplePom(String groupId, String artifactId, String version) {
+        return """
+                <project>
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <version>%s</version>
+                </project>
+                """.formatted(groupId, artifactId, version);
+    }
+
     private void addArtifact(
             String groupId,
             String artifactId,
@@ -1745,6 +1799,20 @@ final class ResolveServiceTest {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
         responses.put(base + ".jar", jarBytes(jarEntries));
+    }
+
+    private static String jarRepositoryPath(String groupId, String artifactId, String version) {
+        return "/maven2/"
+                + groupId.replace('.', '/')
+                + "/"
+                + artifactId
+                + "/"
+                + version
+                + "/"
+                + artifactId
+                + "-"
+                + version
+                + ".jar";
     }
 
     private void addClassifierJar(
@@ -1806,7 +1874,20 @@ final class ResolveServiceTest {
     }
 
     private void handle(HttpExchange exchange) throws IOException {
-        byte[] body = responses.get(exchange.getRequestURI().getPath());
+        String path = exchange.getRequestURI().getPath();
+        if (slowArtifactPaths.contains(path)) {
+            int active = activeArtifactRequests.incrementAndGet();
+            maxArtifactRequests.accumulateAndGet(active, Math::max);
+            try {
+                Thread.sleep(150L);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while serving slow test artifact.", exception);
+            } finally {
+                activeArtifactRequests.decrementAndGet();
+            }
+        }
+        byte[] body = responses.get(path);
         if (body == null) {
             respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
             return;

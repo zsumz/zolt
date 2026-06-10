@@ -36,6 +36,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.zip.ZipException;
 
 public final class ResolveService {
@@ -410,11 +414,16 @@ public final class ResolveService {
         long started = System.nanoTime();
         try {
             Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
-            List<LockPackage> packages = selection.selectedNodes().stream()
+            List<LockPackagePlan> packagePlans = selection.selectedNodes().stream()
                     .flatMap(node -> selectedScopes
                             .getOrDefault(node.packageId(), List.of(new SelectedScope(DependencyScope.COMPILE, false)))
                             .stream()
-                            .map(scope -> lockPackage(context, node, scope, graph)))
+                            .map(scope -> lockPackagePlan(node, scope)))
+                    .toList();
+            Map<ArtifactDescriptor, CachedArtifact> artifacts = context.getArtifacts(
+                    packagePlans.stream().map(LockPackagePlan::artifactDescriptor).toList());
+            List<LockPackage> packages = packagePlans.stream()
+                    .map(plan -> lockPackage(context, plan, graph, artifacts.get(plan.artifactDescriptor())))
                     .toList();
             List<LockConflict> conflicts = selection.conflicts().stream()
                     .map(conflict -> new LockConflict(
@@ -575,19 +584,25 @@ public final class ResolveService {
         return requests;
     }
 
-    private LockPackage lockPackage(
-            RepositoryContext context,
-            PackageNode node,
-            SelectedScope selectedScope,
-            ResolutionGraph graph) {
+    private static LockPackagePlan lockPackagePlan(PackageNode node, SelectedScope selectedScope) {
         Coordinate coordinate = new Coordinate(
                 node.packageId().groupId(),
                 node.packageId().artifactId(),
                 Optional.of(node.selectedVersion()));
-        CachedArtifact pom = context.getPom(coordinate);
         ArtifactDescriptor descriptor = selectedScope.artifactDescriptor()
                 .orElseGet(() -> ArtifactDescriptor.jar(coordinate));
-        CachedArtifact artifact = context.getArtifact(descriptor);
+        return new LockPackagePlan(node, selectedScope, descriptor);
+    }
+
+    private LockPackage lockPackage(
+            RepositoryContext context,
+            LockPackagePlan plan,
+            ResolutionGraph graph,
+            CachedArtifact artifact) {
+        PackageNode node = plan.node();
+        SelectedScope selectedScope = plan.selectedScope();
+        ArtifactDescriptor descriptor = plan.artifactDescriptor();
+        CachedArtifact pom = context.getPom(descriptor.coordinate());
         boolean jarArtifact = "jar".equals(descriptor.extension());
         return new LockPackage(
                 node.packageId(),
@@ -631,6 +646,38 @@ public final class ResolveService {
         return Math.max(0L, System.nanoTime() - started);
     }
 
+    private static String artifactDescriptorKey(ArtifactDescriptor descriptor) {
+        return descriptor.coordinate()
+                + ":"
+                + descriptor.classifier().orElse("")
+                + ":"
+                + descriptor.extension();
+    }
+
+    private static ResolveException artifactDownloadException(List<ArtifactDownloadFailure> failures) {
+        List<ArtifactDownloadFailure> sorted = failures.stream()
+                .sorted(Comparator.comparing(ArtifactDownloadFailure::artifactKey))
+                .toList();
+        StringBuilder message = new StringBuilder("Selected artifact downloads failed:");
+        for (ArtifactDownloadFailure failure : sorted) {
+            message.append(System.lineSeparator())
+                    .append("- ")
+                    .append(failure.artifactKey())
+                    .append(": ")
+                    .append(failure.message());
+        }
+        message.append(System.lineSeparator())
+                .append("Retry the command or check your repository and network settings.");
+        return new ResolveException(message.toString());
+    }
+
+    private static String failureMessage(Throwable cause) {
+        if (cause == null || cause.getMessage() == null || cause.getMessage().isBlank()) {
+            return cause == null ? "download failed" : cause.getClass().getSimpleName();
+        }
+        return cause.getMessage();
+    }
+
     private record SelectedScope(
             DependencyScope scope,
             boolean direct,
@@ -652,6 +699,15 @@ public final class ResolveService {
     }
 
     private record ResolutionState(ResolutionGraph graph, VersionSelectionResult selection) {
+    }
+
+    private record LockPackagePlan(
+            PackageNode node,
+            SelectedScope selectedScope,
+            ArtifactDescriptor artifactDescriptor) {
+    }
+
+    private record ArtifactDownloadFailure(String artifactKey, String message) {
     }
 
     @FunctionalInterface
@@ -704,8 +760,7 @@ public final class ResolveService {
             long started = System.nanoTime();
             if (offline) {
                 CachedArtifact artifact = cache.getCachedPom(coordinate);
-                pomCacheHits++;
-                pomCacheHitNanos += elapsedSince(started);
+                recordPomCacheHit(elapsedSince(started));
                 return artifact;
             }
             Path before = cache.pomPath(coordinate);
@@ -713,12 +768,9 @@ public final class ResolveService {
             CachedArtifact artifact = cache.getOrFetchPom(coordinate, requested ->
                     repositoryClient.fetchPom(repositoryUri(), requested));
             if (cached) {
-                pomCacheHits++;
-                pomCacheHitNanos += elapsedSince(started);
+                recordPomCacheHit(elapsedSince(started));
             } else {
-                pomCacheMisses++;
-                pomDownloadNanos += elapsedSince(started);
-                downloadCount++;
+                recordPomDownload(elapsedSince(started));
             }
             return artifact;
         }
@@ -727,8 +779,7 @@ public final class ResolveService {
             long started = System.nanoTime();
             if (offline) {
                 CachedArtifact artifact = cache.getCachedJar(coordinate);
-                jarCacheHits++;
-                jarCacheHitNanos += elapsedSince(started);
+                recordJarCacheHit(elapsedSince(started));
                 return artifact;
             }
             Path before = cache.jarPath(coordinate);
@@ -736,12 +787,9 @@ public final class ResolveService {
             CachedArtifact artifact = cache.getOrFetchJar(coordinate, requested ->
                     repositoryClient.fetchJar(repositoryUri(), requested));
             if (cached) {
-                jarCacheHits++;
-                jarCacheHitNanos += elapsedSince(started);
+                recordJarCacheHit(elapsedSince(started));
             } else {
-                jarCacheMisses++;
-                jarDownloadNanos += elapsedSince(started);
-                downloadCount++;
+                recordJarDownload(elapsedSince(started));
             }
             return artifact;
         }
@@ -751,8 +799,7 @@ public final class ResolveService {
             if (offline) {
                 CachedArtifact artifact =
                         cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
-                artifactCacheHits++;
-                artifactCacheHitNanos += elapsedSince(started);
+                recordArtifactCacheHit(elapsedSince(started));
                 return artifact;
             }
             Path before = cache.artifactPath(descriptor);
@@ -760,21 +807,88 @@ public final class ResolveService {
             CachedArtifact artifact = cache.getOrFetchArtifact(descriptor, requested ->
                     repositoryClient.fetchArtifact(repositoryUri(), descriptor));
             if (cached) {
-                artifactCacheHits++;
-                artifactCacheHitNanos += elapsedSince(started);
+                recordArtifactCacheHit(elapsedSince(started));
             } else {
-                artifactCacheMisses++;
-                artifactDownloadNanos += elapsedSince(started);
-                downloadCount++;
+                recordArtifactDownload(elapsedSince(started));
             }
             return artifact;
+        }
+
+        Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
+            Map<ArtifactDescriptor, ArtifactDescriptor> uniqueDescriptors = new LinkedHashMap<>();
+            descriptors.stream()
+                    .sorted(Comparator.comparing(ResolveService::artifactDescriptorKey))
+                    .forEach(descriptor -> uniqueDescriptors.putIfAbsent(descriptor, descriptor));
+            if (uniqueDescriptors.isEmpty()) {
+                return Map.of();
+            }
+            try (ExecutorService executor = Executors.newFixedThreadPool(cache.downloadConcurrency())) {
+                Map<ArtifactDescriptor, Future<CachedArtifact>> futures = new LinkedHashMap<>();
+                for (ArtifactDescriptor descriptor : uniqueDescriptors.values()) {
+                    futures.put(descriptor, executor.submit(() -> getArtifact(descriptor)));
+                }
+
+                Map<ArtifactDescriptor, CachedArtifact> artifacts = new LinkedHashMap<>();
+                List<ArtifactDownloadFailure> failures = new ArrayList<>();
+                for (Map.Entry<ArtifactDescriptor, Future<CachedArtifact>> entry : futures.entrySet()) {
+                    try {
+                        artifacts.put(entry.getKey(), entry.getValue().get());
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        failures.add(new ArtifactDownloadFailure(
+                                artifactDescriptorKey(entry.getKey()),
+                                "interrupted while materializing artifact"));
+                    } catch (ExecutionException exception) {
+                        failures.add(new ArtifactDownloadFailure(
+                                artifactDescriptorKey(entry.getKey()),
+                                failureMessage(exception.getCause())));
+                    }
+                }
+                if (!failures.isEmpty()) {
+                    throw artifactDownloadException(failures);
+                }
+                return artifacts;
+            }
+        }
+
+        private synchronized void recordPomCacheHit(long elapsedNanos) {
+            pomCacheHits++;
+            pomCacheHitNanos += elapsedNanos;
+        }
+
+        private synchronized void recordPomDownload(long elapsedNanos) {
+            pomCacheMisses++;
+            pomDownloadNanos += elapsedNanos;
+            downloadCount++;
+        }
+
+        private synchronized void recordJarCacheHit(long elapsedNanos) {
+            jarCacheHits++;
+            jarCacheHitNanos += elapsedNanos;
+        }
+
+        private synchronized void recordJarDownload(long elapsedNanos) {
+            jarCacheMisses++;
+            jarDownloadNanos += elapsedNanos;
+            downloadCount++;
+        }
+
+        private synchronized void recordArtifactCacheHit(long elapsedNanos) {
+            artifactCacheHits++;
+            artifactCacheHitNanos += elapsedNanos;
+        }
+
+        private synchronized void recordArtifactDownload(long elapsedNanos) {
+            artifactCacheMisses++;
+            artifactDownloadNanos += elapsedNanos;
+            downloadCount++;
         }
 
         int downloadCount() {
             return downloadCount;
         }
 
-        ResolveMetrics metrics() {
+        synchronized ResolveMetrics metrics() {
             return new ResolveMetrics(
                     pomCacheHits,
                     pomCacheMisses,
