@@ -42,6 +42,10 @@ final class ZoltTomlParserTest {
         assertEquals("target/test-classes", config.build().testOutput());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
         assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
+        assertEquals("", config.compilerSettings().release());
+        assertEquals("", config.compilerSettings().encoding());
+        assertTrue(config.compilerSettings().args().isEmpty());
+        assertTrue(config.compilerSettings().testArgs().isEmpty());
         assertEquals(PackageMode.THIN, config.packageSettings().mode());
     }
 
@@ -112,6 +116,10 @@ final class ZoltTomlParserTest {
         assertEquals("target/classes", config.build().output());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
         assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
+        assertEquals("", config.compilerSettings().release());
+        assertEquals("", config.compilerSettings().encoding());
+        assertTrue(config.compilerSettings().args().isEmpty());
+        assertTrue(config.compilerSettings().testArgs().isEmpty());
         assertEquals(PackageMode.THIN, config.packageSettings().mode());
         assertEquals("", config.nativeSettings().imageName());
         assertEquals("target/native", config.nativeSettings().output());
@@ -408,10 +416,35 @@ final class ZoltTomlParserTest {
                 [compiler]
                 generatedSources = "build/generated/main"
                 generatedTestSources = "build/generated/test"
+                release = "17"
+                encoding = "UTF-8"
+                args = ["-Xlint:deprecation", "-parameters"]
+                testArgs = ["-Xlint:unchecked"]
                 """);
 
         assertEquals("build/generated/main", config.compilerSettings().generatedSources());
         assertEquals("build/generated/test", config.compilerSettings().generatedTestSources());
+        assertEquals("17", config.compilerSettings().release());
+        assertEquals("UTF-8", config.compilerSettings().encoding());
+        assertEquals(List.of("-Xlint:deprecation", "-parameters"), config.compilerSettings().args());
+        assertEquals(List.of("-Xlint:unchecked"), config.compilerSettings().testArgs());
+    }
+
+    @Test
+    void rejectsCompilerOwnedJavacArgs() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "bad-compiler-args"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [compiler]
+                args = ["--release", "17"]
+                """));
+
+        assertTrue(exception.getMessage().contains("Zolt owns `--release`"));
+        assertTrue(exception.getMessage().contains("[compiler].release"));
     }
 
     @Test

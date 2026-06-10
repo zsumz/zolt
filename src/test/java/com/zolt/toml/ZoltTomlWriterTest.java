@@ -334,6 +334,10 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("[compiler]\n"));
         assertTrue(toml.contains("generatedSources = \"build/generated/main\""));
         assertTrue(toml.contains("generatedTestSources = \"build/generated/test\""));
+        assertTrue(toml.contains("release = \"17\""));
+        assertTrue(toml.contains("encoding = \"UTF-8\""));
+        assertTrue(toml.contains("args = [\"-Xlint:deprecation\", \"-parameters\"]"));
+        assertTrue(toml.contains("testArgs = [\"-Xlint:unchecked\"]"));
         assertEquals(config.compilerSettings(), parsed.compilerSettings());
     }
 
@@ -812,6 +816,12 @@ final class ZoltTomlWriterTest {
                 Set.of(),
                 BuildSettings.defaults(),
                 NativeSettings.defaults(),
-                new CompilerSettings("build/generated/main", "build/generated/test"));
+                new CompilerSettings(
+                        "build/generated/main",
+                        "build/generated/test",
+                        "17",
+                        "UTF-8",
+                        List.of("-Xlint:deprecation", "-parameters"),
+                        List.of("-Xlint:unchecked")));
     }
 }

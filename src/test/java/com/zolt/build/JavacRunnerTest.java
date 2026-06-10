@@ -118,6 +118,38 @@ final class JavacRunnerTest {
     }
 
     @Test
+    void passesCompilerOptionsToJavacCommand() throws IOException {
+        Path source = source("src/main/java/com/example/Main.java", "final class Main {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        JavacRunner runner = new JavacRunner(":", command -> {
+            commands.add(command);
+            return new JavacRunner.ProcessResult(0, "");
+        });
+
+        runner.compile(
+                Path.of("javac"),
+                List.of(source),
+                new Classpath(List.of()),
+                tempDir.resolve("target/classes"),
+                new Classpath(List.of()),
+                null,
+                new JavacOptions("17", "UTF-8", List.of("-Xlint:deprecation", "-parameters")));
+
+        assertEquals(List.of(
+                "javac",
+                "-d",
+                tempDir.resolve("target/classes").toString(),
+                "--release",
+                "17",
+                "-encoding",
+                "UTF-8",
+                "-proc:none",
+                "-Xlint:deprecation",
+                "-parameters",
+                source.normalize().toString()), commands.getFirst());
+    }
+
+    @Test
     void runsAnnotationProcessorAndCompilesGeneratedSource() throws IOException {
         Path processorJar = AnnotationProcessorFixture.processorJar(tempDir);
         Path source = source("src/main/java/com/example/Main.java", """

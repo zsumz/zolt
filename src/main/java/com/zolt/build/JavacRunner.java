@@ -39,6 +39,25 @@ public final class JavacRunner {
             Path outputDirectory,
             Classpath processorClasspath,
             Path generatedSourcesDirectory) {
+        return compile(
+                javac,
+                sources,
+                classpath,
+                outputDirectory,
+                processorClasspath,
+                generatedSourcesDirectory,
+                JavacOptions.empty());
+    }
+
+    public JavacResult compile(
+            Path javac,
+            List<Path> sources,
+            Classpath classpath,
+            Path outputDirectory,
+            Classpath processorClasspath,
+            Path generatedSourcesDirectory,
+            JavacOptions options) {
+        JavacOptions effectiveOptions = options == null ? JavacOptions.empty() : options;
         List<Path> sortedSources = sources.stream().map(Path::normalize).sorted().toList();
         Path effectiveGeneratedSourcesDirectory = sortedEntries(processorClasspath).isEmpty()
                 ? null
@@ -65,7 +84,8 @@ public final class JavacRunner {
                 classpath,
                 outputDirectory,
                 processorClasspath,
-                effectiveGeneratedSourcesDirectory);
+                effectiveGeneratedSourcesDirectory,
+                effectiveOptions);
         ProcessResult result = processRunner.run(command);
         if (result.exitCode() != 0) {
             throw new JavacException(
@@ -85,11 +105,20 @@ public final class JavacRunner {
             Classpath classpath,
             Path outputDirectory,
             Classpath processorClasspath,
-            Path generatedSourcesDirectory) {
+            Path generatedSourcesDirectory,
+            JavacOptions options) {
         List<String> command = new ArrayList<>();
         command.add(javac.toString());
         command.add("-d");
         command.add(outputDirectory.toString());
+        if (!options.release().isBlank()) {
+            command.add("--release");
+            command.add(options.release());
+        }
+        if (!options.encoding().isBlank()) {
+            command.add("-encoding");
+            command.add(options.encoding());
+        }
         List<Path> classpathEntries = sortedEntries(classpath);
         if (!classpathEntries.isEmpty()) {
             command.add("-classpath");
@@ -106,6 +135,7 @@ public final class JavacRunner {
             command.add("-s");
             command.add(generatedSourcesDirectory.toString());
         }
+        command.addAll(options.arguments());
         for (Path source : sources) {
             command.add(source.toString());
         }

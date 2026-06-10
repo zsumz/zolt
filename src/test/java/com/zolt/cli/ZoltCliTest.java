@@ -1852,6 +1852,15 @@ final class ZoltCliTest {
                     "detectedVersion": null,
                     "javaHome": null
                   },
+                  "compiler": {
+                    "release": null,
+                    "effectiveRelease": "%s",
+                    "encoding": null,
+                    "args": [],
+                    "testArgs": [],
+                    "generatedSources": "%s",
+                    "generatedTestSources": "%s"
+                  },
                   "paths": {
                     "root": "%s",
                     "config": "%s",
@@ -1949,6 +1958,9 @@ final class ZoltCliTest {
                 }
                 """.formatted(
                 currentJavaMajorVersion(),
+                currentJavaMajorVersion(),
+                jsonPath(root.resolve("target/generated/sources/annotations")),
+                jsonPath(root.resolve("target/generated/test-sources/annotations")),
                 jsonPath(root),
                 jsonPath(root.resolve("zolt.toml")),
                 jsonPath(root.resolve("zolt.lock")),

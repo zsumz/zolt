@@ -48,7 +48,31 @@ public final class ZoltTomlParser {
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
-    private static final Set<String> COMPILER_KEYS = Set.of("generatedSources", "generatedTestSources");
+    private static final Set<String> COMPILER_KEYS = Set.of(
+            "generatedSources",
+            "generatedTestSources",
+            "release",
+            "encoding",
+            "args",
+            "testArgs");
+    private static final Set<String> ZOLT_OWNED_JAVAC_ARGS = Set.of(
+            "--release",
+            "-source",
+            "--source",
+            "-target",
+            "--target",
+            "-encoding",
+            "-d",
+            "-classpath",
+            "--class-path",
+            "-cp",
+            "-processorpath",
+            "-processorpath:",
+            "--processor-path",
+            "-processor",
+            "-s",
+            "-sourcepath",
+            "--source-path");
     private static final Set<String> PACKAGE_KEYS = Set.of("mode");
     private static final Set<String> FRAMEWORK_KEYS = Set.of("quarkus");
     private static final Set<String> QUARKUS_KEYS = Set.of("enabled", "package");
@@ -273,13 +297,35 @@ public final class ZoltTomlParser {
         }
 
         validateKeys("compiler", compilerTable, COMPILER_KEYS);
+        List<String> args = stringListOrDefault(compilerTable, "compiler", "args", defaults.args());
+        List<String> testArgs = stringListOrDefault(compilerTable, "compiler", "testArgs", defaults.testArgs());
+        validateCompilerArgs("args", args);
+        validateCompilerArgs("testArgs", testArgs);
         return new CompilerSettings(
                 stringOrDefault(compilerTable, "compiler", "generatedSources", defaults.generatedSources()),
                 stringOrDefault(
                         compilerTable,
                         "compiler",
                         "generatedTestSources",
-                        defaults.generatedTestSources()));
+                        defaults.generatedTestSources()),
+                stringOrDefault(compilerTable, "compiler", "release", defaults.release()),
+                stringOrDefault(compilerTable, "compiler", "encoding", defaults.encoding()),
+                args,
+                testArgs);
+    }
+
+    private static void validateCompilerArgs(String field, List<String> args) {
+        for (String arg : args) {
+            String flag = arg.contains("=") ? arg.substring(0, arg.indexOf('=')) : arg;
+            if (ZOLT_OWNED_JAVAC_ARGS.contains(flag)) {
+                throw new ZoltConfigException(
+                        "Invalid value for [compiler]."
+                                + field
+                                + " in zolt.toml. Zolt owns `"
+                                + flag
+                                + "`; use [compiler].release, [compiler].encoding, source roots, dependencies, or annotation processor settings instead.");
+            }
+        }
     }
 
     private static PackageSettings parsePackage(TomlTable packageTable) {

@@ -7,6 +7,7 @@ public record IdeModel(
         int schemaVersion,
         ProjectInfo project,
         JavaInfo java,
+        CompilerInfo compiler,
         PathInfo paths,
         List<SourceRoot> sourceRoots,
         List<ResourceRoot> resourceRoots,
@@ -32,6 +33,20 @@ public record IdeModel(
             String version,
             String detectedVersion,
             String javaHome) {
+    }
+
+    public record CompilerInfo(
+            String release,
+            String effectiveRelease,
+            String encoding,
+            List<String> args,
+            List<String> testArgs,
+            Path generatedSources,
+            Path generatedTestSources) {
+        public CompilerInfo {
+            args = List.copyOf(args);
+            testArgs = List.copyOf(testArgs);
+        }
     }
 
     public record PathInfo(

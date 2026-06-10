@@ -200,7 +200,13 @@ final class BuildServiceTest {
         ProjectConfig firstConfig = config();
         ProjectConfig secondConfig = withCompilerSettings(
                 firstConfig,
-                new CompilerSettings("target/generated/main-alt", "target/generated/test-alt"));
+                new CompilerSettings(
+                        "target/generated/sources/annotations",
+                        "target/generated/test-sources/annotations",
+                        "17",
+                        "UTF-8",
+                        List.of("-Xlint:deprecation"),
+                        List.of("-Xlint:unchecked")));
         buildService.build(projectDir, firstConfig, projectDir.resolve("cache"));
 
         BuildResult result = buildService.build(projectDir, secondConfig, projectDir.resolve("cache"));

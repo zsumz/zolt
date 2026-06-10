@@ -4,6 +4,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
@@ -112,7 +113,8 @@ public final class TestCompileService {
                         testCompileClasspath,
                         outputDirectory,
                         classpaths.testProcessor(),
-                        generatedSourcesDirectory);
+                        generatedSourcesDirectory,
+                        javacOptions(config));
         JavacResult groovyResult = compileSkipped
                 ? new JavacResult(sources.groovyTestSources().size(), outputDirectory, "")
                 : groovyCompilerRunner.compile(
@@ -163,5 +165,18 @@ public final class TestCompileService {
                             + "`. Use a project-relative path under the project directory.");
         }
         return path;
+    }
+
+    private static JavacOptions javacOptions(ProjectConfig config) {
+        CompilerSettings compiler = config.compilerSettings();
+        return new JavacOptions(
+                effectiveRelease(config),
+                compiler.encoding(),
+                compiler.testArgs());
+    }
+
+    private static String effectiveRelease(ProjectConfig config) {
+        String compilerRelease = config.compilerSettings().release();
+        return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
     }
 }

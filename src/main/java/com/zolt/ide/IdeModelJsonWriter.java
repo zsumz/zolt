@@ -12,6 +12,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         java(json, model.java());
         comma(json);
+        compiler(json, model.compiler());
+        comma(json);
         paths(json, model.paths());
         comma(json);
         sourceRoots(json, model.sourceRoots());
@@ -45,6 +47,18 @@ public final class IdeModelJsonWriter {
         stringField(json, 2, "version", java.version(), true);
         stringField(json, 2, "detectedVersion", java.detectedVersion(), true);
         stringField(json, 2, "javaHome", java.javaHome(), false);
+        indent(json, 1).append("}");
+    }
+
+    private static void compiler(StringBuilder json, IdeModel.CompilerInfo compiler) {
+        indent(json, 1).append("\"compiler\": {\n");
+        stringField(json, 2, "release", compiler.release(), true);
+        stringField(json, 2, "effectiveRelease", compiler.effectiveRelease(), true);
+        stringField(json, 2, "encoding", compiler.encoding(), true);
+        stringArrayField(json, 2, "args", compiler.args(), true);
+        stringArrayField(json, 2, "testArgs", compiler.testArgs(), true);
+        pathField(json, 2, "generatedSources", compiler.generatedSources(), true);
+        pathField(json, 2, "generatedTestSources", compiler.generatedTestSources(), false);
         indent(json, 1).append("}");
     }
 
@@ -220,6 +234,32 @@ public final class IdeModelJsonWriter {
             for (int index = 0; index < values.size(); index++) {
                 indent(json, level + 1);
                 string(json, jsonPath(values.get(index)));
+                if (index < values.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, level);
+        }
+        json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void stringArrayField(
+            StringBuilder json,
+            int level,
+            String name,
+            List<String> values,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": [");
+        if (!values.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < values.size(); index++) {
+                indent(json, level + 1);
+                string(json, values.get(index));
                 if (index < values.size() - 1) {
                     json.append(',');
                 }

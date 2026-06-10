@@ -8,6 +8,7 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -127,7 +128,8 @@ public final class BuildService {
                         classpaths.compile(),
                         outputDirectory,
                         classpaths.processor(),
-                        generatedSourcesDirectory);
+                        generatedSourcesDirectory,
+                        javacOptions(config));
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config.build());
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
         buildFingerprintService.writeMainCompileFingerprint(
@@ -158,5 +160,18 @@ public final class BuildService {
                             + "`. Use a project-relative path under the project directory.");
         }
         return path;
+    }
+
+    private static JavacOptions javacOptions(ProjectConfig config) {
+        CompilerSettings compiler = config.compilerSettings();
+        return new JavacOptions(
+                effectiveRelease(config),
+                compiler.encoding(),
+                compiler.args());
+    }
+
+    private static String effectiveRelease(ProjectConfig config) {
+        String compilerRelease = config.compilerSettings().release();
+        return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
     }
 }

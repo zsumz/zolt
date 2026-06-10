@@ -810,6 +810,18 @@ public final class ZoltTomlWriter {
         toml.append("\n[compiler]\n");
         writeAssignment(toml, "generatedSources", compilerSettings.generatedSources());
         writeAssignment(toml, "generatedTestSources", compilerSettings.generatedTestSources());
+        if (!compilerSettings.release().isBlank()) {
+            writeAssignment(toml, "release", compilerSettings.release());
+        }
+        if (!compilerSettings.encoding().isBlank()) {
+            writeAssignment(toml, "encoding", compilerSettings.encoding());
+        }
+        if (!compilerSettings.args().isEmpty()) {
+            writeStringArray(toml, "args", compilerSettings.args());
+        }
+        if (!compilerSettings.testArgs().isEmpty()) {
+            writeStringArray(toml, "testArgs", compilerSettings.testArgs());
+        }
     }
 
     private static void writePackage(StringBuilder toml, PackageSettings packageSettings) {

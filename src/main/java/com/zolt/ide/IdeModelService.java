@@ -8,6 +8,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.resolve.Classpath;
@@ -102,6 +103,7 @@ public final class IdeModelService {
                         SCHEMA_VERSION,
                         projectInfo(config),
                         javaInfo(config),
+                        compilerInfo(root, config),
                         new IdeModel.PathInfo(root, configPath, lockfilePath),
                         sourceRoots(root, config),
                         resourceRoots(root, config),
@@ -141,6 +143,7 @@ public final class IdeModelService {
                 SCHEMA_VERSION,
                 projectInfo(config),
                 javaInfo(config),
+                compilerInfo(root, config),
                 new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
                 sourceRoots(root, config),
                 resourceRoots(root, config),
@@ -222,6 +225,23 @@ public final class IdeModelService {
 
     private IdeModel.JavaInfo javaInfo(ProjectConfig config) {
         return new IdeModel.JavaInfo(config == null ? null : config.project().java(), null, null);
+    }
+
+    private IdeModel.CompilerInfo compilerInfo(Path root, ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.CompilerInfo(null, null, null, List.of(), List.of(), null, null);
+        }
+        CompilerSettings compiler = config.compilerSettings();
+        String release = compiler.release().isBlank() ? null : compiler.release();
+        String encoding = compiler.encoding().isBlank() ? null : compiler.encoding();
+        return new IdeModel.CompilerInfo(
+                release,
+                release == null ? config.project().java() : release,
+                encoding,
+                compiler.args(),
+                compiler.testArgs(),
+                root.resolve(compiler.generatedSources()).normalize(),
+                root.resolve(compiler.generatedTestSources()).normalize());
     }
 
     private List<IdeModel.SourceRoot> sourceRoots(Path root, ProjectConfig config) {
