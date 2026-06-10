@@ -51,18 +51,28 @@ public final class QuarkusTestIndexProbe {
     static void writeReport(IndexProbeResult result, PrintStream out) {
         out.println("Quarkus test index probe");
         out.println("Test output: " + result.testOutputDirectory());
-        out.println("Known classes: " + result.knownClassCount());
-        out.println("Selected test classes:");
-        for (SelectedClassIndexResult selectedClass : result.selectedClasses()) {
+        out.println("Class locations:");
+        for (TestClassLocationResult location : result.classLocations()) {
+            out.println("  " + location.className() + " location=" + location.location());
+        }
+        writeSnapshot(result.rawIndex(), out);
+        writeSnapshot(result.enrichedIndex(), out);
+    }
+
+    private static void writeSnapshot(IndexProbeSnapshot snapshot, PrintStream out) {
+        out.println(snapshot.label() + " index:");
+        out.println("  Known classes: " + snapshot.knownClassCount());
+        out.println("  Selected test classes:");
+        for (SelectedClassIndexResult selectedClass : snapshot.selectedClasses()) {
             out.println("  " + selectedClass.className()
                     + " present=" + selectedClass.present()
                     + " @QuarkusTest=" + selectedClass.hasQuarkusTest()
                     + " @ExtendWith=" + selectedClass.hasExtendWith());
             out.println("    annotations: " + annotationsLine(selectedClass.declaredAnnotations()));
         }
-        out.println("Annotation counts:");
-        result.annotationCounts().forEach((annotation, count) ->
-                out.println("  " + annotation + "=" + count));
+        out.println("  Annotation counts:");
+        snapshot.annotationCounts().forEach((annotation, count) ->
+                out.println("    " + annotation + "=" + count));
     }
 
     private static String annotationsLine(List<String> annotations) {
@@ -74,9 +84,21 @@ public final class QuarkusTestIndexProbe {
 
     record IndexProbeResult(
             Path testOutputDirectory,
+            List<TestClassLocationResult> classLocations,
+            IndexProbeSnapshot rawIndex,
+            IndexProbeSnapshot enrichedIndex) {
+    }
+
+    record IndexProbeSnapshot(
+            String label,
             int knownClassCount,
             List<SelectedClassIndexResult> selectedClasses,
             Map<String, Integer> annotationCounts) {
+    }
+
+    record TestClassLocationResult(
+            String className,
+            String location) {
     }
 
     record SelectedClassIndexResult(
@@ -98,17 +120,54 @@ public final class QuarkusTestIndexProbe {
 
         private IndexProbeResult inspect(Path testOutputDirectory, List<String> testClasses)
                 throws ReflectiveOperationException {
-            Object index = createIndex(testOutputDirectory, testClasses);
+            Object rawIndex = createRawIndex(testOutputDirectory);
+            Object enrichedIndex = createIndex(testOutputDirectory, testClasses);
+            return new IndexProbeResult(
+                    testOutputDirectory,
+                    classLocations(testClasses),
+                    inspectSnapshot("Raw", rawIndex, testClasses),
+                    inspectSnapshot("Enriched", enrichedIndex, testClasses));
+        }
+
+        private IndexProbeSnapshot inspectSnapshot(String label, Object index, List<String> testClasses)
+                throws ReflectiveOperationException {
             Collection<?> knownClasses = knownClasses(index);
             List<SelectedClassIndexResult> selectedClasses = new ArrayList<>();
             for (String testClass : testClasses) {
                 selectedClasses.add(inspectClass(index, testClass));
             }
-            return new IndexProbeResult(
-                    testOutputDirectory,
+            return new IndexProbeSnapshot(
+                    label,
                     knownClasses.size(),
                     List.copyOf(selectedClasses),
                     annotationCounts(index));
+        }
+
+        private List<TestClassLocationResult> classLocations(List<String> testClasses) {
+            List<TestClassLocationResult> locations = new ArrayList<>();
+            for (String testClass : testClasses) {
+                locations.add(classLocation(testClass));
+            }
+            return List.copyOf(locations);
+        }
+
+        private TestClassLocationResult classLocation(String testClass) {
+            try {
+                Class<?> selectedClass = Class.forName(testClass, false, ClassLoader.getSystemClassLoader());
+                Class<?> pathTestHelper = Class.forName("io.quarkus.test.common.PathTestHelper");
+                Object location = pathTestHelper
+                        .getMethod("getTestClassesLocation", Class.class)
+                        .invoke(null, selectedClass);
+                return new TestClassLocationResult(testClass, String.valueOf(location));
+            } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+                return new TestClassLocationResult(
+                        testClass,
+                        "<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
+        }
+
+        private Object createRawIndex(Path testOutputDirectory) throws ReflectiveOperationException {
+            return new QuarkusTestIndexWriter().createRawIndex(testOutputDirectory);
         }
 
         private Object createIndex(Path testOutputDirectory, List<String> testClasses)

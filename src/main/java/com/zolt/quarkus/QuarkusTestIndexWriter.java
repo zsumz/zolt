@@ -18,11 +18,15 @@ final class QuarkusTestIndexWriter {
     Object createIndex(Path testOutputDirectory, List<String> testClasses)
             throws ReflectiveOperationException {
         ReflectiveJandex jandex = new ReflectiveJandex();
-        Object index = jandex.indexTestClasses(testOutputDirectory);
+        Object index = createRawIndex(testOutputDirectory);
         if (testClasses.isEmpty()) {
             return index;
         }
         return jandex.enrichQuarkusTestExtensionCandidates(index, testClasses);
+    }
+
+    Object createRawIndex(Path testOutputDirectory) throws ReflectiveOperationException {
+        return new ReflectiveJandex().indexTestClasses(testOutputDirectory);
     }
 
     void write(Path testOutputDirectory, List<String> testClasses)
