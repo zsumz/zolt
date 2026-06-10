@@ -14,7 +14,7 @@ import java.util.Set;
 
 public final class JunitLauncherWorker {
     public static final String MAIN_CLASS = "com.zolt.junit.JunitLauncherWorker";
-    private static final String SERVER_RESULT_PREFIX = "ZOLT_WORKER_RESULT exitCode=";
+    private static final String SERVER_RESULT_PREFIX = "ZOLT_WORKER_RESULT";
 
     public static void main(String[] args) {
         int exitCode = new JunitLauncherWorker().run(args, System.in, System.out, System.err);
@@ -45,17 +45,17 @@ public final class JunitLauncherWorker {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String request = line.trim();
-                if (request.isEmpty()) {
+                if (line.isBlank()) {
                     continue;
                 }
-                if ("quit".equals(request)) {
-                    out.println(SERVER_RESULT_PREFIX + 0);
+                WorkerRequest request = WorkerRequest.parse(line);
+                if (request.command().equals("QUIT")) {
+                    out.println(response(request.requestId(), 0));
                     out.flush();
                     return 0;
                 }
-                int exitCode = runRequest(launcher, request, err);
-                out.println(SERVER_RESULT_PREFIX + exitCode);
+                int exitCode = runRequest(launcher, request.testOutputDirectory(), err);
+                out.println(response(request.requestId(), exitCode));
                 out.flush();
             }
             return 0;
@@ -63,6 +63,9 @@ public final class JunitLauncherWorker {
             err.println("error: Could not read JUnit launcher worker server input.");
             exception.printStackTrace(err);
             return 1;
+        } catch (IllegalArgumentException exception) {
+            err.println("error: " + exception.getMessage());
+            return 2;
         }
     }
 
@@ -78,6 +81,36 @@ public final class JunitLauncherWorker {
                     + "Check that JUnit Platform Launcher and test engines are on the worker classpath.");
             exception.printStackTrace(err);
             return 1;
+        }
+    }
+
+    private static String response(String requestId, int exitCode) {
+        return SERVER_RESULT_PREFIX + "\t" + requestId + "\t" + exitCode;
+    }
+
+    private record WorkerRequest(String command, String requestId, String testOutputDirectory) {
+        private static WorkerRequest parse(String line) {
+            String[] parts = line.split("\t", -1);
+            if (parts.length < 2 || parts[0].isBlank() || parts[1].isBlank()) {
+                throw new IllegalArgumentException(
+                        "Malformed JUnit worker request. Expected RUN<TAB>requestId<TAB>testOutputDirectory or QUIT<TAB>requestId.");
+            }
+            String command = parts[0];
+            String requestId = parts[1];
+            if ("QUIT".equals(command)) {
+                if (parts.length != 2) {
+                    throw new IllegalArgumentException("Malformed JUnit worker quit request. Expected QUIT<TAB>requestId.");
+                }
+                return new WorkerRequest(command, requestId, "");
+            }
+            if (!"RUN".equals(command)) {
+                throw new IllegalArgumentException("Unknown JUnit worker request command `" + command + "`.");
+            }
+            if (parts.length != 3 || parts[2].isBlank()) {
+                throw new IllegalArgumentException(
+                        "Malformed JUnit worker run request. Expected RUN<TAB>requestId<TAB>testOutputDirectory.");
+            }
+            return new WorkerRequest(command, requestId, parts[2]);
         }
     }
 
