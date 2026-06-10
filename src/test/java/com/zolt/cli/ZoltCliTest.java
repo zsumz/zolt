@@ -151,19 +151,25 @@ final class ZoltCliTest {
     }
 
     @Test
-    void explainGradleJsonPlaceholderIsDeterministic() {
+    void explainGradleJsonInspectsBuildStatically() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                repositories { mavenCentral() }
+                dependencies { implementation 'com.google.guava:guava:33.4.8-jre' }
+                """);
+
         CommandResult result = execute(
                 "explain",
                 "--cwd", tempDir.toString(),
                 "--source", "gradle",
                 "--format", "json");
 
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().startsWith("{\"schemaVersion\":1,\"command\":\"explain\""));
-        assertTrue(result.stdout().contains("\"status\":\"not-implemented\""));
-        assertTrue(result.stdout().contains("\"source\":\"gradle\""));
-        assertTrue(result.stdout().contains("\"root\":\"" + jsonPath(tempDir.toAbsolutePath().normalize()) + "\""));
-        assertTrue(result.stdout().contains("without executing Maven or Gradle"));
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"source\": \"gradle\""));
+        assertTrue(result.stdout().contains("\"root\": \"" + jsonPath(tempDir.toAbsolutePath().normalize()) + "\""));
+        assertTrue(result.stdout().contains("\"resolvedCoordinate\": \"com.google.guava:guava:33.4.8-jre\""));
         assertEquals("", result.stderr());
     }
 

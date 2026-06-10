@@ -41,6 +41,9 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.doctor.SelfHostingCheckResult;
 import com.zolt.doctor.SelfHostingCheckService;
+import com.zolt.explain.GradleExplainFormatter;
+import com.zolt.explain.GradleInspectionResult;
+import com.zolt.explain.GradleStaticProjectInspector;
 import com.zolt.explain.MavenExplainFormatter;
 import com.zolt.explain.MavenInspectionResult;
 import com.zolt.explain.MavenStaticProjectInspector;
@@ -751,9 +754,24 @@ public final class ZoltCli implements Runnable {
                     MavenInspectionResult result = new MavenStaticProjectInspector().inspect(root);
                     MavenExplainFormatter formatter = new MavenExplainFormatter();
                     if (format == Format.JSON) {
-                        spec.commandLine().getOut().print(formatter.json(result));
+                        printAndFlush(spec, formatter.json(result));
                     } else {
-                        spec.commandLine().getOut().print(formatter.text(result));
+                        printAndFlush(spec, formatter.text(result));
+                    }
+                    return 0;
+                } catch (MigrationExplainException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                }
+            }
+            if (detectedSource == Source.GRADLE) {
+                try {
+                    GradleInspectionResult result = new GradleStaticProjectInspector().inspect(root);
+                    GradleExplainFormatter formatter = new GradleExplainFormatter();
+                    if (format == Format.JSON) {
+                        printAndFlush(spec, formatter.json(result));
+                    } else {
+                        printAndFlush(spec, formatter.text(result));
                     }
                     return 0;
                 } catch (MigrationExplainException exception) {
