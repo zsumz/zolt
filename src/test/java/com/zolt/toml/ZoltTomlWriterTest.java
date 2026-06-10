@@ -11,6 +11,8 @@ import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -342,6 +344,41 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("args = [\"-Xlint:deprecation\", \"-parameters\"]"));
         assertTrue(toml.contains("testArgs = [\"-Xlint:unchecked\"]"));
         assertEquals(config.compilerSettings(), parsed.compilerSettings());
+    }
+
+    @Test
+    void writesGeneratedSourceStepsWhenConfigured() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(BuildSettings.defaults().withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "openapi",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/sources/openapi",
+                                List.of("src/main/openapi/api.yaml"),
+                                true,
+                                false)),
+                        List.of(new GeneratedSourceStep(
+                                "fixtures",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/test-sources/fixtures",
+                                List.of("src/test/fixtures/schema.json"),
+                                false,
+                                true))));
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[generated.main.openapi]\n"));
+        assertTrue(toml.contains("kind = \"declared-root\""));
+        assertTrue(toml.contains("output = \"target/generated/sources/openapi\""));
+        assertTrue(toml.contains("inputs = [\"src/main/openapi/api.yaml\"]"));
+        assertTrue(toml.contains("[generated.test.fixtures]\n"));
+        assertTrue(toml.contains("required = false"));
+        assertTrue(toml.contains("clean = true"));
+        assertEquals(config.build().generatedMainSources(), parsed.build().generatedMainSources());
+        assertEquals(config.build().generatedTestSources(), parsed.build().generatedTestSources());
     }
 
     @Test

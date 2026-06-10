@@ -7,6 +7,7 @@ import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -106,6 +107,7 @@ public final class ZoltTomlWriter {
         writeBuild(toml, config.build());
         writeBuildMetadata(toml, config.build().metadata());
         writeResources(toml, config.build());
+        writeGeneratedSources(toml, config.build());
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
         writeFramework(toml, config.frameworkSettings());
@@ -930,6 +932,35 @@ public final class ZoltTomlWriter {
         toml.append("\n[resources]\n");
         writeStringArray(toml, "main", build.resourceRoots());
         writeStringArray(toml, "test", build.testResourceRoots());
+    }
+
+    private static void writeGeneratedSources(StringBuilder toml, BuildSettings build) {
+        writeGeneratedSourceScope(toml, "generated.main", build.generatedMainSources());
+        writeGeneratedSourceScope(toml, "generated.test", build.generatedTestSources());
+    }
+
+    private static void writeGeneratedSourceScope(
+            StringBuilder toml,
+            String section,
+            List<GeneratedSourceStep> steps) {
+        if (steps.isEmpty()) {
+            return;
+        }
+        for (GeneratedSourceStep step : steps.stream()
+                .sorted(java.util.Comparator.comparing(GeneratedSourceStep::id))
+                .toList()) {
+            toml.append("\n[").append(section).append('.').append(step.id()).append("]\n");
+            writeAssignment(toml, "kind", step.kind().configValue());
+            writeAssignment(toml, "language", step.language());
+            writeAssignment(toml, "output", step.output());
+            writeStringArray(toml, "inputs", step.inputs());
+            if (!step.required()) {
+                writeAssignment(toml, "required", false);
+            }
+            if (step.clean()) {
+                writeAssignment(toml, "clean", true);
+            }
+        }
     }
 
     private static void writeCompiler(StringBuilder toml, CompilerSettings compilerSettings) {

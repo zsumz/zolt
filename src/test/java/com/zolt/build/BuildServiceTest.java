@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
@@ -261,6 +263,86 @@ final class BuildServiceTest {
                 "package com.example; public final class GeneratedMessage { public static String value() { return \"tampered\"; } }\n");
 
         BuildResult result = buildService.build(projectDir, config(), cacheRoot);
+
+        assertFalse(result.mainCompilationSkipped());
+    }
+
+    @Test
+    void declaredGeneratedSourceRootCompilesWithMainSources() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return GeneratedMessage.value();
+                    }
+                }
+                """);
+        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        source("target/generated/sources/openapi/com/example/GeneratedMessage.java", """
+                package com.example;
+
+                public final class GeneratedMessage {
+                    public static String value() {
+                        return "generated";
+                    }
+                }
+                """);
+        ProjectConfig config = config().withBuildSettings(config().build().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "openapi",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "java",
+                        "target/generated/sources/openapi",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        false)),
+                List.of()));
+
+        BuildResult result = buildService.build(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(2, result.sourceCount());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
+    }
+
+    @Test
+    void declaredGeneratedSourceInputChangeInvalidatesMainBuildFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return GeneratedMessage.value();
+                    }
+                }
+                """);
+        Path input = source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        source("target/generated/sources/openapi/com/example/GeneratedMessage.java", """
+                package com.example;
+
+                public final class GeneratedMessage {
+                    public static String value() {
+                        return "generated";
+                    }
+                }
+                """);
+        ProjectConfig config = config().withBuildSettings(config().build().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "openapi",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "java",
+                        "target/generated/sources/openapi",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        false)),
+                List.of()));
+        buildService.build(projectDir, config, projectDir.resolve("cache"));
+        Files.writeString(input, "openapi: 3.1.0\ninfo:\n  title: Changed\n");
+
+        BuildResult result = buildService.build(projectDir, config, projectDir.resolve("cache"));
 
         assertFalse(result.mainCompilationSkipped());
     }

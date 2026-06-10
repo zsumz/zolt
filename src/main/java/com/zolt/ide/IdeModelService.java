@@ -318,6 +318,14 @@ public final class IdeModelService {
                 "java",
                 root.resolve(config.compilerSettings().generatedSources()).normalize(),
                 true));
+        for (GeneratedSourceRoot generatedRoot : generatedRoots(root, settings.generatedMainSources(), "main")) {
+            roots.add(new IdeModel.SourceRoot(
+                    generatedRoot.id(),
+                    "main",
+                    "java",
+                    generatedRoot.path(),
+                    true));
+        }
         for (int index = 0; index < settings.testSources().size(); index++) {
             roots.add(new IdeModel.SourceRoot(
                     "test-java-" + (index + 1),
@@ -340,8 +348,29 @@ public final class IdeModelService {
                 "java",
                 root.resolve(config.compilerSettings().generatedTestSources()).normalize(),
                 true));
+        for (GeneratedSourceRoot generatedRoot : generatedRoots(root, settings.generatedTestSources(), "test")) {
+            roots.add(new IdeModel.SourceRoot(
+                    generatedRoot.id(),
+                    "test",
+                    "java",
+                    generatedRoot.path(),
+                    true));
+        }
         return roots;
     }
+
+    private static List<GeneratedSourceRoot> generatedRoots(
+            Path root,
+            List<com.zolt.project.GeneratedSourceStep> steps,
+            String kind) {
+        return steps.stream()
+                .map(step -> new GeneratedSourceRoot(
+                        "generated-" + kind + "-" + step.id(),
+                        root.resolve(step.output()).normalize()))
+                .toList();
+    }
+
+    private record GeneratedSourceRoot(String id, Path path) {}
 
     private List<IdeModel.ResourceRoot> resourceRoots(Path root, ProjectConfig config) {
         if (config == null) {

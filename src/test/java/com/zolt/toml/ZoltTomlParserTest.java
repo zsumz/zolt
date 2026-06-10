@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.DependencyMetadata;
+import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.QuarkusPackageMode;
@@ -463,6 +464,102 @@ final class ZoltTomlParserTest {
         assertEquals("UTF-8", config.compilerSettings().encoding());
         assertEquals(List.of("-Xlint:deprecation", "-parameters"), config.compilerSettings().args());
         assertEquals(List.of("-Xlint:unchecked"), config.compilerSettings().testArgs());
+    }
+
+    @Test
+    void parsesGeneratedSourceSteps() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/openapi"
+                inputs = ["src/main/openapi/api.yaml"]
+
+                [generated.test.fixtures]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/test-sources/fixtures"
+                inputs = ["src/test/fixtures/schema.json"]
+                required = false
+                clean = true
+                """);
+
+        assertEquals(1, config.build().generatedMainSources().size());
+        assertEquals("openapi", config.build().generatedMainSources().getFirst().id());
+        assertEquals(GeneratedSourceKind.DECLARED_ROOT, config.build().generatedMainSources().getFirst().kind());
+        assertEquals("java", config.build().generatedMainSources().getFirst().language());
+        assertEquals("target/generated/sources/openapi", config.build().generatedMainSources().getFirst().output());
+        assertEquals(List.of("src/main/openapi/api.yaml"), config.build().generatedMainSources().getFirst().inputs());
+        assertTrue(config.build().generatedMainSources().getFirst().required());
+        assertFalse(config.build().generatedMainSources().getFirst().clean());
+        assertEquals(1, config.build().generatedTestSources().size());
+        assertEquals("fixtures", config.build().generatedTestSources().getFirst().id());
+        assertFalse(config.build().generatedTestSources().getFirst().required());
+        assertTrue(config.build().generatedTestSources().getFirst().clean());
+    }
+
+    @Test
+    void rejectsGeneratedSourceCommands() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/openapi"
+                inputs = ["src/main/openapi/api.yaml"]
+                command = "generate"
+                """));
+
+        assertTrue(exception.getMessage().contains("Unknown field [generated.main.openapi].command"));
+    }
+
+    @Test
+    void rejectsUnsupportedGeneratedSourceLanguages() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "declared-root"
+                language = "kotlin"
+                output = "target/generated/sources/openapi"
+                inputs = ["src/main/openapi/api.yaml"]
+                """));
+
+        assertTrue(exception.getMessage().contains("Unsupported generated source language `kotlin`"));
+    }
+
+    @Test
+    void rejectsGeneratedSourceStepsWithoutInputs() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/openapi"
+                inputs = []
+                """));
+
+        assertTrue(exception.getMessage().contains("Add at least one project-relative input path"));
     }
 
     @Test

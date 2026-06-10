@@ -6,6 +6,8 @@ import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -43,6 +45,7 @@ public final class ZoltTomlParser {
             "test",
             "build",
             "resources",
+            "generated",
             "compiler",
             "package",
             "framework",
@@ -51,6 +54,9 @@ public final class ZoltTomlParser {
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test");
+    private static final Set<String> GENERATED_KEYS = Set.of("main", "test");
+    private static final Set<String> GENERATED_SOURCE_KEYS =
+            Set.of("kind", "language", "output", "inputs", "required", "clean");
     private static final Set<String> COMPILER_KEYS = Set.of(
             "generatedSources",
             "generatedTestSources",
@@ -205,6 +211,7 @@ public final class ZoltTomlParser {
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         build = parseTestSources(testTable, build);
         build = parseResourceRoots(optionalTable(result, "resources"), build);
+        build = parseGeneratedSources(optionalTable(result, "generated"), build);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = parseFramework(optionalTable(result, "framework"));
@@ -309,6 +316,63 @@ public final class ZoltTomlParser {
                 stringListOrDefault(resourcesTable, "resources", "main", build.resourceRoots()),
                 stringListOrDefault(resourcesTable, "resources", "test", build.testResourceRoots()),
                 build.metadata());
+    }
+
+    private static BuildSettings parseGeneratedSources(TomlTable generatedTable, BuildSettings build) {
+        if (generatedTable == null) {
+            return build;
+        }
+        validateKeys("generated", generatedTable, GENERATED_KEYS);
+        return build.withGeneratedSources(
+                parseGeneratedSourceScope(optionalTable(generatedTable, "main"), "generated.main"),
+                parseGeneratedSourceScope(optionalTable(generatedTable, "test"), "generated.test"));
+    }
+
+    private static List<GeneratedSourceStep> parseGeneratedSourceScope(TomlTable scopeTable, String section) {
+        if (scopeTable == null) {
+            return List.of();
+        }
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        for (String id : scopeTable.keySet()) {
+            TomlTable stepTable = optionalTable(scopeTable, id);
+            if (stepTable == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [" + section + "]." + id + " in zolt.toml. Use a table with kind, language, output, and inputs.");
+            }
+            String stepSection = section + "." + id;
+            validateKeys(stepSection, stepTable, GENERATED_SOURCE_KEYS);
+            String kindValue = requiredString(stepTable, stepSection, "kind");
+            GeneratedSourceKind kind = GeneratedSourceKind.fromConfigValue(kindValue)
+                    .orElseThrow(() -> new ZoltConfigException(
+                            "Unsupported generated source kind `"
+                                    + kindValue
+                                    + "` in zolt.toml. Supported generated source kinds are: "
+                                    + GeneratedSourceKind.supportedValues()
+                                    + "."));
+            String language = requiredString(stepTable, stepSection, "language");
+            if (!"java".equals(language)) {
+                throw new ZoltConfigException(
+                        "Unsupported generated source language `"
+                                + language
+                                + "` in zolt.toml. Supported generated source languages are: java.");
+            }
+            List<String> inputs = stringListOrDefault(stepTable, stepSection, "inputs", List.of());
+            if (inputs.isEmpty()) {
+                throw new ZoltConfigException(
+                        "Missing required field ["
+                                + stepSection
+                                + "].inputs in zolt.toml. Add at least one project-relative input path.");
+            }
+            steps.add(new GeneratedSourceStep(
+                    id,
+                    kind,
+                    language,
+                    requiredString(stepTable, stepSection, "output"),
+                    inputs,
+                    booleanOrDefault(stepTable, stepSection, "required", true),
+                    booleanOrDefault(stepTable, stepSection, "clean", false)));
+        }
+        return List.copyOf(steps);
     }
 
     private static CompilerSettings parseCompiler(TomlTable compilerTable) {

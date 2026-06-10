@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusOutputLayout;
 import java.io.IOException;
@@ -56,7 +57,9 @@ public final class CleanService {
         Path generatedTestSources = safeProjectPath(projectRoot, compilerSettings.generatedTestSources());
         Path sharedParent = sharedOutputParent(output, testOutput).orElse(null);
         Set<Path> targets = new LinkedHashSet<>();
-        if (sharedParent != null && isBuildOutputParent(sharedParent)) {
+        Set<Path> protectedGeneratedRoots = protectedGeneratedRoots(projectRoot, settings);
+        if (sharedParent != null && isBuildOutputParent(sharedParent) && protectedGeneratedRoots.stream()
+                .noneMatch(path -> path.startsWith(sharedParent))) {
             targets.add(sharedParent);
         } else {
             targets.add(output);
@@ -64,7 +67,28 @@ public final class CleanService {
         }
         targets.add(generatedSources);
         targets.add(generatedTestSources);
+        settings.generatedMainSources().stream()
+                .filter(GeneratedSourceStep::clean)
+                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .forEach(targets::add);
+        settings.generatedTestSources().stream()
+                .filter(GeneratedSourceStep::clean)
+                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .forEach(targets::add);
         return targets;
+    }
+
+    private static Set<Path> protectedGeneratedRoots(Path projectRoot, BuildSettings settings) {
+        Set<Path> roots = new LinkedHashSet<>();
+        settings.generatedMainSources().stream()
+                .filter(step -> !step.clean())
+                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .forEach(roots::add);
+        settings.generatedTestSources().stream()
+                .filter(step -> !step.clean())
+                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .forEach(roots::add);
+        return roots;
     }
 
     private static Optional<Path> sharedOutputParent(Path output, Path testOutput) {

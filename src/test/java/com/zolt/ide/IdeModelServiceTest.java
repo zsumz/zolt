@@ -232,6 +232,51 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void exportsDeclaredGeneratedSourceRootsForEditors() throws IOException {
+        Path projectDir = tempDir.resolve("generated-sources");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "generated-sources"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/openapi"
+                inputs = ["src/main/openapi/api.yaml"]
+
+                [generated.test.fixtures]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/test-sources/fixtures"
+                inputs = ["src/test/fixtures/schema.json"]
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        assertTrue(model.sourceRoots().contains(new IdeModel.SourceRoot(
+                "generated-main-openapi",
+                "main",
+                "java",
+                root.resolve("target/generated/sources/openapi"),
+                true)));
+        assertTrue(model.sourceRoots().contains(new IdeModel.SourceRoot(
+                "generated-test-fixtures",
+                "test",
+                "java",
+                root.resolve("target/generated/test-sources/fixtures"),
+                true)));
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"id\": \"generated-main-openapi\""));
+        assertTrue(json.contains("\"id\": \"generated-test-fixtures\""));
+    }
+
+    @Test
     void exportsPackageArtifactSettingsAndPublicationMetadataForEditors() throws IOException {
         Path projectDir = tempDir.resolve("library-package");
         Files.createDirectories(projectDir);

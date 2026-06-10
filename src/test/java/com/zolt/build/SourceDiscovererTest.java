@@ -1,9 +1,12 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -122,6 +125,111 @@ final class SourceDiscovererTest {
         assertTrue(result.empty());
         assertTrue(result.mainSources().isEmpty());
         assertTrue(result.testSources().isEmpty());
+    }
+
+    @Test
+    void includesDeclaredGeneratedSourceRoots() throws IOException {
+        Path main = source("src/main/java/com/example/Main.java");
+        Path generated = source("target/generated/sources/openapi/com/example/Generated.java");
+        source("src/main/openapi/api.yaml");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                BuildSettings.defaults().withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "openapi",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/sources/openapi",
+                                List.of("src/main/openapi/api.yaml"),
+                                true,
+                                false)),
+                        List.of()));
+
+        assertEquals(List.of(main, generated), result.mainSources());
+    }
+
+    @Test
+    void includesDeclaredGeneratedTestSourceRoots() throws IOException {
+        Path generated = source("target/generated/test-sources/fixtures/com/example/GeneratedTest.java");
+        source("src/test/fixtures/schema.json");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                BuildSettings.defaults().withGeneratedSources(
+                        List.of(),
+                        List.of(new GeneratedSourceStep(
+                                "fixtures",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/test-sources/fixtures",
+                                List.of("src/test/fixtures/schema.json"),
+                                true,
+                                false))));
+
+        assertEquals(List.of(generated), result.testSources());
+    }
+
+    @Test
+    void failsWhenRequiredDeclaredGeneratedRootIsMissing() throws IOException {
+        source("src/main/openapi/api.yaml");
+
+        SourceDiscoveryException exception = assertThrows(
+                SourceDiscoveryException.class,
+                () -> discoverer.discover(
+                        projectDir,
+                        BuildSettings.defaults().withGeneratedSources(
+                                List.of(new GeneratedSourceStep(
+                                        "openapi",
+                                        GeneratedSourceKind.DECLARED_ROOT,
+                                        "java",
+                                        "target/generated/sources/openapi",
+                                        List.of("src/main/openapi/api.yaml"),
+                                        true,
+                                        false)),
+                                List.of())));
+
+        assertTrue(exception.getMessage().contains("Generated source root `target/generated/sources/openapi` is missing"));
+    }
+
+    @Test
+    void ignoresOptionalMissingDeclaredGeneratedRoot() throws IOException {
+        source("src/main/openapi/api.yaml");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                BuildSettings.defaults().withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "openapi",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/sources/openapi",
+                                List.of("src/main/openapi/api.yaml"),
+                                false,
+                                false)),
+                        List.of()));
+
+        assertEquals(List.of(), result.mainSources());
+    }
+
+    @Test
+    void rejectsGeneratedSourcePathsOutsideProject() {
+        SourceDiscoveryException exception = assertThrows(
+                SourceDiscoveryException.class,
+                () -> discoverer.discover(
+                        projectDir,
+                        BuildSettings.defaults().withGeneratedSources(
+                                List.of(new GeneratedSourceStep(
+                                        "openapi",
+                                        GeneratedSourceKind.DECLARED_ROOT,
+                                        "java",
+                                        "../outside",
+                                        List.of("src/main/openapi/api.yaml"),
+                                        true,
+                                        false)),
+                                List.of())));
+
+        assertTrue(exception.getMessage().contains("Invalid generated source output path"));
     }
 
     private Path source(String path) throws IOException {

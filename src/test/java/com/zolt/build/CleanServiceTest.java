@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
@@ -15,6 +17,7 @@ import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -135,6 +138,49 @@ final class CleanServiceTest {
                         new BuildSettings("src/main/java", "src/test/java", "../outside", "target/test-classes")));
 
         assertTrue(exception.getMessage().contains("Refusing to clean output path"));
+    }
+
+    @Test
+    void preservesDeclaredGeneratedRootsByDefault() throws IOException {
+        file("target/classes/com/example/Main.class");
+        file("target/generated/sources/openapi/com/example/Generated.java");
+        BuildSettings settings = BuildSettings.defaults().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "openapi",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "java",
+                        "target/generated/sources/openapi",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        false)),
+                List.of());
+
+        CleanResult result = cleanService.clean(projectDir, settings);
+
+        assertEquals(1, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve("target/classes")));
+        assertTrue(Files.exists(projectDir.resolve("target/generated/sources/openapi/com/example/Generated.java")));
+    }
+
+    @Test
+    void deletesDeclaredGeneratedRootsWhenCleanIsEnabled() throws IOException {
+        file("target/classes/com/example/Main.class");
+        file("target/generated/sources/openapi/com/example/Generated.java");
+        BuildSettings settings = BuildSettings.defaults().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "openapi",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "java",
+                        "target/generated/sources/openapi",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        true)),
+                List.of());
+
+        CleanResult result = cleanService.clean(projectDir, settings);
+
+        assertEquals(1, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve("target")));
     }
 
     private void file(String path) throws IOException {
