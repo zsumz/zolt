@@ -3,7 +3,11 @@ package com.zolt.quarkus;
 import com.zolt.build.TestSelection;
 import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public record QuarkusTestRunnerRequest(
         Path projectDirectory,
@@ -14,7 +18,8 @@ public record QuarkusTestRunnerRequest(
         List<Path> testRuntimeClasspath,
         boolean jbossLogManagerPresent,
         TestSelection testSelection,
-        TestJvmArguments jvmArguments) {
+        TestJvmArguments jvmArguments,
+        Map<String, String> environment) {
     public static final String RUNNER_MODE = "plain-junit";
     public static final boolean SUPPORTS_QUARKUS_TEST_ANNOTATIONS = false;
 
@@ -35,7 +40,8 @@ public record QuarkusTestRunnerRequest(
                 testRuntimeClasspath,
                 jbossLogManagerPresent,
                 TestSelection.empty(),
-                TestJvmArguments.empty());
+                TestJvmArguments.empty(),
+                Map.of());
     }
 
     public QuarkusTestRunnerRequest(
@@ -56,7 +62,31 @@ public record QuarkusTestRunnerRequest(
                 testRuntimeClasspath,
                 jbossLogManagerPresent,
                 testSelection,
-                TestJvmArguments.empty());
+                TestJvmArguments.empty(),
+                Map.of());
+    }
+
+    public QuarkusTestRunnerRequest(
+            Path projectDirectory,
+            Path mainOutputDirectory,
+            Path testOutputDirectory,
+            Path serializedApplicationModel,
+            Path bootstrapDescriptorFile,
+            List<Path> testRuntimeClasspath,
+            boolean jbossLogManagerPresent,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments) {
+        this(
+                projectDirectory,
+                mainOutputDirectory,
+                testOutputDirectory,
+                serializedApplicationModel,
+                bootstrapDescriptorFile,
+                testRuntimeClasspath,
+                jbossLogManagerPresent,
+                testSelection,
+                jvmArguments,
+                Map.of());
     }
 
 
@@ -89,5 +119,13 @@ public record QuarkusTestRunnerRequest(
                 .toList();
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
         jvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
+        environment = ordered(environment);
+    }
+
+    private static Map<String, String> ordered(Map<String, String> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(new TreeMap<>(values)));
     }
 }

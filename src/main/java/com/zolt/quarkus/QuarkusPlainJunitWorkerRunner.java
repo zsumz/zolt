@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
 public final class QuarkusPlainJunitWorkerRunner {
@@ -18,7 +19,17 @@ public final class QuarkusPlainJunitWorkerRunner {
     private final ProcessRunner processRunner;
 
     public QuarkusPlainJunitWorkerRunner() {
-        this(java.io.File.pathSeparator, defaultJavaExecutable(), QuarkusPlainJunitWorkerRunner::runProcess);
+        this(java.io.File.pathSeparator, defaultJavaExecutable(), new ProcessRunner() {
+            @Override
+            public Result run(List<String> command) {
+                return runProcess(command);
+            }
+
+            @Override
+            public Result run(List<String> command, Map<String, String> environment) {
+                return runProcess(command, environment);
+            }
+        });
     }
 
     QuarkusPlainJunitWorkerRunner(
@@ -43,7 +54,7 @@ public final class QuarkusPlainJunitWorkerRunner {
         if (descriptor == null) {
             throw new QuarkusAugmentationException("Quarkus test runner descriptor is required.");
         }
-        return processRunner.run(command(descriptor));
+        return processRunner.run(command(descriptor), descriptor.environment());
     }
 
     List<String> command(QuarkusTestRunnerDescriptor descriptor) {
@@ -127,10 +138,16 @@ public final class QuarkusPlainJunitWorkerRunner {
     }
 
     private static Result runProcess(List<String> command) {
+        return runProcess(command, Map.of());
+    }
+
+    private static Result runProcess(List<String> command, Map<String, String> environment) {
         try {
-            Process process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start();
+            ProcessBuilder processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
+            if (environment != null && !environment.isEmpty()) {
+                processBuilder.environment().putAll(environment);
+            }
+            Process process = processBuilder.start();
             String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exitCode = process.waitFor();
             return new Result(exitCode, output);
@@ -147,6 +164,10 @@ public final class QuarkusPlainJunitWorkerRunner {
     @FunctionalInterface
     interface ProcessRunner {
         Result run(List<String> command);
+
+        default Result run(List<String> command, Map<String, String> environment) {
+            return run(command);
+        }
     }
 
     public record Result(int exitCode, String output) {

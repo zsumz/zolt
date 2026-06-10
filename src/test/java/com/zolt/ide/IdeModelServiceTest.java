@@ -19,6 +19,40 @@ final class IdeModelServiceTest {
     private Path tempDir;
 
     @Test
+    void exportsRedactedTestRuntimeSettings() throws IOException {
+        Path projectDir = tempDir.resolve("test-runtime");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "test-runtime"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.runtime]
+                jvmArgs = ["-Dconfigured=true"]
+                systemProperties = { "logs.dir" = "${project.root}/test-logs" }
+                environment = { TZ = "America/Chicago", SECRET_TOKEN = "do-not-export" }
+                events = ["failed"]
+                """);
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        assertEquals(List.of("-Dconfigured=true"), model.testRuntime().jvmArgs());
+        assertEquals(
+                Map.of("logs.dir", "${project.root}/test-logs"),
+                model.testRuntime().systemProperties());
+        assertEquals(
+                Map.of("SECRET_TOKEN", "<redacted>", "TZ", "<redacted>"),
+                model.testRuntime().environment());
+        assertEquals(List.of("failed"), model.testRuntime().events());
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"testRuntime\": {"));
+        assertTrue(json.contains("\"SECRET_TOKEN\": \"<redacted>\""));
+        assertTrue(json.contains("\"events\": ["));
+    }
+
+    @Test
     void exportsSpringBootWebmvcExampleWithPlatformManagedClasspath() throws IOException {
         Path projectDir = tempDir.resolve("spring-boot-webmvc");
         Path cacheRoot = tempDir.resolve("cache");

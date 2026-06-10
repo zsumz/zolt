@@ -9,6 +9,7 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
@@ -37,28 +38,43 @@ final class JunitWorkerProcessLauncherTest {
     void startsWorkerAndRunsThroughClient() {
         List<List<String>> commands = new ArrayList<>();
         List<Path> directories = new ArrayList<>();
+        List<Map<String, String>> environments = new ArrayList<>();
         StringWriter input = new StringWriter();
         AtomicBoolean closed = new AtomicBoolean();
         JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
                 ":",
                 Path.of("/jdk/bin/java"),
                 List.of(Path.of("/zolt/zolt.jar")),
-                (command, projectDirectory) -> {
-                    commands.add(command);
-                    directories.add(projectDirectory);
-                    return new JunitWorkerProcessLauncher.StartedWorker(
-                            new StringReader("""
-                                    Tests found: 1
-                                    ZOLT_WORKER_RESULT\tjunit-1\t0
-                                    ZOLT_WORKER_RESULT\tjunit-2\t0
-                                    """),
-                            input,
-                            () -> closed.set(true));
+                new JunitWorkerProcessLauncher.ProcessStarter() {
+                    @Override
+                    public JunitWorkerProcessLauncher.StartedWorker start(List<String> command, Path projectDirectory) {
+                        throw new AssertionError("Environment-aware worker starter should be used.");
+                    }
+
+                    @Override
+                    public JunitWorkerProcessLauncher.StartedWorker start(
+                            List<String> command,
+                            Path projectDirectory,
+                            Map<String, String> environment) {
+                        commands.add(command);
+                        directories.add(projectDirectory);
+                        environments.add(environment);
+                        return new JunitWorkerProcessLauncher.StartedWorker(
+                                new StringReader("""
+                                        Tests found: 1
+                                        ZOLT_WORKER_RESULT\tjunit-1\t0
+                                        ZOLT_WORKER_RESULT\tjunit-2\t0
+                                        """),
+                                input,
+                                () -> closed.set(true));
+                    }
                 });
 
         try (JunitWorkerProcess process = launcher.start(
                 Path.of("/repo"),
-                List.of(Path.of("/repo/target/test-classes"), Path.of("/cache/junit.jar")))) {
+                List.of(Path.of("/repo/target/test-classes"), Path.of("/cache/junit.jar")),
+                List.of(),
+                Map.of("TZ", "America/Chicago"))) {
             JunitWorkerClient.WorkerRunResult result = process.run(Path.of("/repo/target/test-classes"));
 
             assertEquals("Tests found: 1\n", result.output());
@@ -67,6 +83,7 @@ final class JunitWorkerProcessLauncherTest {
 
         assertEquals(1, commands.size());
         assertEquals(Path.of("/repo"), directories.getFirst());
+        assertEquals(Map.of("TZ", "America/Chicago"), environments.getFirst());
         assertEquals("""
                 RUN\tjunit-1\t/repo/target/test-classes
                 QUIT\tjunit-2

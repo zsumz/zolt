@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 
@@ -14,7 +15,20 @@ public final class JavaRunner {
     private final ProcessRunner processRunner;
 
     public JavaRunner() {
-        this(java.io.File.pathSeparator, JavaRunner::runProcess);
+        this(java.io.File.pathSeparator, new ProcessRunner() {
+            @Override
+            public ProcessResult run(List<String> command, Consumer<String> outputConsumer) {
+                return runProcess(command, outputConsumer);
+            }
+
+            @Override
+            public ProcessResult run(
+                    List<String> command,
+                    Map<String, String> environment,
+                    Consumer<String> outputConsumer) {
+                return runProcess(command, environment, outputConsumer);
+            }
+        });
     }
 
     JavaRunner(String pathSeparator, ProcessRunner processRunner) {
@@ -45,6 +59,17 @@ public final class JavaRunner {
             Path java,
             Classpath classpath,
             String mainClass,
+            List<String> jvmArguments,
+            List<String> arguments,
+            Map<String, String> environment) {
+        return run(java, classpath, mainClass, jvmArguments, arguments, environment, ignored -> {
+        });
+    }
+
+    public JavaRunResult run(
+            Path java,
+            Classpath classpath,
+            String mainClass,
             List<String> arguments,
             Consumer<String> outputConsumer) {
         return run(java, classpath, mainClass, List.of(), arguments, outputConsumer);
@@ -59,6 +84,19 @@ public final class JavaRunner {
             Consumer<String> outputConsumer) {
         List<String> command = command(java, classpath, mainClass, jvmArguments, arguments);
         ProcessResult result = processRunner.run(command, outputConsumer);
+        return result(mainClass, result);
+    }
+
+    public JavaRunResult run(
+            Path java,
+            Classpath classpath,
+            String mainClass,
+            List<String> jvmArguments,
+            List<String> arguments,
+            Map<String, String> environment,
+            Consumer<String> outputConsumer) {
+        List<String> command = command(java, classpath, mainClass, jvmArguments, arguments);
+        ProcessResult result = processRunner.run(command, environment, outputConsumer);
         return result(mainClass, result);
     }
 
@@ -128,10 +166,19 @@ public final class JavaRunner {
     }
 
     private static ProcessResult runProcess(List<String> command, Consumer<String> outputConsumer) {
+        return runProcess(command, Map.of(), outputConsumer);
+    }
+
+    private static ProcessResult runProcess(
+            List<String> command,
+            Map<String, String> environment,
+            Consumer<String> outputConsumer) {
         try {
-            Process process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start();
+            ProcessBuilder processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
+            if (environment != null && !environment.isEmpty()) {
+                processBuilder.environment().putAll(environment);
+            }
+            Process process = processBuilder.start();
             StringBuilder output = new StringBuilder();
             byte[] buffer = new byte[8192];
             int read = process.getInputStream().read(buffer);
@@ -156,6 +203,13 @@ public final class JavaRunner {
     @FunctionalInterface
     interface ProcessRunner {
         ProcessResult run(List<String> command, Consumer<String> outputConsumer);
+
+        default ProcessResult run(
+                List<String> command,
+                Map<String, String> environment,
+                Consumer<String> outputConsumer) {
+            return run(command, outputConsumer);
+        }
     }
 
     record ProcessResult(int exitCode, String output) {

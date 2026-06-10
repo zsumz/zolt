@@ -9,6 +9,7 @@ import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;
 import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.TestRuntimeSettings;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.QuarkusTestApplicationModelService;
@@ -23,7 +24,10 @@ import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.Supplier;
@@ -214,7 +218,11 @@ public final class TestRunService {
             TestSelection selection,
             TestJvmArguments jvmArguments) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
-        TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
+        TestRuntimeInputs testRuntime = testRuntimeInputs(
+                projectDirectory,
+                config.build().testRuntime(),
+                jvmArguments);
+        TestJvmArguments testJvmArguments = testRuntime.jvmArguments();
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -233,13 +241,13 @@ public final class TestRunService {
         }
         Optional<Path> serializedApplicationModel = writeQuarkusTestApplicationModel(projectDirectory, config);
         Optional<QuarkusTestRunnerDescriptor> quarkusTestRunnerDescriptor = writeQuarkusTestRunnerDescriptor(
-                projectDirectory,
-                config,
-                compileResult,
-                runnerClasspath,
-                serializedApplicationModel,
-                testSelection,
-                testJvmArguments);
+                    projectDirectory,
+                    config,
+                    compileResult,
+                    runnerClasspath,
+                    serializedApplicationModel,
+                    testSelection,
+                    testRuntime);
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
             QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
@@ -274,7 +282,8 @@ public final class TestRunService {
                     runnerClasspath,
                     compileResult.outputDirectory().toAbsolutePath().normalize(),
                     testSelection,
-                    testJvmArguments);
+                    testJvmArguments,
+                    testRuntime.environment());
             failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
@@ -302,7 +311,8 @@ public final class TestRunService {
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
                     jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel, testJvmArguments),
-                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection));
+                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection),
+                    testRuntime.environment());
         } catch (JavaRunException exception) {
             if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
                 throw noSelectedTestsMatched(exception.getMessage(), exception);
@@ -420,10 +430,11 @@ public final class TestRunService {
             List<Path> testRuntimeClasspath,
             Path testOutputDirectory,
             TestSelection testSelection,
-            TestJvmArguments jvmArguments) {
+            TestJvmArguments jvmArguments,
+            Map<String, String> environment) {
         long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
-                .start(projectDirectory, testRuntimeClasspath, jvmArguments.values())) {
+                .start(projectDirectory, testRuntimeClasspath, jvmArguments.values(), environment)) {
             long startupNanos = System.nanoTime() - startupStarted;
             long requestStarted = System.nanoTime();
             JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory, testSelection);
@@ -526,6 +537,47 @@ public final class TestRunService {
         return List.copyOf(arguments);
     }
 
+    private static TestRuntimeInputs testRuntimeInputs(
+            Path projectDirectory,
+            TestRuntimeSettings settings,
+            TestJvmArguments cliJvmArguments) {
+        TestRuntimeSettings testRuntimeSettings = settings == null ? TestRuntimeSettings.defaults() : settings;
+        TestJvmArguments commandLineArguments = cliJvmArguments == null ? TestJvmArguments.empty() : cliJvmArguments;
+        List<String> arguments = new ArrayList<>();
+        for (String argument : testRuntimeSettings.jvmArgs()) {
+            arguments.add(expandProjectRoot(projectDirectory, argument, "test.runtime.jvmArgs"));
+        }
+        for (Map.Entry<String, String> entry : testRuntimeSettings.systemProperties().entrySet()) {
+            arguments.add("-D"
+                    + entry.getKey()
+                    + "="
+                    + expandProjectRoot(projectDirectory, entry.getValue(), "test.runtime.systemProperties"));
+        }
+        arguments.addAll(commandLineArguments.values());
+
+        Map<String, String> environment = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : testRuntimeSettings.environment().entrySet()) {
+            environment.put(
+                    entry.getKey(),
+                    expandProjectRoot(projectDirectory, entry.getValue(), "test.runtime.environment"));
+        }
+        return new TestRuntimeInputs(new TestJvmArguments(arguments), Collections.unmodifiableMap(environment));
+    }
+
+    private static String expandProjectRoot(Path projectDirectory, String value, String section) {
+        String projectRoot = projectDirectory.toAbsolutePath().normalize().toString();
+        String expanded = value.replace("${project.root}", projectRoot);
+        if (expanded.contains("${")) {
+            throw new TestRunException(
+                    "Unsupported placeholder in ["
+                            + section
+                            + "] value `"
+                            + value
+                            + "`. Supported placeholder: ${project.root}.");
+        }
+        return expanded;
+    }
+
     private Optional<Path> writeQuarkusTestApplicationModel(Path projectDirectory, ProjectConfig config) {
         try {
             return quarkusTestApplicationModelWriter.write(projectDirectory, config);
@@ -545,7 +597,7 @@ public final class TestRunService {
             List<Path> runnerClasspath,
             Optional<Path> serializedApplicationModel,
             TestSelection testSelection,
-            TestJvmArguments jvmArguments) {
+            TestRuntimeInputs testRuntime) {
         if (!config.frameworkSettings().quarkus().enabled()) {
             return Optional.empty();
         }
@@ -562,7 +614,8 @@ public final class TestRunService {
                     runnerClasspath,
                     runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar),
                     testSelection,
-                    jvmArguments)));
+                    testRuntime.jvmArguments(),
+                    testRuntime.environment())));
         } catch (QuarkusAugmentationException exception) {
             throw new TestRunException(
                     "Could not write Quarkus test runner descriptor. "
@@ -636,12 +689,18 @@ public final class TestRunService {
                 List<Path> testRuntimeClasspath,
                 Path testOutputDirectory,
                 TestSelection testSelection,
-                TestJvmArguments jvmArguments);
+                TestJvmArguments jvmArguments,
+                Map<String, String> environment);
     }
 
     record PlainJunitWorkerRunResult(
             JunitWorkerClient.WorkerRunResult workerResult,
             long startupNanos,
             long requestNanos) {
+    }
+
+    record TestRuntimeInputs(
+            TestJvmArguments jvmArguments,
+            Map<String, String> environment) {
     }
 }

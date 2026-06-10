@@ -16,6 +16,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         compiler(json, model.compiler());
         comma(json);
+        testRuntime(json, model.testRuntime());
+        comma(json);
         packageInfo(json, model.packageInfo());
         comma(json);
         paths(json, model.paths());
@@ -63,6 +65,15 @@ public final class IdeModelJsonWriter {
         stringArrayField(json, 2, "testArgs", compiler.testArgs(), true);
         pathField(json, 2, "generatedSources", compiler.generatedSources(), true);
         pathField(json, 2, "generatedTestSources", compiler.generatedTestSources(), false);
+        indent(json, 1).append("}");
+    }
+
+    private static void testRuntime(StringBuilder json, IdeModel.TestRuntimeInfo testRuntime) {
+        indent(json, 1).append("\"testRuntime\": {\n");
+        stringArrayField(json, 2, "jvmArgs", testRuntime.jvmArgs(), true);
+        stringMap(json, 2, "systemProperties", testRuntime.systemProperties(), true);
+        stringMap(json, 2, "environment", testRuntime.environment(), true);
+        stringArrayField(json, 2, "events", testRuntime.events(), false);
         indent(json, 1).append("}");
     }
 

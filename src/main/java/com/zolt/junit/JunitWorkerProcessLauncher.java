@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
@@ -21,7 +22,20 @@ public final class JunitWorkerProcessLauncher {
     public JunitWorkerProcessLauncher(
             Path javaExecutable,
             List<Path> workerClasspath) {
-        this(java.io.File.pathSeparator, javaExecutable, workerClasspath, JunitWorkerProcessLauncher::startProcess);
+        this(java.io.File.pathSeparator, javaExecutable, workerClasspath, new ProcessStarter() {
+            @Override
+            public StartedWorker start(List<String> command, Path projectDirectory) {
+                return startProcess(command, projectDirectory);
+            }
+
+            @Override
+            public StartedWorker start(
+                    List<String> command,
+                    Path projectDirectory,
+                    Map<String, String> environment) {
+                return startProcess(command, projectDirectory, environment);
+            }
+        });
     }
 
     JunitWorkerProcessLauncher(
@@ -57,6 +71,14 @@ public final class JunitWorkerProcessLauncher {
             Path projectDirectory,
             List<Path> testRuntimeClasspath,
             List<String> jvmArguments) {
+        return start(projectDirectory, testRuntimeClasspath, jvmArguments, Map.of());
+    }
+
+    public JunitWorkerProcess start(
+            Path projectDirectory,
+            List<Path> testRuntimeClasspath,
+            List<String> jvmArguments,
+            Map<String, String> environment) {
         if (projectDirectory == null) {
             throw new JunitWorkerClientException("JUnit worker project directory is required.");
         }
@@ -65,7 +87,8 @@ public final class JunitWorkerProcessLauncher {
         }
         StartedWorker worker = processStarter.start(
                 command(projectDirectory, testRuntimeClasspath, jvmArguments),
-                projectDirectory);
+                projectDirectory,
+                environment == null ? Map.of() : environment);
         return new JunitWorkerProcess(
                 new JunitWorkerClient(worker.output(), worker.input()),
                 () -> worker.processCloser().close());
@@ -104,11 +127,21 @@ public final class JunitWorkerProcessLauncher {
     }
 
     private static StartedWorker startProcess(List<String> command, Path projectDirectory) {
+        return startProcess(command, projectDirectory, Map.of());
+    }
+
+    private static StartedWorker startProcess(
+            List<String> command,
+            Path projectDirectory,
+            Map<String, String> environment) {
         try {
-            Process process = new ProcessBuilder(command)
+            ProcessBuilder processBuilder = new ProcessBuilder(command)
                     .directory(projectDirectory.toFile())
-                    .redirectErrorStream(true)
-                    .start();
+                    .redirectErrorStream(true);
+            if (environment != null && !environment.isEmpty()) {
+                processBuilder.environment().putAll(environment);
+            }
+            Process process = processBuilder.start();
             return new StartedWorker(
                     new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8),
                     new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8),
@@ -135,6 +168,13 @@ public final class JunitWorkerProcessLauncher {
     @FunctionalInterface
     interface ProcessStarter {
         StartedWorker start(List<String> command, Path projectDirectory);
+
+        default StartedWorker start(
+                List<String> command,
+                Path projectDirectory,
+                Map<String, String> environment) {
+            return start(command, projectDirectory);
+        }
     }
 
     record StartedWorker(

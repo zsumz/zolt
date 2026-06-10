@@ -15,6 +15,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.TestRuntimeSettings;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusTestRunnerDescriptor;
 import com.zolt.quarkus.QuarkusTestRunnerDescriptorWriter;
@@ -103,6 +104,53 @@ final class TestRunServiceTest {
         assertFalse(command.stream().anyMatch(argument -> argument.startsWith("--scan-class-path=")));
         assertFalse(command.contains("--select-method"));
         assertFalse(command.contains("--include-classname"));
+    }
+
+    @Test
+    void appliesConfiguredTestRuntimeToJUnitConsole() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        List<Map<String, String>> environments = new ArrayList<>();
+        JavaRunner.ProcessRunner processRunner = new JavaRunner.ProcessRunner() {
+            @Override
+            public JavaRunner.ProcessResult run(List<String> command, java.util.function.Consumer<String> outputConsumer) {
+                throw new AssertionError("Environment-aware Java runner should be used for tests.");
+            }
+
+            @Override
+            public JavaRunner.ProcessResult run(
+                    List<String> command,
+                    Map<String, String> environment,
+                    java.util.function.Consumer<String> outputConsumer) {
+                commands.add(command);
+                environments.add(environment);
+                return new JavaRunner.ProcessResult(0, "Tests successful\n");
+            }
+        };
+        TestRunService service = service(processRunner);
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                configWithTestRuntime(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                new TestJvmArguments(List.of("-Dcli=true")));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        assertEquals(List.of(
+                "-Dconfigured=true",
+                "-Dlogs.dir=" + root.resolve("test-logs"),
+                "-Dcli=true"), result.testJvmArguments().values());
+        List<String> command = commands.getFirst();
+        assertEquals("-Dconfigured=true", command.get(1));
+        assertEquals("-Dlogs.dir=" + root.resolve("test-logs"), command.get(2));
+        assertEquals("-Dcli=true", command.get(3));
+        assertEquals("-Duser.dir=" + root, command.get(4));
+        assertEquals(Map.of(
+                "APP_HOME", root.toString(),
+                "TZ", "America/Chicago"), environments.getFirst());
     }
 
     @Test
@@ -361,6 +409,7 @@ final class TestRunServiceTest {
         List<Path> testOutputDirectories = new ArrayList<>();
         List<TestSelection> selections = new ArrayList<>();
         List<TestJvmArguments> jvmArguments = new ArrayList<>();
+        List<Map<String, String>> environments = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     javaCommands.add(command);
@@ -373,12 +422,13 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment) -> {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
                     selections.add(testSelection);
                     jvmArguments.add(testJvmArguments);
+                    environments.add(environment);
                     return new TestRunService.PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
                             12_000_000L,
@@ -388,7 +438,7 @@ final class TestRunServiceTest {
 
         TestRunResult result = service.runTests(
                 projectDir,
-                config(),
+                configWithTestRuntime(),
                 projectDir.resolve("cache"),
                 TestSelection.empty(),
                 new TestJvmArguments(List.of("-Dlibrary.mode=true")));
@@ -399,7 +449,13 @@ final class TestRunServiceTest {
         assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
         assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize(), testOutputDirectories.getFirst());
         assertTrue(selections.getFirst().emptySelection());
-        assertEquals(List.of("-Dlibrary.mode=true"), jvmArguments.getFirst().values());
+        assertEquals(List.of(
+                "-Dconfigured=true",
+                "-Dlogs.dir=" + projectDir.toAbsolutePath().normalize().resolve("test-logs"),
+                "-Dlibrary.mode=true"), jvmArguments.getFirst().values());
+        assertEquals(Map.of(
+                "APP_HOME", projectDir.toAbsolutePath().normalize().toString(),
+                "TZ", "America/Chicago"), environments.getFirst());
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/test-classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path ->
@@ -425,7 +481,7 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments) ->
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment) ->
                         new TestRunService.PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
@@ -600,7 +656,7 @@ final class TestRunServiceTest {
                 quarkusTestWorkerClasspath,
                 quarkusTestWorkerRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
                 },
                 false,
@@ -773,6 +829,14 @@ final class TestRunServiceTest {
                 Map.of(),
                 Map.of("org.junit.platform:junit-platform-console-standalone", "1.11.4"),
                 BuildSettings.defaults());
+    }
+
+    private static ProjectConfig configWithTestRuntime() {
+        return config().withBuildSettings(BuildSettings.defaults().withTestRuntime(new TestRuntimeSettings(
+                List.of("-Dconfigured=true"),
+                Map.of("logs.dir", "${project.root}/test-logs"),
+                Map.of("TZ", "America/Chicago", "APP_HOME", "${project.root}"),
+                List.of("failed"))));
     }
 
     private static ProjectConfig quarkusConfig() {

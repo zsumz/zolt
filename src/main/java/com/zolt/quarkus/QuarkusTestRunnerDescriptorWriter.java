@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public final class QuarkusTestRunnerDescriptorWriter {
     public QuarkusTestRunnerDescriptor write(QuarkusTestRunnerRequest request) {
@@ -43,7 +46,8 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 request.jbossLogManagerPresent(),
                 request.testRuntimeClasspath(),
                 request.testSelection(),
-                request.jvmArguments());
+                request.jvmArguments(),
+                request.environment());
     }
 
     private static String descriptor(
@@ -66,6 +70,7 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 testSelection.includedTags=%s
                 testSelection.excludedTags=%s
                 jvmArguments=%s
+                environment=%s
                 """.formatted(
                 QuarkusTestRunnerRequest.RUNNER_MODE,
                 QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
@@ -81,7 +86,16 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 TestSelectionCodec.encodeStrings(request.testSelection().classNamePatterns()),
                 TestSelectionCodec.encodeStrings(request.testSelection().includedTags()),
                 TestSelectionCodec.encodeStrings(request.testSelection().excludedTags()),
-                TestSelectionCodec.encodeStrings(request.jvmArguments().values()));
+                TestSelectionCodec.encodeStrings(request.jvmArguments().values()),
+                encodeMap(request.environment()));
+    }
+
+    private static String encodeMap(Map<String, String> values) {
+        List<String> encoded = new ArrayList<>();
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            encoded.add(entry.getKey() + "=" + entry.getValue());
+        }
+        return TestSelectionCodec.encodeStrings(encoded);
     }
 
     private static void writeClasspath(

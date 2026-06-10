@@ -8,6 +8,7 @@ import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class JavaRunnerTest {
@@ -57,6 +58,36 @@ final class JavaRunnerTest {
                 "target/classes",
                 "com.example.Main",
                 "run"), commands.getFirst());
+    }
+
+    @Test
+    void passesEnvironmentToProcessRunner() {
+        List<Map<String, String>> environments = new ArrayList<>();
+        JavaRunner runner = new JavaRunner(":", new JavaRunner.ProcessRunner() {
+            @Override
+            public JavaRunner.ProcessResult run(List<String> command, java.util.function.Consumer<String> outputConsumer) {
+                throw new AssertionError("Environment-aware runner should be used.");
+            }
+
+            @Override
+            public JavaRunner.ProcessResult run(
+                    List<String> command,
+                    Map<String, String> environment,
+                    java.util.function.Consumer<String> outputConsumer) {
+                environments.add(environment);
+                return new JavaRunner.ProcessResult(0, "hello\n");
+            }
+        });
+
+        runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of("-Ddemo=true"),
+                List.of(),
+                Map.of("TZ", "America/Chicago"));
+
+        assertEquals(Map.of("TZ", "America/Chicago"), environments.getFirst());
     }
 
     @Test

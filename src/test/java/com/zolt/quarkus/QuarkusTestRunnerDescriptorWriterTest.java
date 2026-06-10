@@ -62,6 +62,7 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 testSelection.includedTags=fast
                 testSelection.excludedTags=slow
                 jvmArguments=-Dlibrary.mode=true,--add-opens=java.base/java.lang=ALL-UNNAMED
+                environment=
                 """.formatted(
                 root,
                 root.resolve("target/classes"),

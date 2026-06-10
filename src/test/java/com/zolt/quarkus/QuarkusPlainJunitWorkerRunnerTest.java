@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class QuarkusPlainJunitWorkerRunnerTest {
@@ -57,15 +59,44 @@ final class QuarkusPlainJunitWorkerRunnerTest {
 
     @Test
     void returnsProcessResult() {
+        List<Map<String, String>> environments = new ArrayList<>();
         QuarkusPlainJunitWorkerRunner runner = new QuarkusPlainJunitWorkerRunner(
                 ":",
                 Path.of("/jdk/bin/java"),
-                command -> new QuarkusPlainJunitWorkerRunner.Result(7, "tests failed\n"));
+                new QuarkusPlainJunitWorkerRunner.ProcessRunner() {
+                    @Override
+                    public QuarkusPlainJunitWorkerRunner.Result run(List<String> command) {
+                        throw new AssertionError("Environment-aware Quarkus plain JUnit runner should be used.");
+                    }
 
-        QuarkusPlainJunitWorkerRunner.Result result = runner.run(descriptor(true));
+                    @Override
+                    public QuarkusPlainJunitWorkerRunner.Result run(
+                            List<String> command,
+                            Map<String, String> environment) {
+                        environments.add(environment);
+                        return new QuarkusPlainJunitWorkerRunner.Result(7, "tests failed\n");
+                    }
+                });
+
+        QuarkusPlainJunitWorkerRunner.Result result = runner.run(new QuarkusTestRunnerDescriptor(
+                descriptor(true).descriptorFile(),
+                descriptor(true).testRuntimeClasspathFile(),
+                descriptor(true).projectDirectory(),
+                descriptor(true).mainOutputDirectory(),
+                descriptor(true).testOutputDirectory(),
+                descriptor(true).serializedApplicationModel(),
+                descriptor(true).bootstrapDescriptorFile(),
+                descriptor(true).runnerMode(),
+                descriptor(true).supportsQuarkusTestAnnotations(),
+                descriptor(true).jbossLogManagerPresent(),
+                descriptor(true).testRuntimeClasspath(),
+                descriptor(true).testSelection(),
+                descriptor(true).jvmArguments(),
+                Map.of("TZ", "America/Chicago")));
 
         assertEquals(7, result.exitCode());
         assertEquals("tests failed\n", result.output());
+        assertEquals(Map.of("TZ", "America/Chicago"), environments.getFirst());
     }
 
     @Test

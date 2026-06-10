@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 public final class QuarkusTestRunnerDescriptorReader {
@@ -51,7 +53,8 @@ public final class QuarkusTestRunnerDescriptorReader {
                 booleanValue(properties, "jbossLogManagerPresent", descriptorFile),
                 classpath(testRuntimeClasspathFile, descriptorFile),
                 testSelection(properties, descriptorFile),
-                jvmArguments(properties, descriptorFile));
+                jvmArguments(properties, descriptorFile),
+                environment(properties, descriptorFile));
     }
 
     private static Map<String, String> properties(Path descriptorFile) throws IOException {
@@ -144,6 +147,29 @@ public final class QuarkusTestRunnerDescriptorReader {
                     "Invalid Quarkus test runner descriptor at "
                             + descriptorFile
                             + ". Malformed JVM arguments. "
+                            + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    private static Map<String, String> environment(Map<String, String> properties, Path descriptorFile) {
+        try {
+            Map<String, String> values = new LinkedHashMap<>();
+            for (String entry : TestSelectionCodec.decodeStrings(
+                    "Quarkus test environment",
+                    properties.getOrDefault("environment", ""))) {
+                int separator = entry.indexOf('=');
+                if (separator < 1) {
+                    throw new IllegalArgumentException("Quarkus test environment contains malformed entry.");
+                }
+                values.put(entry.substring(0, separator), entry.substring(separator + 1));
+            }
+            return Collections.unmodifiableMap(values);
+        } catch (IllegalArgumentException exception) {
+            throw new QuarkusAugmentationException(
+                    "Invalid Quarkus test runner descriptor at "
+                            + descriptorFile
+                            + ". Malformed environment. "
                             + exception.getMessage(),
                     exception);
         }

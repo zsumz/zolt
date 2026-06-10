@@ -2486,6 +2486,12 @@ final class ZoltCliTest {
                     "generatedSources": "%s",
                     "generatedTestSources": "%s"
                   },
+                  "testRuntime": {
+                    "jvmArgs": [],
+                    "systemProperties": {},
+                    "environment": {},
+                    "events": []
+                  },
                   "package": {
                     "mode": "thin",
                     "sources": false,

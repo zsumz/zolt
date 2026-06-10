@@ -25,6 +25,7 @@ import com.zolt.project.RepositorySettings;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
+import com.zolt.project.TestRuntimeSettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -64,6 +65,9 @@ public final class ZoltTomlParser {
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
+    private static final Set<String> TEST_KEYS = Set.of("dependencies", "sources", "annotationProcessors", "runtime");
+    private static final Set<String> TEST_RUNTIME_KEYS =
+            Set.of("jvmArgs", "systemProperties", "environment", "events");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
     private static final Set<String> RESOURCES_KEYS = Set.of("main", "test", "filtering", "tokens");
     private static final Set<String> RESOURCE_FILTERING_KEYS = Set.of("enabled", "test", "includes", "missing");
@@ -222,7 +226,7 @@ public final class ZoltTomlParser {
         DependencyDeclarations testDependencies = DependencyDeclarations.empty();
         DependencyDeclarations testAnnotationProcessors = DependencyDeclarations.empty();
         if (testTable != null) {
-            validateKeys("test", testTable, Set.of("dependencies", "sources", "annotationProcessors"));
+            validateKeys("test", testTable, TEST_KEYS);
             testDependencies = dependencyDeclarations(
                     optionalTable(testTable, "dependencies"),
                     "test.dependencies",
@@ -237,6 +241,7 @@ public final class ZoltTomlParser {
 
         BuildSettings build = parseBuild(optionalTable(result, "build"));
         build = parseTestSources(testTable, build);
+        build = parseTestRuntime(testTable, build);
         build = parseResourceRoots(optionalTable(result, "resources"), build);
         build = parseGeneratedSources(optionalTable(result, "generated"), build);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
@@ -329,6 +334,26 @@ public final class ZoltTomlParser {
                 build.resourceRoots(),
                 build.testResourceRoots(),
                 build.metadata());
+    }
+
+    private static BuildSettings parseTestRuntime(TomlTable testTable, BuildSettings build) {
+        if (testTable == null) {
+            return build;
+        }
+        TomlTable runtimeTable = optionalTable(testTable, "runtime");
+        if (runtimeTable == null) {
+            return build;
+        }
+        validateKeys("test.runtime", runtimeTable, TEST_RUNTIME_KEYS);
+        try {
+            return build.withTestRuntime(new TestRuntimeSettings(
+                    stringListOrDefault(runtimeTable, "test.runtime", "jvmArgs", List.of()),
+                    stringMap(optionalTable(runtimeTable, "systemProperties"), "test.runtime.systemProperties"),
+                    stringMap(optionalTable(runtimeTable, "environment"), "test.runtime.environment"),
+                    stringListOrDefault(runtimeTable, "test.runtime", "events", List.of())));
+        } catch (IllegalArgumentException exception) {
+            throw new ZoltConfigException(exception.getMessage());
+        }
     }
 
     private static BuildSettings parseResourceRoots(TomlTable resourcesTable, BuildSettings build) {

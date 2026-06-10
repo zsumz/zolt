@@ -23,6 +23,7 @@ import com.zolt.project.RepositorySettings;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
+import com.zolt.project.TestRuntimeSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -114,6 +115,7 @@ public final class ZoltTomlWriter {
                 config.managedTestAnnotationProcessors(),
                 config.dependencyMetadata());
         writeTestSources(toml, config.build());
+        writeTestRuntime(toml, config.build().testRuntime());
         writeBuild(toml, config.build());
         writeBuildMetadata(toml, config.build().metadata());
         writeResources(toml, config.build());
@@ -936,6 +938,26 @@ public final class ZoltTomlWriter {
         toml.append('\n');
     }
 
+    private static void writeTestRuntime(StringBuilder toml, TestRuntimeSettings runtime) {
+        if (runtime == null || runtime.defaultsOnly()) {
+            return;
+        }
+        toml.append("[test.runtime]\n");
+        if (!runtime.jvmArgs().isEmpty()) {
+            writeStringArray(toml, "jvmArgs", runtime.jvmArgs());
+        }
+        if (!runtime.systemProperties().isEmpty()) {
+            writeInlineStringMap(toml, "systemProperties", runtime.systemProperties());
+        }
+        if (!runtime.environment().isEmpty()) {
+            writeInlineStringMap(toml, "environment", runtime.environment());
+        }
+        if (!runtime.events().isEmpty()) {
+            writeStringArray(toml, "events", runtime.events());
+        }
+        toml.append('\n');
+    }
+
     private static void writeResources(StringBuilder toml, BuildSettings build) {
         BuildSettings defaults = BuildSettings.defaults();
         boolean customRoots = !build.resourceRoots().equals(defaults.resourceRoots())
@@ -1127,6 +1149,19 @@ public final class ZoltTomlWriter {
             toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue())).append('\n');
         }
         toml.append('\n');
+    }
+
+    private static void writeInlineStringMap(StringBuilder toml, String key, Map<String, String> values) {
+        toml.append(key).append(" = { ");
+        int index = 0;
+        for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
+            if (index > 0) {
+                toml.append(", ");
+            }
+            toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue()));
+            index++;
+        }
+        toml.append(" }\n");
     }
 
     private static void writeRepositories(StringBuilder toml, Map<String, RepositorySettings> repositories) {

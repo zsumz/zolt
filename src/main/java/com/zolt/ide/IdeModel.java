@@ -9,6 +9,7 @@ public record IdeModel(
         ProjectInfo project,
         JavaInfo java,
         CompilerInfo compiler,
+        TestRuntimeInfo testRuntime,
         PackageInfo packageInfo,
         PathInfo paths,
         List<SourceRoot> sourceRoots,
@@ -48,6 +49,19 @@ public record IdeModel(
         public CompilerInfo {
             args = List.copyOf(args);
             testArgs = List.copyOf(testArgs);
+        }
+    }
+
+    public record TestRuntimeInfo(
+            List<String> jvmArgs,
+            Map<String, String> systemProperties,
+            Map<String, String> environment,
+            List<String> events) {
+        public TestRuntimeInfo {
+            jvmArgs = List.copyOf(jvmArgs);
+            systemProperties = Map.copyOf(systemProperties);
+            environment = Map.copyOf(environment);
+            events = List.copyOf(events);
         }
     }
 

@@ -107,6 +107,7 @@ public final class IdeModelService {
                         projectInfo(config),
                         javaInfo(config),
                         compilerInfo(root, config),
+                        testRuntimeInfo(config),
                         packageInfo(root, config),
                         new IdeModel.PathInfo(root, configPath, lockfilePath),
                         sourceRoots(root, config),
@@ -148,6 +149,7 @@ public final class IdeModelService {
                 projectInfo(config),
                 javaInfo(config),
                 compilerInfo(root, config),
+                testRuntimeInfo(config),
                 packageInfo(root, config),
                 new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
                 sourceRoots(root, config),
@@ -276,6 +278,17 @@ public final class IdeModelService {
                 settings.tests() ? artifactPath(root, config, "tests") : null,
                 publicationInfo(settings.metadata()),
                 settings.manifestAttributes());
+    }
+
+    private IdeModel.TestRuntimeInfo testRuntimeInfo(ProjectConfig config) {
+        if (config == null) {
+            return new IdeModel.TestRuntimeInfo(List.of(), Map.of(), Map.of(), List.of());
+        }
+        return new IdeModel.TestRuntimeInfo(
+                config.build().testRuntime().jvmArgs(),
+                config.build().testRuntime().systemProperties(),
+                config.build().testRuntime().redactedEnvironment(),
+                config.build().testRuntime().events());
     }
 
     private static IdeModel.PublicationInfo publicationInfo(PublicationMetadata metadata) {
