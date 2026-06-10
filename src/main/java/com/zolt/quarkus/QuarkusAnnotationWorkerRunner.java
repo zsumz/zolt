@@ -162,10 +162,12 @@ public final class QuarkusAnnotationWorkerRunner {
             if (testClassBeanMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap started the Quarkus application, then Arc could "
                     + "not instantiate the selected @QuarkusTest class as a CDI bean. Zolt moved this "
-                    + "descriptor-enabled probe past runtime service loading, but still needs to align Quarkus' "
-                    + "test-location and test-class indexing path so Quarkus JUnit can produce a "
-                    + "TestClassBeanBuildItem for compiled test classes. Keep using plain JUnit tests for now, "
-                    + "or run `zolt quarkus test-plan` to inspect blocked tests."
+                    + "descriptor-enabled probe past runtime service loading and can build an enriched "
+                    + "test-class index, but Quarkus JUnit rewrites test-classes.idx from the compiled test "
+                    + "output during AppMakerHelper.prepare. Zolt still needs to make the compiled test output "
+                    + "carry the direct QuarkusTestExtension candidate metadata that Quarkus uses to produce "
+                    + "TestClassBeanBuildItem. Keep using plain JUnit tests for now, or run "
+                    + "`zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()
                     + "\n";
@@ -255,18 +257,7 @@ public final class QuarkusAnnotationWorkerRunner {
                         .testOutputDirectory()
                         .toAbsolutePath()
                         .normalize();
-                Class<?> testClassIndexer = Class.forName("io.quarkus.test.common.TestClassIndexer");
-                Object index = testClassIndexer
-                        .getMethod("indexTestClasses", java.nio.file.Path.class)
-                        .invoke(null, outputDirectory);
-                Class<?> indexClass = Class.forName("org.jboss.jandex.Index");
-                Class<?> firstTestClass = Class.forName(
-                        request.testClasses().getFirst(),
-                        false,
-                        ClassLoader.getSystemClassLoader());
-                testClassIndexer
-                        .getMethod("writeIndex", indexClass, java.nio.file.Path.class, Class.class)
-                        .invoke(null, index, outputDirectory, firstTestClass);
+                new QuarkusTestIndexWriter().write(outputDirectory, request.testClasses());
             } catch (ReflectiveOperationException | LinkageError exception) {
                 throw new QuarkusAugmentationException(
                         "Could not write Quarkus test class index before annotation execution. "

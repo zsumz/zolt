@@ -92,18 +92,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 return;
             }
             Path outputDirectory = Path.of(testOutputDirectory).toAbsolutePath().normalize();
-            Class<?> testClassIndexer = Class.forName("io.quarkus.test.common.TestClassIndexer");
-            Object index = testClassIndexer
-                    .getMethod("indexTestClasses", Path.class)
-                    .invoke(null, outputDirectory);
-            Class<?> indexClass = Class.forName("org.jboss.jandex.Index");
-            Class<?> firstTestClass = Class.forName(
-                    testClasses.getFirst(),
-                    false,
-                    ClassLoader.getSystemClassLoader());
-            testClassIndexer
-                    .getMethod("writeIndex", indexClass, Path.class, Class.class)
-                    .invoke(null, index, outputDirectory, firstTestClass);
+            new QuarkusTestIndexWriter().write(outputDirectory, testClasses);
         }
 
         private Object discoveryRequest(List<String> testClasses) throws ReflectiveOperationException {

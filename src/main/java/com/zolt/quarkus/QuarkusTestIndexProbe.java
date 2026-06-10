@@ -98,7 +98,7 @@ public final class QuarkusTestIndexProbe {
 
         private IndexProbeResult inspect(Path testOutputDirectory, List<String> testClasses)
                 throws ReflectiveOperationException {
-            Object index = createIndex(testOutputDirectory);
+            Object index = createIndex(testOutputDirectory, testClasses);
             Collection<?> knownClasses = knownClasses(index);
             List<SelectedClassIndexResult> selectedClasses = new ArrayList<>();
             for (String testClass : testClasses) {
@@ -111,11 +111,9 @@ public final class QuarkusTestIndexProbe {
                     annotationCounts(index));
         }
 
-        private Object createIndex(Path testOutputDirectory) throws ReflectiveOperationException {
-            Class<?> testClassIndexer = Class.forName("io.quarkus.test.common.TestClassIndexer");
-            return testClassIndexer
-                    .getMethod("indexTestClasses", Path.class)
-                    .invoke(null, testOutputDirectory);
+        private Object createIndex(Path testOutputDirectory, List<String> testClasses)
+                throws ReflectiveOperationException {
+            return new QuarkusTestIndexWriter().createIndex(testOutputDirectory, testClasses);
         }
 
         private SelectedClassIndexResult inspectClass(Object index, String className)
@@ -130,7 +128,7 @@ public final class QuarkusTestIndexProbe {
                     className,
                     true,
                     hasClassAnnotation(classInfo, QUARKUS_TEST_ANNOTATION),
-                    hasClassAnnotation(classInfo, EXTEND_WITH_ANNOTATION),
+                    hasExtendWithCandidate(index, className),
                     classAnnotationNames(classInfo));
         }
 
@@ -172,6 +170,25 @@ public final class QuarkusTestIndexProbe {
             return (Collection<?>) index.getClass()
                     .getMethod("getAnnotations", dotNameClass)
                     .invoke(index, dotName(annotationName));
+        }
+
+        private boolean hasExtendWithCandidate(Object index, String className)
+                throws ReflectiveOperationException {
+            Object selectedName = dotName(className);
+            for (Object annotation : annotations(index, EXTEND_WITH_ANNOTATION)) {
+                Object target = annotation.getClass().getMethod("target").invoke(annotation);
+                Object kind = target.getClass().getMethod("kind").invoke(target);
+                if (!"CLASS".equals(String.valueOf(kind))) {
+                    continue;
+                }
+                Object targetClass = target.getClass().getMethod("asClass").invoke(target);
+                boolean annotationType = (boolean) targetClass.getClass().getMethod("isAnnotation").invoke(targetClass);
+                Object targetName = targetClass.getClass().getMethod("name").invoke(targetClass);
+                if (!annotationType && selectedName.equals(targetName)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private Collection<?> knownClasses(Object index) throws ReflectiveOperationException {

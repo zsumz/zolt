@@ -358,7 +358,9 @@ final class QuarkusTestWorkerTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.output().contains("started the Quarkus application"));
         assertTrue(result.output().contains("Arc could not instantiate the selected @QuarkusTest class"));
-        assertTrue(result.output().contains("test-location and test-class indexing path"));
+        assertTrue(result.output().contains("rewrites test-classes.idx"));
+        assertTrue(result.output().contains("compiled test output"));
+        assertTrue(result.output().contains("QuarkusTestExtension candidate metadata"));
         assertTrue(result.output().contains("TestClassBeanBuildItem"));
         assertTrue(result.output().contains("No bean found for required type"));
     }
