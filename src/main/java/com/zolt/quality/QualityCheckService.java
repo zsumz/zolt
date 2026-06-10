@@ -8,7 +8,9 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.PublicationMetadata;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -28,6 +30,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,16 +41,21 @@ public final class QualityCheckService {
     public static final String LOCKFILE = "lockfile";
     public static final String PROJECT_MODEL = "project-model";
     public static final String DEPENDENCY_METADATA = "dependency-metadata";
+    public static final String PACKAGE_METADATA = "package-metadata";
+    public static final String MANIFEST_METADATA = "manifest-metadata";
 
     private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
             COMMAND_SURFACE,
             LOCKFILE,
             PROJECT_MODEL,
-            DEPENDENCY_METADATA);
+            DEPENDENCY_METADATA,
+            PACKAGE_METADATA,
+            MANIFEST_METADATA);
     private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of(
-            "package-metadata", "followUps/-add-package-and-manifest-checks.md",
-            "manifest-metadata", "followUps/-add-package-and-manifest-checks.md",
             "generated-sources", "followUps/-add-generated-source-quality-checks.md");
+    private static final Set<String> ZOLT_OWNED_MANIFEST_ATTRIBUTES = Set.of(
+            "manifest-version",
+            "main-class");
 
     private final ZoltTomlParser projectParser;
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
@@ -158,6 +166,13 @@ public final class QualityCheckService {
                         request.projectRoot(),
                         config,
                         false));
+                case PACKAGE_METADATA -> results.add(checkPackageMetadata(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        config));
+                case MANIFEST_METADATA -> results.add(checkManifestMetadata(
+                        Optional.empty(),
+                        config));
                 default -> results.add(unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -185,6 +200,23 @@ public final class QualityCheckService {
                     }
                 }
                 case DEPENDENCY_METADATA -> results.addAll(checkWorkspaceDependencyMetadata(workspace, selection, members));
+                case PACKAGE_METADATA -> {
+                    for (String memberPath : selection.includedMembers()) {
+                        WorkspaceMember member = members.get(memberPath);
+                        results.add(checkPackageMetadata(
+                                Optional.of(member.path()),
+                                member.directory(),
+                                member.config()));
+                    }
+                }
+                case MANIFEST_METADATA -> {
+                    for (String memberPath : selection.includedMembers()) {
+                        WorkspaceMember member = members.get(memberPath);
+                        results.add(checkManifestMetadata(
+                                Optional.of(member.path()),
+                                member.config()));
+                    }
+                }
                 default -> results.add(unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -373,6 +405,189 @@ public final class QualityCheckService {
         Path path = Path.of(value);
         Path normalized = path.normalize();
         return !path.isAbsolute() && !normalized.startsWith("..");
+    }
+
+    private static QualityCheckResult checkPackageMetadata(
+            Optional<String> member,
+            Path projectRoot,
+            ProjectConfig config) {
+        PackageSettings settings = config.packageSettings();
+        if (!usesLibraryPackageProfile(settings)) {
+            return QualityCheckResult.passed(
+                    PACKAGE_METADATA,
+                    member,
+                    config.project().name(),
+                    "No library package metadata is requested.");
+        }
+
+        if (!settings.sources()) {
+            return QualityCheckResult.failed(
+                    PACKAGE_METADATA,
+                    member,
+                    "[package].sources",
+                    "Library package metadata is enabled, but sources jar generation is disabled.",
+                    "Set [package].sources = true for library projects.");
+        }
+        if (hasSourceFiles(projectRoot, List.of(config.build().source())) && !settings.javadoc()) {
+            return QualityCheckResult.failed(
+                    PACKAGE_METADATA,
+                    member,
+                    "[package].javadoc",
+                    "Library package metadata is enabled, but javadoc jar generation is disabled.",
+                    "Set [package].javadoc = true when publishing Java APIs.");
+        }
+        if (hasSourceFiles(projectRoot, testSourceRoots(config.build())) && !settings.tests()) {
+            return QualityCheckResult.failed(
+                    PACKAGE_METADATA,
+                    member,
+                    "[package].tests",
+                    "Test sources are present, but tests jar generation is disabled for this library package.",
+                    "Set [package].tests = true or remove test sources from the library artifact story.");
+        }
+
+        Optional<QualityCheckResult> missingMetadata = firstMissingPublicationMetadata(member, settings.metadata());
+        if (missingMetadata.isPresent()) {
+            return missingMetadata.orElseThrow();
+        }
+
+        return QualityCheckResult.passed(
+                PACKAGE_METADATA,
+                member,
+                config.project().name(),
+                "Library package metadata is complete.");
+    }
+
+    private static QualityCheckResult checkManifestMetadata(
+            Optional<String> member,
+            ProjectConfig config) {
+        PackageSettings settings = config.packageSettings();
+        for (String attributeName : settings.manifestAttributes().keySet()) {
+            if (ZOLT_OWNED_MANIFEST_ATTRIBUTES.contains(attributeName.toLowerCase(Locale.ROOT))) {
+                return QualityCheckResult.failed(
+                        MANIFEST_METADATA,
+                        member,
+                        "[package.manifest]." + attributeName,
+                        "Manifest attribute `" + attributeName + "` is owned by Zolt.",
+                        "Remove it from [package.manifest]; use [project].main for Main-Class.");
+            }
+        }
+
+        if (!usesLibraryPackageProfile(settings)) {
+            return QualityCheckResult.passed(
+                    MANIFEST_METADATA,
+                    member,
+                config.project().name(),
+                "No library manifest metadata is requested.");
+        }
+
+        if (!containsManifestAttribute(settings, "Automatic-Module-Name")) {
+            return QualityCheckResult.failed(
+                    MANIFEST_METADATA,
+                    member,
+                    "[package.manifest].Automatic-Module-Name",
+                    "Library package metadata is enabled, but Automatic-Module-Name is missing.",
+                    "Add [package.manifest].\"Automatic-Module-Name\" with a stable Java module name.");
+        }
+
+        return QualityCheckResult.passed(
+                MANIFEST_METADATA,
+                member,
+                config.project().name(),
+                "Library manifest metadata is deterministic.");
+    }
+
+    private static boolean containsManifestAttribute(PackageSettings settings, String name) {
+        return settings.manifestAttributes().keySet().stream()
+                .anyMatch(candidate -> candidate.equalsIgnoreCase(name));
+    }
+
+    private static boolean usesLibraryPackageProfile(PackageSettings settings) {
+        return settings.sources()
+                || settings.javadoc()
+                || settings.tests()
+                || hasPublicationMetadata(settings.metadata())
+                || !settings.manifestAttributes().isEmpty();
+    }
+
+    private static boolean hasPublicationMetadata(PublicationMetadata metadata) {
+        return !metadata.name().isBlank()
+                || !metadata.description().isBlank()
+                || !metadata.url().isBlank()
+                || !metadata.license().isBlank()
+                || !metadata.developers().isEmpty()
+                || !metadata.scm().isBlank()
+                || !metadata.issues().isBlank();
+    }
+
+    private static Optional<QualityCheckResult> firstMissingPublicationMetadata(
+            Optional<String> member,
+            PublicationMetadata metadata) {
+        if (metadata.name().isBlank()) {
+            return missingPublicationField(member, "name");
+        }
+        if (metadata.description().isBlank()) {
+            return missingPublicationField(member, "description");
+        }
+        if (metadata.url().isBlank()) {
+            return missingPublicationField(member, "url");
+        }
+        if (metadata.license().isBlank()) {
+            return missingPublicationField(member, "license");
+        }
+        if (metadata.developers().isEmpty()) {
+            return missingPublicationField(member, "developers");
+        }
+        if (metadata.scm().isBlank()) {
+            return missingPublicationField(member, "scm");
+        }
+        if (metadata.issues().isBlank()) {
+            return missingPublicationField(member, "issues");
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<QualityCheckResult> missingPublicationField(Optional<String> member, String field) {
+        return Optional.of(QualityCheckResult.failed(
+                PACKAGE_METADATA,
+                member,
+                "[package.metadata]." + field,
+                "Library package metadata is enabled, but publication metadata field `" + field + "` is missing.",
+                "Fill [package.metadata]." + field + " in zolt.toml."));
+    }
+
+    private static List<String> testSourceRoots(BuildSettings build) {
+        List<String> roots = new ArrayList<>();
+        roots.add(build.test());
+        roots.addAll(build.testSources());
+        roots.addAll(build.groovyTestSources());
+        return List.copyOf(new LinkedHashSet<>(roots));
+    }
+
+    private static boolean hasSourceFiles(Path projectRoot, List<String> roots) {
+        Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
+        for (String root : roots) {
+            if (root == null || root.isBlank()) {
+                continue;
+            }
+            Path sourceRoot = normalizedRoot.resolve(root).normalize();
+            if (!sourceRoot.startsWith(normalizedRoot) || !Files.isDirectory(sourceRoot)) {
+                continue;
+            }
+            try (var stream = Files.find(sourceRoot, Integer.MAX_VALUE, (path, attributes) ->
+                    attributes.isRegularFile() && sourceLike(path))) {
+                if (stream.findFirst().isPresent()) {
+                    return true;
+                }
+            } catch (java.io.IOException exception) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sourceLike(Path path) {
+        String fileName = path.getFileName().toString();
+        return fileName.endsWith(".java") || fileName.endsWith(".groovy");
     }
 
     private List<QualityCheckResult> checkProjectDependencyMetadata(
