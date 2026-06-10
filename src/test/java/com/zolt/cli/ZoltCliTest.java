@@ -66,6 +66,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
         assertTrue(result.stdout().contains("init"));
         assertTrue(result.stdout().contains("resolve"));
+        assertTrue(result.stdout().contains("check"));
         assertTrue(result.stdout().contains("build"));
         assertTrue(result.stdout().contains("doctor"));
     }
@@ -79,6 +80,7 @@ final class ZoltCliTest {
                 "init",
                 "version",
                 "update",
+                "check",
                 "add",
                 "remove",
                 "platform",
@@ -103,6 +105,123 @@ final class ZoltCliTest {
                 "self-parity",
                 "clean",
                 "doctor")));
+    }
+
+    @Test
+    void checkSucceedsForTypedProjectModel() throws IOException {
+        Path projectDir = tempDir.resolve("check-demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-demo"));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals(
+                "ok command-surface check-demo zolt check uses typed Zolt project data; no Maven, Gradle, or shell hooks are run.\n",
+                result.stdout());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkJsonOutputUsesStableResultShape() throws IOException {
+        Path projectDir = tempDir.resolve("check-json");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-json"));
+
+        CommandResult result = execute("check", "--format", "json", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().startsWith("{\"status\":\"ok\",\"projectRoot\":\""));
+        assertTrue(result.stdout().contains("\"workspace\":false"));
+        assertTrue(result.stdout().contains("\"id\":\"command-surface\""));
+        assertTrue(result.stdout().contains("\"severity\":\"info\""));
+        assertTrue(result.stdout().contains("\"status\":\"passed\""));
+        assertTrue(result.stdout().contains("\"subject\":\"check-json\""));
+        assertTrue(result.stdout().endsWith("]}\n"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkReportsPlannedChecksAsSkipped() throws IOException {
+        Path projectDir = tempDir.resolve("check-planned");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-planned"));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "lockfile");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("skip lockfile lockfile Quality check `lockfile` is planned but not implemented yet."));
+        assertTrue(result.stdout().contains("followUps/-add-lockfile-and-project-model-checks.md"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkRefusesArbitraryHookNames() throws IOException {
+        Path projectDir = tempDir.resolve("check-hook");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-hook"));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "mvn verify");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error unsupported-check mvn verify Unsupported quality check `mvn verify`."));
+        assertTrue(result.stdout().contains("Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkReportsMalformedConfigAsFailedCheck() throws IOException {
+        Path projectDir = tempDir.resolve("check-malformed");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "check-malformed"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [check]
+                command = "mvn verify"
+                """.formatted(currentJavaMajorVersion()));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error command-surface zolt.toml Unknown top-level section [check] in zolt.toml."));
+        assertTrue(result.stdout().contains("next: Fix zolt.toml, then run `zolt check` again."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceUsesMemberSelectionModel() throws IOException {
+        WorkspaceApplicationFixture fixture = workspaceApplicationFixture("check-workspace");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--cwd", fixture.workspaceDir().toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok command-surface check-workspace zolt check selected 1 workspace members"));
+        assertTrue(result.stdout().contains("no Maven, Gradle, or shell hooks are run."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkPrintsTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("check-timings");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-timings"));
+
+        CommandResult result = execute("check", "--timings", "--timings-format", "json", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok command-surface check-timings"));
+        assertTrue(result.stderr().contains("\"command\":\"check\""));
+        assertTrue(result.stderr().contains("\"phase\":\"run quality checks\""));
+        assertTrue(result.stderr().contains("\"checks\":\"1\""));
+        assertTrue(result.stderr().contains("\"passed\":\"1\""));
     }
 
     @Test

@@ -69,6 +69,10 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.quality.QualityCheckFormatter;
+import com.zolt.quality.QualityCheckReport;
+import com.zolt.quality.QualityCheckRequest;
+import com.zolt.quality.QualityCheckService;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusAugmentationRequestFactory;
@@ -145,6 +149,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.InitCommand.class,
                 ZoltCli.VersionCommand.class,
                 ZoltCli.UpdateCommand.class,
+                ZoltCli.CheckCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
                 ZoltCli.PlatformCommand.class,
@@ -225,6 +230,61 @@ public final class ZoltCli implements Runnable {
                     Track this work in followUps/-design-zolt-update-command.md.
                     """.stripTrailing());
             return 1;
+        }
+    }
+
+    @Command(name = "check", description = "Run Zolt-owned quality checks.")
+    public static final class CheckCommand implements Callable<Integer> {
+        enum Format {
+            TEXT,
+            JSON
+        }
+
+        @Option(names = "--check", description = "Run a quality check id. May be repeated.")
+        private List<String> checks = List.of();
+
+        @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
+        private boolean workspace;
+
+        @Option(names = "--all", description = "Select every workspace member.")
+        private boolean all;
+
+        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+        private List<String> members = List.of();
+
+        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+        private List<String> memberGroups = List.of();
+
+        @Option(names = "--format", description = "Output format: text or json.")
+        private Format format = Format.TEXT;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public Integer call() {
+            TimingRecorder timings = timingRecorder(timingOptions);
+            QualityCheckReport report = timings.measure(
+                    "run quality checks",
+                    () -> new QualityCheckService().check(new QualityCheckRequest(
+                            workingDirectory,
+                            workspace,
+                            checks,
+                            workspaceSelection(all, members, memberGroups))),
+                    ZoltCli::qualityCheckAttributes);
+            if (format == Format.JSON) {
+                printAndFlush(spec, QualityCheckFormatter.json(report));
+            } else {
+                printAndFlush(spec, QualityCheckFormatter.text(report));
+            }
+            printTimings(spec, "check", workingDirectory, timingOptions, timings);
+            return report.ok() ? 0 : 1;
         }
     }
 
@@ -2426,6 +2486,17 @@ public final class ZoltCli implements Runnable {
                 "steps", Integer.toString(result.steps().size()),
                 "failedSteps", Long.toString(failedSteps),
                 "ok", Boolean.toString(result.ok()));
+    }
+
+    private static Map<String, String> qualityCheckAttributes(QualityCheckReport result) {
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("checks", Integer.toString(result.checks().size()));
+        attributes.put("passed", Long.toString(result.passedCount()));
+        attributes.put("failed", Long.toString(result.failedCount()));
+        attributes.put("skipped", Long.toString(result.skippedCount()));
+        attributes.put("workspace", Boolean.toString(result.workspace()));
+        attributes.put("ok", Boolean.toString(result.ok()));
+        return attributes;
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
