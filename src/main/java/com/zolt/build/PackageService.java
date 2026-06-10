@@ -166,7 +166,8 @@ public final class PackageService {
                     config,
                     buildResult,
                     cacheRoot.orElseThrow(() -> new PackageException(
-                            "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")));
+                            "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")),
+                    classpathPackages);
             case QUARKUS -> packageQuarkusFastJar(
                     projectDirectory,
                     config,
@@ -227,13 +228,15 @@ public final class PackageService {
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
-            Path cacheRoot) {
+            Path cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
         String startClass = config.project().main().orElseThrow(() -> new PackageException(
                 "Spring Boot package mode requires [project].main in zolt.toml. Add the application main class and retry."));
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path jarPath = jarPath(projectDirectory, config);
-        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        List<RuntimeJar> runtimeJars = runtimeJars(lockfile, cacheRoot);
+        List<RuntimeJar> runtimeJars = classpathPackages
+                .map(this::runtimeJars)
+                .orElseGet(() -> runtimeJars(lockfileReader.read(projectDirectory.resolve("zolt.lock")), cacheRoot));
         SpringBootLoader loader = springBootLoader(runtimeJars);
 
         try {
@@ -380,8 +383,12 @@ public final class PackageService {
     }
 
     private List<RuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
+        return runtimeJars(packagedClasspathPackages(lockfile, cacheRoot));
+    }
+
+    private List<RuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
         Map<String, RuntimeJar> runtimeJars = new LinkedHashMap<>();
-        packagedClasspathPackages(lockfile, cacheRoot).stream()
+        packagedClasspathPackages(classpathPackages).stream()
                 .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
                 .sorted(Comparator.comparing(PackageService::classpathSortKey))
                 .map(dependency -> new RuntimeJar(
