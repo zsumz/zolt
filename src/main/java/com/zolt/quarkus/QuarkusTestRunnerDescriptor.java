@@ -1,6 +1,7 @@
 package com.zolt.quarkus;
 
 import com.zolt.build.TestSelection;
+import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -16,7 +17,8 @@ public record QuarkusTestRunnerDescriptor(
         boolean supportsQuarkusTestAnnotations,
         boolean jbossLogManagerPresent,
         List<Path> testRuntimeClasspath,
-        TestSelection testSelection) {
+        TestSelection testSelection,
+        TestJvmArguments jvmArguments) {
     public QuarkusTestRunnerDescriptor(
             Path descriptorFile,
             Path testRuntimeClasspathFile,
@@ -41,7 +43,37 @@ public record QuarkusTestRunnerDescriptor(
                 supportsQuarkusTestAnnotations,
                 jbossLogManagerPresent,
                 testRuntimeClasspath,
-                TestSelection.empty());
+                TestSelection.empty(),
+                TestJvmArguments.empty());
+    }
+
+    public QuarkusTestRunnerDescriptor(
+            Path descriptorFile,
+            Path testRuntimeClasspathFile,
+            Path projectDirectory,
+            Path mainOutputDirectory,
+            Path testOutputDirectory,
+            Path serializedApplicationModel,
+            Path bootstrapDescriptorFile,
+            String runnerMode,
+            boolean supportsQuarkusTestAnnotations,
+            boolean jbossLogManagerPresent,
+            List<Path> testRuntimeClasspath,
+            TestSelection testSelection) {
+        this(
+                descriptorFile,
+                testRuntimeClasspathFile,
+                projectDirectory,
+                mainOutputDirectory,
+                testOutputDirectory,
+                serializedApplicationModel,
+                bootstrapDescriptorFile,
+                runnerMode,
+                supportsQuarkusTestAnnotations,
+                jbossLogManagerPresent,
+                testRuntimeClasspath,
+                testSelection,
+                TestJvmArguments.empty());
     }
 
     public QuarkusTestRunnerDescriptor {
@@ -74,5 +106,6 @@ public record QuarkusTestRunnerDescriptor(
         }
         testRuntimeClasspath = List.copyOf(testRuntimeClasspath);
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
+        jvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
     }
 }

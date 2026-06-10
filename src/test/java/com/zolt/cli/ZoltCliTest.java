@@ -114,6 +114,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("--tests"));
         assertTrue(result.stdout().contains("--include-tag"));
         assertTrue(result.stdout().contains("--exclude-tag"));
+        assertTrue(result.stdout().contains("--jvm-arg"));
     }
 
     @Test
@@ -123,6 +124,15 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Invalid --test selector `*ServiceTest`"));
         assertTrue(result.stderr().contains("Use --tests for class-name patterns"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
+
+    @Test
+    void testRejectsInvalidJvmArgBeforeReadingProjectConfig() {
+        CommandResult result = execute("test", "--cwd", tempDir.toString(), "--jvm-arg", "-classpath");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Zolt owns the test classpath"));
         assertFalse(result.stderr().contains("Could not read zolt.toml"));
     }
 

@@ -19,6 +19,7 @@ final class JunitWorkerProcessLauncherTest {
 
         assertEquals(List.of(
                 "/jdk/bin/java",
+                "-Dlibrary.mode=true",
                 "-Duser.dir=/repo",
                 "-classpath",
                 "/zolt/zolt.jar:/repo/target/test-classes:/repo/target/classes:/cache/junit.jar",
@@ -28,7 +29,8 @@ final class JunitWorkerProcessLauncherTest {
                 List.of(
                         Path.of("/repo/target/test-classes"),
                         Path.of("/repo/target/classes"),
-                        Path.of("/cache/junit.jar"))));
+                        Path.of("/cache/junit.jar")),
+                List.of("-Dlibrary.mode=true")));
     }
 
     @Test

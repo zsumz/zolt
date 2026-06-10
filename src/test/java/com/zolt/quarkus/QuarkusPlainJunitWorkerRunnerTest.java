@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,9 @@ import org.junit.jupiter.api.Test;
 final class QuarkusPlainJunitWorkerRunnerTest {
     @Test
     void buildsJUnitConsoleCommandFromDescriptorClasspath() {
-        QuarkusTestRunnerDescriptor descriptor = descriptor(true);
+        QuarkusTestRunnerDescriptor descriptor = descriptor(
+                true,
+                new TestJvmArguments(List.of("-Dlibrary.mode=true")));
         QuarkusPlainJunitWorkerRunner runner = new QuarkusPlainJunitWorkerRunner(
                 ":",
                 Path.of("/jdk/bin/java"),
@@ -19,6 +22,7 @@ final class QuarkusPlainJunitWorkerRunnerTest {
 
         assertEquals(List.of(
                         "/jdk/bin/java",
+                        "-Dlibrary.mode=true",
                         "-Duser.dir=/repo",
                         "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
                         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
@@ -79,6 +83,10 @@ final class QuarkusPlainJunitWorkerRunnerTest {
     }
 
     private static QuarkusTestRunnerDescriptor descriptor(boolean jbossLogManagerPresent) {
+        return descriptor(jbossLogManagerPresent, TestJvmArguments.empty());
+    }
+
+    private static QuarkusTestRunnerDescriptor descriptor(boolean jbossLogManagerPresent, TestJvmArguments jvmArguments) {
         return new QuarkusTestRunnerDescriptor(
                 Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
                 Path.of("/repo/target/quarkus/test-runtime-classpath.txt"),
@@ -93,6 +101,8 @@ final class QuarkusPlainJunitWorkerRunnerTest {
                 List.of(
                         Path.of("/repo/target/test-classes"),
                         Path.of("/repo/target/classes"),
-                        Path.of("/cache/junit-platform-console.jar")));
+                        Path.of("/cache/junit-platform-console.jar")),
+                com.zolt.build.TestSelection.empty(),
+                jvmArguments);
     }
 }

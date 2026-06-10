@@ -43,16 +43,26 @@ final class TestRunServiceTest {
             return new JavaRunner.ProcessResult(0, "Tests successful\n");
         });
 
-        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
+        TestRunResult result = service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                new TestJvmArguments(List.of("-Dlibrary.mode=true", "--add-opens=java.base/java.lang=ALL-UNNAMED")));
 
         assertEquals("Tests successful\n", result.output());
         assertEquals("junit-console", result.testRunner());
+        assertEquals(
+                List.of("-Dlibrary.mode=true", "--add-opens=java.base/java.lang=ALL-UNNAMED"),
+                result.testJvmArguments().values());
         assertEquals(3, result.testRuntimeClasspathEntries());
         assertEquals(1, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
         List<String> command = commands.getFirst();
         String userDirProperty = "-Duser.dir=" + projectDir.toAbsolutePath().normalize();
-        assertEquals(userDirProperty, command.get(1));
+        assertEquals("-Dlibrary.mode=true", command.get(1));
+        assertEquals("--add-opens=java.base/java.lang=ALL-UNNAMED", command.get(2));
+        assertEquals(userDirProperty, command.get(3));
         assertTrue(command.indexOf(userDirProperty) < command.indexOf("-classpath"));
         assertTrue(command.contains("org.junit.platform.console.ConsoleLauncher"));
         assertTrue(command.contains("execute"));
@@ -350,6 +360,7 @@ final class TestRunServiceTest {
         List<List<Path>> testRuntimeClasspaths = new ArrayList<>();
         List<Path> testOutputDirectories = new ArrayList<>();
         List<TestSelection> selections = new ArrayList<>();
+        List<TestJvmArguments> jvmArguments = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     javaCommands.add(command);
@@ -362,11 +373,12 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments) -> {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
                     selections.add(testSelection);
+                    jvmArguments.add(testJvmArguments);
                     return new TestRunService.PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
                             12_000_000L,
@@ -374,7 +386,12 @@ final class TestRunServiceTest {
                 },
                 true);
 
-        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"));
+        TestRunResult result = service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                new TestJvmArguments(List.of("-Dlibrary.mode=true")));
 
         assertEquals("worker tests passed\n", result.output());
         assertEquals("zolt-junit-worker", result.testRunner());
@@ -382,6 +399,7 @@ final class TestRunServiceTest {
         assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
         assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize(), testOutputDirectories.getFirst());
         assertTrue(selections.getFirst().emptySelection());
+        assertEquals(List.of("-Dlibrary.mode=true"), jvmArguments.getFirst().values());
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/test-classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path ->
@@ -407,7 +425,7 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) ->
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments) ->
                         new TestRunService.PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
@@ -582,7 +600,7 @@ final class TestRunServiceTest {
                 quarkusTestWorkerClasspath,
                 quarkusTestWorkerRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
                 },
                 false,

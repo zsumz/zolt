@@ -1,6 +1,7 @@
 package com.zolt.workspace;
 
 import com.zolt.build.TestSelection;
+import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -47,9 +48,18 @@ public final class WorkspaceTestService {
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest,
             TestSelection testSelection) {
+        return test(startDirectory, cacheRoot, selectionRequest, testSelection, TestJvmArguments.empty());
+    }
+
+    public WorkspaceTestResult test(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments) {
         WorkspaceBuildPlan plan = planTests(startDirectory, cacheRoot, selectionRequest);
         WorkspaceBuildResult buildResult = buildTestInputs(plan, cacheRoot);
-        return runTests(plan, buildResult, cacheRoot, testSelection);
+        return runTests(plan, buildResult, cacheRoot, testSelection, jvmArguments);
     }
 
     public WorkspaceBuildPlan planTests(
@@ -75,6 +85,16 @@ public final class WorkspaceTestService {
             WorkspaceBuildResult buildResult,
             Path cacheRoot,
             TestSelection testSelection) {
+        return runTests(plan, buildResult, cacheRoot, testSelection, TestJvmArguments.empty());
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments) {
+        TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
@@ -90,7 +110,8 @@ public final class WorkspaceTestService {
                             member.config(),
                             memberBuild.classpaths(),
                             memberBuild.result(),
-                            testSelection)));
+                            testSelection,
+                            testJvmArguments)));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }

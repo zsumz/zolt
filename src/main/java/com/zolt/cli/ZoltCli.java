@@ -27,6 +27,7 @@ import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestCompileResultWithClasspaths;
+import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
@@ -1311,6 +1312,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
         private List<String> excludedTags = List.of();
 
+        @Option(names = "--jvm-arg", description = "Pass one JVM argument to the test runner process. May be repeated.")
+        private List<String> jvmArgs = List.of();
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1332,6 +1336,7 @@ public final class ZoltCli implements Runnable {
                         testPatterns,
                         includedTags,
                         excludedTags);
+                TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
                 if (workspace) {
                     WorkspaceTestService workspaceTestService = new WorkspaceTestService();
                     WorkspaceTestResult result = timings.measure(
@@ -1354,7 +1359,8 @@ public final class ZoltCli implements Runnable {
                                                 plan,
                                                 buildResult,
                                                 cacheRoot,
-                                                testSelection),
+                                                testSelection,
+                                                testJvmArguments),
                                         ZoltCli::workspaceTestAttributes);
                             },
                             ZoltCli::workspaceTestAttributes);
@@ -1413,7 +1419,8 @@ public final class ZoltCli implements Runnable {
                                             config,
                                             compileResult.classpaths(),
                                             compileResult.testCompileResult(),
-                                            testSelection),
+                                            testSelection,
+                                            testJvmArguments),
                                     ZoltCli::testExecutionAttributes);
                         },
                         ZoltCli::testRunAttributes);
@@ -2184,6 +2191,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
+        attributes.put("testJvmArgs", Integer.toString(result.testJvmArguments().values().size()));
         addPlainJunitWorkerTimingAttributes(attributes, result);
         attributes.put("outputBytes", Integer.toString(result.output().length()));
         return attributes;
@@ -2205,6 +2213,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
+        attributes.put("testJvmArgs", Integer.toString(result.testJvmArguments().values().size()));
         addPlainJunitWorkerTimingAttributes(attributes, result);
         attributes.put("outputBytes", Integer.toString(result.output().length()));
         return attributes;

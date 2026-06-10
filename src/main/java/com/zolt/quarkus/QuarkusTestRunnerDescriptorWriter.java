@@ -42,7 +42,8 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
                 request.jbossLogManagerPresent(),
                 request.testRuntimeClasspath(),
-                request.testSelection());
+                request.testSelection(),
+                request.jvmArguments());
     }
 
     private static String descriptor(
@@ -64,6 +65,7 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 testSelection.classNamePatterns=%s
                 testSelection.includedTags=%s
                 testSelection.excludedTags=%s
+                jvmArguments=%s
                 """.formatted(
                 QuarkusTestRunnerRequest.RUNNER_MODE,
                 QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
@@ -78,7 +80,8 @@ public final class QuarkusTestRunnerDescriptorWriter {
                 TestSelectionCodec.encodeMethods(request.testSelection().methodSelectors()),
                 TestSelectionCodec.encodeStrings(request.testSelection().classNamePatterns()),
                 TestSelectionCodec.encodeStrings(request.testSelection().includedTags()),
-                TestSelectionCodec.encodeStrings(request.testSelection().excludedTags()));
+                TestSelectionCodec.encodeStrings(request.testSelection().excludedTags()),
+                TestSelectionCodec.encodeStrings(request.jvmArguments().values()));
     }
 
     private static void writeClasspath(

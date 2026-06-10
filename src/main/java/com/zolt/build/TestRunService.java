@@ -102,6 +102,15 @@ public final class TestRunService {
             ProjectConfig config,
             Path cacheRoot,
             TestSelection selection) {
+        return runTests(projectDirectory, config, cacheRoot, selection, TestJvmArguments.empty());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            TestJvmArguments jvmArguments) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
@@ -109,7 +118,8 @@ public final class TestRunService {
                 config,
                 compileResult.classpaths(),
                 compileResult.testCompileResult(),
-                selection);
+                selection,
+                jvmArguments);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -134,7 +144,17 @@ public final class TestRunService {
             ClasspathSet classpaths,
             TestCompileResult compileResult,
             TestSelection selection) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection);
+        return runCompiledTests(projectDirectory, config, classpaths, compileResult, selection, TestJvmArguments.empty());
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments);
     }
 
     public TestRunResult runTests(
@@ -151,8 +171,18 @@ public final class TestRunService {
             ClasspathSet classpaths,
             BuildResult buildResult,
             TestSelection selection) {
+        return runTests(projectDirectory, config, classpaths, buildResult, selection, TestJvmArguments.empty());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult, selection);
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments);
     }
 
     public TestCompileResult compileTests(
@@ -173,7 +203,18 @@ public final class TestRunService {
             ClasspathSet classpaths,
             TestCompileResult compileResult,
             TestSelection selection) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, TestJvmArguments.empty());
+    }
+
+    private TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
+        TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -197,7 +238,8 @@ public final class TestRunService {
                 compileResult,
                 runnerClasspath,
                 serializedApplicationModel,
-                testSelection);
+                testSelection,
+                testJvmArguments);
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
             QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
@@ -220,7 +262,8 @@ public final class TestRunService {
                     1,
                     -1L,
                     -1L,
-                    testSelection);
+                    testSelection,
+                    testJvmArguments);
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
@@ -230,7 +273,8 @@ public final class TestRunService {
                     projectDirectory,
                     runnerClasspath,
                     compileResult.outputDirectory().toAbsolutePath().normalize(),
-                    testSelection);
+                    testSelection,
+                    testJvmArguments);
             failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
@@ -248,7 +292,8 @@ public final class TestRunService {
                     1,
                     result.startupNanos(),
                     result.requestNanos(),
-                    testSelection);
+                    testSelection,
+                    testJvmArguments);
         }
         JavaRunResult result;
         try {
@@ -256,7 +301,7 @@ public final class TestRunService {
                     jdkStatus.java().orElseThrow(),
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
-                    jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
+                    jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel, testJvmArguments),
                     consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection));
         } catch (JavaRunException exception) {
             if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
@@ -277,7 +322,8 @@ public final class TestRunService {
                 1,
                 -1L,
                 -1L,
-                testSelection);
+                testSelection,
+                testJvmArguments);
     }
 
     private List<String> consoleArguments(
@@ -331,7 +377,7 @@ public final class TestRunService {
 
     private static boolean noTestsFound(String message) {
         return message.contains("No tests found")
-                || message.contains("0 tests found")
+                || message.contains("Tests found: 0")
                 || message.contains("[         0 tests found");
     }
 
@@ -373,10 +419,11 @@ public final class TestRunService {
             Path projectDirectory,
             List<Path> testRuntimeClasspath,
             Path testOutputDirectory,
-            TestSelection testSelection) {
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments) {
         long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
-                .start(projectDirectory, testRuntimeClasspath)) {
+                .start(projectDirectory, testRuntimeClasspath, jvmArguments.values())) {
             long startupNanos = System.nanoTime() - startupStarted;
             long requestStarted = System.nanoTime();
             JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory, testSelection);
@@ -463,8 +510,10 @@ public final class TestRunService {
     private List<String> jvmArguments(
             Path projectDirectory,
             List<Path> runnerClasspath,
-            Optional<Path> serializedApplicationModel) {
+            Optional<Path> serializedApplicationModel,
+            TestJvmArguments testJvmArguments) {
         List<String> arguments = new ArrayList<>();
+        arguments.addAll(testJvmArguments.values());
         arguments.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
         serializedApplicationModel
                 .ifPresent(path -> arguments.add("-D"
@@ -495,7 +544,8 @@ public final class TestRunService {
             TestCompileResult compileResult,
             List<Path> runnerClasspath,
             Optional<Path> serializedApplicationModel,
-            TestSelection testSelection) {
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments) {
         if (!config.frameworkSettings().quarkus().enabled()) {
             return Optional.empty();
         }
@@ -511,7 +561,8 @@ public final class TestRunService {
                     projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"),
                     runnerClasspath,
                     runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar),
-                    testSelection)));
+                    testSelection,
+                    jvmArguments)));
         } catch (QuarkusAugmentationException exception) {
             throw new TestRunException(
                     "Could not write Quarkus test runner descriptor. "
@@ -584,7 +635,8 @@ public final class TestRunService {
                 Path projectDirectory,
                 List<Path> testRuntimeClasspath,
                 Path testOutputDirectory,
-                TestSelection testSelection);
+                TestSelection testSelection,
+                TestJvmArguments jvmArguments);
     }
 
     record PlainJunitWorkerRunResult(

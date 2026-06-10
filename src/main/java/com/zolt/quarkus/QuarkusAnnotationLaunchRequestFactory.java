@@ -75,6 +75,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
 
     private static List<String> jvmArguments(QuarkusTestRunnerDescriptor descriptor, List<String> testClasses) {
         List<String> arguments = new ArrayList<>();
+        arguments.addAll(descriptor.jvmArguments().values());
         arguments.add("-Duser.dir=" + descriptor.projectDirectory());
         arguments.add("-D"
                 + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY

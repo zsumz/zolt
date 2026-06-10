@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,7 +34,8 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                         List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
                         List.of("*ServiceTest"),
                         List.of("fast"),
-                        List.of("slow")));
+                        List.of("slow")),
+                new TestJvmArguments(List.of("-Dlibrary.mode=true", "--add-opens=java.base/java.lang=ALL-UNNAMED")));
 
         QuarkusTestRunnerDescriptor descriptor = new QuarkusTestRunnerDescriptorWriter().write(request);
 
@@ -59,6 +61,7 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 testSelection.classNamePatterns=*ServiceTest
                 testSelection.includedTags=fast
                 testSelection.excludedTags=slow
+                jvmArguments=-Dlibrary.mode=true,--add-opens=java.base/java.lang=ALL-UNNAMED
                 """.formatted(
                 root,
                 root.resolve("target/classes"),

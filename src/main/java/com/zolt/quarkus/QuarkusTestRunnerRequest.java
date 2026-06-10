@@ -1,6 +1,7 @@
 package com.zolt.quarkus;
 
 import com.zolt.build.TestSelection;
+import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -12,7 +13,8 @@ public record QuarkusTestRunnerRequest(
         Path bootstrapDescriptorFile,
         List<Path> testRuntimeClasspath,
         boolean jbossLogManagerPresent,
-        TestSelection testSelection) {
+        TestSelection testSelection,
+        TestJvmArguments jvmArguments) {
     public static final String RUNNER_MODE = "plain-junit";
     public static final boolean SUPPORTS_QUARKUS_TEST_ANNOTATIONS = false;
 
@@ -32,8 +34,31 @@ public record QuarkusTestRunnerRequest(
                 bootstrapDescriptorFile,
                 testRuntimeClasspath,
                 jbossLogManagerPresent,
-                TestSelection.empty());
+                TestSelection.empty(),
+                TestJvmArguments.empty());
     }
+
+    public QuarkusTestRunnerRequest(
+            Path projectDirectory,
+            Path mainOutputDirectory,
+            Path testOutputDirectory,
+            Path serializedApplicationModel,
+            Path bootstrapDescriptorFile,
+            List<Path> testRuntimeClasspath,
+            boolean jbossLogManagerPresent,
+            TestSelection testSelection) {
+        this(
+                projectDirectory,
+                mainOutputDirectory,
+                testOutputDirectory,
+                serializedApplicationModel,
+                bootstrapDescriptorFile,
+                testRuntimeClasspath,
+                jbossLogManagerPresent,
+                testSelection,
+                TestJvmArguments.empty());
+    }
+
 
     public QuarkusTestRunnerRequest {
         if (projectDirectory == null) {
@@ -63,5 +88,6 @@ public record QuarkusTestRunnerRequest(
                 .map(path -> path.toAbsolutePath().normalize())
                 .toList();
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
+        jvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
     }
 }

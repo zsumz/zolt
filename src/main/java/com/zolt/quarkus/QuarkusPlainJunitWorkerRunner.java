@@ -53,6 +53,7 @@ public final class QuarkusPlainJunitWorkerRunner {
         String classpath = joinedClasspath(descriptor.testRuntimeClasspath());
         List<String> command = new ArrayList<>();
         command.add(javaExecutable.toString());
+        command.addAll(descriptor.jvmArguments().values());
         command.add("-Duser.dir=" + descriptor.projectDirectory());
         command.add("-D"
                 + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY

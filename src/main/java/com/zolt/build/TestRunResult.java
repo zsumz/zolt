@@ -9,9 +9,11 @@ public record TestRunResult(
         int testDiscoveryScanRoots,
         long testRunnerStartupNanos,
         long testRunnerRequestNanos,
-        TestSelection testSelection) {
+        TestSelection testSelection,
+        TestJvmArguments testJvmArguments) {
     public TestRunResult {
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
+        testJvmArguments = testJvmArguments == null ? TestJvmArguments.empty() : testJvmArguments;
     }
 
     public TestRunResult(
@@ -32,7 +34,31 @@ public record TestRunResult(
                 testDiscoveryScanRoots,
                 testRunnerStartupNanos,
                 testRunnerRequestNanos,
-                TestSelection.empty());
+                TestSelection.empty(),
+                TestJvmArguments.empty());
+    }
+
+    public TestRunResult(
+            TestCompileResult compileResult,
+            String output,
+            String testRunner,
+            int testRuntimeClasspathEntries,
+            int testLauncherClasspathEntries,
+            int testDiscoveryScanRoots,
+            long testRunnerStartupNanos,
+            long testRunnerRequestNanos,
+            TestSelection testSelection) {
+        this(
+                compileResult,
+                output,
+                testRunner,
+                testRuntimeClasspathEntries,
+                testLauncherClasspathEntries,
+                testDiscoveryScanRoots,
+                testRunnerStartupNanos,
+                testRunnerRequestNanos,
+                testSelection,
+                TestJvmArguments.empty());
     }
 
     public TestRunResult(TestCompileResult compileResult, String output) {

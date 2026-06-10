@@ -3,6 +3,8 @@ package com.zolt.quarkus;
 import com.zolt.build.TestSelection;
 import com.zolt.build.TestSelectionCodec;
 import com.zolt.build.TestSelectionException;
+import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestRunException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -48,7 +50,8 @@ public final class QuarkusTestRunnerDescriptorReader {
                 booleanValue(properties, "supportsQuarkusTestAnnotations", descriptorFile),
                 booleanValue(properties, "jbossLogManagerPresent", descriptorFile),
                 classpath(testRuntimeClasspathFile, descriptorFile),
-                testSelection(properties, descriptorFile));
+                testSelection(properties, descriptorFile),
+                jvmArguments(properties, descriptorFile));
     }
 
     private static Map<String, String> properties(Path descriptorFile) throws IOException {
@@ -126,6 +129,21 @@ public final class QuarkusTestRunnerDescriptorReader {
                     "Invalid Quarkus test runner descriptor at "
                             + descriptorFile
                             + ". Malformed test selection. "
+                            + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    private static TestJvmArguments jvmArguments(Map<String, String> properties, Path descriptorFile) {
+        try {
+            return new TestJvmArguments(TestSelectionCodec.decodeStrings(
+                    "Quarkus test JVM arguments",
+                    properties.getOrDefault("jvmArguments", "")));
+        } catch (IllegalArgumentException | TestRunException exception) {
+            throw new QuarkusAugmentationException(
+                    "Invalid Quarkus test runner descriptor at "
+                            + descriptorFile
+                            + ". Malformed JVM arguments. "
                             + exception.getMessage(),
                     exception);
         }

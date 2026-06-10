@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -206,6 +207,8 @@ final class QuarkusTestRunnerDescriptorReaderTest {
                         projectDir.resolve("target/test-classes"),
                         projectDir.resolve("target/classes"),
                         projectDir.resolve(".zolt/cache/org/junit/platform/junit-platform-console-standalone.jar")),
-                true);
+                true,
+                TestSelection.empty(),
+                new TestJvmArguments(List.of("-Dlibrary.mode=true")));
     }
 }

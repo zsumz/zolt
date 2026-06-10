@@ -50,13 +50,22 @@ public final class JunitWorkerProcessLauncher {
     public JunitWorkerProcess start(
             Path projectDirectory,
             List<Path> testRuntimeClasspath) {
+        return start(projectDirectory, testRuntimeClasspath, List.of());
+    }
+
+    public JunitWorkerProcess start(
+            Path projectDirectory,
+            List<Path> testRuntimeClasspath,
+            List<String> jvmArguments) {
         if (projectDirectory == null) {
             throw new JunitWorkerClientException("JUnit worker project directory is required.");
         }
         if (testRuntimeClasspath == null || testRuntimeClasspath.isEmpty()) {
             throw new JunitWorkerClientException("JUnit worker test runtime classpath is required.");
         }
-        StartedWorker worker = processStarter.start(command(projectDirectory, testRuntimeClasspath), projectDirectory);
+        StartedWorker worker = processStarter.start(
+                command(projectDirectory, testRuntimeClasspath, jvmArguments),
+                projectDirectory);
         return new JunitWorkerProcess(
                 new JunitWorkerClient(worker.output(), worker.input()),
                 () -> worker.processCloser().close());
@@ -65,8 +74,16 @@ public final class JunitWorkerProcessLauncher {
     List<String> command(
             Path projectDirectory,
             List<Path> testRuntimeClasspath) {
+        return command(projectDirectory, testRuntimeClasspath, List.of());
+    }
+
+    List<String> command(
+            Path projectDirectory,
+            List<Path> testRuntimeClasspath,
+            List<String> jvmArguments) {
         List<String> command = new ArrayList<>();
         command.add(javaExecutable.toString());
+        command.addAll(jvmArguments == null ? List.of() : jvmArguments);
         command.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
         command.add("-classpath");
         command.add(joinedClasspath(testRuntimeClasspath));
