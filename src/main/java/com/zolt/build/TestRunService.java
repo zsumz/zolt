@@ -248,17 +248,23 @@ public final class TestRunService {
                     result.requestNanos(),
                     testSelection);
         }
-        JavaRunResult result = javaRunner.run(
-                jdkStatus.java().orElseThrow(),
-                new Classpath(launcherClasspath),
-                CONSOLE_MAIN_CLASS,
-                jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
-                List.of(
-                        "execute",
-                        "--disable-banner",
-                        "--class-path", joined(runnerClasspath),
-                        "--scan-class-path=" + compileResult.outputDirectory().toAbsolutePath().normalize(),
-                        "--details", "summary"));
+        JavaRunResult result;
+        try {
+            result = javaRunner.run(
+                    jdkStatus.java().orElseThrow(),
+                    new Classpath(launcherClasspath),
+                    CONSOLE_MAIN_CLASS,
+                    jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel),
+                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection));
+        } catch (JavaRunException exception) {
+            if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
+                throw noSelectedTestsMatched(exception.getMessage(), exception);
+            }
+            throw exception;
+        }
+        if (!testSelection.emptySelection() && noTestsFound(result.output())) {
+            throw noSelectedTestsMatched(result.output(), null);
+        }
         failOnHiddenQuarkusBootstrapFailure(config, result.output());
         return new TestRunResult(
                 compileResult,
@@ -270,6 +276,85 @@ public final class TestRunService {
                 -1L,
                 -1L,
                 testSelection);
+    }
+
+    private List<String> consoleArguments(
+            List<Path> runnerClasspath,
+            Path testOutputDirectory,
+            TestSelection selection) {
+        List<String> arguments = new ArrayList<>();
+        arguments.add("execute");
+        arguments.add("--disable-banner");
+        arguments.add("--class-path");
+        arguments.add(joined(runnerClasspath));
+        addConsoleSelectors(arguments, testOutputDirectory.toAbsolutePath().normalize(), selection);
+        arguments.add("--details");
+        arguments.add("summary");
+        return List.copyOf(arguments);
+    }
+
+    private static void addConsoleSelectors(
+            List<String> arguments,
+            Path testOutputDirectory,
+            TestSelection selection) {
+        boolean hasClassOrMethodSelectors =
+                !selection.classSelectors().isEmpty() || !selection.methodSelectors().isEmpty();
+        if (!hasClassOrMethodSelectors) {
+            arguments.add("--scan-class-path=" + testOutputDirectory);
+        }
+        for (String classSelector : selection.classSelectors()) {
+            arguments.add("--select-class");
+            arguments.add(classSelector);
+        }
+        for (TestSelection.MethodSelector methodSelector : selection.methodSelectors()) {
+            arguments.add("--select-method");
+            arguments.add(methodSelector.className() + "#" + methodSelector.methodName());
+        }
+        for (String pattern : selection.classNamePatterns()) {
+            arguments.add("--include-classname");
+            arguments.add(toClassNameRegex(pattern));
+        }
+        for (String tag : selection.includedTags()) {
+            arguments.add("--include-tag");
+            arguments.add(tag);
+        }
+        for (String tag : selection.excludedTags()) {
+            arguments.add("--exclude-tag");
+            arguments.add(tag);
+        }
+    }
+
+    private static String toClassNameRegex(String pattern) {
+        StringBuilder regex = new StringBuilder();
+        if (pattern.indexOf('.') < 0 && pattern.indexOf('*') != 0) {
+            regex.append(".*");
+        }
+        for (int index = 0; index < pattern.length(); index++) {
+            char character = pattern.charAt(index);
+            switch (character) {
+                case '*' -> regex.append(".*");
+                case '?' -> regex.append('.');
+                case '.', '\\', '[', ']', '(', ')', '{', '}', '+', '-', '^', '$', '|' -> {
+                    regex.append('\\');
+                    regex.append(character);
+                }
+                default -> regex.append(character);
+            }
+        }
+        return regex.toString();
+    }
+
+    private static boolean noTestsFound(String message) {
+        return message.contains("No tests found")
+                || message.contains("0 tests found")
+                || message.contains("[         0 tests found");
+    }
+
+    private static TestRunException noSelectedTestsMatched(String output, Throwable cause) {
+        String message = "Selected tests did not match any tests. "
+                + "Check --test, --tests, --include-tag, and --exclude-tag values, then run `zolt test` again.\n"
+                + output.stripTrailing();
+        return cause == null ? new TestRunException(message) : new TestRunException(message, cause);
     }
 
     private String joined(List<Path> classpath) {
