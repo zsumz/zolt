@@ -180,6 +180,9 @@ public final class QuarkusApplicationModelFactory {
         workspaceModuleMutableClass
                 .getMethod("addArtifactSources", artifactSourcesClass)
                 .invoke(module, testSources(sourceDirClass, artifactSourcesClass, inputs));
+        workspaceModuleMutableClass
+                .getMethod("setAdditionalTestClasspathElements", java.util.Collection.class)
+                .invoke(module, List.of(inputs.testOutputDirectory().toAbsolutePath().normalize().toString()));
         resolvedDependencyBuilderClass
                 .getMethod("setWorkspaceModule", workspaceModuleClass)
                 .invoke(appArtifactBuilder, module);

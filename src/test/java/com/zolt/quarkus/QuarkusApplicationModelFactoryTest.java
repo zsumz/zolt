@@ -256,6 +256,35 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     @Test
+    void addsWorkspaceModuleTestOutputAsAdditionalTestClasspathElement() {
+        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApi());
+
+        QuarkusApplicationModelHandle handle = factory.create(
+                descriptor(),
+                java.util.Optional.of(new QuarkusWorkspaceModuleInputs(
+                        Path.of("/repo"),
+                        Path.of("/repo/target"),
+                        Path.of("/repo/src/main/java"),
+                        Path.of("/repo/src/main/resources"),
+                        Path.of("/repo/target/classes"),
+                        Path.of("/repo/src/test/java"),
+                        Path.of("/repo/src/test/resources"),
+                        Path.of("/repo/target/test-classes"))));
+
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
+        io.quarkus.bootstrap.workspace.FakeWorkspaceModule module =
+                assertInstanceOf(io.quarkus.bootstrap.workspace.FakeWorkspaceModule.class,
+                        model.appArtifact().workspaceModule());
+        assertEquals(Path.of("/repo/zolt.toml"), module.buildFile());
+        assertEquals(List.of("/repo/target/test-classes"), module.additionalTestClasspathElements());
+        assertEquals(
+                List.of("", "tests"),
+                module.artifactSources().stream()
+                        .map(io.quarkus.bootstrap.workspace.FakeArtifactSources::classifier)
+                        .toList());
+    }
+
+    @Test
     void rejectsMissingApplicationModelClasses() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
                 "missing.ApplicationModelBuilder",
@@ -380,6 +409,7 @@ final class QuarkusApplicationModelFactoryTest {
         private final List<FakeArtifactKey> parentFirstArtifacts = new ArrayList<>();
         private final List<FakeArtifactKey> runnerParentFirstArtifacts = new ArrayList<>();
         private final Map<FakeArtifactKey, List<String>> removedResources = new java.util.LinkedHashMap<>();
+        private io.quarkus.bootstrap.workspace.FakeWorkspaceModule workspaceModule;
 
         public FakeApplicationModelBuilder setAppArtifact(FakeResolvedDependencyBuilder appArtifact) {
             this.appArtifact = appArtifact;
@@ -411,6 +441,17 @@ final class QuarkusApplicationModelFactoryTest {
                 java.util.Collection<String> resources) {
             removedResources.put(artifactKey, List.copyOf(resources));
             return this;
+        }
+
+        public io.quarkus.bootstrap.workspace.WorkspaceModule.Mutable getOrCreateProjectModule(
+                io.quarkus.bootstrap.workspace.WorkspaceModuleId moduleId,
+                java.io.File moduleDirectory,
+                java.io.File buildDirectory) {
+            workspaceModule = new io.quarkus.bootstrap.workspace.FakeWorkspaceModule(
+                    moduleId,
+                    moduleDirectory.toPath(),
+                    buildDirectory.toPath());
+            return workspaceModule;
         }
 
         public FakeApplicationModel build() {
@@ -466,6 +507,7 @@ final class QuarkusApplicationModelFactoryTest {
         private boolean direct;
         private boolean runtimeClasspath;
         private boolean deploymentClasspath;
+        private io.quarkus.bootstrap.workspace.WorkspaceModule workspaceModule;
 
         public static FakeResolvedDependencyBuilder newInstance() {
             return new FakeResolvedDependencyBuilder();
@@ -521,6 +563,12 @@ final class QuarkusApplicationModelFactoryTest {
             return this;
         }
 
+        public FakeResolvedDependencyBuilder setWorkspaceModule(
+                io.quarkus.bootstrap.workspace.WorkspaceModule workspaceModule) {
+            this.workspaceModule = workspaceModule;
+            return this;
+        }
+
         String groupId() {
             return groupId;
         }
@@ -559,6 +607,10 @@ final class QuarkusApplicationModelFactoryTest {
 
         boolean deploymentClasspath() {
             return deploymentClasspath;
+        }
+
+        io.quarkus.bootstrap.workspace.WorkspaceModule workspaceModule() {
+            return workspaceModule;
         }
     }
 
