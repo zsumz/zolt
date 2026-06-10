@@ -23,6 +23,8 @@ public final class QuarkusAnnotationProgrammaticRunner {
     public static final String TEST_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.test-output-dir";
     private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
+    private static final String QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY =
+            "quarkus.builder.graph-output";
     private static final String TEST_BUILD_CHAIN_FUNCTION = "io.quarkus.test.junit.TestBuildChainFunction";
     private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SPI =
             "io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
@@ -232,6 +234,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                     writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get());
                     writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader.get());
                     writeTestClassBeanCustomizerDiagnostic();
+                    writeBuildGraphDiagnostic();
                 });
             }
         }
@@ -337,6 +340,29 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 for (String line : java.nio.file.Files.readAllLines(path)) {
                     out.println("  " + line);
                 }
+            } catch (java.io.IOException | RuntimeException exception) {
+                out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
+        }
+
+        private void writeBuildGraphDiagnostic() {
+            String graphOutput = System.getProperty(QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY, "");
+            if (graphOutput.isBlank()) {
+                return;
+            }
+            Path path = Path.of(graphOutput).toAbsolutePath().normalize();
+            out.println("Zolt Quarkus build-chain graph diagnostic:");
+            out.println("  file=" + path);
+            try {
+                if (!java.nio.file.Files.isRegularFile(path)) {
+                    out.println("  entries=<missing>");
+                    return;
+                }
+                String graph = java.nio.file.Files.readString(path);
+                out.println("  containsZoltCustomizer=" + graph.contains("ZoltQuarkusTestClassBeanCustomizer"));
+                out.println("  containsTestClassBeanBuildItem=" + graph.contains("TestClassBeanBuildItem"));
+                out.println("  containsAdditionalBeanBuildItem=" + graph.contains("AdditionalBeanBuildItem"));
+                out.println("  lines=" + graph.lines().count());
             } catch (java.io.IOException | RuntimeException exception) {
                 out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");
             }

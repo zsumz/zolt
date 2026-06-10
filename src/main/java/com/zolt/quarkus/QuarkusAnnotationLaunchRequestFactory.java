@@ -10,6 +10,8 @@ public final class QuarkusAnnotationLaunchRequestFactory {
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
     private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
+    private static final String QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY =
+            "quarkus.builder.graph-output";
     private static final String RUNNER_MAIN_CLASS = QuarkusAnnotationProgrammaticRunner.MAIN_CLASS;
 
     private final QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner;
@@ -86,6 +88,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY
                 + "="
                 + testClassBeanDiagnosticFile(descriptor));
+        arguments.add("-D"
+                + QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY
+                + "="
+                + buildGraphOutputFile(descriptor));
         arguments.add("-Dquarkus.arc.unremovable-types=" + String.join(",", testClasses));
         if (descriptor.jbossLogManagerPresent()) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
@@ -97,6 +103,14 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return descriptor.descriptorFile()
                 .getParent()
                 .resolve("annotation-runner/test-class-bean-customizer.txt")
+                .toAbsolutePath()
+                .normalize();
+    }
+
+    private static Path buildGraphOutputFile(QuarkusTestRunnerDescriptor descriptor) {
+        return descriptor.descriptorFile()
+                .getParent()
+                .resolve("annotation-runner/build-chain.dot")
                 .toAbsolutePath()
                 .normalize();
     }
