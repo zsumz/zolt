@@ -81,6 +81,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + "="
                 + descriptor.serializedApplicationModel());
         arguments.add("-D"
+                + QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY
+                + "="
+                + descriptor.mainOutputDirectory());
+        arguments.add("-D"
                 + QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY
                 + "="
                 + descriptor.testOutputDirectory());

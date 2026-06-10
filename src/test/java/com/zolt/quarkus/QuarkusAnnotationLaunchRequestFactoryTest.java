@@ -24,6 +24,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
         assertEquals(List.of(
                 "-Duser.dir=/repo",
                 "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                "-Dzolt.quarkus.main-output-dir=/repo/target/classes",
                 "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                 "-Dzolt.quarkus.test-class-bean-diagnostic-file=/repo/target/quarkus/annotation-runner/test-class-bean-customizer.txt",
                 "-Dquarkus.builder.graph-output=/repo/target/quarkus/annotation-runner/build-chain.dot",
@@ -55,6 +56,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
         assertEquals(List.of(
                 "-Duser.dir=/repo",
                 "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
+                "-Dzolt.quarkus.main-output-dir=/repo/target/classes",
                 "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                 "-Dzolt.quarkus.test-class-bean-diagnostic-file=/repo/target/quarkus/annotation-runner/test-class-bean-customizer.txt",
                 "-Dquarkus.builder.graph-output=/repo/target/quarkus/annotation-runner/build-chain.dot",

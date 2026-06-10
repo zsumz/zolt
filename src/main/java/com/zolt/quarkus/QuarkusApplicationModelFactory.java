@@ -182,10 +182,16 @@ public final class QuarkusApplicationModelFactory {
                 .invoke(module, testSources(sourceDirClass, artifactSourcesClass, inputs));
         workspaceModuleMutableClass
                 .getMethod("setAdditionalTestClasspathElements", java.util.Collection.class)
-                .invoke(module, List.of(inputs.testOutputDirectory().toAbsolutePath().normalize().toString()));
+                .invoke(module, additionalTestClasspathElements(inputs));
         resolvedDependencyBuilderClass
                 .getMethod("setWorkspaceModule", workspaceModuleClass)
                 .invoke(appArtifactBuilder, module);
+    }
+
+    private static List<String> additionalTestClasspathElements(QuarkusWorkspaceModuleInputs inputs) {
+        return List.of(
+                inputs.mainOutputDirectory().toAbsolutePath().normalize().toString(),
+                inputs.testOutputDirectory().toAbsolutePath().normalize().toString());
     }
 
     private static Object mainSources(

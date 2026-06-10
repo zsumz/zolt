@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class QuarkusAnnotationProgrammaticRunner {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner";
+    public static final String MAIN_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.main-output-dir";
     public static final String TEST_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.test-output-dir";
     private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
@@ -231,7 +232,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 Optional<?> throwable = (Optional<?>) result.getClass().getMethod("getThrowable").invoke(result);
                 throwable.ifPresent(value -> {
                     ((Throwable) value).printStackTrace(out);
-                    writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get());
+                    writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get(), (Throwable) value);
                     writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader.get());
                     writeTestClassBeanCustomizerDiagnostic();
                     writeBuildGraphDiagnostic();
@@ -239,27 +240,104 @@ public final class QuarkusAnnotationProgrammaticRunner {
             }
         }
 
-        private void writeClassLoaderDiagnostic(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader) {
+        private void writeClassLoaderDiagnostic(
+                List<String> testClasses,
+                ClassLoader quarkusRuntimeClassLoader,
+                Throwable failure) {
             if (testClasses.isEmpty() || quarkusRuntimeClassLoader == null) {
                 return;
             }
             String testClassName = testClasses.getFirst();
             out.println("Zolt Quarkus classloader diagnostic:");
             out.println("  selectedClass=" + testClassName);
+            writeClassVisibility("selected", testClassName, quarkusRuntimeClassLoader);
+            firstApplicationClass().ifPresent(className -> {
+                out.println("  applicationClass=" + className);
+                writeClassVisibility("application", className, quarkusRuntimeClassLoader);
+            });
+            failingClass(failure).ifPresent(className -> {
+                out.println("  failingClass=" + className);
+                writeClassVisibility("failing", className, quarkusRuntimeClassLoader);
+            });
+        }
+
+        private void writeClassVisibility(
+                String label,
+                String className,
+                ClassLoader quarkusRuntimeClassLoader) {
             try {
-                Class<?> systemClass = Class.forName(testClassName, false, ClassLoader.getSystemClassLoader());
-                out.println("  systemClassLoader=" + classLoaderName(systemClass.getClassLoader()));
-                out.println("  quarkusRuntimeClassLoader=" + classLoaderName(quarkusRuntimeClassLoader));
+                Class<?> systemClass = Class.forName(className, false, ClassLoader.getSystemClassLoader());
+                out.println("  " + label + ".systemClassLoader=" + classLoaderName(systemClass.getClassLoader()));
+                out.println("  " + label + ".quarkusRuntimeClassLoader=" + classLoaderName(quarkusRuntimeClassLoader));
                 try {
-                    Class<?> runtimeClass = Class.forName(testClassName, false, quarkusRuntimeClassLoader);
-                    out.println("  runtimeClassLoader=" + classLoaderName(runtimeClass.getClassLoader()));
-                    out.println("  sameClassObject=" + (systemClass == runtimeClass));
+                    Class<?> runtimeClass = Class.forName(className, false, quarkusRuntimeClassLoader);
+                    out.println("  " + label + ".runtimeClassLoader=" + classLoaderName(runtimeClass.getClassLoader()));
+                    out.println("  " + label + ".sameClassObject=" + (systemClass == runtimeClass));
                 } catch (ReflectiveOperationException | LinkageError exception) {
-                    out.println("  runtimeClass=<unavailable: " + exception.getClass().getSimpleName() + ">");
+                    out.println("  " + label + ".runtimeClass=<unavailable: "
+                            + exception.getClass().getSimpleName()
+                            + ">");
                 }
             } catch (ReflectiveOperationException | LinkageError exception) {
-                out.println("  systemClass=<unavailable: " + exception.getClass().getSimpleName() + ">");
+                out.println("  " + label + ".systemClass=<unavailable: "
+                        + exception.getClass().getSimpleName()
+                        + ">");
             }
+        }
+
+        private Optional<String> firstApplicationClass() {
+            String mainOutputDirectory = System.getProperty(MAIN_OUTPUT_DIRECTORY_PROPERTY, "");
+            if (mainOutputDirectory.isBlank()) {
+                return Optional.empty();
+            }
+            Path outputDirectory = Path.of(mainOutputDirectory).toAbsolutePath().normalize();
+            if (!java.nio.file.Files.isDirectory(outputDirectory)) {
+                return Optional.empty();
+            }
+            try (var files = java.nio.file.Files.walk(outputDirectory)) {
+                return files
+                        .filter(java.nio.file.Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith(".class"))
+                        .map(path -> outputDirectory.relativize(path).toString().replace(java.io.File.separatorChar, '.'))
+                        .map(path -> path.substring(0, path.length() - ".class".length()))
+                        .filter(className -> !"module-info".equals(className))
+                        .sorted()
+                        .findFirst();
+            } catch (java.io.IOException exception) {
+                return Optional.empty();
+            }
+        }
+
+        private Optional<String> failingClass(Throwable failure) {
+            if (failure == null) {
+                return Optional.empty();
+            }
+            Optional<String> ownClass = failingClassName(failure);
+            if (ownClass.isPresent()) {
+                return ownClass;
+            }
+            Optional<String> causeClass = failingClass(failure.getCause());
+            if (causeClass.isPresent()) {
+                return causeClass;
+            }
+            for (Throwable suppressed : failure.getSuppressed()) {
+                Optional<String> suppressedClass = failingClass(suppressed);
+                if (suppressedClass.isPresent()) {
+                    return suppressedClass;
+                }
+            }
+            return Optional.empty();
+        }
+
+        private Optional<String> failingClassName(Throwable failure) {
+            if (!(failure instanceof ClassNotFoundException || failure instanceof NoClassDefFoundError)) {
+                return Optional.empty();
+            }
+            String message = failure.getMessage();
+            if (message == null || message.isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(message.replace('/', '.'));
         }
 
         private static String classLoaderName(ClassLoader classLoader) {

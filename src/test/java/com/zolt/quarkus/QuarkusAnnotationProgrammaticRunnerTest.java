@@ -51,10 +51,10 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Object launcher = programmaticLauncher(stream(out));
         Method diagnostic = launcher.getClass()
-                .getDeclaredMethod("writeClassLoaderDiagnostic", List.class, ClassLoader.class);
+                .getDeclaredMethod("writeClassLoaderDiagnostic", List.class, ClassLoader.class, Throwable.class);
         diagnostic.setAccessible(true);
 
-        diagnostic.invoke(launcher, List.of(PassingTest.class.getName()), null);
+        diagnostic.invoke(launcher, List.of(PassingTest.class.getName()), null, new ClassNotFoundException("example.Missing"));
 
         assertFalse(output(out).contains("Zolt Quarkus classloader diagnostic"));
     }

@@ -258,7 +258,7 @@ final class QuarkusApplicationModelFactoryTest {
     }
 
     @Test
-    void addsWorkspaceModuleTestOutputAsAdditionalTestClasspathElement() {
+    void addsWorkspaceModuleOutputsAsAdditionalTestClasspathElements() {
         QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApi());
 
         QuarkusApplicationModelHandle handle = factory.create(
@@ -278,7 +278,9 @@ final class QuarkusApplicationModelFactoryTest {
                 assertInstanceOf(io.quarkus.bootstrap.workspace.FakeWorkspaceModule.class,
                         model.appArtifact().workspaceModule());
         assertEquals(Path.of("/repo/zolt.toml"), module.buildFile());
-        assertEquals(List.of("/repo/target/test-classes"), module.additionalTestClasspathElements());
+        assertEquals(
+                List.of("/repo/target/classes", "/repo/target/test-classes"),
+                module.additionalTestClasspathElements());
         assertEquals(
                 List.of("", "tests"),
                 module.artifactSources().stream()
