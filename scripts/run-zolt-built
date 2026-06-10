@@ -6,6 +6,10 @@ cd "$ROOT"
 
 JAR_PATH="${ZOLT_JAR:-}"
 RUNTIME_CLASSPATH_FILE="${ZOLT_RUNTIME_CLASSPATH_FILE:-}"
+java_opts=()
+if [[ -n "${ZOLT_JAVA_OPTS:-}" ]]; then
+  read -r -a java_opts <<< "$ZOLT_JAVA_OPTS"
+fi
 
 if [[ -z "$JAR_PATH" ]]; then
   shopt -s nullglob
@@ -53,4 +57,8 @@ else
   classpath="$JAR_PATH"
 fi
 
-exec java -cp "$classpath" com.zolt.cli.ZoltCli "$@"
+if [[ "${#java_opts[@]}" -gt 0 ]]; then
+  exec java "${java_opts[@]}" -cp "$classpath" com.zolt.cli.ZoltCli "$@"
+else
+  exec java -cp "$classpath" com.zolt.cli.ZoltCli "$@"
+fi

@@ -11,6 +11,10 @@ BOOTSTRAP_JAR="${BOOTSTRAP_DIR}/zolt-bootstrap.jar"
 SOURCE_LIST="${BOOTSTRAP_DIR}/sources.list"
 LOCKFILE="${ZOLT_LOCKFILE:-zolt.lock}"
 MAVEN_CENTRAL="${ZOLT_MAVEN_CENTRAL:-https://repo.maven.apache.org/maven2}"
+java_opts=()
+if [[ -n "${ZOLT_JAVA_OPTS:-}" ]]; then
+  read -r -a java_opts <<< "$ZOLT_JAVA_OPTS"
+fi
 
 if [[ ! -f "$LOCKFILE" ]]; then
   printf 'error: bootstrap lockfile does not exist at %s\n' "$LOCKFILE" >&2
@@ -127,4 +131,8 @@ fi
 
 jar --create --file "$BOOTSTRAP_JAR" --main-class com.zolt.cli.ZoltCli -C "$BOOTSTRAP_CLASSES" .
 
-exec java -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
+if [[ "${#java_opts[@]}" -gt 0 ]]; then
+  exec java "${java_opts[@]}" -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
+else
+  exec java -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
+fi
