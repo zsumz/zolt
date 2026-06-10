@@ -2735,6 +2735,111 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testWorkspaceMemberAppliesSelectedTestPattern() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-selected-tests");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Path cacheRoot = tempDir.resolve("cache-selected-tests");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        Path apiTest = apiDir.resolve("src/test/java/com/example/api/ApiTest.java");
+        Files.createDirectories(apiTest.getParent());
+        Files.writeString(apiTest, """
+                package com.example.api;
+
+                public final class ApiTest {
+                    public String message() {
+                        return Api.message();
+                    }
+                }
+                """);
+        Files.writeString(workspaceDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "target/classes"
+                dependencies = []
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "test",
+                "--workspace",
+                "--member", "apps/api",
+                "--tests", "*ApiTest",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", apiDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Tests passed in apps/api"));
+        assertFalse(result.stdout().contains("Tests passed in modules/core"));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].contains("\"selectedMembers\":\"1\""));
+        assertTrue(lines[2].contains("\"phase\":\"run workspace test members\""));
+        assertTrue(lines[2].contains("\"testPatterns\":\"1\""));
+        assertTrue(lines[3].contains("\"phase\":\"test workspace\""));
+        assertTrue(lines[3].contains("\"members\":\"1\""));
+        assertTrue(lines[3].contains("\"testPatterns\":\"1\""));
+        assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
+        assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
+    }
+
+    @Test
     void testCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
@@ -2760,6 +2865,9 @@ final class ZoltCliTest {
 
         CommandResult result = execute(
                 "test",
+                "--tests", "*DemoTest",
+                "--include-tag", "fast",
+                "--exclude-tag", "slow",
                 "--timings",
                 "--timings-format", "json",
                 "--cwd", projectDir.toString(),
@@ -2789,6 +2897,9 @@ final class ZoltCliTest {
         assertTrue(lines[4].contains("\"testRuntimeClasspathEntries\""));
         assertTrue(lines[4].contains("\"testLauncherClasspathEntries\""));
         assertTrue(lines[4].contains("\"testDiscoveryScanRoots\""));
+        assertTrue(lines[4].contains("\"testPatterns\":\"1\""));
+        assertTrue(lines[4].contains("\"testIncludedTags\":\"1\""));
+        assertTrue(lines[4].contains("\"testExcludedTags\":\"1\""));
         assertTrue(lines[4].contains("\"outputBytes\""));
         assertTrue(lines[5].contains("\"phase\":\"run tests\""));
         assertTrue(lines[5].contains("\"depth\":0"));
@@ -2797,6 +2908,9 @@ final class ZoltCliTest {
         assertTrue(lines[5].contains("\"testRuntimeClasspathEntries\""));
         assertTrue(lines[5].contains("\"testLauncherClasspathEntries\""));
         assertTrue(lines[5].contains("\"testDiscoveryScanRoots\""));
+        assertTrue(lines[5].contains("\"testPatterns\":\"1\""));
+        assertTrue(lines[5].contains("\"testIncludedTags\":\"1\""));
+        assertTrue(lines[5].contains("\"testExcludedTags\":\"1\""));
     }
 
     @Test
