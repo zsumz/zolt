@@ -162,11 +162,11 @@ public final class QuarkusAnnotationWorkerRunner {
             if (testClassBeanMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap started the Quarkus application, then Arc could "
                     + "not instantiate the selected @QuarkusTest class as a CDI bean. Zolt moved this "
-                    + "descriptor-enabled probe past runtime service loading and can build an enriched "
-                    + "test-class index, but Quarkus JUnit rewrites test-classes.idx from the compiled test "
-                    + "output during AppMakerHelper.prepare. Zolt still needs to make the compiled test output "
-                    + "carry the direct QuarkusTestExtension candidate metadata that Quarkus uses to produce "
-                    + "TestClassBeanBuildItem. Keep using plain JUnit tests for now, or run "
+                    + "descriptor-enabled probe past runtime service loading and can prove the enriched "
+                    + "test-class index contains the selected class as a Quarkus build-chain test bean candidate, "
+                    + "but the actual Quarkus test augmentation path still does not register it as an Arc bean. "
+                    + "Zolt still needs to align TestClassBeanBuildItem production with Arc additional-bean "
+                    + "registration under the descriptor-owned test application model. Keep using plain JUnit tests for now, or run "
                     + "`zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()

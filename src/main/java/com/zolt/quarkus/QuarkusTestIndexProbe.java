@@ -16,7 +16,9 @@ public final class QuarkusTestIndexProbe {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusTestIndexProbe";
 
     private static final String QUARKUS_TEST_ANNOTATION = "io.quarkus.test.junit.QuarkusTest";
+    private static final String QUARKUS_TEST_EXTENSION = "io.quarkus.test.junit.QuarkusTestExtension";
     private static final String EXTEND_WITH_ANNOTATION = "org.junit.jupiter.api.extension.ExtendWith";
+    private static final String REGISTER_EXTENSION_ANNOTATION = "org.junit.jupiter.api.extension.RegisterExtension";
     private static final String JUNIT_TEST_ANNOTATION = "org.junit.jupiter.api.Test";
 
     public static void main(String[] args) {
@@ -73,6 +75,13 @@ public final class QuarkusTestIndexProbe {
         out.println("  Annotation counts:");
         snapshot.annotationCounts().forEach((annotation, count) ->
                 out.println("    " + annotation + "=" + count));
+        out.println("  Build-chain test bean candidates:");
+        if (snapshot.testClassBeanCandidates().isEmpty()) {
+            out.println("    <none>");
+        } else {
+            snapshot.testClassBeanCandidates().forEach(candidate ->
+                    out.println("    " + candidate));
+        }
     }
 
     private static String annotationsLine(List<String> annotations) {
@@ -93,7 +102,8 @@ public final class QuarkusTestIndexProbe {
             String label,
             int knownClassCount,
             List<SelectedClassIndexResult> selectedClasses,
-            Map<String, Integer> annotationCounts) {
+            Map<String, Integer> annotationCounts,
+            List<String> testClassBeanCandidates) {
     }
 
     record TestClassLocationResult(
@@ -112,10 +122,13 @@ public final class QuarkusTestIndexProbe {
     private static final class ReflectiveIndexInspector {
         private final Class<?> dotNameClass;
         private final Method createSimpleDotName;
+        private final Method annotationValueAsClassArray;
 
         private ReflectiveIndexInspector() throws ReflectiveOperationException {
             this.dotNameClass = Class.forName("org.jboss.jandex.DotName");
+            Class<?> annotationValueClass = Class.forName("org.jboss.jandex.AnnotationValue");
             this.createSimpleDotName = dotNameClass.getMethod("createSimple", String.class);
+            this.annotationValueAsClassArray = annotationValueClass.getMethod("asClassArray");
         }
 
         private IndexProbeResult inspect(Path testOutputDirectory, List<String> testClasses)
@@ -140,7 +153,8 @@ public final class QuarkusTestIndexProbe {
                     label,
                     knownClasses.size(),
                     List.copyOf(selectedClasses),
-                    annotationCounts(index));
+                    annotationCounts(index),
+                    testClassBeanCandidates(index));
         }
 
         private List<TestClassLocationResult> classLocations(List<String> testClasses) {
@@ -196,11 +210,20 @@ public final class QuarkusTestIndexProbe {
             for (String annotation : List.of(
                     QUARKUS_TEST_ANNOTATION,
                     EXTEND_WITH_ANNOTATION,
+                    REGISTER_EXTENSION_ANNOTATION,
                     JUNIT_TEST_ANNOTATION)) {
                 Collection<?> annotations = annotations(index, annotation);
                 counts.put(annotation, annotations.size());
             }
             return counts;
+        }
+
+        private List<String> testClassBeanCandidates(Object index) throws ReflectiveOperationException {
+            List<String> candidates = new ArrayList<>();
+            addExtendWithCandidates(index, candidates);
+            addRegisterExtensionCandidates(index, candidates);
+            candidates.sort(Comparator.naturalOrder());
+            return List.copyOf(candidates);
         }
 
         private boolean hasClassAnnotation(Object classInfo, String annotationName)
@@ -243,7 +266,61 @@ public final class QuarkusTestIndexProbe {
                 Object targetClass = target.getClass().getMethod("asClass").invoke(target);
                 boolean annotationType = (boolean) targetClass.getClass().getMethod("isAnnotation").invoke(targetClass);
                 Object targetName = targetClass.getClass().getMethod("name").invoke(targetClass);
-                if (!annotationType && selectedName.equals(targetName)) {
+                if (!annotationType && selectedName.equals(targetName)
+                        && extendWithUsesQuarkusTestExtension(annotation)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void addExtendWithCandidates(Object index, List<String> candidates)
+                throws ReflectiveOperationException {
+            for (Object annotation : annotations(index, EXTEND_WITH_ANNOTATION)) {
+                Object target = annotation.getClass().getMethod("target").invoke(annotation);
+                Object kind = target.getClass().getMethod("kind").invoke(target);
+                if (!"CLASS".equals(String.valueOf(kind)) || !extendWithUsesQuarkusTestExtension(annotation)) {
+                    continue;
+                }
+                Object targetClass = target.getClass().getMethod("asClass").invoke(target);
+                boolean annotationType = (boolean) targetClass.getClass().getMethod("isAnnotation").invoke(targetClass);
+                if (!annotationType) {
+                    Object targetName = targetClass.getClass().getMethod("name").invoke(targetClass);
+                    candidates.add(String.valueOf(targetName));
+                }
+            }
+        }
+
+        private void addRegisterExtensionCandidates(Object index, List<String> candidates)
+                throws ReflectiveOperationException {
+            for (Object annotation : annotations(index, REGISTER_EXTENSION_ANNOTATION)) {
+                Object target = annotation.getClass().getMethod("target").invoke(annotation);
+                Object kind = target.getClass().getMethod("kind").invoke(target);
+                if (!"FIELD".equals(String.valueOf(kind))) {
+                    continue;
+                }
+                Object field = target.getClass().getMethod("asField").invoke(target);
+                Object fieldType = field.getClass().getMethod("type").invoke(field);
+                Object fieldTypeName = fieldType.getClass().getMethod("name").invoke(fieldType);
+                if (!QUARKUS_TEST_EXTENSION.equals(String.valueOf(fieldTypeName))) {
+                    continue;
+                }
+                Object declaringClass = field.getClass().getMethod("declaringClass").invoke(field);
+                Object declaringClassName = declaringClass.getClass().getMethod("name").invoke(declaringClass);
+                candidates.add(String.valueOf(declaringClassName));
+            }
+        }
+
+        private boolean extendWithUsesQuarkusTestExtension(Object annotation)
+                throws ReflectiveOperationException {
+            Object value = annotation.getClass().getMethod("value").invoke(annotation);
+            if (value == null) {
+                return false;
+            }
+            Object[] classes = (Object[]) annotationValueAsClassArray.invoke(value);
+            for (Object type : classes) {
+                Object typeName = type.getClass().getMethod("name").invoke(type);
+                if (QUARKUS_TEST_EXTENSION.equals(String.valueOf(typeName))) {
                     return true;
                 }
             }

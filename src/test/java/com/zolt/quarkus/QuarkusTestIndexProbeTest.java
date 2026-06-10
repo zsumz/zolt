@@ -59,7 +59,8 @@ final class QuarkusTestIndexProbeTest {
                                         List.of("io.quarkus.test.junit.QuarkusTest"))),
                         Map.of(
                                 "io.quarkus.test.junit.QuarkusTest", 1,
-                                "org.junit.jupiter.api.Test", 2)),
+                                "org.junit.jupiter.api.Test", 2),
+                        List.of()),
                 new QuarkusTestIndexProbe.IndexProbeSnapshot(
                         "Enriched",
                         2,
@@ -79,7 +80,8 @@ final class QuarkusTestIndexProbeTest {
                         Map.of(
                                 "io.quarkus.test.junit.QuarkusTest", 1,
                                 "org.junit.jupiter.api.Test", 2,
-                                "org.junit.jupiter.api.extension.ExtendWith", 1)));
+                                "org.junit.jupiter.api.extension.ExtendWith", 1),
+                        List.of("com.example.HttpTest")));
 
         QuarkusTestIndexProbe.writeReport(result, stream(out));
 
@@ -97,6 +99,9 @@ final class QuarkusTestIndexProbeTest {
         assertTrue(output.contains("annotations: <none>"));
         assertTrue(output.contains("io.quarkus.test.junit.QuarkusTest=1"));
         assertTrue(output.contains("org.junit.jupiter.api.extension.ExtendWith=1"));
+        assertTrue(output.contains("Build-chain test bean candidates:"));
+        assertTrue(output.contains("<none>"));
+        assertTrue(output.contains("com.example.HttpTest"));
     }
 
     private static PrintStream stream(ByteArrayOutputStream output) {
