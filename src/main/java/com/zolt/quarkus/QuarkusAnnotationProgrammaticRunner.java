@@ -259,29 +259,37 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 out.println("  failingClass=" + className);
                 writeClassVisibility("failing", className, quarkusRuntimeClassLoader);
             });
+            generatedInvokerClass(failure).ifPresent(className -> {
+                out.println("  generatedInvokerClass=" + className);
+                writeClassVisibility("generatedInvoker", className, quarkusRuntimeClassLoader);
+            });
         }
 
         private void writeClassVisibility(
                 String label,
                 String className,
                 ClassLoader quarkusRuntimeClassLoader) {
+            Class<?> systemClass = null;
+            Class<?> runtimeClass = null;
             try {
-                Class<?> systemClass = Class.forName(className, false, ClassLoader.getSystemClassLoader());
+                systemClass = Class.forName(className, false, ClassLoader.getSystemClassLoader());
                 out.println("  " + label + ".systemClassLoader=" + classLoaderName(systemClass.getClassLoader()));
-                out.println("  " + label + ".quarkusRuntimeClassLoader=" + classLoaderName(quarkusRuntimeClassLoader));
-                try {
-                    Class<?> runtimeClass = Class.forName(className, false, quarkusRuntimeClassLoader);
-                    out.println("  " + label + ".runtimeClassLoader=" + classLoaderName(runtimeClass.getClassLoader()));
-                    out.println("  " + label + ".sameClassObject=" + (systemClass == runtimeClass));
-                } catch (ReflectiveOperationException | LinkageError exception) {
-                    out.println("  " + label + ".runtimeClass=<unavailable: "
-                            + exception.getClass().getSimpleName()
-                            + ">");
-                }
             } catch (ReflectiveOperationException | LinkageError exception) {
                 out.println("  " + label + ".systemClass=<unavailable: "
                         + exception.getClass().getSimpleName()
                         + ">");
+            }
+            out.println("  " + label + ".quarkusRuntimeClassLoader=" + classLoaderName(quarkusRuntimeClassLoader));
+            try {
+                runtimeClass = Class.forName(className, false, quarkusRuntimeClassLoader);
+                out.println("  " + label + ".runtimeClassLoader=" + classLoaderName(runtimeClass.getClassLoader()));
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                out.println("  " + label + ".runtimeClass=<unavailable: "
+                        + exception.getClass().getSimpleName()
+                        + ">");
+            }
+            if (systemClass != null && runtimeClass != null) {
+                out.println("  " + label + ".sameClassObject=" + (systemClass == runtimeClass));
             }
         }
 
@@ -322,6 +330,29 @@ public final class QuarkusAnnotationProgrammaticRunner {
             }
             for (Throwable suppressed : failure.getSuppressed()) {
                 Optional<String> suppressedClass = failingClass(suppressed);
+                if (suppressedClass.isPresent()) {
+                    return suppressedClass;
+                }
+            }
+            return Optional.empty();
+        }
+
+        private Optional<String> generatedInvokerClass(Throwable failure) {
+            if (failure == null) {
+                return Optional.empty();
+            }
+            for (StackTraceElement element : failure.getStackTrace()) {
+                String className = element.getClassName();
+                if (className.contains("$quarkusrestinvoker$")) {
+                    return Optional.of(className);
+                }
+            }
+            Optional<String> causeClass = generatedInvokerClass(failure.getCause());
+            if (causeClass.isPresent()) {
+                return causeClass;
+            }
+            for (Throwable suppressed : failure.getSuppressed()) {
+                Optional<String> suppressedClass = generatedInvokerClass(suppressed);
                 if (suppressedClass.isPresent()) {
                     return suppressedClass;
                 }

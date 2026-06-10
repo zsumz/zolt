@@ -60,6 +60,37 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     }
 
     @Test
+    void diagnosticReportsGeneratedInvokerVisibilityIndependently() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Object launcher = programmaticLauncher(stream(out));
+        Method diagnostic = launcher.getClass()
+                .getDeclaredMethod("writeClassLoaderDiagnostic", List.class, ClassLoader.class, Throwable.class);
+        diagnostic.setAccessible(true);
+        NoClassDefFoundError generatedFailure = new NoClassDefFoundError("com/example/MissingResource");
+        generatedFailure.setStackTrace(new StackTraceElement[] {
+                new StackTraceElement(
+                        "com.example.MissingResource$quarkusrestinvoker$hello_123",
+                        "invoke",
+                        null,
+                        -1)
+        });
+
+        diagnostic.invoke(
+                launcher,
+                List.of(PassingTest.class.getName()),
+                QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader(),
+                generatedFailure);
+
+        String output = output(out);
+        assertTrue(output.contains("Zolt Quarkus classloader diagnostic"));
+        assertTrue(output.contains("generatedInvokerClass=com.example.MissingResource$quarkusrestinvoker$hello_123"));
+        assertTrue(output.contains("generatedInvoker.systemClass=<unavailable: ClassNotFoundException>"));
+        assertTrue(output.contains("generatedInvoker.runtimeClass=<unavailable: ClassNotFoundException>"));
+        assertTrue(output.contains("failingClass=com.example.MissingResource"));
+        assertTrue(output.contains("failing.runtimeClass=<unavailable: ClassNotFoundException>"));
+    }
+
+    @Test
     void requiresTestClassArguments() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
