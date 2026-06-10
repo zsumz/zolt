@@ -185,13 +185,17 @@ final class MavenStaticProjectInspectorTest {
         assertEquals(1, project.plugins().size());
         assertEquals(1, project.profiles().size());
         assertTrue(result.signals().stream()
-                .anyMatch(signal -> signal.id().equals("maven.packaging.unsupported")));
+                .anyMatch(signal -> signal.id().equals("maven.packaging.unsupported")
+                        && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
         assertTrue(result.signals().stream()
-                .anyMatch(signal -> signal.id().equals("maven.dependency.dynamic-version")));
+                .anyMatch(signal -> signal.id().equals("maven.dependency.dynamic-version")
+                        && signal.category() == ExplainSignal.Category.NON_DETERMINISM));
         assertTrue(result.signals().stream()
-                .anyMatch(signal -> signal.id().equals("maven.plugin.lifecycle-binding")));
+                .anyMatch(signal -> signal.id().equals("maven.plugin.lifecycle-binding")
+                        && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
         assertTrue(result.signals().stream()
-                .anyMatch(signal -> signal.id().equals("maven.profile.detected")));
+                .anyMatch(signal -> signal.id().equals("maven.profile.detected")
+                        && signal.category() == ExplainSignal.Category.NON_DETERMINISM));
     }
 
     @Test

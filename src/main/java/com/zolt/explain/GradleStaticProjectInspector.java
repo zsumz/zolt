@@ -58,13 +58,9 @@ public final class GradleStaticProjectInspector {
                 .orElseGet(List::of);
         settingsFile.ifPresent(path -> signals.addAll(settingsSignals(normalizedRoot, path, read(path))));
         if (Files.isDirectory(normalizedRoot.resolve("buildSrc"))) {
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.BLOCK,
-                    ExplainSignal.Category.MIGRATION_BLOCKER,
+            signals.add(ExplainSignals.GRADLE_BUILD_SRC_DETECTED.signal(
                     ".",
-                    "gradle.build-src.detected",
-                    "Gradle buildSrc is present.",
-                    "Review buildSrc logic and replace generated behavior with explicit Zolt configuration before migrating."));
+                    "Gradle buildSrc is present."));
         }
 
         List<GradleProjectInspection> projects = new ArrayList<>();
@@ -80,31 +76,21 @@ public final class GradleStaticProjectInspector {
             if (includedBuildFile.isPresent()) {
                 projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), versionCatalog, signals));
             } else {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.BUILDABILITY,
+                signals.add(ExplainSignals.GRADLE_PROJECT_MISSING_BUILD_FILE.signal(
                         projectLabel(normalizedRoot, projectDirectory),
-                        "gradle.project.missing-build-file",
-                        "Included Gradle project `" + includedProject + "` does not contain build.gradle or build.gradle.kts.",
-                        "Fix the include path or exclude it from migration scope before generating Zolt metadata."));
+                        "Included Gradle project `" + includedProject + "` does not contain build.gradle or build.gradle.kts."));
             }
         }
 
         projects.sort(Comparator.comparing(project -> project.path().toString()));
         aliases.sort(Comparator.comparing(GradleVersionCatalogAlias::alias));
-        signals.sort(Comparator
-                .comparing((ExplainSignal signal) -> signal.severity().name())
-                .thenComparing(signal -> signal.category().name())
-                .thenComparing(ExplainSignal::project)
-                .thenComparing(ExplainSignal::id)
-                .thenComparing(ExplainSignal::message));
         return new GradleInspectionResult(
                 normalizedRoot,
                 settingsFile.map(path -> normalizedRoot.relativize(path).toString()).orElse(""),
                 includedProjects.stream().sorted().toList(),
                 aliases,
                 projects,
-                signals);
+                ExplainSignals.sorted(signals));
     }
 
     private GradleProjectInspection inspectProject(
@@ -119,13 +105,9 @@ public final class GradleStaticProjectInspector {
         List<GradlePluginInspection> plugins = parsePlugins(content);
         for (GradlePluginInspection plugin : plugins) {
             if (isConventionPlugin(plugin.id())) {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.MIGRATION_BLOCKER,
+                signals.add(ExplainSignals.GRADLE_PLUGIN_CONVENTION.signal(
                         project,
-                        "gradle.plugin.convention",
-                        "Plugin `" + plugin.id() + "` looks like a convention plugin.",
-                        "Review the plugin implementation and model its effects explicitly in Zolt before migrating."));
+                        "Plugin `" + plugin.id() + "` looks like a convention plugin."));
             }
         }
         signals.addAll(dynamicSignals(project, content));
@@ -163,13 +145,9 @@ public final class GradleStaticProjectInspector {
         while (matcher.find()) {
             String arguments = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
             for (String value : quotedValues(arguments)) {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.MIGRATION_BLOCKER,
+                signals.add(ExplainSignals.GRADLE_INCLUDED_BUILD_DETECTED.signal(
                         ".",
-                        "gradle.included-build.detected",
-                        "Included Gradle build `" + value + "` is declared in " + root.relativize(settingsFile) + ".",
-                        "Review included build logic and migrate it as an explicit Zolt workspace or external dependency."));
+                        "Included Gradle build `" + value + "` is declared in " + root.relativize(settingsFile) + "."));
             }
         }
         return signals;
@@ -290,31 +268,19 @@ public final class GradleStaticProjectInspector {
     private static List<ExplainSignal> dynamicSignals(String project, String content) {
         List<ExplainSignal> signals = new ArrayList<>();
         if (containsAny(content, "dependencies.add(", "configurations.all", "resolutionStrategy", "afterEvaluate")) {
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.BLOCK,
-                    ExplainSignal.Category.MIGRATION_BLOCKER,
+            signals.add(ExplainSignals.GRADLE_IMPERATIVE_DEPENDENCY_LOGIC.signal(
                     project,
-                    "gradle.imperative-dependency-logic",
-                    "Gradle build uses imperative dependency or configuration mutation.",
-                    "Replace imperative Gradle logic with explicit Zolt dependencies, platforms, processors, and source roots."));
+                    "Gradle build uses imperative dependency or configuration mutation."));
         }
         if (Pattern.compile("\\b(subprojects|allprojects)\\s*\\{").matcher(content).find()) {
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.BLOCK,
-                    ExplainSignal.Category.MIGRATION_BLOCKER,
+            signals.add(ExplainSignals.GRADLE_CROSS_PROJECT_BUILD_LOGIC.signal(
                     project,
-                    "gradle.cross-project-build-logic",
-                    "Gradle build uses cross-project script logic.",
-                    "Move shared behavior into explicit per-member Zolt configuration or a documented workspace convention."));
+                    "Gradle build uses cross-project script logic."));
         }
         if (Pattern.compile("\\btasks\\.(register|create)\\s*\\(").matcher(content).find()) {
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.WARN,
-                    ExplainSignal.Category.BUILDABILITY,
+            signals.add(ExplainSignals.GRADLE_CUSTOM_TASK_DETECTED.signal(
                     project,
-                    "gradle.custom-task.detected",
-                    "Gradle build declares custom tasks.",
-                    "Review whether custom tasks generate sources, resources, tests, package outputs, or runtime assets."));
+                    "Gradle build declares custom tasks."));
         }
         return signals;
     }
@@ -334,13 +300,9 @@ public final class GradleStaticProjectInspector {
         }
         if (result.hasErrors()) {
             TomlParseError firstError = result.errors().getFirst();
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.WARN,
-                    ExplainSignal.Category.BUILDABILITY,
+            signals.add(ExplainSignals.GRADLE_VERSION_CATALOG_MALFORMED.signal(
                     ".",
-                    "gradle.version-catalog.malformed",
-                    "Gradle version catalog could not be parsed near " + firstError.position() + ".",
-                    "Fix gradle/libs.versions.toml before relying on version catalog migration hints."));
+                    "Gradle version catalog could not be parsed near " + firstError.position() + "."));
             return List.of();
         }
         Map<String, String> versions = new LinkedHashMap<>();

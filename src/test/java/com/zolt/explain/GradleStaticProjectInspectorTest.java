@@ -150,12 +150,18 @@ final class GradleStaticProjectInspectorTest {
         GradleInspectionResult result = inspector.inspect(tempDir);
 
         assertFalse(Files.exists(marker));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.build-src.detected")));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.included-build.detected")));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.plugin.convention")));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.imperative-dependency-logic")));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.cross-project-build-logic")));
-        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.custom-task.detected")));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.build-src.detected")
+                && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.included-build.detected")
+                && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.plugin.convention")
+                && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.imperative-dependency-logic")
+                && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.cross-project-build-logic")
+                && signal.category() == ExplainSignal.Category.MIGRATION_BLOCKER));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.custom-task.detected")
+                && signal.category() == ExplainSignal.Category.BUILDABILITY));
     }
 
     @Test

@@ -39,13 +39,7 @@ public final class MavenStaticProjectInspector {
         List<ExplainSignal> signals = new ArrayList<>();
         inspectPom(normalizedRoot, normalizedRoot, projects, signals);
         projects.sort(Comparator.comparing(project -> project.path().toString()));
-        signals.sort(Comparator
-                .comparing((ExplainSignal signal) -> signal.severity().name())
-                .thenComparing(signal -> signal.category().name())
-                .thenComparing(ExplainSignal::project)
-                .thenComparing(ExplainSignal::id)
-                .thenComparing(ExplainSignal::message));
-        return new MavenInspectionResult(normalizedRoot, projects, signals);
+        return new MavenInspectionResult(normalizedRoot, projects, ExplainSignals.sorted(signals));
     }
 
     private void inspectPom(
@@ -101,13 +95,9 @@ public final class MavenStaticProjectInspector {
             if (Files.isRegularFile(modulePom)) {
                 inspectPom(root, moduleDirectory, projects, signals);
             } else {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.BUILDABILITY,
+                signals.add(ExplainSignals.MAVEN_MODULE_MISSING_POM.signal(
                         projectLabel,
-                        "maven.module.missing-pom",
-                        "Module `" + module + "` does not contain a readable pom.xml.",
-                        "Fix the module path or exclude it from migration scope before generating Zolt metadata."));
+                        "Module `" + module + "` does not contain a readable pom.xml."));
             }
         }
     }
@@ -141,55 +131,35 @@ public final class MavenStaticProjectInspector {
     private List<ExplainSignal> signalsFor(String project, MavenProjectInspection inspection) {
         List<ExplainSignal> signals = new ArrayList<>();
         if (unsupportedPackaging(inspection.packaging())) {
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.BLOCK,
-                    ExplainSignal.Category.MIGRATION_BLOCKER,
+            signals.add(ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
                     project,
-                    "maven.packaging.unsupported",
-                    "Packaging `" + inspection.packaging() + "` needs an explicit Zolt packaging primitive.",
-                    "Map this packaging mode to Zolt package settings before migrating."));
+                    "Packaging `" + inspection.packaging() + "` needs an explicit Zolt packaging primitive."));
         }
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
             if (isDynamicVersion(dependency.version())) {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.NON_DETERMINISM,
+                signals.add(ExplainSignals.MAVEN_DEPENDENCY_DYNAMIC_VERSION.signal(
                         project,
-                        "maven.dependency.dynamic-version",
-                        "Dependency `" + dependency.coordinate() + "` uses dynamic version `" + dependency.version() + "`.",
-                        "Replace Maven ranges or SNAPSHOTs with fixed versions before migrating."));
+                        "Dependency `" + dependency.coordinate() + "` uses dynamic version `" + dependency.version() + "`."));
             }
         }
         for (MavenPluginInspection plugin : inspection.plugins()) {
             if (!plugin.phases().isEmpty() && !plugin.pluginManagement()) {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.BLOCK,
-                        ExplainSignal.Category.MIGRATION_BLOCKER,
+                signals.add(ExplainSignals.MAVEN_PLUGIN_LIFECYCLE_BINDING.signal(
                         project,
-                        "maven.plugin.lifecycle-binding",
-                        "Plugin `" + plugin.coordinate() + "` runs in lifecycle phase(s) " + plugin.phases() + ".",
-                        "Replace plugin-generated behavior with explicit Zolt configuration or keep it in manual-review scope."));
+                        "Plugin `" + plugin.coordinate() + "` runs in lifecycle phase(s) " + plugin.phases() + "."));
             } else if (!knownPlugin(plugin.coordinate())) {
-                signals.add(new ExplainSignal(
-                        ExplainSignal.Severity.WARN,
-                        ExplainSignal.Category.BUILDABILITY,
+                signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,
-                        "maven.plugin.static-signal",
-                        "Plugin `" + plugin.coordinate() + "` is declared and was not executed.",
-                        "Review whether this plugin changes compilation, resources, tests, packaging, or generated outputs."));
+                        "Plugin `" + plugin.coordinate() + "` is declared and was not executed."));
             }
         }
         for (MavenProfileInspection profile : inspection.profiles()) {
             String activation = profile.activationHints().isEmpty()
                     ? "manual activation"
                     : String.join(", ", profile.activationHints());
-            signals.add(new ExplainSignal(
-                    ExplainSignal.Severity.BLOCK,
-                    ExplainSignal.Category.NON_DETERMINISM,
+            signals.add(ExplainSignals.MAVEN_PROFILE_DETECTED.signal(
                     project,
-                    "maven.profile.detected",
-                    "Profile `" + profile.id() + "` is present with " + activation + ".",
-                    "Move profile-specific behavior into explicit Zolt configuration or keep it in manual-review scope."));
+                    "Profile `" + profile.id() + "` is present with " + activation + "."));
         }
         return signals;
     }
