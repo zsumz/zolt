@@ -53,6 +53,15 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void petclinicFixtureDeclaresH2AsRuntimeOnly() {
+        ProjectConfig config = parser.parse(Path.of("examples/spring-boot-petclinic-lite/zolt.toml"));
+
+        assertTrue(config.managedRuntimeDependencies().contains("com.h2database:h2"));
+        assertFalse(config.dependencies().containsKey("com.h2database:h2"));
+        assertFalse(config.managedDependencies().contains("com.h2database:h2"));
+    }
+
+    @Test
     void preservesDependencyDeclarationOrder() {
         ProjectConfig config = parser.parse("""
                 [project]
