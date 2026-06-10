@@ -1,9 +1,15 @@
 package com.zolt.quality;
 
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
@@ -31,10 +37,14 @@ public final class QualityCheckService {
     public static final String COMMAND_SURFACE = "command-surface";
     public static final String LOCKFILE = "lockfile";
     public static final String PROJECT_MODEL = "project-model";
+    public static final String DEPENDENCY_METADATA = "dependency-metadata";
 
-    private static final Set<String> IMPLEMENTED_CHECKS = Set.of(COMMAND_SURFACE, LOCKFILE, PROJECT_MODEL);
+    private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
+            COMMAND_SURFACE,
+            LOCKFILE,
+            PROJECT_MODEL,
+            DEPENDENCY_METADATA);
     private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of(
-            "dependency-metadata", "followUps/-add-dependency-metadata-checks.md",
             "package-metadata", "followUps/-add-package-and-manifest-checks.md",
             "manifest-metadata", "followUps/-add-package-and-manifest-checks.md",
             "generated-sources", "followUps/-add-generated-source-quality-checks.md");
@@ -44,6 +54,7 @@ public final class QualityCheckService {
     private final WorkspaceMemberSelector workspaceMemberSelector;
     private final ResolveService resolveService;
     private final WorkspaceResolveService workspaceResolveService;
+    private final ZoltLockfileReader lockfileReader;
 
     public QualityCheckService() {
         this(
@@ -51,7 +62,8 @@ public final class QualityCheckService {
                 new WorkspaceDiscoveryService(),
                 new WorkspaceMemberSelector(),
                 new ResolveService(),
-                new WorkspaceResolveService());
+                new WorkspaceResolveService(),
+                new ZoltLockfileReader());
     }
 
     QualityCheckService(
@@ -59,12 +71,14 @@ public final class QualityCheckService {
             WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceMemberSelector workspaceMemberSelector,
             ResolveService resolveService,
-            WorkspaceResolveService workspaceResolveService) {
+            WorkspaceResolveService workspaceResolveService,
+            ZoltLockfileReader lockfileReader) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
         this.resolveService = resolveService;
         this.workspaceResolveService = workspaceResolveService;
+        this.lockfileReader = lockfileReader;
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -139,6 +153,11 @@ public final class QualityCheckService {
                 case COMMAND_SURFACE -> results.add(commandSurfaceProjectResult(config));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
+                case DEPENDENCY_METADATA -> results.addAll(checkProjectDependencyMetadata(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        config,
+                        false));
                 default -> results.add(unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -165,6 +184,7 @@ public final class QualityCheckService {
                                 member.config()));
                     }
                 }
+                case DEPENDENCY_METADATA -> results.addAll(checkWorkspaceDependencyMetadata(workspace, selection, members));
                 default -> results.add(unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -353,6 +373,251 @@ public final class QualityCheckService {
         Path path = Path.of(value);
         Path normalized = path.normalize();
         return !path.isAbsolute() && !normalized.startsWith("..");
+    }
+
+    private List<QualityCheckResult> checkProjectDependencyMetadata(
+            Optional<String> member,
+            Path root,
+            ProjectConfig config,
+            boolean workspaceLockfile) {
+        Path lockfilePath = root.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return List.of(QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    "zolt.lock",
+                    (workspaceLockfile ? "Workspace zolt.lock" : "zolt.lock") + " is missing.",
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
+        }
+
+        ZoltLockfile lockfile;
+        try {
+            lockfile = lockfileReader.read(lockfilePath);
+        } catch (LockfileReadException exception) {
+            return List.of(QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
+        }
+
+        return checkDependencyMetadataDeclarations(member, config, lockfile, workspaceLockfile);
+    }
+
+    private List<QualityCheckResult> checkWorkspaceDependencyMetadata(
+            Workspace workspace,
+            WorkspaceSelection selection,
+            Map<String, WorkspaceMember> members) {
+        Path lockfilePath = workspace.root().resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return List.of(QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    Optional.empty(),
+                    "zolt.lock",
+                    "Workspace zolt.lock is missing.",
+                    "Run `zolt resolve --workspace`."));
+        }
+
+        ZoltLockfile lockfile;
+        try {
+            lockfile = lockfileReader.read(lockfilePath);
+        } catch (LockfileReadException exception) {
+            return List.of(QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    Optional.empty(),
+                    "zolt.lock",
+                    exception.getMessage(),
+                    "Run `zolt resolve --workspace`."));
+        }
+
+        List<QualityCheckResult> results = new ArrayList<>();
+        for (String memberPath : selection.includedMembers()) {
+            WorkspaceMember member = members.get(memberPath);
+            results.addAll(checkDependencyMetadataDeclarations(
+                    Optional.of(member.path()),
+                    member.config(),
+                    lockfile,
+                    true));
+            results.addAll(checkWorkspaceApiEdges(workspace, member, lockfile));
+        }
+        if (results.isEmpty()) {
+            results.add(QualityCheckResult.passed(
+                    DEPENDENCY_METADATA,
+                    Optional.empty(),
+                    workspace.config().name(),
+                    "No dependency metadata declarations require validation."));
+        }
+        return List.copyOf(results);
+    }
+
+    private List<QualityCheckResult> checkDependencyMetadataDeclarations(
+            Optional<String> member,
+            ProjectConfig config,
+            ZoltLockfile lockfile,
+            boolean workspaceLockfile) {
+        if (config.dependencyMetadata().isEmpty()) {
+            return List.of(QualityCheckResult.passed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    config.project().name(),
+                    "No dependency metadata declarations require validation."));
+        }
+
+        List<QualityCheckResult> results = new ArrayList<>();
+        for (DependencyMetadata metadata : new TreeMap<>(config.dependencyMetadata()).values()) {
+            if (metadata.workspace() != null) {
+                if (metadata.optional()) {
+                    results.add(QualityCheckResult.failed(
+                            DEPENDENCY_METADATA,
+                            member,
+                            metadata.coordinate(),
+                            "Workspace dependency `" + metadata.coordinate() + "` declares optional metadata, which is not supported.",
+                            "Remove optional = true or use an external dependency coordinate."));
+                }
+                continue;
+            }
+
+            if (metadata.publishOnly()) {
+                results.add(checkPublishOnlyMetadata(member, metadata, lockfile));
+                continue;
+            }
+
+            results.add(checkClasspathMetadata(member, metadata, lockfile, workspaceLockfile));
+        }
+        return List.copyOf(results);
+    }
+
+    private QualityCheckResult checkPublishOnlyMetadata(
+            Optional<String> member,
+            DependencyMetadata metadata,
+            ZoltLockfile lockfile) {
+        Optional<LockPackage> lockPackage = findLockPackage(lockfile, packageId(metadata.coordinate()), member);
+        if (lockPackage.isPresent()) {
+            return QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    metadata.coordinate(),
+                    "Publish-only dependency `" + metadata.coordinate() + "` is present in zolt.lock.",
+                    "Run `zolt resolve`; if it remains, remove publishOnly = true or move the dependency to a normal classpath section.");
+        }
+        return QualityCheckResult.passed(
+                DEPENDENCY_METADATA,
+                member,
+                metadata.coordinate(),
+                "Publish-only dependency `" + metadata.coordinate() + "` is kept out of zolt.lock classpaths.");
+    }
+
+    private QualityCheckResult checkClasspathMetadata(
+            Optional<String> member,
+            DependencyMetadata metadata,
+            ZoltLockfile lockfile,
+            boolean workspaceLockfile) {
+        Optional<LockPackage> maybeLockPackage = findLockPackage(lockfile, packageId(metadata.coordinate()), member);
+        if (maybeLockPackage.isEmpty()) {
+            return QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    metadata.coordinate(),
+                    "Dependency metadata for `" + metadata.coordinate() + "` is not represented in zolt.lock.",
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`.");
+        }
+
+        LockPackage lockPackage = maybeLockPackage.orElseThrow();
+        if (metadata.optional() && !lockPackage.direct()) {
+            return QualityCheckResult.failed(
+                    DEPENDENCY_METADATA,
+                    member,
+                    metadata.coordinate(),
+                    "Optional direct dependency `" + metadata.coordinate() + "` is not marked direct in zolt.lock.",
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`.");
+        }
+
+        for (com.zolt.project.DependencyExclusionSpec exclusion : metadata.exclusions()) {
+            if (lockPackage.dependencies().contains(exclusion.coordinate())) {
+                return QualityCheckResult.failed(
+                        DEPENDENCY_METADATA,
+                        member,
+                        metadata.coordinate(),
+                        "Excluded dependency `" + exclusion.coordinate() + "` is still present on direct dependency `" + metadata.coordinate() + "` in zolt.lock.",
+                        "Check [" + metadata.section() + "]." + metadata.coordinate() + ".exclusions and run "
+                                + (workspaceLockfile ? "`zolt resolve --workspace`." : "`zolt resolve`."));
+            }
+        }
+
+        return QualityCheckResult.passed(
+                DEPENDENCY_METADATA,
+                member,
+                metadata.coordinate(),
+                "Dependency metadata for `" + metadata.coordinate() + "` is represented in zolt.lock.");
+    }
+
+    private static List<QualityCheckResult> checkWorkspaceApiEdges(
+            Workspace workspace,
+            WorkspaceMember member,
+            ZoltLockfile lockfile) {
+        List<QualityCheckResult> results = new ArrayList<>();
+        for (Map.Entry<String, String> dependency : new TreeMap<>(member.config().workspaceApiDependencies()).entrySet()) {
+            String coordinate = dependency.getKey();
+            String target = normalizeMemberPath(dependency.getValue());
+            Optional<com.zolt.workspace.WorkspaceProjectEdge> edge = workspace.edges().stream()
+                    .filter(candidate -> candidate.from().equals(member.path())
+                            && candidate.to().equals(target)
+                            && candidate.coordinate().equals(coordinate))
+                    .findFirst();
+            if (edge.isEmpty() || !edge.orElseThrow().exported()) {
+                results.add(QualityCheckResult.failed(
+                        DEPENDENCY_METADATA,
+                        Optional.of(member.path()),
+                        coordinate,
+                        "Workspace API dependency `" + coordinate + "` is not represented as an exported workspace edge.",
+                        "Keep public workspace dependencies in [api.dependencies] and run `zolt resolve --workspace`."));
+                continue;
+            }
+
+            Optional<LockPackage> packageNode = lockfile.packages().stream()
+                    .filter(lockPackage -> lockPackage.packageId().equals(packageId(coordinate))
+                            && lockPackage.workspace().orElse("").equals(target))
+                    .findFirst();
+            if (packageNode.isEmpty() || !packageNode.orElseThrow().exportedBy().contains(member.path())) {
+                results.add(QualityCheckResult.failed(
+                        DEPENDENCY_METADATA,
+                        Optional.of(member.path()),
+                        coordinate,
+                        "Workspace API dependency `" + coordinate + "` is missing exportedBy ownership in zolt.lock.",
+                        "Run `zolt resolve --workspace`."));
+                continue;
+            }
+
+            results.add(QualityCheckResult.passed(
+                    DEPENDENCY_METADATA,
+                    Optional.of(member.path()),
+                    coordinate,
+                    "Workspace API dependency `" + coordinate + "` is exported through zolt.lock."));
+        }
+        return List.copyOf(results);
+    }
+
+    private static Optional<LockPackage> findLockPackage(
+            ZoltLockfile lockfile,
+            PackageId packageId,
+            Optional<String> member) {
+        return lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(packageId))
+                .filter(lockPackage -> member.isEmpty()
+                        || lockPackage.members().isEmpty()
+                        || lockPackage.members().contains(member.orElseThrow()))
+                .findFirst();
+    }
+
+    private static PackageId packageId(String coordinate) {
+        String[] parts = coordinate.split(":", -1);
+        return new PackageId(parts[0], parts[1]);
+    }
+
+    private static String normalizeMemberPath(String path) {
+        String normalized = Path.of(path).normalize().toString().replace('\\', '/');
+        return normalized.isBlank() ? "." : normalized;
     }
 
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
