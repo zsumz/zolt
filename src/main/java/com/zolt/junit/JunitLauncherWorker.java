@@ -1,27 +1,78 @@
 package com.zolt.junit;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
 public final class JunitLauncherWorker {
     public static final String MAIN_CLASS = "com.zolt.junit.JunitLauncherWorker";
+    private static final String SERVER_RESULT_PREFIX = "ZOLT_WORKER_RESULT exitCode=";
 
     public static void main(String[] args) {
-        int exitCode = new JunitLauncherWorker().run(args, System.out, System.err);
+        int exitCode = new JunitLauncherWorker().run(args, System.in, System.out, System.err);
         System.exit(exitCode);
     }
 
     int run(String[] args, PrintStream out, PrintStream err) {
+        return run(args, InputStream.nullInputStream(), out, err);
+    }
+
+    int run(String[] args, InputStream in, PrintStream out, PrintStream err) {
+        if (args != null && args.length == 1 && "--server".equals(args[0])) {
+            return runServer(in, out, err);
+        }
         if (args == null || args.length != 1 || args[0].isBlank()) {
             err.println("error: JUnit launcher worker requires exactly one test output directory.");
             return 2;
         }
+        return runOnce(args[0], out, err);
+    }
+
+    private int runServer(InputStream in, PrintStream out, PrintStream err) {
+        if (in == null) {
+            err.println("error: JUnit launcher worker server requires stdin.");
+            return 2;
+        }
+        ProgrammaticLauncher launcher = new ProgrammaticLauncher(out);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String request = line.trim();
+                if (request.isEmpty()) {
+                    continue;
+                }
+                if ("quit".equals(request)) {
+                    out.println(SERVER_RESULT_PREFIX + 0);
+                    out.flush();
+                    return 0;
+                }
+                int exitCode = runRequest(launcher, request, err);
+                out.println(SERVER_RESULT_PREFIX + exitCode);
+                out.flush();
+            }
+            return 0;
+        } catch (IOException exception) {
+            err.println("error: Could not read JUnit launcher worker server input.");
+            exception.printStackTrace(err);
+            return 1;
+        }
+    }
+
+    private int runOnce(String testOutputDirectory, PrintStream out, PrintStream err) {
+        return runRequest(new ProgrammaticLauncher(out), testOutputDirectory, err);
+    }
+
+    private int runRequest(ProgrammaticLauncher launcher, String testOutputDirectory, PrintStream err) {
         try {
-            return new ProgrammaticLauncher(out).execute(Path.of(args[0]));
+            return launcher.execute(Path.of(testOutputDirectory));
         } catch (ReflectiveOperationException | LinkageError exception) {
             err.println("error: Could not run tests through Zolt's JUnit launcher worker. "
                     + "Check that JUnit Platform Launcher and test engines are on the worker classpath.");
