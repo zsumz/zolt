@@ -108,6 +108,41 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     }
 
     @Test
+    void appliesModuleConfigurationThroughRuntimeClassLoaderStartupAction() throws Exception {
+        Object launcher = programmaticLauncher(stream(new ByteArrayOutputStream()));
+        Method applyModuleConfiguration = launcher.getClass()
+                .getDeclaredMethod("applyModuleConfigurationToClassloader", ClassLoader.class, ClassLoader.class);
+        applyModuleConfiguration.setAccessible(true);
+        FakeStartupAction startupAction = new FakeStartupAction();
+        FakeQuarkusClassLoader runtimeClassLoader = new FakeQuarkusClassLoader(startupAction);
+        ClassLoader targetClassLoader = new ClassLoader(QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader()) {
+        };
+
+        String result = String.valueOf(applyModuleConfiguration.invoke(
+                launcher,
+                runtimeClassLoader,
+                targetClassLoader));
+
+        assertEquals("applied", result);
+        assertEquals(targetClassLoader, startupAction.targetClassLoader);
+    }
+
+    @Test
+    void reportsUnavailableModuleConfigurationWhenStartupActionIsMissing() throws Exception {
+        Object launcher = programmaticLauncher(stream(new ByteArrayOutputStream()));
+        Method applyModuleConfiguration = launcher.getClass()
+                .getDeclaredMethod("applyModuleConfigurationToClassloader", ClassLoader.class, ClassLoader.class);
+        applyModuleConfiguration.setAccessible(true);
+
+        String result = String.valueOf(applyModuleConfiguration.invoke(
+                launcher,
+                QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader(),
+                QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader()));
+
+        assertEquals("<unavailable: StartupAction>", result);
+    }
+
+    @Test
     void requiresTestClassArguments() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
@@ -139,6 +174,27 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     static final class PassingTest {
         @Test
         void passes() {
+        }
+    }
+
+    static final class FakeQuarkusClassLoader extends ClassLoader {
+        private final FakeStartupAction startupAction;
+
+        private FakeQuarkusClassLoader(FakeStartupAction startupAction) {
+            super(QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader());
+            this.startupAction = startupAction;
+        }
+
+        public FakeStartupAction getStartupAction() {
+            return startupAction;
+        }
+    }
+
+    static final class FakeStartupAction {
+        private ClassLoader targetClassLoader;
+
+        public void applyModuleConfigurationToClassloader(ClassLoader classLoader) {
+            targetClassLoader = classLoader;
         }
     }
 }

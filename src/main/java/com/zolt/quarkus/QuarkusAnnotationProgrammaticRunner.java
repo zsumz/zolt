@@ -4,6 +4,7 @@ import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
@@ -274,6 +275,22 @@ public final class QuarkusAnnotationProgrammaticRunner {
                                     "failing.generatedInvokerLoader",
                                     failingClass,
                                     classLoader));
+                    String moduleConfiguration = applyModuleConfigurationToClassloader(
+                            quarkusRuntimeClassLoader,
+                            classLoader);
+                    out.println("  generatedInvoker.moduleConfiguration=" + moduleConfiguration);
+                    if ("applied".equals(moduleConfiguration)) {
+                        firstApplicationClass()
+                                .ifPresent(applicationClass -> writeAlternateClassVisibility(
+                                        "application.generatedInvokerLoaderAfterModuleConfig",
+                                        applicationClass,
+                                        classLoader));
+                        failingClass(failure)
+                                .ifPresent(failingClass -> writeAlternateClassVisibility(
+                                        "failing.generatedInvokerLoaderAfterModuleConfig",
+                                        failingClass,
+                                        classLoader));
+                    }
                 });
             });
             runningApplicationClassLoader().ifPresent(classLoader -> {
@@ -369,6 +386,44 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 return Optional.empty();
             }
             return Optional.empty();
+        }
+
+        private String applyModuleConfigurationToClassloader(
+                ClassLoader quarkusRuntimeClassLoader,
+                ClassLoader targetClassLoader) {
+            if (quarkusRuntimeClassLoader == null || targetClassLoader == null) {
+                return "skipped";
+            }
+            Optional<Object> startupAction = startupAction(quarkusRuntimeClassLoader);
+            if (startupAction.isEmpty()) {
+                return "<unavailable: StartupAction>";
+            }
+            try {
+                Method apply = startupAction.get()
+                        .getClass()
+                        .getMethod("applyModuleConfigurationToClassloader", ClassLoader.class);
+                apply.setAccessible(true);
+                apply.invoke(startupAction.get(), targetClassLoader);
+                return "applied";
+            } catch (InvocationTargetException exception) {
+                Throwable cause = exception.getCause();
+                String causeName = cause == null
+                        ? exception.getClass().getSimpleName()
+                        : cause.getClass().getSimpleName();
+                return "<unavailable: " + causeName + ">";
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return "<unavailable: " + exception.getClass().getSimpleName() + ">";
+            }
+        }
+
+        private Optional<Object> startupAction(ClassLoader classLoader) {
+            try {
+                Method getStartupAction = classLoader.getClass().getMethod("getStartupAction");
+                getStartupAction.setAccessible(true);
+                return Optional.ofNullable(getStartupAction.invoke(classLoader));
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return Optional.empty();
+            }
         }
 
         private Optional<String> firstApplicationClass() {
