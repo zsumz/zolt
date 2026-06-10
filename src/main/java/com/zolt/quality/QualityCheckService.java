@@ -1,6 +1,9 @@
 package com.zolt.quality;
 
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.build.PackagePlan;
+import com.zolt.build.PackagePlanService;
+import com.zolt.build.PackagePlanWarning;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
@@ -43,6 +46,7 @@ public final class QualityCheckService {
     public static final String PROJECT_MODEL = "project-model";
     public static final String DEPENDENCY_METADATA = "dependency-metadata";
     public static final String PACKAGE_METADATA = "package-metadata";
+    public static final String PACKAGE_CONTENTS = "package-contents";
     public static final String MANIFEST_METADATA = "manifest-metadata";
     public static final String GENERATED_SOURCES = "generated-sources";
 
@@ -52,6 +56,7 @@ public final class QualityCheckService {
             PROJECT_MODEL,
             DEPENDENCY_METADATA,
             PACKAGE_METADATA,
+            PACKAGE_CONTENTS,
             MANIFEST_METADATA,
             GENERATED_SOURCES);
     private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of();
@@ -65,6 +70,7 @@ public final class QualityCheckService {
     private final ResolveService resolveService;
     private final WorkspaceResolveService workspaceResolveService;
     private final ZoltLockfileReader lockfileReader;
+    private final PackagePlanService packagePlanService;
 
     public QualityCheckService() {
         this(
@@ -73,7 +79,8 @@ public final class QualityCheckService {
                 new WorkspaceMemberSelector(),
                 new ResolveService(),
                 new WorkspaceResolveService(),
-                new ZoltLockfileReader());
+                new ZoltLockfileReader(),
+                new PackagePlanService());
     }
 
     QualityCheckService(
@@ -82,13 +89,15 @@ public final class QualityCheckService {
             WorkspaceMemberSelector workspaceMemberSelector,
             ResolveService resolveService,
             WorkspaceResolveService workspaceResolveService,
-            ZoltLockfileReader lockfileReader) {
+            ZoltLockfileReader lockfileReader,
+            PackagePlanService packagePlanService) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
         this.resolveService = resolveService;
         this.workspaceResolveService = workspaceResolveService;
         this.lockfileReader = lockfileReader;
+        this.packagePlanService = packagePlanService;
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -172,6 +181,11 @@ public final class QualityCheckService {
                         Optional.empty(),
                         request.projectRoot(),
                         config));
+                case PACKAGE_CONTENTS -> results.addAll(checkPackageContents(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        config,
+                        request.projectRoot().resolve("zolt.lock")));
                 case MANIFEST_METADATA -> results.add(checkManifestMetadata(
                         Optional.empty(),
                         config));
@@ -213,6 +227,16 @@ public final class QualityCheckService {
                                 Optional.of(member.path()),
                                 member.directory(),
                                 member.config()));
+                    }
+                }
+                case PACKAGE_CONTENTS -> {
+                    for (String memberPath : selection.includedMembers()) {
+                        WorkspaceMember member = members.get(memberPath);
+                        results.addAll(checkPackageContents(
+                                Optional.of(member.path()),
+                                member.directory(),
+                                member.config(),
+                                workspace.root().resolve("zolt.lock")));
                     }
                 }
                 case MANIFEST_METADATA -> {
@@ -470,6 +494,60 @@ public final class QualityCheckService {
                 member,
                 config.project().name(),
                 "Library package metadata is complete.");
+    }
+
+    private List<QualityCheckResult> checkPackageContents(
+            Optional<String> member,
+            Path projectRoot,
+            ProjectConfig config,
+            Path lockfilePath) {
+        if (!Files.isRegularFile(lockfilePath)) {
+            return List.of(QualityCheckResult.failed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    "zolt.lock",
+                    "Package content diagnostics require zolt.lock.",
+                    member.isPresent() ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
+        }
+        PackagePlan plan;
+        try {
+            plan = packagePlanService.plan(projectRoot, config, lockfilePath);
+        } catch (LockfileReadException exception) {
+            return List.of(QualityCheckResult.failed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    member.isPresent() ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
+        }
+        if (plan.warnings().isEmpty()) {
+            long policyEffects = plan.dependencies().stream()
+                    .filter(dependency -> !dependency.policies().isEmpty())
+                    .count();
+            String policyMessage = policyEffects == 0
+                    ? ""
+                    : " " + policyEffects + " dependencies include dependency policy effects.";
+            return List.of(QualityCheckResult.passed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    config.project().name(),
+                    "Package mode `"
+                            + plan.mode().configValue()
+                            + "` has "
+                            + plan.dependencies().size()
+                            + " dependency dispositions."
+                            + policyMessage));
+        }
+        List<QualityCheckResult> results = new ArrayList<>();
+        for (PackagePlanWarning warning : plan.warnings()) {
+            results.add(QualityCheckResult.failed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    warning.subject(),
+                    warning.message(),
+                    warning.nextStep()));
+        }
+        return List.copyOf(results);
     }
 
     private static QualityCheckResult checkManifestMetadata(

@@ -16,6 +16,9 @@ import com.zolt.build.NativeBuildService;
 import com.zolt.build.NativeImageException;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackageArtifact;
+import com.zolt.build.PackagePlan;
+import com.zolt.build.PackagePlanFormatter;
+import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
@@ -1535,6 +1538,12 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
         private String mode;
 
+        @Option(names = "--plan", description = "Print the package content plan without building or writing the archive.")
+        private boolean planOnly;
+
+        @Option(names = "--format", description = "Package plan output format: text or json.")
+        private String format = "text";
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1552,7 +1561,14 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
+                PlanOutputFormat planOutputFormat = planOutputFormat(format);
+                if (!planOnly && planOutputFormat != PlanOutputFormat.TEXT) {
+                    throw new PackageException("Package --format is only supported with --plan. Use `zolt package --plan --format json`.");
+                }
                 if (workspace) {
+                    if (planOnly) {
+                        throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
+                    }
                     WorkspacePackageService workspacePackageService = new WorkspacePackageService();
                     WorkspacePackageResult result = timings.measure(
                             "package workspace",
@@ -1608,6 +1624,19 @@ public final class ZoltCli implements Runnable {
                                 "config read",
                                 () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
                         packageModeOverride);
+                if (planOnly) {
+                    PackagePlan packagePlan = timings.measure(
+                            "plan package contents",
+                            () -> new PackagePlanService().plan(workingDirectory, config),
+                            ZoltCli::packagePlanAttributes);
+                    PackagePlanFormatter formatter = new PackagePlanFormatter();
+                    if (planOutputFormat == PlanOutputFormat.JSON) {
+                        printAndFlush(spec, formatter.json(packagePlan));
+                    } else {
+                        printAndFlush(spec, formatter.text(packagePlan));
+                    }
+                    return;
+                }
                 PackageService packageService = new PackageService();
                 PackageResult result = timings.measure(
                         "package",
@@ -2580,6 +2609,28 @@ public final class ZoltCli implements Runnable {
                 + result.mode().configValue()
                 + " "
                 + extension;
+    }
+
+    private static Map<String, String> packagePlanAttributes(PackagePlan plan) {
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("mode", plan.mode().configValue());
+        attributes.put("dependencies", String.valueOf(plan.dependencies().size()));
+        attributes.put("warnings", String.valueOf(plan.warnings().size()));
+        return attributes;
+    }
+
+    private enum PlanOutputFormat {
+        TEXT,
+        JSON
+    }
+
+    private static PlanOutputFormat planOutputFormat(String value) {
+        String normalized = value == null || value.isBlank() ? "text" : value.trim().toLowerCase();
+        return switch (normalized) {
+            case "text" -> PlanOutputFormat.TEXT;
+            case "json" -> PlanOutputFormat.JSON;
+            default -> throw new PackageException("Unsupported package plan format `" + value + "`. Use text or json.");
+        };
     }
 
     private static ProjectConfig withPackageModeOverride(
