@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -152,9 +153,16 @@ public final class JunitLauncherWorker {
             long succeeded = (long) summaryClass.getMethod("getTestsSucceededCount").invoke(summary);
             long failed = (long) summaryClass.getMethod("getTestsFailedCount").invoke(summary);
             long aborted = (long) summaryClass.getMethod("getTestsAbortedCount").invoke(summary);
+            long totalFailures = (long) summaryClass.getMethod("getTotalFailureCount").invoke(summary);
             out.println("Tests found: " + found);
             out.println("Tests succeeded: " + succeeded);
             out.println("Tests failed: " + failed);
+            if (totalFailures > 0) {
+                out.println();
+                summaryClass
+                        .getMethod("printFailuresTo", PrintWriter.class)
+                        .invoke(summary, new PrintWriter(out, true));
+            }
             if (found == 0) {
                 return 2;
             }
