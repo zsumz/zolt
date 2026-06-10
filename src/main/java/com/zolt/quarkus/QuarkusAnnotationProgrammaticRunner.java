@@ -263,15 +263,39 @@ public final class QuarkusAnnotationProgrammaticRunner {
             generatedInvokerClass(failure).ifPresent(className -> {
                 out.println("  generatedInvokerClass=" + className);
                 writeClassVisibility("generatedInvoker", className, quarkusRuntimeClassLoader);
+                writeClassLoaderShape("quarkusRuntime", quarkusRuntimeClassLoader);
+                writeQuarkusResourceElements("generatedInvoker.quarkusRuntimeLoader", className, quarkusRuntimeClassLoader);
+                firstApplicationClass()
+                        .ifPresent(applicationClass -> writeQuarkusResourceElements(
+                                "application.quarkusRuntimeLoader",
+                                applicationClass,
+                                quarkusRuntimeClassLoader));
+                failingClass(failure)
+                        .ifPresent(failingClass -> writeQuarkusResourceElements(
+                                "failing.quarkusRuntimeLoader",
+                                failingClass,
+                                quarkusRuntimeClassLoader));
                 loadedClassLoader(className, quarkusRuntimeClassLoader).ifPresent(classLoader -> {
                     out.println("  generatedInvoker.loadedClassActualClassLoader=" + classLoaderName(classLoader));
+                    writeClassLoaderShape("generatedInvoker.actualLoader", classLoader);
+                    writeQuarkusResourceElements("generatedInvoker.actualLoader", className, classLoader);
                     firstApplicationClass()
                             .ifPresent(applicationClass -> writeAlternateClassVisibility(
                                     "application.generatedInvokerLoader",
                                     applicationClass,
                                     classLoader));
+                    firstApplicationClass()
+                            .ifPresent(applicationClass -> writeQuarkusResourceElements(
+                                    "application.generatedInvokerLoader",
+                                    applicationClass,
+                                    classLoader));
                     failingClass(failure)
                             .ifPresent(failingClass -> writeAlternateClassVisibility(
+                                    "failing.generatedInvokerLoader",
+                                    failingClass,
+                                    classLoader));
+                    failingClass(failure)
+                            .ifPresent(failingClass -> writeQuarkusResourceElements(
                                     "failing.generatedInvokerLoader",
                                     failingClass,
                                     classLoader));
@@ -364,6 +388,84 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 out.println("  " + label + ".loadedClass=<unavailable: "
                         + exception.getClass().getSimpleName()
                         + ">");
+            }
+        }
+
+        private void writeClassLoaderShape(String label, ClassLoader classLoader) {
+            out.println("  " + label + ".classLoader=" + classLoaderName(classLoader));
+            if (classLoader == null) {
+                return;
+            }
+            out.println("  " + label + ".loaderName=" + String.valueOf(classLoader.getName()));
+            out.println("  " + label + ".javaParent=" + classLoaderName(classLoader.getParent()));
+            quarkusParent(classLoader).ifPresent(parent -> out.println(
+                    "  " + label + ".quarkusParent=" + classLoaderName(parent)));
+        }
+
+        private Optional<ClassLoader> quarkusParent(ClassLoader classLoader) {
+            try {
+                Method parent = classLoader.getClass().getMethod("parent");
+                parent.setAccessible(true);
+                Object value = parent.invoke(classLoader);
+                if (value instanceof ClassLoader loader) {
+                    return Optional.of(loader);
+                }
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return Optional.empty();
+            }
+            return Optional.empty();
+        }
+
+        private void writeQuarkusResourceElements(
+                String label,
+                String className,
+                ClassLoader classLoader) {
+            if (classLoader == null) {
+                out.println("  " + label + ".resourceElements=<unavailable: missing classloader>");
+                return;
+            }
+            String resourceName = className.replace('.', '/') + ".class";
+            out.println("  " + label + ".resource=" + resourceName);
+            try {
+                Method elements = classLoader.getClass().getMethod("getElementsWithResource", String.class, boolean.class);
+                elements.setAccessible(true);
+                Object result = elements.invoke(classLoader, resourceName, true);
+                if (!(result instanceof List<?> list)) {
+                    out.println("  " + label + ".resourceElements=<unavailable: unexpected result>");
+                    return;
+                }
+                if (list.isEmpty()) {
+                    out.println("  " + label + ".resourceElements=<none>");
+                    return;
+                }
+                for (int index = 0; index < list.size(); index++) {
+                    out.println("  " + label + ".resourceElement." + index + "=" + classPathElementName(list.get(index)));
+                }
+            } catch (InvocationTargetException exception) {
+                Throwable cause = exception.getCause();
+                String causeName = cause == null
+                        ? exception.getClass().getSimpleName()
+                        : cause.getClass().getSimpleName();
+                out.println("  " + label + ".resourceElements=<unavailable: " + causeName + ">");
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                out.println("  " + label + ".resourceElements=<unavailable: "
+                        + exception.getClass().getSimpleName()
+                        + ">");
+            }
+        }
+
+        private String classPathElementName(Object element) {
+            try {
+                Method root = element.getClass().getMethod("getRoot");
+                root.setAccessible(true);
+                Object value = root.invoke(element);
+                if (value != null) {
+                    return String.valueOf(value);
+                }
+                return element.getClass().getName() + "(root=null)";
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                return element.getClass().getName() + "@"
+                        + Integer.toHexString(System.identityHashCode(element));
             }
         }
 

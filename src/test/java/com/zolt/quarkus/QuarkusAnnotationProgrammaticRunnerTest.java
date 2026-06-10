@@ -8,6 +8,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
@@ -143,6 +144,47 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     }
 
     @Test
+    void reportsQuarkusResourceElementsWhenLoaderExposesThem() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Object launcher = programmaticLauncher(stream(out));
+        Method resourceElements = launcher.getClass()
+                .getDeclaredMethod("writeQuarkusResourceElements", String.class, String.class, ClassLoader.class);
+        resourceElements.setAccessible(true);
+        FakeResourceClassLoader classLoader = new FakeResourceClassLoader(List.of(
+                new FakeClassPathElement(Path.of("target", "quarkus-app", "quarkus", "generated-bytecode.jar"))));
+
+        resourceElements.invoke(
+                launcher,
+                "generatedInvoker.actualLoader",
+                "com.example.HelloResource$quarkusrestinvoker$hello",
+                classLoader);
+
+        String output = output(out);
+        assertTrue(output.contains(
+                "generatedInvoker.actualLoader.resource=com/example/HelloResource$quarkusrestinvoker$hello.class"));
+        assertTrue(output.contains(
+                "generatedInvoker.actualLoader.resourceElement.0=target/quarkus-app/quarkus/generated-bytecode.jar"));
+    }
+
+    @Test
+    void reportsUnavailableResourceElementsForPlainClassLoaders() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Object launcher = programmaticLauncher(stream(out));
+        Method resourceElements = launcher.getClass()
+                .getDeclaredMethod("writeQuarkusResourceElements", String.class, String.class, ClassLoader.class);
+        resourceElements.setAccessible(true);
+
+        resourceElements.invoke(
+                launcher,
+                "generatedInvoker.actualLoader",
+                "com.example.HelloResource",
+                QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader());
+
+        assertTrue(output(out).contains(
+                "generatedInvoker.actualLoader.resourceElements=<unavailable: NoSuchMethodException>"));
+    }
+
+    @Test
     void requiresTestClassArguments() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
@@ -195,6 +237,31 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
 
         public void applyModuleConfigurationToClassloader(ClassLoader classLoader) {
             targetClassLoader = classLoader;
+        }
+    }
+
+    static final class FakeResourceClassLoader extends ClassLoader {
+        private final List<FakeClassPathElement> elements;
+
+        private FakeResourceClassLoader(List<FakeClassPathElement> elements) {
+            super(QuarkusAnnotationProgrammaticRunnerTest.class.getClassLoader());
+            this.elements = elements;
+        }
+
+        public List<FakeClassPathElement> getElementsWithResource(String resourceName, boolean includeParent) {
+            return elements;
+        }
+    }
+
+    static final class FakeClassPathElement {
+        private final Path root;
+
+        private FakeClassPathElement(Path root) {
+            this.root = root;
+        }
+
+        public Path getRoot() {
+            return root;
         }
     }
 }
