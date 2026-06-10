@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class QuarkusAnnotationProgrammaticRunner {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusAnnotationProgrammaticRunner";
     public static final String TEST_OUTPUT_DIRECTORY_PROPERTY = "zolt.quarkus.test-output-dir";
+    private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
+            "zolt.quarkus.test-class-bean-diagnostic-file";
     private static final String TEST_BUILD_CHAIN_FUNCTION = "io.quarkus.test.junit.TestBuildChainFunction";
     private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SPI =
             "io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
@@ -229,6 +231,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
                     ((Throwable) value).printStackTrace(out);
                     writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader.get());
                     writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader.get());
+                    writeTestClassBeanCustomizerDiagnostic();
                 });
             }
         }
@@ -315,6 +318,27 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 return providers.isEmpty() ? List.of("<none>") : List.copyOf(providers);
             } catch (ReflectiveOperationException | LinkageError | ServiceConfigurationError exception) {
                 return List.of("<unavailable: " + exception.getClass().getSimpleName() + ">");
+            }
+        }
+
+        private void writeTestClassBeanCustomizerDiagnostic() {
+            String diagnosticFile = System.getProperty(TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY, "");
+            if (diagnosticFile.isBlank()) {
+                return;
+            }
+            Path path = Path.of(diagnosticFile).toAbsolutePath().normalize();
+            out.println("Zolt Quarkus test-class-bean customizer diagnostic:");
+            out.println("  file=" + path);
+            try {
+                if (!java.nio.file.Files.isRegularFile(path)) {
+                    out.println("  entries=<missing>");
+                    return;
+                }
+                for (String line : java.nio.file.Files.readAllLines(path)) {
+                    out.println("  " + line);
+                }
+            } catch (java.io.IOException | RuntimeException exception) {
+                out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");
             }
         }
     }

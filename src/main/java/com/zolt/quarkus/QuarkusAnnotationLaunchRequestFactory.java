@@ -8,6 +8,8 @@ import java.util.List;
 public final class QuarkusAnnotationLaunchRequestFactory {
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
+    private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
+            "zolt.quarkus.test-class-bean-diagnostic-file";
     private static final String RUNNER_MAIN_CLASS = QuarkusAnnotationProgrammaticRunner.MAIN_CLASS;
 
     private final QuarkusAnnotationLauncherClasspathPlanner launcherClasspathPlanner;
@@ -80,11 +82,23 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY
                 + "="
                 + descriptor.testOutputDirectory());
+        arguments.add("-D"
+                + TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY
+                + "="
+                + testClassBeanDiagnosticFile(descriptor));
         arguments.add("-Dquarkus.arc.unremovable-types=" + String.join(",", testClasses));
         if (descriptor.jbossLogManagerPresent()) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
         }
         return List.copyOf(arguments);
+    }
+
+    private static Path testClassBeanDiagnosticFile(QuarkusTestRunnerDescriptor descriptor) {
+        return descriptor.descriptorFile()
+                .getParent()
+                .resolve("annotation-runner/test-class-bean-customizer.txt")
+                .toAbsolutePath()
+                .normalize();
     }
 
     private static List<String> runnerArguments(List<String> testClasses) {
