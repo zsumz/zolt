@@ -8,18 +8,25 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Objects;
 
 public final class LocalArtifactCache {
     private final Path root;
     private final MavenRepositoryPathBuilder pathBuilder;
+    private final DownloadCoordinator downloadCoordinator;
 
     public LocalArtifactCache(Path root) {
-        this(root, new MavenRepositoryPathBuilder());
+        this(root, new MavenRepositoryPathBuilder(), new DownloadCoordinator());
     }
 
-    LocalArtifactCache(Path root, MavenRepositoryPathBuilder pathBuilder) {
-        this.root = root;
-        this.pathBuilder = pathBuilder;
+    public LocalArtifactCache(Path root, DownloadCoordinator downloadCoordinator) {
+        this(root, new MavenRepositoryPathBuilder(), downloadCoordinator);
+    }
+
+    LocalArtifactCache(Path root, MavenRepositoryPathBuilder pathBuilder, DownloadCoordinator downloadCoordinator) {
+        this.root = Objects.requireNonNull(root, "root");
+        this.pathBuilder = Objects.requireNonNull(pathBuilder, "pathBuilder");
+        this.downloadCoordinator = Objects.requireNonNull(downloadCoordinator, "downloadCoordinator");
     }
 
     public static Path defaultRoot() {
@@ -73,13 +80,15 @@ public final class LocalArtifactCache {
                     "Cached artifact at " + cachePath + " is empty. Delete it and run the command again.");
         }
 
-        RepositoryArtifact artifact = fetcher.fetch(coordinate);
-        if (artifact.bytes().length == 0) {
-            throw new ArtifactCacheException(
-                    "Downloaded artifact " + coordinate + " is empty. The cache was not updated.");
-        }
-        writeAtomically(cachePath, artifact.bytes());
-        return new CachedArtifact(coordinate, repositoryPath, cachePath, artifact.bytes());
+        return downloadCoordinator.run(repositoryPath, () -> {
+            RepositoryArtifact artifact = fetcher.fetch(coordinate);
+            if (artifact.bytes().length == 0) {
+                throw new ArtifactCacheException(
+                        "Downloaded artifact " + coordinate + " is empty. The cache was not updated.");
+            }
+            writeAtomically(cachePath, artifact.bytes());
+            return new CachedArtifact(coordinate, repositoryPath, cachePath, artifact.bytes());
+        });
     }
 
     private CachedArtifact getCached(Coordinate coordinate, String repositoryPath, String artifactKind) {
