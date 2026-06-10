@@ -10,10 +10,14 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,7 @@ final class MavenRepositoryClientTest {
     private final CoordinateParser parser = new CoordinateParser();
     private final MavenRepositoryClient client = new MavenRepositoryClient();
     private final Map<String, byte[]> responses = new HashMap<>();
+    private final Map<String, AtomicInteger> requestCounts = new ConcurrentHashMap<>();
 
     private HttpServer server;
     private URI baseUri;
@@ -93,6 +98,9 @@ final class MavenRepositoryClientTest {
 
         assertTrue(exception.getMessage().contains("Could not find com.google.guava:missing:1.0.0"));
         assertTrue(exception.getMessage().contains("Check the group, artifact, version, and repository URL."));
+        assertEquals(
+                1,
+                requestCount("/maven2/com/google/guava/missing/1.0.0/missing-1.0.0.pom"));
     }
 
     @Test
@@ -122,17 +130,91 @@ final class MavenRepositoryClientTest {
         assertTrue(exception.getMessage().contains("Try again or check the repository URL."));
     }
 
+    @Test
+    void transientStatusIsRetriedUntilSuccess() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/flaky/", exchange -> {
+            int attempt = attempts.incrementAndGet();
+            if (attempt == 1) {
+                respond(exchange, 503, "slow down".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            respond(exchange, 200, "<project/>".getBytes(StandardCharsets.UTF_8));
+        });
+        URI flakyBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/flaky/");
+        MavenRepositoryClient retryingClient = retryingClient(3);
+
+        RepositoryArtifact artifact = retryingClient.fetchPom(flakyBaseUri, coordinate);
+
+        assertEquals(2, attempts.get());
+        assertArrayEquals("<project/>".getBytes(StandardCharsets.UTF_8), artifact.bytes());
+    }
+
+    @Test
+    void transientStatusFailsAfterBoundedAttempts() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/always-flaky/", exchange -> {
+            attempts.incrementAndGet();
+            respond(exchange, 429, "too many".getBytes(StandardCharsets.UTF_8));
+        });
+        URI flakyBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/always-flaky/");
+        MavenRepositoryClient retryingClient = retryingClient(2);
+
+        RepositoryClientException exception = assertThrows(
+                RepositoryClientException.class,
+                () -> retryingClient.fetchPom(flakyBaseUri, coordinate));
+
+        assertEquals(2, attempts.get());
+        assertTrue(exception.getMessage().contains("Repository returned HTTP 429"));
+        assertTrue(exception.getMessage().contains("after 2 attempts"));
+    }
+
+    @Test
+    void permanentClientStatusIsNotRetried() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/bad-request/", exchange -> {
+            attempts.incrementAndGet();
+            respond(exchange, 400, "bad".getBytes(StandardCharsets.UTF_8));
+        });
+        URI badRequestBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/bad-request/");
+        MavenRepositoryClient retryingClient = retryingClient(3);
+
+        RepositoryClientException exception = assertThrows(
+                RepositoryClientException.class,
+                () -> retryingClient.fetchPom(badRequestBaseUri, coordinate));
+
+        assertEquals(1, attempts.get());
+        assertTrue(exception.getMessage().contains("Repository returned HTTP 400"));
+    }
+
     private void put(String path, String body) {
         responses.put("/maven2/" + path, body.getBytes(StandardCharsets.UTF_8));
     }
 
     private void handle(HttpExchange exchange) throws IOException {
+        requestCounts
+                .computeIfAbsent(exchange.getRequestURI().getPath(), ignored -> new AtomicInteger())
+                .incrementAndGet();
         byte[] body = responses.get(exchange.getRequestURI().getPath());
         if (body == null) {
             respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
             return;
         }
         respond(exchange, 200, body);
+    }
+
+    private int requestCount(String path) {
+        return requestCounts.getOrDefault(path, new AtomicInteger()).get();
+    }
+
+    private static MavenRepositoryClient retryingClient(int maxAttempts) {
+        return new MavenRepositoryClient(
+                HttpClient.newHttpClient(),
+                new MavenRepositoryPathBuilder(),
+                new RepositoryHttpPolicy(Duration.ofSeconds(5), maxAttempts, Duration.ZERO));
     }
 
     private static void respond(HttpExchange exchange, int statusCode, byte[] body) throws IOException {
