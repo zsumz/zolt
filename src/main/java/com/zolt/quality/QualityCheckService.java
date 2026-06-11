@@ -23,6 +23,9 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.publish.PublishDryRunPlan;
+import com.zolt.publish.PublishDryRunService;
+import com.zolt.publish.PublishException;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -98,6 +101,7 @@ public final class QualityCheckService {
     private final PackagePlanService packagePlanService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final PackageEvidenceManifestReader packageEvidenceManifestReader;
+    private final PublishDryRunService publishDryRunService;
     private final Function<String, String> environment;
 
     public QualityCheckService() {
@@ -111,6 +115,7 @@ public final class QualityCheckService {
                 new PackagePlanService(),
                 new GeneratedSourceEvidenceService(),
                 new PackageEvidenceManifestReader(),
+                new PublishDryRunService(),
                 System::getenv);
     }
 
@@ -125,6 +130,7 @@ public final class QualityCheckService {
                 new PackagePlanService(),
                 new GeneratedSourceEvidenceService(),
                 new PackageEvidenceManifestReader(),
+                new PublishDryRunService(),
                 environment);
     }
 
@@ -138,6 +144,7 @@ public final class QualityCheckService {
             PackagePlanService packagePlanService,
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
             PackageEvidenceManifestReader packageEvidenceManifestReader,
+            PublishDryRunService publishDryRunService,
             Function<String, String> environment) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
@@ -148,6 +155,7 @@ public final class QualityCheckService {
         this.packagePlanService = packagePlanService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
         this.packageEvidenceManifestReader = packageEvidenceManifestReader;
+        this.publishDryRunService = publishDryRunService;
         this.environment = environment;
     }
 
@@ -226,7 +234,8 @@ public final class QualityCheckService {
                         request.projectRoot(),
                         config,
                         request.context(),
-                        request.reportsDir()));
+                        request.reportsDir(),
+                        request.requirePublishDryRun()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
                 case DEPENDENCY_METADATA -> results.addAll(checkProjectDependencyMetadata(
@@ -287,6 +296,11 @@ public final class QualityCheckService {
                                             : request.reportsDir().resolve(member.path()),
                                     request.reportsDir(),
                                     request.context()));
+                            results.addAll(checkPublishDryRun(
+                                    Optional.of(member.path()),
+                                    member.directory(),
+                                    request.context(),
+                                    request.requirePublishDryRun()));
                         }
                     }
                 }
@@ -349,11 +363,13 @@ public final class QualityCheckService {
             Path root,
             ProjectConfig config,
             QualityCheckContext context,
-            Path reportsDir) {
+            Path reportsDir,
+            boolean requirePublishDryRun) {
         List<QualityCheckResult> results = new ArrayList<>();
         results.addAll(checkExecutionContext(member, root, context));
         results.addAll(checkCredentialPolicy(member, config, context));
         results.addAll(checkTestReports(member, root, reportsDir, reportsDir, context));
+        results.addAll(checkPublishDryRun(member, root, context, requirePublishDryRun));
         return List.copyOf(results);
     }
 
@@ -702,6 +718,60 @@ public final class QualityCheckService {
     private static boolean isJUnitXmlReport(Path path) {
         String fileName = path.getFileName().toString();
         return fileName.startsWith("TEST-") && fileName.endsWith(".xml");
+    }
+
+    private List<QualityCheckResult> checkPublishDryRun(
+            Optional<String> member,
+            Path projectRoot,
+            QualityCheckContext context,
+            boolean requirePublishDryRun) {
+        if (context != QualityCheckContext.CI || !requirePublishDryRun) {
+            return List.of();
+        }
+        if (member.isPresent()) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "publish-dry-run",
+                    "CI publish dry-run preflight is not available for workspace members yet.",
+                    "Run `zolt publish --dry-run` from the publishable member project, or omit --require-publish-dry-run for workspace checks."));
+        }
+        try {
+            PublishDryRunPlan plan = publishDryRunService.plan(projectRoot);
+            if (!plan.ok()) {
+                List<QualityCheckResult> results = new ArrayList<>();
+                for (String blocker : plan.blockers()) {
+                    results.add(QualityCheckResult.failed(
+                            EXECUTION_CONTEXT,
+                            member,
+                            "publish-dry-run",
+                            "CI publish dry-run blocker: " + blocker,
+                            "Run `zolt publish --dry-run` and resolve the reported blocker before release CI."));
+                }
+                return List.copyOf(results);
+            }
+            int artifactCount = 1 + plan.supplementalArtifacts().size();
+            return List.of(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "publish-dry-run",
+                    "CI publish dry-run preflight is ready for "
+                            + plan.coordinate()
+                            + " to repository `"
+                            + plan.repositoryId()
+                            + "` with "
+                            + artifactCount
+                            + " "
+                            + (artifactCount == 1 ? "artifact" : "artifacts")
+                            + " and generated POM metadata."));
+        } catch (PublishException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "publish-dry-run",
+                    "CI publish dry-run preflight failed: " + exception.getMessage(),
+                    "Configure [publish], run `zolt package`, then retry `zolt check --context ci --require-publish-dry-run`."));
+        }
     }
 
     private QualityCheckResult checkWorkspaceLockfile(QualityCheckRequest request, Workspace workspace) {

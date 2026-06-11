@@ -285,6 +285,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--require-package", description = "Require the configured package artifact and package evidence during CI context checks.")
         private boolean requirePackage;
 
+        @Option(names = "--require-publish-dry-run", description = "Require publish dry-run preflight during CI context checks without uploading.")
+        private boolean requirePublishDryRun;
+
         @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
         private boolean workspace;
 
@@ -329,6 +332,7 @@ public final class ZoltCli implements Runnable {
                             context,
                             reportsDir,
                             requirePackage,
+                            requirePublishDryRun,
                             workspaceSelection(all, members, memberGroups))),
                     ZoltCli::qualityCheckAttributes);
             if (format == Format.JSON) {

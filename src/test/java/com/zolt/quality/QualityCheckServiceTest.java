@@ -50,6 +50,7 @@ final class QualityCheckServiceTest {
                 QualityCheckContext.CI,
                 null,
                 false,
+                false,
                 WorkspaceSelectionRequest.defaults()));
 
         assertEquals("error", report.status());
