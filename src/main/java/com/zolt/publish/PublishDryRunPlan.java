@@ -12,12 +12,14 @@ public record PublishDryRunPlan(
         Path artifactPath,
         String artifactSha256,
         String artifactUploadPath,
+        List<PublishArtifactPlan> supplementalArtifacts,
         Path evidencePath,
         Path pomPath,
         String pomSha256,
         String pomUploadPath,
         List<String> blockers) {
     public PublishDryRunPlan {
+        supplementalArtifacts = supplementalArtifacts == null ? List.of() : List.copyOf(supplementalArtifacts);
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
     }
 

@@ -59,6 +59,13 @@ public final class PublishUploadService {
                     new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
                     root.resolve(plan.artifactPath()).normalize(),
                     authentication);
+            for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
+                repositoryClient.uploadArtifact(
+                        URI.create(repository.url()),
+                        new ArtifactDescriptor(coordinate, artifact.classifier(), extension(artifact.path())),
+                        root.resolve(artifact.path()).normalize(),
+                        authentication);
+            }
             repositoryClient.uploadPom(
                     URI.create(repository.url()),
                     coordinate,

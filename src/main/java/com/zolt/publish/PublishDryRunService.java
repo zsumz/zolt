@@ -1,5 +1,6 @@
 package com.zolt.publish;
 
+import com.zolt.build.PackageEvidenceArtifact;
 import com.zolt.build.PackageEvidenceManifest;
 import com.zolt.build.PackageEvidenceManifestReader;
 import com.zolt.build.PackageEvidenceManifestWriter;
@@ -23,8 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -134,6 +135,7 @@ public final class PublishDryRunService {
                 new ArtifactDescriptor(coordinate, Optional.empty(), extension(artifactPath)));
         String pomUploadPath = repositoryPathBuilder.pomPath(coordinate);
         String artifactSha256 = "";
+        List<PublishArtifactPlan> supplementalArtifacts = List.of();
         if (!Files.isRegularFile(artifactPath)) {
             blockers.add("missing artifact: run `zolt package` to create " + displayPath(root, artifactPath));
         } else if (!Files.isRegularFile(evidencePath)) {
@@ -146,6 +148,7 @@ public final class PublishDryRunService {
                 if (!actualSha256.equals(evidence.archiveSha256())) {
                     blockers.add("stale package evidence: run `zolt package` to refresh " + displayPath(root, evidencePath));
                 }
+                supplementalArtifacts = supplementalArtifacts(root, coordinate, evidence, evidencePath, blockers);
             } catch (PackageException exception) {
                 blockers.add("invalid package evidence: " + exception.getMessage());
             }
@@ -160,11 +163,46 @@ public final class PublishDryRunService {
                 display(root, artifactPath),
                 artifactSha256,
                 artifactUploadPath,
+                supplementalArtifacts,
                 display(root, evidencePath),
                 display(root, pomPath),
                 pomSha256,
                 pomUploadPath,
                 blockers);
+    }
+
+    private List<PublishArtifactPlan> supplementalArtifacts(
+            Path root,
+            Coordinate coordinate,
+            PackageEvidenceManifest evidence,
+            Path evidencePath,
+            List<String> blockers) {
+        List<PublishArtifactPlan> artifacts = new ArrayList<>();
+        for (PackageEvidenceArtifact artifact : evidence.artifacts()) {
+            if ("main".equals(artifact.classifier())) {
+                continue;
+            }
+            Path artifactPath = root.resolve(artifact.path()).normalize();
+            String uploadPath = repositoryPathBuilder.artifactPath(new ArtifactDescriptor(
+                    coordinate,
+                    Optional.of(artifact.classifier()),
+                    extension(artifactPath)));
+            if (!Files.isRegularFile(artifactPath)) {
+                blockers.add("missing supplemental artifact: run `zolt package` to create " + displayPath(root, artifactPath));
+                continue;
+            }
+            String actualSha256 = sha256(artifactPath);
+            if (!actualSha256.equals(artifact.sha256())) {
+                blockers.add("stale supplemental package evidence: run `zolt package` to refresh " + displayPath(root, evidencePath));
+            }
+            artifacts.add(new PublishArtifactPlan(
+                    artifact.classifier(),
+                    Optional.of(artifact.classifier()),
+                    display(root, artifactPath),
+                    artifact.sha256(),
+                    uploadPath));
+        }
+        return List.copyOf(artifacts);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {

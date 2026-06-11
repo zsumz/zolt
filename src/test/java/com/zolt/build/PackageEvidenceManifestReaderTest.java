@@ -28,7 +28,23 @@ final class PackageEvidenceManifestReaderTest {
                   "package": {
                     "archive": "target/demo-0.1.0.jar",
                     "archiveSha256": "sha256:abc123"
-                  }
+                  },
+                  "artifacts": [
+                    {
+                      "classifier": "main",
+                      "type": "thin",
+                      "path": "target/demo-0.1.0.jar",
+                      "entries": 1,
+                      "sha256": "sha256:abc123"
+                    },
+                    {
+                      "classifier": "sources",
+                      "type": "jar",
+                      "path": "target/demo-0.1.0-sources.jar",
+                      "entries": 2,
+                      "sha256": "sha256:def456"
+                    }
+                  ]
                 }
                 """);
 
@@ -37,6 +53,11 @@ final class PackageEvidenceManifestReaderTest {
         assertEquals("zolt.package-evidence.v1", evidence.schema());
         assertEquals("target/demo-0.1.0.jar", evidence.archive());
         assertEquals("sha256:abc123", evidence.archiveSha256());
+        assertEquals(2, evidence.artifacts().size());
+        assertEquals("sources", evidence.artifacts().get(1).classifier());
+        assertEquals("target/demo-0.1.0-sources.jar", evidence.artifacts().get(1).path());
+        assertEquals(2, evidence.artifacts().get(1).entries());
+        assertEquals("sha256:def456", evidence.artifacts().get(1).sha256());
     }
 
     @Test

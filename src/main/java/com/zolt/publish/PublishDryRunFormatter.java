@@ -15,6 +15,14 @@ public final class PublishDryRunFormatter {
         output.append("Artifact path: ").append(plan.artifactPath()).append('\n');
         output.append("Artifact checksum: ").append(plan.artifactSha256()).append('\n');
         output.append("Artifact upload path: ").append(plan.artifactUploadPath()).append('\n');
+        if (!plan.supplementalArtifacts().isEmpty()) {
+            output.append("Supplemental artifacts:\n");
+            for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
+                output.append("- ").append(artifact.id()).append(": ").append(artifact.path()).append('\n');
+                output.append("  checksum: ").append(artifact.sha256()).append('\n');
+                output.append("  upload path: ").append(artifact.uploadPath()).append('\n');
+            }
+        }
         output.append("Evidence: ").append(plan.evidencePath()).append('\n');
         output.append("Generated POM: ").append(plan.pomPath()).append('\n');
         output.append("POM checksum: ").append(plan.pomSha256()).append('\n');

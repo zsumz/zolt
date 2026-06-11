@@ -645,14 +645,55 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("publish-upload-release");
         Files.createDirectories(projectDir.resolve("target"));
         Path artifact = projectDir.resolve("target/publish-upload-release-0.1.0.jar");
+        Path sourcesArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-sources.jar");
+        Path javadocArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-javadoc.jar");
+        Path testsArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-tests.jar");
         Files.writeString(artifact, "fake package\n");
+        Files.writeString(sourcesArtifact, "fake sources\n");
+        Files.writeString(javadocArtifact, "fake javadoc\n");
+        Files.writeString(testsArtifact, "fake tests\n");
         Files.writeString(projectDir.resolve("target/publish-upload-release-0.1.0.jar.zolt-package.json"), """
                 {
                   "schema": "zolt.package-evidence.v1",
                   "archive": "target/publish-upload-release-0.1.0.jar",
-                  "archiveSha256": "%s"
+                  "archiveSha256": "%s",
+                  "artifacts": [
+                    {
+                      "classifier": "main",
+                      "type": "thin",
+                      "path": "target/publish-upload-release-0.1.0.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    },
+                    {
+                      "classifier": "sources",
+                      "type": "jar",
+                      "path": "target/publish-upload-release-0.1.0-sources.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    },
+                    {
+                      "classifier": "javadoc",
+                      "type": "jar",
+                      "path": "target/publish-upload-release-0.1.0-javadoc.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    },
+                    {
+                      "classifier": "tests",
+                      "type": "jar",
+                      "path": "target/publish-upload-release-0.1.0-tests.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    }
+                  ]
                 }
-                """.formatted(sha256(artifact)));
+                """.formatted(
+                sha256(artifact),
+                sha256(artifact),
+                sha256(sourcesArtifact),
+                sha256(javadocArtifact),
+                sha256(testsArtifact)));
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
         try (TestRepository repository = TestRepository.start()) {
@@ -674,12 +715,24 @@ final class ZoltCliTest {
             assertTrue(result.stdout().contains("Coordinate: com.example:publish-upload-release:0.1.0"));
             assertTrue(result.stdout().contains("Target repository: company-releases"));
             assertTrue(result.stdout().contains("Artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"));
+            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-sources.jar"));
+            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-javadoc.jar"));
+            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-tests.jar"));
             assertTrue(result.stdout().contains("POM uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"));
             assertTrue(result.stdout().contains("Status: uploaded"));
             assertEquals("", result.stderr());
             assertEquals(
                     "fake package\n",
                     new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"), StandardCharsets.UTF_8));
+            assertEquals(
+                    "fake sources\n",
+                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-sources.jar"), StandardCharsets.UTF_8));
+            assertEquals(
+                    "fake javadoc\n",
+                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-javadoc.jar"), StandardCharsets.UTF_8));
+            assertEquals(
+                    "fake tests\n",
+                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-tests.jar"), StandardCharsets.UTF_8));
             assertTrue(new String(
                     repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"),
                     StandardCharsets.UTF_8).contains("<artifactId>publish-upload-release</artifactId>"));
@@ -737,6 +790,60 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
         assertTrue(Files.exists(projectDir.resolve("target/publish/demo-0.1.0.pom")));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishDryRunListsSupplementalArtifactsFromPackageEvidence() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-supplemental-artifacts");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/publish-dry-run-supplemental-artifacts-0.1.0.jar");
+        Path sourcesArtifact = projectDir.resolve("target/publish-dry-run-supplemental-artifacts-0.1.0-sources.jar");
+        Files.writeString(artifact, "fake package\n");
+        Files.writeString(sourcesArtifact, "fake sources\n");
+        Files.writeString(projectDir.resolve("target/publish-dry-run-supplemental-artifacts-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/publish-dry-run-supplemental-artifacts-0.1.0.jar",
+                  "archiveSha256": "%s",
+                  "artifacts": [
+                    {
+                      "classifier": "main",
+                      "type": "thin",
+                      "path": "target/publish-dry-run-supplemental-artifacts-0.1.0.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    },
+                    {
+                      "classifier": "sources",
+                      "type": "jar",
+                      "path": "target/publish-dry-run-supplemental-artifacts-0.1.0-sources.jar",
+                      "entries": 1,
+                      "sha256": "%s"
+                    }
+                  ]
+                }
+                """.formatted(sha256(artifact), sha256(artifact), sha256(sourcesArtifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-dry-run-supplemental-artifacts") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Supplemental artifacts:"));
+        assertTrue(result.stdout().contains("- sources: target/publish-dry-run-supplemental-artifacts-0.1.0-sources.jar"));
+        assertTrue(result.stdout().contains("upload path: com/example/publish-dry-run-supplemental-artifacts/0.1.0/publish-dry-run-supplemental-artifacts-0.1.0-sources.jar"));
+        assertTrue(result.stdout().contains("Status: ready"));
         assertEquals("", result.stderr());
     }
 
