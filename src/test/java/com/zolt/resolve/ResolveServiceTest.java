@@ -2397,6 +2397,7 @@ final class ResolveServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Map.of(),
                 Map.of(),
                 Map.of(),

@@ -259,7 +259,7 @@ public final class MigrationReadinessScorecards {
                     signal.nextStep());
             case "gradle.openapi.generated-sources" -> finding(
                     "generated-sources",
-                    MigrationReadinessCategory.PLANNED,
+                    MigrationReadinessCategory.SUPPORTED,
                     signal,
                     "OpenAPI GenerateTask wired into sourceSets",
                     "kind = \"openapi\" generated-source steps",
@@ -326,7 +326,7 @@ public final class MigrationReadinessScorecards {
         if (message.contains("org.openapi.generator")) {
             return finding(
                     "generated-sources",
-                    MigrationReadinessCategory.PLANNED,
+                    MigrationReadinessCategory.SUPPORTED,
                     signal,
                     "id 'org.openapi.generator'",
                     "kind = \"openapi\" generated-source steps",

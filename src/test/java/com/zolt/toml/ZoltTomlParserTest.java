@@ -768,6 +768,7 @@ final class ZoltTomlParserTest {
                 library = "spring-boot"
                 apiPackage = "com.example.api"
                 modelPackage = "com.example.api.model"
+                validateSpec = true
                 options = { interfaceOnly = "true", useTags = "true" }
                 additionalProperties = { generatedAnnotation = "false" }
                 configOptions = { dateLibrary = "java8" }
@@ -780,6 +781,7 @@ final class ZoltTomlParserTest {
                 output = "target/generated/sources/openapi/public-api"
                 preset = "spring-api"
                 modelPackage = "com.example.public.model"
+                validateSpec = false
                 options = { hideGenerationTimestamp = "true", useTags = "false" }
                 additionalProperties = { useBeanValidation = "true" }
                 configOptions = { useSpringBoot3 = "true" }
@@ -800,6 +802,7 @@ final class ZoltTomlParserTest {
         assertEquals("spring-boot", step.openApi().library().orElseThrow());
         assertEquals("com.example.api", step.openApi().apiPackage().orElseThrow());
         assertEquals("com.example.public.model", step.openApi().modelPackage().orElseThrow());
+        assertFalse(step.openApi().validateSpec().orElseThrow());
         assertEquals(Map.of(
                 "hideGenerationTimestamp", "true",
                 "interfaceOnly", "true",
@@ -909,6 +912,27 @@ final class ZoltTomlParserTest {
 
         assertTrue(exception.getMessage().contains("Invalid value for [generated.main.openapi.configOptions].useSpringBoot3"));
         assertTrue(exception.getMessage().contains("Use a non-empty string value."));
+    }
+
+    @Test
+    void rejectsInvalidOpenApiValidateSpecValue() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "openapi-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/api.yaml"
+                output = "target/generated/sources/openapi"
+                validateSpec = "false"
+                """));
+
+        assertTrue(exception.getMessage().contains("Invalid value for [generated.main.openapi].validateSpec"));
+        assertTrue(exception.getMessage().contains("Use true or false"));
     }
 
     @Test

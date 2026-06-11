@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -89,6 +90,64 @@ final class OpenApiGeneratedSourceServiceTest {
                 "target/generated/sources/openapi/public-api/.zolt-openapi-main-public-api.log")).contains("bad spec"));
     }
 
+    @Test
+    void runsMultipleSpecsWithSharedPresetAndDeterministicOptionArguments() throws IOException {
+        writeProjectFiles();
+        Files.writeString(projectDir.resolve("src/main/openapi/internal-api.yaml"), "openapi: 3.1.0\n");
+        List<List<String>> commands = new ArrayList<>();
+        OpenApiGeneratedSourceService service = service((command, directory) -> {
+            commands.add(command);
+            writeGeneratedInterface(command);
+            return new OpenApiGeneratedSourceService.ProcessResult(0, "generated\n");
+        });
+
+        service.generateMain(projectDir, multiSpecConfig(), packages());
+
+        assertEquals(2, commands.size());
+        assertTrue(commands.stream().anyMatch(command -> command.contains(projectDir.resolve(
+                "src/main/openapi/public-api.yaml").toString())));
+        assertTrue(commands.stream().anyMatch(command -> command.contains(projectDir.resolve(
+                "src/main/openapi/internal-api.yaml").toString())));
+
+        List<String> publicCommand = commands.stream()
+                .filter(command -> command.contains(projectDir.resolve("src/main/openapi/public-api.yaml").toString()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(publicCommand.contains("--skip-validate-spec"));
+        assertEquals(
+                "additionalModelTypeAnnotations=@lombok.Builder;@lombok.NoArgsConstructor,interfaceOnly=true,sourceFolder=.,useSpringBoot3=true",
+                optionValue(publicCommand, "--additional-properties"));
+        assertEquals("apis=true,models=true", optionValue(publicCommand, "--global-property"));
+        assertEquals("OffsetDateTime=Instant,UUID=String", optionValue(publicCommand, "--type-mappings"));
+        assertEquals("Instant=java.time.Instant,String=java.lang.String", optionValue(publicCommand, "--import-mappings"));
+        assertTrue(publicCommand.contains("--api-package"));
+        assertTrue(publicCommand.contains("com.example.publicapi"));
+        assertTrue(publicCommand.contains("--model-package"));
+        assertTrue(publicCommand.contains("com.example.publicmodel"));
+    }
+
+    @Test
+    void regeneratesWhenSpecOrOptionsChange() throws IOException {
+        writeProjectFiles();
+        List<List<String>> commands = new ArrayList<>();
+        OpenApiGeneratedSourceService service = service((command, directory) -> {
+            commands.add(command);
+            writeGeneratedInterface(command);
+            return new OpenApiGeneratedSourceService.ProcessResult(0, "generated\n");
+        });
+
+        service.generateMain(projectDir, configWithAdditionalProperties(Map.of("sourceFolder", ".")), packages());
+        service.generateMain(projectDir, configWithAdditionalProperties(Map.of("sourceFolder", ".")), packages());
+        Files.writeString(projectDir.resolve("src/main/openapi/public-api.yaml"), "openapi: 3.1.0\ninfo:\n  title: Changed\n");
+        service.generateMain(projectDir, configWithAdditionalProperties(Map.of("sourceFolder", ".")), packages());
+        service.generateMain(
+                projectDir,
+                configWithAdditionalProperties(Map.of("sourceFolder", ".", "interfaceOnly", "true")),
+                packages());
+
+        assertEquals(3, commands.size());
+    }
+
     private void writeProjectFiles() throws IOException {
         Files.createDirectories(projectDir.resolve("src/main/openapi"));
         Files.writeString(projectDir.resolve("src/main/openapi/public-api.yaml"), "openapi: 3.1.0\n");
@@ -133,6 +192,19 @@ final class OpenApiGeneratedSourceServiceTest {
     }
 
     private ProjectConfig config() {
+        return configWithAdditionalProperties(Map.of("sourceFolder", "."));
+    }
+
+    private ProjectConfig configWithAdditionalProperties(Map<String, String> additionalProperties) {
+        StringBuilder properties = new StringBuilder();
+        additionalProperties.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    if (!properties.isEmpty()) {
+                        properties.append(", ");
+                    }
+                    properties.append(entry.getKey()).append(" = \"").append(entry.getValue()).append('"');
+                });
         return new ZoltTomlParser().parse("""
                 [project]
                 name = "demo"
@@ -150,8 +222,56 @@ final class OpenApiGeneratedSourceServiceTest {
                 input = "src/main/openapi/public-api.yaml"
                 output = "target/generated/sources/openapi/public-api"
                 generator = "spring"
-                additionalProperties = { sourceFolder = "." }
+                additionalProperties = { %s }
+                """.formatted(properties));
+    }
+
+    private ProjectConfig multiSpecConfig() {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                version = "7.11.0"
+
+                [generated.openapiPresets.spring-api]
+                generator = "spring"
+                library = "spring-boot"
+                apiPackage = "com.example.api"
+                modelPackage = "com.example.model"
+                validateSpec = false
+                additionalProperties = { sourceFolder = ".", interfaceOnly = "true", useSpringBoot3 = "true" }
+                configOptions = { additionalModelTypeAnnotations = "@lombok.Builder;@lombok.NoArgsConstructor" }
+                globalProperties = { models = "true", apis = "true" }
+                typeMappings = { UUID = "String", OffsetDateTime = "Instant" }
+                importMappings = { String = "java.lang.String", Instant = "java.time.Instant" }
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                preset = "spring-api"
+                apiPackage = "com.example.publicapi"
+                modelPackage = "com.example.publicmodel"
+
+                [generated.main.internal-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/internal-api.yaml"
+                output = "target/generated/sources/openapi/internal-api"
+                preset = "spring-api"
+                apiPackage = "com.example.internalapi"
+                modelPackage = "com.example.internalmodel"
                 """);
+    }
+
+    private static String optionValue(List<String> command, String option) {
+        return command.get(command.indexOf(option) + 1);
     }
 
     private List<ResolvedClasspathPackage> packages() {

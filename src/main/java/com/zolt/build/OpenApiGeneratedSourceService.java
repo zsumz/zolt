@@ -147,6 +147,9 @@ public final class OpenApiGeneratedSourceService {
         command.add(settings.generator().orElseThrow());
         command.add("--output");
         command.add(safeProjectPath(projectRoot, step.output(), scope, step.id(), "output").toString());
+        if (settings.validateSpec().isPresent() && !settings.validateSpec().orElseThrow()) {
+            command.add("--skip-validate-spec");
+        }
         settings.library().ifPresent(value -> addOption(command, "--library", value));
         settings.apiPackage().ifPresent(value -> addOption(command, "--api-package", value));
         settings.modelPackage().ifPresent(value -> addOption(command, "--model-package", value));

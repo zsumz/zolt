@@ -149,7 +149,7 @@ final class MigrationExplainFixtureTest {
         assertTrue(text.contains("Zolt migration readiness scorecard: gradle project"));
         assertTrue(text.contains("repositories: non-deterministic"));
         assertTrue(text.contains("dependencies: blocked"));
-        assertTrue(text.contains("generated-sources: planned"));
+        assertTrue(text.contains("generated-sources: supported"));
         assertTrue(text.contains("resources: supported"));
         assertTrue(text.contains("tests: supported"));
         assertTrue(text.contains("coverage: planned"));
@@ -187,7 +187,6 @@ final class MigrationExplainFixtureTest {
         assertTrue(text.contains("blocked  imperative dependency or configuration mutation -> [dependencies], classpath lanes, processors, and generated roots"));
         assertTrue(text.contains("blocked  bootWar archive mutation -> package placement policy"));
         assertTrue(text.contains("non-deterministic  credentials resolved from Gradle properties, env, or defaults -> [repositories] credential identities"));
-        assertTrue(text.contains("planned  OpenAPI GenerateTask wired into sourceSets -> kind = \"openapi\" generated-source steps"));
         assertTrue(text.contains("This blocker report inspected build metadata statically and did not execute Maven or Gradle."));
         assertFalse(text.contains("ReadOnly"));
         assertFalse(text.contains("ARTIFACTORY_ACCESS_TOKEN"));

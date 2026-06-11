@@ -95,6 +95,7 @@ public final class GeneratedSourceEvidenceService {
         line(canonical, "invokerPackage", settings.invokerPackage());
         line(canonical, "config", settings.config());
         line(canonical, "templateDir", settings.templateDir());
+        lineBoolean(canonical, "validateSpec", settings.validateSpec());
         map(canonical, "options", settings.options());
         map(canonical, "additionalProperties", settings.additionalProperties());
         map(canonical, "configOptions", settings.configOptions());
@@ -106,6 +107,10 @@ public final class GeneratedSourceEvidenceService {
 
     private static void line(StringBuilder canonical, String key, Optional<String> value) {
         canonical.append(key).append('=').append(value.orElse("")).append('\n');
+    }
+
+    private static void lineBoolean(StringBuilder canonical, String key, Optional<Boolean> value) {
+        canonical.append(key).append('=').append(value.map(String::valueOf).orElse("")).append('\n');
     }
 
     private static void map(StringBuilder canonical, String name, Map<String, String> values) {

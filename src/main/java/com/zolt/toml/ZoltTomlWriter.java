@@ -1071,6 +1071,7 @@ public final class ZoltTomlWriter {
         settings.invokerPackage().ifPresent(value -> writeAssignment(toml, "invokerPackage", value));
         settings.config().ifPresent(value -> writeAssignment(toml, "config", value));
         settings.templateDir().ifPresent(value -> writeAssignment(toml, "templateDir", value));
+        settings.validateSpec().ifPresent(value -> writeAssignment(toml, "validateSpec", value));
         if (!settings.options().isEmpty()) {
             writeInlineStringMap(toml, "options", settings.options());
         }

@@ -16,6 +16,7 @@ public record OpenApiGenerationSettings(
         Optional<String> invokerPackage,
         Optional<String> config,
         Optional<String> templateDir,
+        Optional<Boolean> validateSpec,
         Map<String, String> options,
         Map<String, String> additionalProperties,
         Map<String, String> configOptions,
@@ -33,6 +34,7 @@ public record OpenApiGenerationSettings(
         invokerPackage = invokerPackage == null ? Optional.empty() : invokerPackage;
         config = config == null ? Optional.empty() : config;
         templateDir = templateDir == null ? Optional.empty() : templateDir;
+        validateSpec = validateSpec == null ? Optional.empty() : validateSpec;
         options = sortedCopy(options);
         additionalProperties = sortedCopy(additionalProperties);
         configOptions = sortedCopy(configOptions);
@@ -43,6 +45,7 @@ public record OpenApiGenerationSettings(
 
     public static OpenApiGenerationSettings empty() {
         return new OpenApiGenerationSettings(
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),

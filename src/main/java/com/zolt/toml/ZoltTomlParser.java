@@ -99,6 +99,7 @@ public final class ZoltTomlParser {
             "invokerPackage",
             "config",
             "templateDir",
+            "validateSpec",
             "options",
             "additionalProperties",
             "configOptions",
@@ -113,6 +114,7 @@ public final class ZoltTomlParser {
             "invokerPackage",
             "config",
             "templateDir",
+            "validateSpec",
             "options",
             "additionalProperties",
             "configOptions",
@@ -671,6 +673,7 @@ public final class ZoltTomlParser {
                 optionalString(table, section, "invokerPackage"),
                 optionalString(table, section, "config"),
                 optionalString(table, section, "templateDir"),
+                optionalBoolean(table, section, "validateSpec"),
                 options,
                 additionalProperties,
                 configOptions,
@@ -709,6 +712,7 @@ public final class ZoltTomlParser {
                 step.invokerPackage().or(() -> preset.invokerPackage()),
                 step.config().or(() -> preset.config()),
                 step.templateDir().or(() -> preset.templateDir()),
+                step.validateSpec().or(() -> preset.validateSpec()),
                 mergedMap(preset.options(), step.options()),
                 mergedMap(preset.additionalProperties(), step.additionalProperties()),
                 mergedMap(preset.configOptions(), step.configOptions()),
@@ -952,6 +956,18 @@ public final class ZoltTomlParser {
                     "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
         }
         return value;
+    }
+
+    private static Optional<Boolean> optionalBoolean(TomlTable table, String section, String key) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return Optional.empty();
+        }
+        if (!(rawValue instanceof Boolean value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
+        }
+        return Optional.of(value);
     }
 
     private static Map<String, String> stringMap(TomlTable table, String section) {

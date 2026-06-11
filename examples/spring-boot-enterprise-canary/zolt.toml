@@ -41,6 +41,7 @@ exclude = [
 "org.apache.tomcat.embed:tomcat-embed-el" = "11.0.21"
 "org.apache.tomcat.embed:tomcat-embed-websocket" = "11.0.21"
 "jakarta.servlet:jakarta.servlet-api" = {}
+"org.projectlombok:lombok" = {}
 
 [dev.dependencies]
 "org.springframework.boot:spring-boot-devtools" = {}
@@ -65,7 +66,7 @@ library = "spring-boot"
 apiPackage = "com.example.enterprise.generated.api"
 modelPackage = "com.example.enterprise.generated.model"
 invokerPackage = "com.example.enterprise.generated"
-additionalProperties = { sourceFolder = ".", interfaceOnly = "true", useTags = "true", useSpringBoot3 = "true", skipDefaultInterface = "true", generatedAnnotation = "false", openApiNullable = "false" }
+additionalProperties = { sourceFolder = ".", interfaceOnly = "true", useTags = "true", useSpringBoot3 = "true", skipDefaultInterface = "true", generatedAnnotation = "false", openApiNullable = "false", additionalModelTypeAnnotations = "@lombok.Builder;@lombok.NoArgsConstructor;@lombok.AllArgsConstructor" }
 configOptions = { dateLibrary = "java8", documentationProvider = "none", useJakartaEe = "true" }
 
 [build]
