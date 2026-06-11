@@ -89,6 +89,7 @@ import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.project.TestRuntimeSettings;
 import com.zolt.quality.QualityCheckFormatter;
+import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckReport;
 import com.zolt.quality.QualityCheckRequest;
 import com.zolt.quality.QualityCheckService;
@@ -267,6 +268,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--check", description = "Run a quality check id. May be repeated.")
         private List<String> checks = List.of();
 
+        @Option(names = "--context", description = "Apply a built-in check context. Supported values: ci.")
+        private QualityCheckContext context;
+
         @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
         private boolean workspace;
 
@@ -308,6 +312,7 @@ public final class ZoltCli implements Runnable {
                             offline,
                             workspace,
                             checks,
+                            context,
                             workspaceSelection(all, members, memberGroups))),
                     ZoltCli::qualityCheckAttributes);
             if (format == Format.JSON) {

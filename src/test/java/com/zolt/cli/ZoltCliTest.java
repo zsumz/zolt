@@ -286,6 +286,77 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRunsBuiltInReproducibilityChecks() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci"));
+        CommandResult resolveResult = execute("resolve", "--cwd", projectDir.toString());
+
+        CommandResult result = execute("check", "--context", "ci", "--cwd", projectDir.toString());
+
+        assertEquals(0, resolveResult.exitCode());
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context ci CI context policy is active"));
+        assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml."));
+        assertTrue(result.stdout().contains("ok project-model check-context-ci Project model is valid"));
+        assertTrue(result.stdout().contains("ok generated-sources check-context-ci No declared generated-source steps require validation."));
+        assertTrue(result.stdout().contains("ok package-contents check-context-ci Package mode `thin` has 0 dependency dispositions."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsLocalOverlayOrigins() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-local-overlay");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-local-overlay"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:local-lib"
+                version = "1.0.0"
+                source = "local-overlay:maven-local"
+                scope = "compile"
+                direct = true
+                jar = "overlays/maven-local/com/example/local-lib/1.0.0/local-lib-1.0.0.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context com.example:local-lib:1.0.0 CI context rejects local repository overlay origin `local-overlay:maven-local`."));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve --locked --no-local-overlays`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiJsonOutputIsStable() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-json");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-json"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--format", "json",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"id\":\"execution-context\""));
+        assertTrue(result.stdout().contains("\"subject\":\"ci\""));
+        assertTrue(result.stdout().contains("\"status\":\"passed\""));
+        assertTrue(result.stdout().contains("CI context policy is active"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkPackageContentsReportsSuspiciousWarContainerDependency() throws IOException {
         Path projectDir = tempDir.resolve("check-package-contents-war");
         Files.createDirectories(projectDir);

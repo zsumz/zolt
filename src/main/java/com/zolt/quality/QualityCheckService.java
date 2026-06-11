@@ -58,9 +58,11 @@ public final class QualityCheckService {
     public static final String PACKAGE_CONTENTS = "package-contents";
     public static final String MANIFEST_METADATA = "manifest-metadata";
     public static final String GENERATED_SOURCES = "generated-sources";
+    public static final String EXECUTION_CONTEXT = "execution-context";
 
     private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
             COMMAND_SURFACE,
+            EXECUTION_CONTEXT,
             LOCKFILE,
             PROJECT_MODEL,
             DEPENDENCY_METADATA,
@@ -68,6 +70,13 @@ public final class QualityCheckService {
             PACKAGE_CONTENTS,
             MANIFEST_METADATA,
             GENERATED_SOURCES);
+    private static final List<String> CI_CONTEXT_CHECKS = List.of(
+            EXECUTION_CONTEXT,
+            LOCKFILE,
+            PROJECT_MODEL,
+            DEPENDENCY_METADATA,
+            GENERATED_SOURCES,
+            PACKAGE_CONTENTS);
     private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of();
     private static final Set<String> ZOLT_OWNED_MANIFEST_ATTRIBUTES = Set.of(
             "manifest-version",
@@ -118,7 +127,7 @@ public final class QualityCheckService {
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
-        List<String> requestedChecks = requestedChecks(request.checks());
+        List<String> requestedChecks = requestedChecks(request);
         Path root = request.projectRoot();
 
         if (request.workspace()) {
@@ -187,6 +196,10 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceProjectResult(config));
+                case EXECUTION_CONTEXT -> results.add(checkExecutionContext(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        request.context()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
                 case DEPENDENCY_METADATA -> results.addAll(checkProjectDependencyMetadata(
@@ -226,6 +239,10 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceWorkspaceResult(workspace, selection));
+                case EXECUTION_CONTEXT -> results.add(checkExecutionContext(
+                        Optional.empty(),
+                        workspace.root(),
+                        request.context()));
                 case LOCKFILE -> results.add(checkWorkspaceLockfile(request, workspace));
                 case PROJECT_MODEL -> {
                     for (String memberPath : selection.includedMembers()) {
@@ -311,6 +328,63 @@ public final class QualityCheckService {
                     exception.getMessage(),
                     "Run `zolt resolve` without --offline to seed the cache, then retry `zolt check --check lockfile --offline`.");
         }
+    }
+
+    private QualityCheckResult checkExecutionContext(
+            Optional<String> member,
+            Path root,
+            QualityCheckContext context) {
+        if (context == null) {
+            return QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "default",
+                    "No execution context policy was requested.");
+        }
+        if (context != QualityCheckContext.CI) {
+            return QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    context.configValue(),
+                    "Unsupported execution context `" + context.configValue() + "`.",
+                    "Use --context ci for the current Zolt-owned context policy.");
+        }
+        Path lockfile = root.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfile)) {
+            return QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "ci",
+                    "CI context requires zolt.lock before build work starts.",
+                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`.");
+        }
+        try {
+            ZoltLockfile parsed = lockfileReader.read(lockfile);
+            Optional<LockPackage> localOverlay = parsed.packages().stream()
+                    .filter(lockPackage -> lockPackage.source().startsWith("local-overlay:"))
+                    .findFirst();
+            if (localOverlay.isPresent()) {
+                LockPackage lockPackage = localOverlay.orElseThrow();
+                return QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        coordinate(lockPackage),
+                        "CI context rejects local repository overlay origin `" + lockPackage.source() + "`.",
+                        "Run `zolt resolve --locked --no-local-overlays` or refresh zolt.lock without local overlays.");
+            }
+        } catch (LockfileReadException exception) {
+            return QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`.");
+        }
+        return QualityCheckResult.passed(
+                EXECUTION_CONTEXT,
+                member,
+                "ci",
+                "CI context policy is active: locked model checks, generated-source checks, package diagnostics, and local overlay rejection.");
     }
 
     private QualityCheckResult checkWorkspaceLockfile(QualityCheckRequest request, Workspace workspace) {
@@ -1242,11 +1316,18 @@ public final class QualityCheckService {
                 "Use one of: " + String.join(", ", supportedChecks()) + ". Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks.");
     }
 
-    private static List<String> requestedChecks(List<String> rawChecks) {
+    private static List<String> requestedChecks(QualityCheckRequest request) {
+        List<String> rawChecks = request.checks();
         if (rawChecks.isEmpty()) {
+            if (request.context() == QualityCheckContext.CI) {
+                return CI_CONTEXT_CHECKS;
+            }
             return List.of(COMMAND_SURFACE);
         }
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (request.context() == QualityCheckContext.CI) {
+            normalized.add(EXECUTION_CONTEXT);
+        }
         for (String rawCheck : rawChecks) {
             String check = rawCheck == null ? "" : rawCheck.trim();
             if (!check.isEmpty()) {
@@ -1254,6 +1335,10 @@ public final class QualityCheckService {
             }
         }
         return List.copyOf(normalized);
+    }
+
+    private static String coordinate(LockPackage lockPackage) {
+        return lockPackage.packageId() + ":" + lockPackage.version();
     }
 
     private record PathField(String name, String value) {

@@ -10,6 +10,7 @@ public record QualityCheckRequest(
         boolean offline,
         boolean workspace,
         List<String> checks,
+        QualityCheckContext context,
         WorkspaceSelectionRequest workspaceSelection) {
     public QualityCheckRequest {
         projectRoot = projectRoot.toAbsolutePath().normalize();
