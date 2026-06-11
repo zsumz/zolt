@@ -1,0 +1,101 @@
+[project]
+name = "spring-boot-enterprise-canary"
+version = "0.1.0"
+group = "com.example.enterprise"
+java = "21"
+main = "com.example.enterprise.EnterpriseCanaryApplication"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[platforms]
+"org.springframework.boot:spring-boot-dependencies" = "4.0.6"
+
+[dependencyPolicy]
+exclude = [
+  { group = "org.springframework.boot", artifact = "spring-boot-starter-logging", reason = "Use the Log4j2 enterprise logging baseline" },
+  { group = "commons-logging", artifact = "commons-logging", reason = "Use Spring JCL and SLF4J bridges instead of legacy commons-logging" }
+]
+
+[dependencyConstraints]
+"org.apache.tomcat.embed:tomcat-embed-core" = { version = "11.0.21", kind = "strict", reason = "Servlet container security baseline" }
+"org.apache.tomcat.embed:tomcat-embed-el" = { version = "11.0.21", kind = "strict", reason = "Servlet container security baseline" }
+"org.apache.tomcat.embed:tomcat-embed-websocket" = { version = "11.0.21", kind = "strict", reason = "Servlet container security baseline" }
+
+[dependencies]
+"org.springframework.boot:spring-boot-starter-actuator" = {}
+"org.springframework.boot:spring-boot-starter-log4j2" = {}
+"org.springframework.boot:spring-boot-starter-validation" = {}
+"org.springframework.boot:spring-boot-starter-webmvc" = {}
+
+[runtime.dependencies]
+"org.apache.logging.log4j:log4j-jul" = {}
+"org.slf4j:jcl-over-slf4j" = {}
+
+[provided.dependencies]
+"org.apache.tomcat.embed:tomcat-embed-core" = "11.0.21"
+"org.apache.tomcat.embed:tomcat-embed-el" = "11.0.21"
+"org.apache.tomcat.embed:tomcat-embed-websocket" = "11.0.21"
+"jakarta.servlet:jakarta.servlet-api" = {}
+
+[dev.dependencies]
+"org.springframework.boot:spring-boot-devtools" = {}
+
+[annotationProcessors]
+"org.springframework.boot:spring-boot-configuration-processor" = {}
+"org.projectlombok:lombok" = {}
+
+[test.dependencies]
+"org.springframework.boot:spring-boot-starter-test" = {}
+
+[test.annotationProcessors]
+"org.projectlombok:lombok" = {}
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
+
+[build.metadata]
+buildInfo = true
+git = true
+reproducible = true
+
+[resources]
+main = ["src/main/resources"]
+test = ["src/test/resources"]
+
+[resources.filtering]
+enabled = true
+includes = ["**/*.properties"]
+missing = "fail"
+
+[resources.tokens]
+projectVersion = { project = "version" }
+enterprisePlatformVersion = { value = "public-canary-2026.06" }
+
+[generated.main.public-api]
+kind = "declared-root"
+language = "java"
+output = "target/generated/sources/openapi/public-api"
+inputs = ["src/main/openapi/public-api.yaml"]
+required = false
+clean = false
+
+[test.runtime]
+systemProperties = { "logs.dir" = "${project.root}/target/test-logs" }
+environment = { TZ = "America/Chicago" }
+events = ["failed", "skipped"]
+
+[package]
+mode = "spring-boot-war"
+
+[package.metadata]
+name = "Spring Boot Enterprise Canary"
+description = "Public-safe enterprise Spring Boot canary for Zolt."
+url = "https://example.com/zolt-enterprise-canary"
+license = "Apache-2.0"
+developers = ["Zolt maintainers"]
+scm = "https://example.com/zolt-enterprise-canary.git"
+issues = "https://example.com/zolt-enterprise-canary/issues"
