@@ -3,9 +3,11 @@ package com.zolt.resolve;
 import com.zolt.cache.CachedArtifact;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.lockfile.LockConflict;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
@@ -64,6 +66,13 @@ public final class ResolveService {
             "org.junit.platform",
             "junit-platform-console");
     private static final String JUNIT_PLATFORM_CONSOLE_VERSION = "1.11.4";
+    private static final PackageId JACOCO_AGENT_PACKAGE = new PackageId(
+            "org.jacoco",
+            "org.jacoco.agent");
+    private static final PackageId JACOCO_CLI_PACKAGE = new PackageId(
+            "org.jacoco",
+            "org.jacoco.cli");
+    private static final String JACOCO_VERSION = "0.8.14";
 
     private final CoordinateParser coordinateParser;
     private final MavenRepositoryClient repositoryClient;
@@ -129,6 +138,9 @@ public final class ResolveService {
         if (locked && options.rejectLocalOverlays()) {
             rejectExistingLocalOverlayLockfile(lockfilePath);
         }
+        if (!options.includeCoverageTooling() && existingLockfileHasCoverageTooling(lockfilePath)) {
+            options = options.withCoverageTooling();
+        }
 
         ResolveOutput output = resolveLockfile(config, cacheRoot, options);
         ZoltLockfile lockfile = output.lockfile();
@@ -153,6 +165,10 @@ public final class ResolveService {
                 metrics);
     }
 
+    public ResolveResult resolveWithCoverageTooling(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+        return resolve(projectDirectory, config, cacheRoot, false, ResolveOptions.defaults().withCoverageTooling());
+    }
+
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, boolean offline) {
         return resolveLockfile(config, cacheRoot, ResolveOptions.offline(offline));
     }
@@ -160,7 +176,7 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, ResolveOptions options) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), options);
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
-        List<DependencyRequest> directRequests = directRequests(config, managedVersions);
+        List<DependencyRequest> directRequests = directRequests(config, managedVersions, options.includeCoverageTooling());
         validateDirectRequestsAllowed(config, directRequests);
         directRequests = relocateDirectRequests(context, directRequests);
         ResolutionState initial = resolveGraph(context, directRequests);
@@ -202,6 +218,18 @@ public final class ResolveService {
                 .anyMatch(lockPackage -> localOverlaySource(lockPackage.source()));
         if (hasLocalOverlay) {
             throw new ResolveException(localOverlayRejectedMessage());
+        }
+    }
+
+    private static boolean existingLockfileHasCoverageTooling(Path lockfilePath) {
+        if (!Files.isRegularFile(lockfilePath)) {
+            return false;
+        }
+        try {
+            return new ZoltLockfileReader().read(lockfilePath).packages().stream()
+                    .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_COVERAGE);
+        } catch (LockfileReadException exception) {
+            return false;
         }
     }
 
@@ -254,7 +282,10 @@ public final class ResolveService {
         }
     }
 
-    private List<DependencyRequest> directRequests(ProjectConfig config, Map<PackageId, String> projectManagedVersions) {
+    private List<DependencyRequest> directRequests(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            boolean includeCoverageTooling) {
         List<DependencyRequest> requests = new ArrayList<>();
         for (Map.Entry<String, String> dependency : config.apiDependencies().entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
@@ -411,6 +442,9 @@ public final class ResolveService {
         addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
         addOpenApiToolRequests(config, requests);
+        if (includeCoverageTooling) {
+            addCoverageToolRequests(config, requests);
+        }
         return requests;
     }
 
@@ -554,6 +588,40 @@ public final class ResolveService {
                 parsed.version().orElseThrow(),
                 DependencyScope.TOOL_OPENAPI,
                 RequestOrigin.DIRECT));
+    }
+
+    private void addCoverageToolRequests(
+            ProjectConfig config,
+            List<DependencyRequest> requests) {
+        if (!hasTestInputs(config)) {
+            return;
+        }
+        boolean agentAlreadyRequested = requests.stream()
+                .anyMatch(request -> request.packageId().equals(JACOCO_AGENT_PACKAGE)
+                        && request.scope() == DependencyScope.TOOL_COVERAGE);
+        if (!agentAlreadyRequested) {
+            requests.add(new DependencyRequest(
+                    JACOCO_AGENT_PACKAGE,
+                    JACOCO_VERSION,
+                    DependencyScope.TOOL_COVERAGE,
+                    RequestOrigin.TRANSITIVE,
+                    Optional.of(ArtifactDescriptor.jar(
+                            new Coordinate(
+                                    JACOCO_AGENT_PACKAGE.groupId(),
+                                    JACOCO_AGENT_PACKAGE.artifactId(),
+                                    Optional.of(JACOCO_VERSION)),
+                            Optional.of("runtime")))));
+        }
+        boolean cliAlreadyRequested = requests.stream()
+                .anyMatch(request -> request.packageId().equals(JACOCO_CLI_PACKAGE)
+                        && request.scope() == DependencyScope.TOOL_COVERAGE);
+        if (!cliAlreadyRequested) {
+            requests.add(new DependencyRequest(
+                    JACOCO_CLI_PACKAGE,
+                    JACOCO_VERSION,
+                    DependencyScope.TOOL_COVERAGE,
+                    RequestOrigin.TRANSITIVE));
+        }
     }
 
     private static List<GeneratedSourceStep> openApiSteps(ProjectConfig config) {

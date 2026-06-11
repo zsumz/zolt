@@ -102,6 +102,7 @@ final class ZoltCliTest {
                 "build",
                 "run",
                 "test",
+                "coverage",
                 "package",
                 "publish",
                 "run-package",
@@ -194,9 +195,25 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("- coverage [coverage] planned"));
-        assertTrue(result.stdout().contains("mode: dry-run"));
+        assertTrue(result.stdout().contains("command: zolt coverage"));
         assertTrue(result.stdout().contains("- publish-dry-run [publish] planned"));
         assertTrue(result.stdout().contains("mode: dry-run"));
+    }
+
+    @Test
+    void coverageRejectsDisablingAllReportFormats() throws IOException {
+        Path projectDir = tempDir.resolve("coverage-no-reports");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("coverage-no-reports"));
+
+        CommandResult result = execute(
+                "coverage",
+                "--no-xml",
+                "--no-html",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Coverage requires at least one report format"));
     }
 
     @Test
@@ -4164,7 +4181,7 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Classpath lane audit"));
-        assertTrue(result.stdout().contains("provided            yes     no      no   no        no             no           no              provided-container"));
+        assertTrue(result.stdout().contains("provided            yes     no      no   no        no             no           no            no              provided-container"));
         assertTrue(result.stdout().contains("- com.example:devtools:1.0.0 [dev] lanes=runtime,test package=development-only"));
         assertTrue(result.stdout().contains("- jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] lanes=compile package=provided-container"));
         assertEquals("", result.stderr());

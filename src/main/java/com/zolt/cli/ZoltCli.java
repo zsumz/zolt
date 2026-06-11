@@ -7,6 +7,10 @@ import com.zolt.build.BuildService;
 import com.zolt.build.CleanException;
 import com.zolt.build.CleanResult;
 import com.zolt.build.CleanService;
+import com.zolt.build.CoverageException;
+import com.zolt.build.CoverageReportSettings;
+import com.zolt.build.CoverageResult;
+import com.zolt.build.CoverageService;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
@@ -198,6 +202,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.BuildCommand.class,
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
+                ZoltCli.CoverageCommand.class,
                 ZoltCli.PackageCommand.class,
                 ZoltCli.PublishCommand.class,
                 ZoltCli.RunPackageCommand.class,
@@ -1796,6 +1801,125 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "test", workingDirectory, timingOptions, timings);
+            }
+        }
+    }
+
+    @Command(
+            name = "coverage",
+            mixinStandardHelpOptions = true,
+            description = "Run tests with Jacoco instrumentation and write coverage reports.")
+    public static final class CoverageCommand implements Runnable {
+        @Option(names = "--test", description = "Select one test class or method. May be repeated.")
+        private List<String> testSelectors = List.of();
+
+        @Option(names = "--tests", description = "Select test classes by glob-style class-name pattern. May be repeated.")
+        private List<String> testPatterns = List.of();
+
+        @Option(names = "--include-tag", description = "Include tests with a JUnit Platform tag. May be repeated.")
+        private List<String> includedTags = List.of();
+
+        @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
+        private List<String> excludedTags = List.of();
+
+        @Option(names = "--test-event", description = "Show JUnit test events: passed, skipped, or failed. May be repeated.")
+        private List<String> testEvents = List.of();
+
+        @Option(names = "--no-xml", description = "Disable the Jacoco XML report.")
+        private boolean noXml;
+
+        @Option(names = "--no-html", description = "Disable the Jacoco HTML report.")
+        private boolean noHtml;
+
+        @Option(names = "--exec-file", description = "Project-relative Jacoco execution data path.")
+        private Path execFile = Path.of("target/coverage/jacoco.exec");
+
+        @Option(names = "--xml-report", description = "Project-relative Jacoco XML report path.")
+        private Path xmlReport = Path.of("target/coverage/jacoco.xml");
+
+        @Option(names = "--html-dir", description = "Project-relative Jacoco HTML report directory.")
+        private Path htmlDirectory = Path.of("target/coverage/html");
+
+        @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
+        private Path reportsDir = Path.of("target/coverage/test-reports");
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--cache-root", hidden = true)
+        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+        @Mixin
+        private TimingOptions timingOptions = new TimingOptions();
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public void run() {
+            TimingRecorder timings = timingRecorder(timingOptions);
+            try {
+                TestSelection testSelection = TestSelection.fromCli(
+                        testSelectors,
+                        testPatterns,
+                        includedTags,
+                        excludedTags);
+                List<String> requestedTestEvents = validatedTestEvents(testEvents);
+                CoverageReportSettings reportSettings = new CoverageReportSettings(
+                        !noXml,
+                        !noHtml,
+                        execFile,
+                        xmlReport,
+                        htmlDirectory,
+                        TestReportSettings.reportsDirectory(reportsDir));
+                ProjectConfig config = timings.measure(
+                        "config read",
+                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                CoverageResult result = timings.measure(
+                        "run coverage",
+                        () -> new CoverageService().runCoverage(
+                                workingDirectory,
+                                config,
+                                cacheRoot,
+                                testSelection,
+                                reportSettings,
+                                requestedTestEvents),
+                        coverageResult -> Map.of(
+                                "execFile", coverageResult.execFile().toString(),
+                                "xmlReport", coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
+                                "htmlDirectory", coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
+                printAndFlush(spec, result.testRunResult().output());
+                if (!result.testRunResult().output().isEmpty() && !result.testRunResult().output().endsWith("\n")) {
+                    spec.commandLine().getOut().println();
+                }
+                if (!result.reportOutput().isBlank()) {
+                    printAndFlush(spec, result.reportOutput());
+                    if (!result.reportOutput().endsWith("\n")) {
+                        spec.commandLine().getOut().println();
+                    }
+                }
+                spec.commandLine().getOut().println("Coverage reports written");
+                spec.commandLine().getOut().println("Execution data: " + result.execFile());
+                result.xmlReport().ifPresent(path -> spec.commandLine().getOut().println("XML report: " + path));
+                result.htmlDirectory().ifPresent(path -> spec.commandLine().getOut().println("HTML report: " + path));
+                result.testRunResult().reportsDirectory()
+                        .ifPresent(path -> spec.commandLine().getOut().println("Test reports: " + path));
+            } catch (BuildException
+                    | CoverageException
+                    | JavacException
+                    | GroovyCompileException
+                    | JavaRunException
+                    | ResourceCopyException
+                    | TestRunException
+                    | TestSelectionException
+                    | SourceDiscoveryException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            } finally {
+                printTimings(spec, "coverage", workingDirectory, timingOptions, timings);
             }
         }
     }

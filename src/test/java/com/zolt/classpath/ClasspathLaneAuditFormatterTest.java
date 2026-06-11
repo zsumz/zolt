@@ -15,11 +15,12 @@ final class ClasspathLaneAuditFormatterTest {
         String output = formatter.formatText(lockfile());
 
         assertTrue(output.contains("Classpath lane audit\n\nLane policy:\n"));
-        assertTrue(output.contains("compile             yes     yes     yes  no        no             no           yes             package-default"));
-        assertTrue(output.contains("provided            yes     no      no   no        no             no           no              provided-container"));
-        assertTrue(output.contains("dev                 no      yes     yes  no        no             no           no              development-only"));
-        assertTrue(output.contains("processor           no      no      no   yes       no             no           no              processor-only"));
-        assertTrue(output.contains("tool-openapi        no      no      no   no        no             yes          no              openapi-generator-tooling-only"));
+        assertTrue(output.contains("compile             yes     yes     yes  no        no             no           no            yes             package-default"));
+        assertTrue(output.contains("provided            yes     no      no   no        no             no           no            no              provided-container"));
+        assertTrue(output.contains("dev                 no      yes     yes  no        no             no           no            no              development-only"));
+        assertTrue(output.contains("processor           no      no      no   yes       no             no           no            no              processor-only"));
+        assertTrue(output.contains("tool-openapi        no      no      no   no        no             yes          no            no              openapi-generator-tooling-only"));
+        assertTrue(output.contains("tool-coverage       no      no      no   no        no             no           yes           no              coverage-tooling-only"));
         assertTrue(output.contains("- com.example:compile-lib:1.0.0 [compile] lanes=compile,runtime,test package=package-default"));
         assertTrue(output.contains("- com.example:devtools:1.0.0 [dev] lanes=runtime,test package=development-only"));
         assertTrue(output.contains("- jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] lanes=compile package=provided-container"));
@@ -42,6 +43,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": true,
                       "disposition": "package-default"
                     },
@@ -53,6 +55,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": true,
                       "disposition": "package-default"
                     },
@@ -64,6 +67,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "development-only"
                     },
@@ -75,6 +79,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "test-only"
                     },
@@ -86,6 +91,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "provided-container"
                     },
@@ -97,6 +103,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": true,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "processor-only"
                     },
@@ -108,6 +115,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": true,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "processor-only"
                     },
@@ -119,6 +127,7 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": false,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "quarkus-augmentation-only"
                     },
@@ -130,8 +139,21 @@ final class ClasspathLaneAuditFormatterTest {
                       "processor": false,
                       "testProcessor": false,
                       "toolOpenapi": true,
+                      "toolCoverage": false,
                       "packageDefault": false,
                       "disposition": "openapi-generator-tooling-only"
+                    },
+                    {
+                      "scope": "tool-coverage",
+                      "compile": false,
+                      "runtime": false,
+                      "test": false,
+                      "processor": false,
+                      "testProcessor": false,
+                      "toolOpenapi": false,
+                      "toolCoverage": true,
+                      "packageDefault": false,
+                      "disposition": "coverage-tooling-only"
                     }
                   ],
                   "packages": [
@@ -216,6 +238,14 @@ final class ClasspathLaneAuditFormatterTest {
                 "[\"tool-openapi\"]",
                 false,
                 "openapi-generator-tooling-only");
+        assertPackageAuditContains(
+                output,
+                "org.jacoco:org.jacoco.cli:0.8.14",
+                "tool-coverage",
+                false,
+                "[\"tool-coverage\"]",
+                false,
+                "coverage-tooling-only");
     }
 
     private static ZoltLockfile lockfile() {
@@ -354,6 +384,15 @@ final class ClasspathLaneAuditFormatterTest {
                 scope = "tool-openapi"
                 direct = true
                 jar = "org/openapitools/openapi-generator-cli/7.11.0/openapi-generator-cli-7.11.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.cli"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "tool-coverage"
+                direct = false
+                jar = "org/jacoco/org.jacoco.cli/0.8.14/org.jacoco.cli-0.8.14.jar"
                 dependencies = []
                 """);
     }

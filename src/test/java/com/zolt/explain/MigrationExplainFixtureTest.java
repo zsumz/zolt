@@ -152,7 +152,7 @@ final class MigrationExplainFixtureTest {
         assertTrue(text.contains("generated-sources: supported"));
         assertTrue(text.contains("resources: supported"));
         assertTrue(text.contains("tests: supported"));
-        assertTrue(text.contains("coverage: planned"));
+        assertTrue(text.contains("coverage: supported"));
         assertTrue(text.contains("package: blocked"));
         assertTrue(text.contains("publish: planned"));
         assertTrue(text.contains("ci: planned"));
@@ -468,7 +468,7 @@ final class MigrationExplainFixtureTest {
                   warn  Gradle Maven Publish configuration selects artifacts and repositories.
                   warn  Gradle test task declares runtime properties, environment, JVM args, or event logging.
                   ok  Gradle plugin `io.spring.dependency-management` maps to Zolt [platforms] BOM imports and dependency policy.
-                  ok  Gradle plugin `jacoco` maps to planned Zolt coverage command.
+                  ok  Gradle plugin `jacoco` maps to Zolt coverage command.
                   ok  Gradle plugin `java` maps to Zolt Java source, javac, classpath, and package primitives.
                   ok  Gradle plugin `maven-publish` maps to planned Zolt publication metadata, dry-run, and publish commands.
                   ok  Gradle plugin `org.openapi.generator` maps to Zolt typed OpenAPI generated-source steps.

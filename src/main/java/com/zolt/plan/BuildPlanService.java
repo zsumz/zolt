@@ -182,10 +182,10 @@ public final class BuildPlanService {
                 "coverage",
                 "coverage",
                 PlanNodeStatus.PLANNED,
-                "Coverage is an explicit future command, not hidden work after tests.",
+                "Coverage runs only through the explicit zolt coverage command, not hidden work after tests.",
                 List.of("target/test-classes", "zolt.lock"),
                 List.of("target/coverage"),
-                List.of("mode: dry-run"),
+                List.of("command: zolt coverage"),
                 List.of()));
     }
 

@@ -9,7 +9,8 @@ public enum DependencyScope {
     PROCESSOR(false, false, false, true, false, false, "processor"),
     TEST_PROCESSOR(false, false, false, false, true, false, "test-processor"),
     QUARKUS_DEPLOYMENT(false, false, false, false, false, false, "quarkus-deployment"),
-    TOOL_OPENAPI(false, false, false, false, false, false, "tool-openapi");
+    TOOL_OPENAPI(false, false, false, false, false, false, "tool-openapi"),
+    TOOL_COVERAGE(false, false, false, false, false, false, "tool-coverage");
 
     private final boolean mainCompileClasspath;
     private final boolean mainRuntimeClasspath;

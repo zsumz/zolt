@@ -233,6 +233,9 @@ public final class DependencyGraphTraverser {
         if (parentScope == DependencyScope.TOOL_OPENAPI) {
             return Optional.of(DependencyScope.TOOL_OPENAPI);
         }
+        if (parentScope == DependencyScope.TOOL_COVERAGE) {
+            return Optional.of(DependencyScope.TOOL_COVERAGE);
+        }
         if (parentScope == DependencyScope.TEST) {
             return Optional.of(DependencyScope.TEST);
         }

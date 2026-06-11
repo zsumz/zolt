@@ -273,6 +273,7 @@ public final class PackagePlanService {
             case PROCESSOR, TEST_PROCESSOR -> "annotation processor dependency is excluded from package artifacts";
             case QUARKUS_DEPLOYMENT -> "Quarkus deployment dependency is build-time tooling, not package runtime";
             case TOOL_OPENAPI -> "OpenAPI generator dependency is build-time tooling, not package runtime";
+            case TOOL_COVERAGE -> "coverage dependency is build-time tooling, not package runtime";
             case COMPILE, RUNTIME -> "dependency scope is not packaged by this mode";
         };
     }
@@ -288,6 +289,7 @@ public final class PackagePlanService {
             case PROCESSOR, TEST_PROCESSOR -> "processor-omitted";
             case QUARKUS_DEPLOYMENT -> "quarkus-deployment-omitted";
             case TOOL_OPENAPI -> "openapi-tool-omitted";
+            case TOOL_COVERAGE -> "coverage-tool-omitted";
             case COMPILE, RUNTIME -> "non-runtime-omitted";
         };
     }

@@ -306,7 +306,7 @@ public final class MigrationReadinessScorecards {
         if (message.contains("jacoco")) {
             return finding(
                     "coverage",
-                    MigrationReadinessCategory.PLANNED,
+                    MigrationReadinessCategory.SUPPORTED,
                     signal,
                     "id 'jacoco' and jacocoTestReport",
                     "zolt coverage",

@@ -102,11 +102,20 @@ final class ZoltLockfileReaderTest {
                 scope = "quarkus-deployment"
                 direct = false
                 dependencies = []
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.cli"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "tool-coverage"
+                direct = false
+                dependencies = []
                 """);
 
         assertEquals(DependencyScope.PROCESSOR, lockfile.packages().get(0).scope());
         assertEquals(DependencyScope.TEST_PROCESSOR, lockfile.packages().get(1).scope());
         assertEquals(DependencyScope.QUARKUS_DEPLOYMENT, lockfile.packages().get(2).scope());
+        assertEquals(DependencyScope.TOOL_COVERAGE, lockfile.packages().get(3).scope());
     }
 
     @Test

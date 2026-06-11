@@ -335,7 +335,7 @@ public final class GradleStaticProjectInspector {
             case "org.springframework.boot" -> "Zolt Spring Boot platform, run, test, and executable archive support";
             case "io.spring.dependency-management" -> "Zolt [platforms] BOM imports and dependency policy";
             case "org.openapi.generator" -> "Zolt typed OpenAPI generated-source steps";
-            case "jacoco" -> "planned Zolt coverage command";
+            case "jacoco" -> "Zolt coverage command";
             case "maven-publish" -> "planned Zolt publication metadata, dry-run, and publish commands";
             default -> "";
         };

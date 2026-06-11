@@ -5,7 +5,8 @@ import java.util.List;
 public record ResolveOptions(
         boolean offline,
         List<RepositoryOverlay> repositoryOverlays,
-        boolean rejectLocalOverlays) {
+        boolean rejectLocalOverlays,
+        boolean includeCoverageTooling) {
     public ResolveOptions {
         repositoryOverlays = repositoryOverlays == null ? List.of() : List.copyOf(repositoryOverlays);
         if (rejectLocalOverlays && !repositoryOverlays.isEmpty()) {
@@ -15,11 +16,19 @@ public record ResolveOptions(
         }
     }
 
+    public ResolveOptions(boolean offline, List<RepositoryOverlay> repositoryOverlays, boolean rejectLocalOverlays) {
+        this(offline, repositoryOverlays, rejectLocalOverlays, false);
+    }
+
     public static ResolveOptions defaults() {
         return new ResolveOptions(false, List.of(), false);
     }
 
     public static ResolveOptions offline(boolean offline) {
         return new ResolveOptions(offline, List.of(), false);
+    }
+
+    public ResolveOptions withCoverageTooling() {
+        return new ResolveOptions(offline, repositoryOverlays, rejectLocalOverlays, true);
     }
 }
