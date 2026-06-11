@@ -88,6 +88,7 @@ final class ZoltCliTest {
                 "resolve",
                 "tree",
                 "why",
+                "policy",
                 "conflicts",
                 "explain",
                 "plan",
@@ -2205,6 +2206,52 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Package com.example:missing is not present in zolt.lock"));
+    }
+
+    @Test
+    void policyPrintsDependencyBaselineDiagnostics() throws IOException {
+        Path projectDir = tempDir.resolve("policy-text");
+        writePolicyProject(projectDir);
+        writePolicyLockfile(projectDir);
+
+        CommandResult result = execute("policy", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Dependency policy diagnostics"));
+        assertTrue(result.stdout().contains("Platforms: 1"));
+        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-dependencies:4.0.6 manages 1 selected packages"));
+        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-starter-web:4.0.6 [compile] managed-version: org.springframework.boot:spring-boot-starter-web -> 4.0.6 from org.springframework.boot:spring-boot-dependencies:4.0.6"));
+        assertTrue(result.stdout().contains("org.apache.tomcat.embed:tomcat-embed-core strict 10.1.40 status=pinned selected=10.1.40 source=org.springframework.boot:spring-boot-starter-web:4.0.6 reason=Container baseline"));
+        assertTrue(result.stdout().contains("com.example:unused strict 1.0.0 status=unmatched"));
+        assertTrue(result.stdout().contains("com.example:direct-lib status=direct-conflict reason=Direct dependency conflict fixture"));
+        assertTrue(result.stdout().contains("commons-logging:commons-logging status=matched reason=Use jcl-over-slf4j"));
+        assertTrue(result.stdout().contains("log4j:log4j status=unmatched reason=Legacy logging baseline"));
+        assertTrue(result.stdout().contains("dependencies com.example:direct-lib:1.2.3 status=selected"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void policyPrintsDeterministicJson() throws IOException {
+        Path projectDir = tempDir.resolve("policy-json");
+        writePolicyProject(projectDir);
+        writePolicyLockfile(projectDir);
+
+        CommandResult result = execute("policy", "--format", "json", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().startsWith("{\n  \"projectRoot\": \""));
+        assertTrue(result.stdout().contains("\"platform\": \"org.springframework.boot:spring-boot-dependencies:4.0.6\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"org.apache.tomcat.embed:tomcat-embed-core\""));
+        assertTrue(result.stdout().contains("\"status\": \"pinned\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"com.example:unused\""));
+        assertTrue(result.stdout().contains("\"status\": \"unmatched\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"commons-logging:commons-logging\""));
+        assertTrue(result.stdout().contains("\"status\": \"matched\""));
+        assertTrue(result.stdout().contains("\"status\": \"direct-conflict\""));
+        assertTrue(result.stdout().contains("\"directVersions\": ["));
+        assertTrue(result.stdout().contains("\"section\": \"dependencies\""));
+        assertEquals(result.stdout(), execute("policy", "--format", "json", "--cwd", projectDir.toString()).stdout());
+        assertEquals("", result.stderr());
     }
 
     @Test
@@ -5143,6 +5190,90 @@ final class ZoltCliTest {
 
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         writeProjectConfig(projectDir, repositoryUrl, currentJavaMajorVersion(), Map.of(), Map.of());
+    }
+
+    private static void writePolicyProject(Path projectDir) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [repositories]
+                test = "https://repo.maven.apache.org/maven2"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = "4.0.6"
+
+                [dependencies]
+                "com.example:direct-lib" = "1.2.3"
+                "org.springframework.boot:spring-boot-starter-web" = {}
+
+                [dependencyPolicy]
+                exclude = [
+                  { group = "com.example", artifact = "direct-lib", reason = "Direct dependency conflict fixture" },
+                  { group = "commons-logging", artifact = "commons-logging", reason = "Use jcl-over-slf4j" },
+                  { group = "log4j", artifact = "log4j", reason = "Legacy logging baseline" }
+                ]
+
+                [dependencyConstraints]
+                "com.example:unused" = { version = "1.0.0", kind = "strict", reason = "Unused baseline" }
+                "org.apache.tomcat.embed:tomcat-embed-core" = { version = "10.1.40", kind = "strict", reason = "Container baseline" }
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """.formatted(currentJavaMajorVersion()));
+    }
+
+    private static void writePolicyLockfile(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:direct-lib"
+                version = "1.2.3"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = []
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot-starter-web"
+                version = "4.0.6"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = ["org.apache.tomcat.embed:tomcat-embed-core:10.1.40"]
+                policies = ["managed-version: org.springframework.boot:spring-boot-starter-web -> 4.0.6 from org.springframework.boot:spring-boot-dependencies:4.0.6"]
+
+                [[package]]
+                id = "org.apache.tomcat.embed:tomcat-embed-core"
+                version = "10.1.40"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                dependencies = []
+                policies = ["strict-version: org.apache.tomcat.embed:tomcat-embed-core requested 10.1.39 -> 10.1.40 (Container baseline)"]
+
+                [[policy]]
+                kind = "strict-version"
+                id = "org.apache.tomcat.embed:tomcat-embed-core"
+                requested = "10.1.39"
+                source = "org.springframework.boot:spring-boot-starter-web:4.0.6"
+                policy = "strict-version: org.apache.tomcat.embed:tomcat-embed-core requested 10.1.39 -> 10.1.40 (Container baseline)"
+
+                [[policy]]
+                kind = "global-exclusion"
+                id = "commons-logging:commons-logging"
+                requested = "1.2"
+                source = "org.springframework.boot:spring-boot-starter-web:4.0.6"
+                policy = "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)"
+                """);
     }
 
     private static void writeProjectConfig(
