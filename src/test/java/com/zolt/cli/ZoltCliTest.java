@@ -89,6 +89,7 @@ final class ZoltCliTest {
                 "why",
                 "conflicts",
                 "explain",
+                "plan",
                 "classpath",
                 "ide",
                 "quarkus",
@@ -105,6 +106,90 @@ final class ZoltCliTest {
                 "self-parity",
                 "clean",
                 "doctor")));
+    }
+
+    @Test
+    void planReportsTypedPipelineAndBlockersWithoutExecutingWork() throws IOException {
+        Path projectDir = tempDir.resolve("plan-blocked");
+        Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-blocked")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true)
+                + """
+
+                [resources.filtering]
+                enabled = true
+                includes = ["**/*.properties"]
+                missing = "fail"
+
+                [resources.tokens]
+                projectVersion = { project = "version" }
+
+                [package]
+                mode = "spring-boot-war"
+                """);
+
+        CommandResult result = execute("plan", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Zolt plan"));
+        assertTrue(result.stdout().contains("Target: package"));
+        assertTrue(result.stdout().contains("Status: blocked"));
+        assertTrue(result.stdout().contains("- lockfile [resolve] blocked"));
+        assertTrue(result.stdout().contains("blocker missing-lockfile: zolt.lock is missing"));
+        assertTrue(result.stdout().contains("- generate-main-openapi [generated-source] blocked"));
+        assertTrue(result.stdout().contains("blocker missing-generated-source-output"));
+        assertTrue(result.stdout().contains("- process-main-resources [resources] ready"));
+        assertTrue(result.stdout().contains("tokens: [projectVersion]"));
+        assertTrue(result.stdout().contains("- assemble-package [package] blocked"));
+        assertTrue(result.stdout().contains("blocker missing-main-class"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void planJsonRedactsTestEnvironmentValues() throws IOException {
+        Path projectDir = tempDir.resolve("plan-json");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-json") + """
+
+                [test.runtime]
+                jvmArgs = ["--add-opens=java.base/java.lang=ALL-UNNAMED"]
+                systemProperties = { "logs.dir" = "${project.root}/test-logs" }
+                environment = { TZ = "America/Chicago" }
+                events = ["failed", "skipped"]
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "plan",
+                "--target", "test",
+                "--reports-dir", "target/test-reports",
+                "--format", "json",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"target\": \"test\""));
+        assertTrue(result.stdout().contains("\"id\": \"run-tests\""));
+        assertTrue(result.stdout().contains("\"target/test-reports\""));
+        assertTrue(result.stdout().contains("\"environment: [TZ] (values redacted)\""));
+        assertFalse(result.stdout().contains("America/Chicago"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void planCiIncludesExplicitCoverageAndPublishNodes() throws IOException {
+        Path projectDir = tempDir.resolve("plan-ci");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-ci"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute("plan", "--target", "ci", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("- coverage [coverage] planned"));
+        assertTrue(result.stdout().contains("mode: dry-run"));
+        assertTrue(result.stdout().contains("- publish-dry-run [publish] planned"));
+        assertTrue(result.stdout().contains("mode: dry-run"));
     }
 
     @Test
