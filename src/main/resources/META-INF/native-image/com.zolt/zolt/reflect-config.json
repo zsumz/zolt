@@ -264,6 +264,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.publish.PublishContext",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$RunPackageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

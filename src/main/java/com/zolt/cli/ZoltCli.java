@@ -88,10 +88,12 @@ import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.publish.PublishContext;
 import com.zolt.publish.PublishDryRunFormatter;
 import com.zolt.publish.PublishDryRunPlan;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishException;
+import com.zolt.publish.PublishReleasePolicyService;
 import com.zolt.publish.PublishUploadFormatter;
 import com.zolt.publish.PublishUploadResult;
 import com.zolt.publish.PublishUploadService;
@@ -2017,6 +2019,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
         private boolean dryRun;
 
+        @Option(names = "--context", description = "Apply a publish context policy. Supported values: release.")
+        private PublishContext context;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -2026,8 +2031,16 @@ public final class ZoltCli implements Runnable {
         @Override
         public Integer call() {
             try {
+                if (context != null && !dryRun) {
+                    spec.commandLine().getErr().println("error: Publish context policy is currently supported only with --dry-run.");
+                    spec.commandLine().getErr().flush();
+                    return 1;
+                }
                 if (dryRun) {
                     PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
+                    if (context == PublishContext.RELEASE) {
+                        plan = new PublishReleasePolicyService().apply(workingDirectory, plan);
+                    }
                     printAndFlush(spec, PublishDryRunFormatter.text(plan));
                     return plan.ok() ? 0 : 1;
                 }

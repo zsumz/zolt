@@ -9,6 +9,9 @@ public final class PublishDryRunFormatter {
         output.append("Zolt publish dry run\n");
         output.append("Coordinate: ").append(plan.coordinate()).append('\n');
         output.append("Version kind: ").append(plan.versionKind()).append('\n');
+        if (!plan.context().isBlank()) {
+            output.append("Context: ").append(plan.context()).append('\n');
+        }
         output.append("Target repository: ").append(plan.repositoryId()).append('\n');
         output.append("Target URL: ").append(plan.repositoryUrl()).append('\n');
         output.append("Artifact: ").append(plan.artifactId()).append('\n');

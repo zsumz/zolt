@@ -33,6 +33,32 @@ public final class PublishPomGenerator {
         if (!config.packageSettings().metadata().url().isBlank()) {
             element(xml, 1, "url", config.packageSettings().metadata().url());
         }
+        if (!config.packageSettings().metadata().license().isBlank()) {
+            indent(xml, 1).append("<licenses>\n");
+            indent(xml, 2).append("<license>\n");
+            element(xml, 3, "name", config.packageSettings().metadata().license());
+            indent(xml, 2).append("</license>\n");
+            indent(xml, 1).append("</licenses>\n");
+        }
+        if (!config.packageSettings().metadata().developers().isEmpty()) {
+            indent(xml, 1).append("<developers>\n");
+            for (String developer : config.packageSettings().metadata().developers()) {
+                indent(xml, 2).append("<developer>\n");
+                element(xml, 3, "name", developer);
+                indent(xml, 2).append("</developer>\n");
+            }
+            indent(xml, 1).append("</developers>\n");
+        }
+        if (!config.packageSettings().metadata().scm().isBlank()) {
+            indent(xml, 1).append("<scm>\n");
+            element(xml, 2, "url", config.packageSettings().metadata().scm());
+            indent(xml, 1).append("</scm>\n");
+        }
+        if (!config.packageSettings().metadata().issues().isBlank()) {
+            indent(xml, 1).append("<issueManagement>\n");
+            element(xml, 2, "url", config.packageSettings().metadata().issues());
+            indent(xml, 1).append("</issueManagement>\n");
+        }
 
         List<PublishPomDependency> dependencies = dependencies(config, lockfile);
         if (!dependencies.isEmpty()) {
