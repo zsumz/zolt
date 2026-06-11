@@ -5,6 +5,7 @@ import com.zolt.build.TestSelectionCodec;
 import com.zolt.build.TestSelectionException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 public final class JunitWorkerProtocol {
     public static final String RESULT_PREFIX = "ZOLT_WORKER_RESULT";
@@ -17,6 +18,15 @@ public final class JunitWorkerProtocol {
     }
 
     public static String runRequest(String requestId, Path testOutputDirectory, TestSelection testSelection) {
+        return runRequest(requestId, testOutputDirectory, testSelection, Optional.empty(), List.of());
+    }
+
+    public static String runRequest(
+            String requestId,
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            Optional<Path> reportsDirectory,
+            List<String> events) {
         if (testOutputDirectory == null) {
             throw new IllegalArgumentException("JUnit worker test output directory is required.");
         }
@@ -24,10 +34,29 @@ public final class JunitWorkerProtocol {
         String path = testOutputDirectory.toString();
         validateField("JUnit worker test output directory", path);
         String prefix = "RUN\t" + validateRequestId(requestId) + "\t" + path;
-        if (selection.emptySelection()) {
+        Optional<Path> reportPath = reportsDirectory == null ? Optional.empty() : reportsDirectory;
+        List<String> requestedEvents = events == null ? List.of() : List.copyOf(events);
+        if (selection.emptySelection() && reportPath.isEmpty() && requestedEvents.isEmpty()) {
             return prefix;
         }
+        if (reportPath.isEmpty() && requestedEvents.isEmpty()) {
+            return prefix
+                    + "\t"
+                    + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
+                    + "\t"
+                    + selectionField("JUnit worker method selectors", TestSelectionCodec.encodeMethods(selection.methodSelectors()))
+                    + "\t"
+                    + selectionField("JUnit worker class-name patterns", TestSelectionCodec.encodeStrings(selection.classNamePatterns()))
+                    + "\t"
+                    + selectionField("JUnit worker included tags", TestSelectionCodec.encodeStrings(selection.includedTags()))
+                    + "\t"
+                    + selectionField("JUnit worker excluded tags", TestSelectionCodec.encodeStrings(selection.excludedTags()));
+        }
         return prefix
+                + "\t"
+                + optionalPathField("JUnit worker reports directory", reportPath)
+                + "\t"
+                + selectionField("JUnit worker events", TestSelectionCodec.encodeStrings(requestedEvents))
                 + "\t"
                 + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
                 + "\t"
@@ -56,21 +85,24 @@ public final class JunitWorkerProtocol {
             if (parts.length != 2) {
                 throw new IllegalArgumentException("Malformed JUnit worker quit request. Expected QUIT<TAB>requestId.");
             }
-            return new WorkerRequest(WorkerCommand.QUIT, requestId, "", TestSelection.empty());
+            return new WorkerRequest(WorkerCommand.QUIT, requestId, "", Optional.empty(), List.of(), TestSelection.empty());
         }
         if (!"RUN".equals(command)) {
             throw new IllegalArgumentException("Unknown JUnit worker request command `" + command + "`.");
         }
-        if ((parts.length != 3 && parts.length != 8) || parts[2].isBlank()) {
+        if ((parts.length != 3 && parts.length != 8 && parts.length != 10) || parts[2].isBlank()) {
             throw new IllegalArgumentException(
                     "Malformed JUnit worker run request. Expected RUN<TAB>requestId<TAB>testOutputDirectory"
+                            + "<TAB>reportsDirectory<TAB>events"
                             + "<TAB>classSelectors<TAB>methodSelectors<TAB>classNamePatterns<TAB>includedTags<TAB>excludedTags.");
         }
         return new WorkerRequest(
                 WorkerCommand.RUN,
                 requestId,
                 validateField("JUnit worker test output directory", parts[2]),
-                parts.length == 3 ? TestSelection.empty() : parseSelection(parts));
+                reportsDirectory(parts),
+                events(parts),
+                testSelection(parts));
     }
 
     public static String result(String requestId, int exitCode) {
@@ -118,18 +150,44 @@ public final class JunitWorkerProtocol {
 
     private static TestSelection parseSelection(String[] parts) {
         try {
-            List<String> classSelectors = TestSelectionCodec.decodeStrings("JUnit worker class selectors", parts[3]);
+            int offset = parts.length == 10 ? 5 : 3;
+            List<String> classSelectors = TestSelectionCodec.decodeStrings("JUnit worker class selectors", parts[offset]);
             List<TestSelection.MethodSelector> methodSelectors =
-                    TestSelectionCodec.decodeMethods("JUnit worker method selectors", parts[4]);
-            List<String> patterns = TestSelectionCodec.decodeStrings("JUnit worker class-name patterns", parts[5]);
-            List<String> includedTags = TestSelectionCodec.decodeStrings("JUnit worker included tags", parts[6]);
-            List<String> excludedTags = TestSelectionCodec.decodeStrings("JUnit worker excluded tags", parts[7]);
+                    TestSelectionCodec.decodeMethods("JUnit worker method selectors", parts[offset + 1]);
+            List<String> patterns = TestSelectionCodec.decodeStrings("JUnit worker class-name patterns", parts[offset + 2]);
+            List<String> includedTags = TestSelectionCodec.decodeStrings("JUnit worker included tags", parts[offset + 3]);
+            List<String> excludedTags = TestSelectionCodec.decodeStrings("JUnit worker excluded tags", parts[offset + 4]);
             return TestSelection.fromFields(classSelectors, methodSelectors, patterns, includedTags, excludedTags);
         } catch (IllegalArgumentException | TestSelectionException exception) {
             throw new IllegalArgumentException(
                     "Malformed JUnit worker test selection. " + exception.getMessage(),
                     exception);
         }
+    }
+
+    private static Optional<String> reportsDirectory(String[] parts) {
+        if (parts.length != 10 || parts[3].isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(validateField("JUnit worker reports directory", parts[3]));
+    }
+
+    private static List<String> events(String[] parts) {
+        if (parts.length != 10) {
+            return List.of();
+        }
+        return TestSelectionCodec.decodeStrings("JUnit worker events", parts[4]);
+    }
+
+    private static TestSelection testSelection(String[] parts) {
+        return parts.length == 3 ? TestSelection.empty() : parseSelection(parts);
+    }
+
+    private static String optionalPathField(String name, Optional<Path> value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return validateField(name, value.orElseThrow().toString());
     }
 
     public enum WorkerCommand {
@@ -141,7 +199,13 @@ public final class JunitWorkerProtocol {
             WorkerCommand command,
             String requestId,
             String testOutputDirectory,
+            Optional<String> reportsDirectory,
+            List<String> events,
             TestSelection testSelection) {
+        public WorkerRequest {
+            reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
+            events = events == null ? List.of() : List.copyOf(events);
+        }
     }
 
     public record WorkerResult(String requestId, int exitCode) {

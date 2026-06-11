@@ -10,9 +10,11 @@ import java.io.PrintWriter;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public final class JunitLauncherWorker {
@@ -56,7 +58,13 @@ public final class JunitLauncherWorker {
                     out.flush();
                     return 0;
                 }
-                int exitCode = runRequest(launcher, request.testOutputDirectory(), request.testSelection(), err);
+                int exitCode = runRequest(
+                        launcher,
+                        request.testOutputDirectory(),
+                        request.testSelection(),
+                        request.reportsDirectory(),
+                        request.events(),
+                        err);
                 out.println(JunitWorkerProtocol.result(request.requestId(), exitCode));
                 out.flush();
             }
@@ -72,17 +80,29 @@ public final class JunitLauncherWorker {
     }
 
     private int runOnce(String testOutputDirectory, PrintStream out, PrintStream err) {
-        return runRequest(new ProgrammaticLauncher(out), testOutputDirectory, TestSelection.empty(), err);
+        return runRequest(
+                new ProgrammaticLauncher(out),
+                testOutputDirectory,
+                TestSelection.empty(),
+                Optional.empty(),
+                List.of(),
+                err);
     }
 
     private int runRequest(
             ProgrammaticLauncher launcher,
             String testOutputDirectory,
             TestSelection testSelection,
+            Optional<String> reportsDirectory,
+            List<String> events,
             PrintStream err) {
         try {
-            return launcher.execute(Path.of(testOutputDirectory), testSelection);
-        } catch (ReflectiveOperationException | LinkageError exception) {
+            return launcher.execute(
+                    Path.of(testOutputDirectory),
+                    testSelection,
+                    reportsDirectory.map(Path::of),
+                    events);
+        } catch (ReflectiveOperationException | IOException | LinkageError exception) {
             err.println("error: Could not run tests through Zolt's JUnit launcher worker. "
                     + "Check that JUnit Platform Launcher and test engines are on the worker classpath.");
             exception.printStackTrace(err);
@@ -97,9 +117,18 @@ public final class JunitLauncherWorker {
             this.out = out;
         }
 
-        private int execute(Path testOutputDirectory, TestSelection testSelection) throws ReflectiveOperationException {
+        private int execute(
+                Path testOutputDirectory,
+                TestSelection testSelection,
+                Optional<Path> reportsDirectory,
+                List<String> events) throws ReflectiveOperationException, IOException {
             Class<?> listenerClass = Class.forName("org.junit.platform.launcher.listeners.SummaryGeneratingListener");
             Object listener = listenerClass.getDeclaredConstructor().newInstance();
+            List<Object> testExecutionListeners = new ArrayList<>();
+            testExecutionListeners.add(listener);
+            if (reportsDirectory != null && reportsDirectory.isPresent()) {
+                testExecutionListeners.add(reportListener(reportsDirectory.orElseThrow()));
+            }
             Object request = discoveryRequest(testOutputDirectory.toAbsolutePath().normalize(), testSelection);
             Object session = Class.forName("org.junit.platform.launcher.core.LauncherFactory")
                     .getMethod("openSession")
@@ -114,13 +143,25 @@ public final class JunitLauncherWorker {
                         "execute",
                         requestInterface,
                         Array.newInstance(listenerInterface, 0).getClass());
-                Object listeners = Array.newInstance(listenerInterface, 1);
-                Array.set(listeners, 0, listener);
+                Object listeners = Array.newInstance(listenerInterface, testExecutionListeners.size());
+                for (int index = 0; index < testExecutionListeners.size(); index++) {
+                    Array.set(listeners, index, testExecutionListeners.get(index));
+                }
                 execute.invoke(launcher, request, listeners);
             } finally {
                 sessionInterface.getMethod("close").invoke(session);
             }
             return summarize(listenerClass, listener);
+        }
+
+        private Object reportListener(Path reportsDirectory) throws ReflectiveOperationException, IOException {
+            Path normalizedDirectory = reportsDirectory.toAbsolutePath().normalize();
+            Files.createDirectories(normalizedDirectory);
+            Class<?> reportListenerClass = Class.forName(
+                    "org.junit.platform.reporting.legacy.xml.LegacyXmlReportGeneratingListener");
+            return reportListenerClass
+                    .getConstructor(Path.class, PrintWriter.class)
+                    .newInstance(normalizedDirectory, new PrintWriter(out, true));
         }
 
         private static Object discoveryRequest(Path testOutputDirectory, TestSelection testSelection)

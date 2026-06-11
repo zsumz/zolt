@@ -375,11 +375,6 @@ public final class TestRunService {
                     reportsDirectory);
         }
         if (plainJunitWorkerEnabled) {
-            if (reportsDirectory.isPresent()) {
-                throw new TestRunException(
-                        "JUnit XML reports are not supported by the opt-in Zolt JUnit worker path yet. "
-                                + "Run without --reports-dir or unset zolt.junit.worker.");
-            }
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
@@ -389,7 +384,9 @@ public final class TestRunService {
                     compileResult.outputDirectory().toAbsolutePath().normalize(),
                     testSelection,
                     testJvmArguments,
-                    testRuntime.environment());
+                    testRuntime.environment(),
+                    reportsDirectory,
+                    testRuntime.events());
             failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
@@ -567,13 +564,19 @@ public final class TestRunService {
             Path testOutputDirectory,
             TestSelection testSelection,
             TestJvmArguments jvmArguments,
-            Map<String, String> environment) {
+            Map<String, String> environment,
+            Optional<Path> reportsDirectory,
+            List<String> events) {
         long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
                 .start(projectDirectory, testRuntimeClasspath, jvmArguments.values(), environment)) {
             long startupNanos = System.nanoTime() - startupStarted;
             long requestStarted = System.nanoTime();
-            JunitWorkerClient.WorkerRunResult result = process.run(testOutputDirectory, testSelection);
+            JunitWorkerClient.WorkerRunResult result = process.run(
+                    testOutputDirectory,
+                    testSelection,
+                    reportsDirectory,
+                    events);
             long requestNanos = System.nanoTime() - requestStarted;
             return new PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
         } catch (JunitWorkerClientException exception) {
@@ -843,7 +846,9 @@ public final class TestRunService {
                 Path testOutputDirectory,
                 TestSelection testSelection,
                 TestJvmArguments jvmArguments,
-                Map<String, String> environment);
+                Map<String, String> environment,
+                Optional<Path> reportsDirectory,
+                List<String> events);
     }
 
     record PlainJunitWorkerRunResult(

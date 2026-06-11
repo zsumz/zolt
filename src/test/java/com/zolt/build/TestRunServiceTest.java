@@ -486,6 +486,8 @@ final class TestRunServiceTest {
         List<TestSelection> selections = new ArrayList<>();
         List<TestJvmArguments> jvmArguments = new ArrayList<>();
         List<Map<String, String>> environments = new ArrayList<>();
+        List<Optional<Path>> reportDirectories = new ArrayList<>();
+        List<List<String>> events = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     javaCommands.add(command);
@@ -498,13 +500,15 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
                     selections.add(testSelection);
                     jvmArguments.add(testJvmArguments);
                     environments.add(environment);
+                    reportDirectories.add(reportsDirectory);
+                    events.add(testEvents);
                     return new TestRunService.PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
                             12_000_000L,
@@ -517,7 +521,9 @@ final class TestRunServiceTest {
                 configWithTestRuntime(),
                 projectDir.resolve("cache"),
                 TestSelection.empty(),
-                new TestJvmArguments(List.of("-Dlibrary.mode=true")));
+                new TestJvmArguments(List.of("-Dlibrary.mode=true")),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
+                List.of("skipped"));
 
         assertEquals("worker tests passed\n", result.output());
         assertEquals("zolt-junit-worker", result.testRunner());
@@ -532,6 +538,10 @@ final class TestRunServiceTest {
         assertEquals(Map.of(
                 "APP_HOME", projectDir.toAbsolutePath().normalize().toString(),
                 "TZ", "America/Chicago"), environments.getFirst());
+        assertEquals(
+                Optional.of(projectDir.resolve("target/test-reports").toAbsolutePath().normalize()),
+                reportDirectories.getFirst());
+        assertEquals(List.of("failed", "skipped"), events.getFirst());
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/test-classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path -> path.toString().contains("target/classes")));
         assertTrue(testRuntimeClasspaths.getFirst().stream().anyMatch(path ->
@@ -557,7 +567,7 @@ final class TestRunServiceTest {
                     throw new QuarkusAugmentationException("Quarkus test worker should not run.");
                 },
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment) ->
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) ->
                         new TestRunService.PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
@@ -732,7 +742,7 @@ final class TestRunServiceTest {
                 quarkusTestWorkerClasspath,
                 quarkusTestWorkerRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
                 },
                 false,

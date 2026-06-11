@@ -3,13 +3,23 @@ package com.zolt.junit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayOutputStream;
+import com.zolt.build.TestSelection;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class JunitLauncherWorkerTest {
+    @TempDir
+    private Path tempDir;
+
     @Test
     void missingTestOutputDirectoryIsActionable() {
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -34,8 +44,9 @@ final class JunitLauncherWorkerTest {
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
-        assertTrue(stdout.toString(StandardCharsets.UTF_8).contains("ZOLT_WORKER_RESULT\trequest-1\t0"));
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
     }
 
     @Test
@@ -51,5 +62,36 @@ final class JunitLauncherWorkerTest {
         assertEquals(2, exitCode);
         assertTrue(stderr.toString(StandardCharsets.UTF_8)
                 .contains("Malformed JUnit worker run request"));
+    }
+
+    @Test
+    void serverModeWritesJUnitXmlReports() throws Exception {
+        Path reports = tempDir.resolve("reports");
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.zolt.junit.JunitWorkerProtocolTest"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.of(reports),
+                List.of());
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
+        try (Stream<Path> reportFiles = Files.walk(reports)) {
+            assertTrue(reportFiles.anyMatch(path -> path.getFileName().toString().endsWith(".xml")));
+        }
     }
 }

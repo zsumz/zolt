@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 
 public final class JunitWorkerClient implements AutoCloseable {
     private final BufferedReader output;
@@ -30,9 +32,22 @@ public final class JunitWorkerClient implements AutoCloseable {
     }
 
     public WorkerRunResult run(Path testOutputDirectory, TestSelection testSelection) {
+        return run(testOutputDirectory, testSelection, Optional.empty(), List.of());
+    }
+
+    public WorkerRunResult run(
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            Optional<Path> reportsDirectory,
+            List<String> events) {
         ensureOpen();
         String requestId = nextRequestId();
-        writeFrame(JunitWorkerProtocol.runRequest(requestId, testOutputDirectory, testSelection));
+        writeFrame(JunitWorkerProtocol.runRequest(
+                requestId,
+                testOutputDirectory,
+                testSelection,
+                reportsDirectory,
+                events));
         return readRunResult(requestId);
     }
 

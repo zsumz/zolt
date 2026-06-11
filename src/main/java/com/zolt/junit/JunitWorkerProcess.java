@@ -2,6 +2,8 @@ package com.zolt.junit;
 
 import com.zolt.build.TestSelection;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 
 public final class JunitWorkerProcess implements AutoCloseable {
     private final JunitWorkerClient client;
@@ -26,10 +28,18 @@ public final class JunitWorkerProcess implements AutoCloseable {
     }
 
     public JunitWorkerClient.WorkerRunResult run(Path testOutputDirectory, TestSelection testSelection) {
+        return run(testOutputDirectory, testSelection, Optional.empty(), List.of());
+    }
+
+    public JunitWorkerClient.WorkerRunResult run(
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            Optional<Path> reportsDirectory,
+            List<String> events) {
         if (closed) {
             throw new JunitWorkerClientException("JUnit worker process is already closed.");
         }
-        return client.run(testOutputDirectory, testSelection);
+        return client.run(testOutputDirectory, testSelection, reportsDirectory, events);
     }
 
     @Override

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.build.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class JunitWorkerProtocolTest {
@@ -20,6 +21,8 @@ final class JunitWorkerProtocolTest {
         assertEquals(JunitWorkerProtocol.WorkerCommand.RUN, request.command());
         assertEquals("request-1", request.requestId());
         assertEquals("target/test-classes", request.testOutputDirectory());
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertEquals(List.of(), request.events());
         assertTrue(request.testSelection().emptySelection());
     }
 
@@ -43,6 +46,32 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void formatsAndParsesRunRequestsWithReportsEventsAndSelection() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.example.MainTest"),
+                List.of(),
+                List.of(),
+                List.of("fast"),
+                List.of());
+
+        String frame = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.of(Path.of("target/test-reports")),
+                List.of("failed", "skipped"));
+
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(frame);
+
+        assertEquals(
+                "RUN\trequest-1\ttarget/test-classes\ttarget/test-reports\tfailed,skipped\tcom.example.MainTest\t\t\tfast\t",
+                frame);
+        assertEquals(Optional.of("target/test-reports"), request.reportsDirectory());
+        assertEquals(List.of("failed", "skipped"), request.events());
+        assertEquals(selection, request.testSelection());
+    }
+
+    @Test
     void formatsAndParsesQuitRequests() {
         String frame = JunitWorkerProtocol.quitRequest("quit-1");
 
@@ -52,6 +81,8 @@ final class JunitWorkerProtocolTest {
         assertEquals(JunitWorkerProtocol.WorkerCommand.QUIT, request.command());
         assertEquals("quit-1", request.requestId());
         assertEquals("", request.testOutputDirectory());
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertEquals(List.of(), request.events());
         assertTrue(request.testSelection().emptySelection());
     }
 

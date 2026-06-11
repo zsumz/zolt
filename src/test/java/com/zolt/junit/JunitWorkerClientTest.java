@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestSelection;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class JunitWorkerClientTest {
@@ -34,6 +37,26 @@ final class JunitWorkerClientTest {
         client.close();
 
         assertEquals("QUIT\tjunit-1\n", input.toString());
+    }
+
+    @Test
+    void sendsRunRequestWithReportsAndEvents() {
+        StringWriter input = new StringWriter();
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("Tests found: 1\nZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                input);
+
+        JunitWorkerClient.WorkerRunResult result = client.run(
+                Path.of("target/test-classes"),
+                TestSelection.empty(),
+                Optional.of(Path.of("target/test-reports")),
+                List.of("failed"));
+
+        assertEquals("""
+                RUN\tjunit-1\ttarget/test-classes\ttarget/test-reports\tfailed\t\t\t\t\t
+                """, input.toString());
+        assertEquals("Tests found: 1\n", result.output());
+        assertEquals(0, result.exitCode());
     }
 
     @Test
