@@ -1,6 +1,7 @@
 package com.zolt.generated;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
@@ -151,6 +152,63 @@ final class GeneratedSourceEvidenceServiceTest {
         assertEquals(64, evidence.getFirst().optionsFingerprint().length());
         assertEquals(evidence.getFirst().toolFingerprint(), evidence.get(1).toolFingerprint());
         assertEquals(evidence.getFirst().optionsFingerprint(), evidence.get(1).optionsFingerprint());
+    }
+
+    @Test
+    void recordsDistinctOpenApiFingerprintsForIndependentStepOverrides() throws IOException {
+        write("src/main/openapi/integration-api.yaml", "openapi: 3.1.0\ninfo:\n  title: Integration\n", 1_000);
+        write("src/main/openapi/public-api.yaml", "openapi: 3.1.0\ninfo:\n  title: Public\n", 1_000);
+        BuildSettings build = BuildSettings.defaults().withGeneratedSources(
+                List.of(
+                        new GeneratedSourceStep(
+                                "integration-api",
+                                GeneratedSourceKind.OPENAPI,
+                                "java",
+                                "target/generated/sources/openapi/integration-api",
+                                List.of("src/main/openapi/integration-api.yaml"),
+                                true,
+                                true,
+                                openApiSettings("com.example.integration.api", "com.example.integration.model")),
+                        new GeneratedSourceStep(
+                                "public-api",
+                                GeneratedSourceKind.OPENAPI,
+                                "java",
+                                "target/generated/sources/openapi/public-api",
+                                List.of("src/main/openapi/public-api.yaml"),
+                                true,
+                                true,
+                                openApiSettings("com.example.public.api", "com.example.public.model"))),
+                List.of());
+
+        List<GeneratedSourceEvidence> evidence = service.evidence(tempDir, build);
+
+        assertEquals(List.of(
+                "target/generated/sources/openapi/integration-api",
+                "target/generated/sources/openapi/public-api"), evidence.stream()
+                        .map(item -> tempDir.toAbsolutePath().normalize().relativize(item.output()).toString())
+                        .toList());
+        assertEquals(evidence.getFirst().toolFingerprint(), evidence.get(1).toolFingerprint());
+        assertNotEquals(evidence.getFirst().optionsFingerprint(), evidence.get(1).optionsFingerprint());
+    }
+
+    private static OpenApiGenerationSettings openApiSettings(String apiPackage, String modelPackage) {
+        return new OpenApiGenerationSettings(
+                Optional.of("org.openapitools:openapi-generator-cli"),
+                Optional.of("7.11.0"),
+                Optional.of("spring-api"),
+                Optional.of("spring"),
+                Optional.of("spring-boot"),
+                Optional.of(apiPackage),
+                Optional.of(modelPackage),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Map.of("interfaceOnly", "true"),
+                Map.of(),
+                Map.of("useSpringBoot3", "true"),
+                Map.of("models", "", "apis", ""),
+                Map.of(),
+                Map.of());
     }
 
     private Path write(String relativePath, String content, long modifiedMillis) throws IOException {

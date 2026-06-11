@@ -815,6 +815,62 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesMultipleOpenApiGeneratedSourceStepsWithSharedPresetOverrides() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "openapi-multi-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                version = "7.11.0"
+
+                [generated.openapiPresets.spring-api]
+                generator = "spring"
+                library = "spring-boot"
+                apiPackage = "com.example.api"
+                modelPackage = "com.example.api.model"
+                configOptions = { useSpringBoot3 = "true" }
+
+                [generated.main.integration-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/integration-api.yaml"
+                output = "target/generated/sources/openapi/integration-api"
+                preset = "spring-api"
+                apiPackage = "com.example.integration.api"
+                modelPackage = "com.example.integration.model"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                preset = "spring-api"
+                apiPackage = "com.example.public.api"
+                modelPackage = "com.example.public.model"
+                """);
+
+        assertEquals(List.of("integration-api", "public-api"), config.build().generatedMainSources().stream()
+                .map(com.zolt.project.GeneratedSourceStep::id)
+                .toList());
+        var integration = config.build().generatedMainSources().get(0);
+        var publicApi = config.build().generatedMainSources().get(1);
+        assertEquals("target/generated/sources/openapi/integration-api", integration.output());
+        assertEquals("target/generated/sources/openapi/public-api", publicApi.output());
+        assertEquals("com.example.integration.api", integration.openApi().apiPackage().orElseThrow());
+        assertEquals("com.example.public.api", publicApi.openApi().apiPackage().orElseThrow());
+        assertEquals("com.example.integration.model", integration.openApi().modelPackage().orElseThrow());
+        assertEquals("com.example.public.model", publicApi.openApi().modelPackage().orElseThrow());
+        assertEquals("spring", integration.openApi().generator().orElseThrow());
+        assertEquals("spring", publicApi.openApi().generator().orElseThrow());
+        assertEquals(Map.of("useSpringBoot3", "true"), integration.openApi().configOptions());
+        assertEquals(Map.of("useSpringBoot3", "true"), publicApi.openApi().configOptions());
+    }
+
+    @Test
     void rejectsGeneratedSourceCommands() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]
