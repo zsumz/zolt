@@ -912,6 +912,53 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void rejectsOpenApiPostProcessingOptions() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/api.yaml"
+                output = "target/generated/sources/openapi"
+                options = { enablePostProcessFile = "true" }
+                """));
+
+        assertTrue(exception.getMessage().contains(
+                "Unsupported OpenAPI generator option [generated.main.openapi.options].enablePostProcessFile"));
+        assertTrue(exception.getMessage().contains("Zolt does not run generator post-processing hooks"));
+    }
+
+    @Test
+    void rejectsOpenApiPresetPostProcessingOptions() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.openapiPresets.spring-api]
+                additionalProperties = { postProcessFile = "format.sh" }
+
+                [generated.main.openapi]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/api.yaml"
+                output = "target/generated/sources/openapi"
+                preset = "spring-api"
+                """));
+
+        assertTrue(exception.getMessage().contains(
+                "Unsupported OpenAPI generator option [generated.openapiPresets.spring-api.additionalProperties].postProcessFile"));
+        assertTrue(exception.getMessage().contains("model the behavior as a Zolt-owned generated-source feature"));
+    }
+
+    @Test
     void rejectsUnsupportedGeneratedSourceLanguages() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]

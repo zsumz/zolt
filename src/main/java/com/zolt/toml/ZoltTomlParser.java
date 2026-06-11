@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -119,6 +120,11 @@ public final class ZoltTomlParser {
             "typeMappings",
             "importMappings");
     private static final Set<String> GENERATED_OPENAPI_TOOL_KEYS = Set.of("coordinate", "version");
+    private static final Set<String> GENERATED_OPENAPI_POST_PROCESS_KEYS = Set.of(
+            "enablepostprocessfile",
+            "postprocessfile",
+            "apifilepostprocessfile",
+            "modelfilepostprocessfile");
     private static final Set<String> COMPILER_KEYS = Set.of(
             "generatedSources",
             "generatedTestSources",
@@ -641,6 +647,19 @@ public final class ZoltTomlParser {
     }
 
     private static OpenApiGenerationSettings parseOpenApiGenerationSettings(TomlTable table, String section) {
+        Map<String, String> options = stringMap(optionalTable(table, "options"), section + ".options");
+        Map<String, String> additionalProperties =
+                stringMap(optionalTable(table, "additionalProperties"), section + ".additionalProperties");
+        Map<String, String> configOptions = stringMap(optionalTable(table, "configOptions"), section + ".configOptions");
+        Map<String, String> globalProperties =
+                stringMap(optionalTable(table, "globalProperties"), section + ".globalProperties");
+        Map<String, String> typeMappings = stringMap(optionalTable(table, "typeMappings"), section + ".typeMappings");
+        Map<String, String> importMappings =
+                stringMap(optionalTable(table, "importMappings"), section + ".importMappings");
+        validateOpenApiOptionKeys(section + ".options", options);
+        validateOpenApiOptionKeys(section + ".additionalProperties", additionalProperties);
+        validateOpenApiOptionKeys(section + ".configOptions", configOptions);
+        validateOpenApiOptionKeys(section + ".globalProperties", globalProperties);
         return new OpenApiGenerationSettings(
                 Optional.empty(),
                 Optional.empty(),
@@ -652,12 +671,26 @@ public final class ZoltTomlParser {
                 optionalString(table, section, "invokerPackage"),
                 optionalString(table, section, "config"),
                 optionalString(table, section, "templateDir"),
-                stringMap(optionalTable(table, "options"), section + ".options"),
-                stringMap(optionalTable(table, "additionalProperties"), section + ".additionalProperties"),
-                stringMap(optionalTable(table, "configOptions"), section + ".configOptions"),
-                stringMap(optionalTable(table, "globalProperties"), section + ".globalProperties"),
-                stringMap(optionalTable(table, "typeMappings"), section + ".typeMappings"),
-                stringMap(optionalTable(table, "importMappings"), section + ".importMappings"));
+                options,
+                additionalProperties,
+                configOptions,
+                globalProperties,
+                typeMappings,
+                importMappings);
+    }
+
+    private static void validateOpenApiOptionKeys(String section, Map<String, String> values) {
+        for (String key : values.keySet()) {
+            String normalized = key.toLowerCase(Locale.ROOT);
+            if (GENERATED_OPENAPI_POST_PROCESS_KEYS.contains(normalized) || normalized.contains("postprocess")) {
+                throw new ZoltConfigException(
+                        "Unsupported OpenAPI generator option ["
+                                + section
+                                + "]."
+                                + key
+                                + " in zolt.toml. Zolt does not run generator post-processing hooks; remove the option or model the behavior as a Zolt-owned generated-source feature.");
+            }
+        }
     }
 
     private static OpenApiGenerationSettings mergeOpenApiSettings(
