@@ -15,6 +15,8 @@ public final class PublishDryRunFormatter {
         output.append("Artifact path: ").append(plan.artifactPath()).append('\n');
         output.append("Artifact checksum: ").append(plan.artifactSha256()).append('\n');
         output.append("Evidence: ").append(plan.evidencePath()).append('\n');
+        output.append("Generated POM: ").append(plan.pomPath()).append('\n');
+        output.append("POM checksum: ").append(plan.pomSha256()).append('\n');
         if (plan.ok()) {
             output.append("Status: ready\n");
             output.append("No upload was performed.\n");

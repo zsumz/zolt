@@ -7,9 +7,12 @@ import com.zolt.build.PackageException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanService;
 import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.toml.ZoltTomlParser;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -25,6 +28,8 @@ public final class PublishDryRunService {
     private final PublishSettingsReader publishSettingsReader;
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestReader evidenceManifestReader;
+    private final ZoltLockfileReader lockfileReader;
+    private final PublishPomGenerator pomGenerator;
     private final Function<String, String> environment;
 
     public PublishDryRunService() {
@@ -33,6 +38,8 @@ public final class PublishDryRunService {
                 new PublishSettingsReader(),
                 new PackagePlanService(),
                 new PackageEvidenceManifestReader(),
+                new ZoltLockfileReader(),
+                new PublishPomGenerator(),
                 System::getenv);
     }
 
@@ -42,6 +49,8 @@ public final class PublishDryRunService {
                 new PublishSettingsReader(),
                 new PackagePlanService(),
                 new PackageEvidenceManifestReader(),
+                new ZoltLockfileReader(),
+                new PublishPomGenerator(),
                 environment);
     }
 
@@ -50,11 +59,15 @@ public final class PublishDryRunService {
             PublishSettingsReader publishSettingsReader,
             PackagePlanService packagePlanService,
             PackageEvidenceManifestReader evidenceManifestReader,
+            ZoltLockfileReader lockfileReader,
+            PublishPomGenerator pomGenerator,
             Function<String, String> environment) {
         this.projectParser = projectParser;
         this.publishSettingsReader = publishSettingsReader;
         this.packagePlanService = packagePlanService;
         this.evidenceManifestReader = evidenceManifestReader;
+        this.lockfileReader = lockfileReader;
+        this.pomGenerator = pomGenerator;
         this.environment = environment;
     }
 
@@ -86,9 +99,14 @@ public final class PublishDryRunService {
         List<String> blockers = new ArrayList<>();
         blockers.addAll(credentialBlockers(repository, config.repositoryCredentials()));
 
+        ZoltLockfile lockfile = lockfile(root);
         PackagePlan packagePlan = packagePlan(root, config);
         Path artifactPath = packagePlan.archivePath();
         Path evidencePath = PackageEvidenceManifestWriter.evidenceManifestPath(artifactPath);
+        Path pomPath = root.resolve("target/publish")
+                .resolve(config.project().name() + "-" + config.project().version() + ".pom")
+                .normalize();
+        String pomSha256 = writePom(root, pomPath, config, lockfile);
         String artifactSha256 = "";
         if (!Files.isRegularFile(artifactPath)) {
             blockers.add("missing artifact: run `zolt package` to create " + displayPath(root, artifactPath));
@@ -116,7 +134,17 @@ public final class PublishDryRunService {
                 display(root, artifactPath),
                 artifactSha256,
                 display(root, evidencePath),
+                display(root, pomPath),
+                pomSha256,
                 blockers);
+    }
+
+    private ZoltLockfile lockfile(Path root) {
+        try {
+            return lockfileReader.read(root.resolve("zolt.lock"));
+        } catch (LockfileReadException exception) {
+            throw new PublishException("Could not read zolt.lock for publish metadata: " + exception.getMessage());
+        }
     }
 
     private PackagePlan packagePlan(Path root, ProjectConfig config) {
@@ -158,6 +186,18 @@ public final class PublishDryRunService {
     private boolean missingEnvironment(String name) {
         String value = environment.apply(name);
         return value == null || value.isBlank();
+    }
+
+    private String writePom(Path root, Path pomPath, ProjectConfig config, ZoltLockfile lockfile) {
+        try {
+            Files.createDirectories(pomPath.getParent());
+            Files.writeString(pomPath, pomGenerator.generate(config, lockfile));
+            return sha256(pomPath);
+        } catch (IOException exception) {
+            throw new PublishException(
+                    "Could not write publish POM preview at " + displayPath(root, pomPath) + ".",
+                    exception);
+        }
     }
 
     private static Path display(Path root, Path path) {

@@ -12,6 +12,8 @@ public record PublishDryRunPlan(
         Path artifactPath,
         String artifactSha256,
         Path evidencePath,
+        Path pomPath,
+        String pomSha256,
         List<String> blockers) {
     public PublishDryRunPlan {
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
