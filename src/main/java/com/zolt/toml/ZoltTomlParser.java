@@ -456,9 +456,19 @@ public final class ZoltTomlParser {
                                 + key
                                 + " in zolt.toml. Declare exactly one of value, env, or project.");
             }
+            project.ifPresent(projectField -> validateResourceTokenProjectField(key, projectField));
             tokens.put(key, new ResourceTokenSettings(value, env, project));
         }
         return tokens;
+    }
+
+    private static void validateResourceTokenProjectField(String tokenName, String projectField) {
+        if (!PROJECT_KEYS.contains(projectField)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [resources.tokens]."
+                            + tokenName
+                            + ".project in zolt.toml. Supported project fields are: name, version, group, java, main.");
+        }
     }
 
     private static BuildSettings parseGeneratedSources(TomlTable generatedTable, BuildSettings build) {

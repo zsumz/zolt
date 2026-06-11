@@ -1289,6 +1289,26 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void rejectsResourceTokenWithUnsupportedProjectField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [resources.tokens]
+                        artifact = { project = "artifactId" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [resources.tokens].artifact.project in zolt.toml. Supported project fields are: name, version, group, java, main.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsUnsupportedResourceFilteringMissingPolicy() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,
