@@ -9,6 +9,7 @@ import com.zolt.build.PackagePlanService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.toml.ZoltTomlParser;
@@ -21,9 +22,16 @@ import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class PublishDryRunService {
+    private static final Set<PackageMode> SINGLE_FILE_PACKAGE_ARTIFACTS = Set.of(
+            PackageMode.THIN,
+            PackageMode.SPRING_BOOT,
+            PackageMode.WAR,
+            PackageMode.SPRING_BOOT_WAR);
+
     private final ZoltTomlParser projectParser;
     private final PublishSettingsReader publishSettingsReader;
     private final PackagePlanService packagePlanService;
@@ -78,9 +86,7 @@ public final class PublishDryRunService {
         if (!publish.configured()) {
             throw new PublishException("No [publish] configuration found. Add release/snapshot publish repositories before running `zolt publish --dry-run`.");
         }
-        if (!publish.artifacts().equals(List.of("main"))) {
-            throw new PublishException("Only [publish].artifacts = [\"main\"] is supported for the first dry-run slice.");
-        }
+        String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
         String versionKind = config.project().version().endsWith("-SNAPSHOT") ? "snapshot" : "release";
         String repositoryId = versionKind.equals("snapshot")
                 ? publish.snapshotRepository()
@@ -130,13 +136,44 @@ public final class PublishDryRunService {
                 versionKind,
                 repository.id(),
                 repository.url(),
-                "main",
+                artifactId,
                 display(root, artifactPath),
                 artifactSha256,
                 display(root, evidencePath),
                 display(root, pomPath),
                 pomSha256,
                 blockers);
+    }
+
+    private static String selectedArtifactId(List<String> artifacts, PackageMode packageMode) {
+        if (artifacts.size() != 1) {
+            throw new PublishException("zolt publish --dry-run currently supports one package artifact selector. Use [publish].artifacts = [\"main\"] for the configured package output, or [\""
+                    + packageMode.configValue()
+                    + "\"] to select it explicitly.");
+        }
+        String artifact = artifacts.getFirst();
+        if (artifact.equals("main")) {
+            return artifact;
+        }
+        PackageMode selectedMode = PackageMode.fromConfigValue(artifact)
+                .orElseThrow(() -> new PublishException("Unsupported publish artifact selector `"
+                        + artifact
+                        + "`. Use `main` or one of the package mode selectors: thin, spring-boot, war, spring-boot-war."));
+        if (!SINGLE_FILE_PACKAGE_ARTIFACTS.contains(selectedMode)) {
+            throw new PublishException("Publish artifact selector `"
+                    + artifact
+                    + "` does not describe a single package archive yet. Use `main`, `thin`, `spring-boot`, `war`, or `spring-boot-war`.");
+        }
+        if (selectedMode != packageMode) {
+            throw new PublishException("Publish artifact selector `"
+                    + artifact
+                    + "` requires [package].mode = \""
+                    + artifact
+                    + "\", but the current package mode is `"
+                    + packageMode.configValue()
+                    + "`.");
+        }
+        return artifact;
     }
 
     private ZoltLockfile lockfile(Path root) {

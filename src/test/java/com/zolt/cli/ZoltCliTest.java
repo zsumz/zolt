@@ -836,6 +836,72 @@ final class ZoltCliTest {
     }
 
     @Test
+    void publishDryRunSelectsSpringBootWarArtifactExplicitly() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-spring-boot-war");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [package]
+                mode = "spring-boot-war"
+
+                [publish]
+                releaseRepository = "company-releases"
+                artifacts = ["spring-boot-war"]
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Path artifact = projectDir.resolve("target/demo-0.1.0.war");
+        Files.createDirectories(artifact.getParent());
+        Files.writeString(artifact, "fake spring boot war\n");
+        Files.writeString(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/demo-0.1.0.war",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(artifact)));
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Artifact: spring-boot-war"));
+        assertTrue(result.stdout().contains("Artifact path: target/demo-0.1.0.war"));
+        assertTrue(result.stdout().contains("Evidence: target/demo-0.1.0.war.zolt-package.json"));
+        assertTrue(result.stdout().contains("Generated POM: target/publish/demo-0.1.0.pom"));
+        assertTrue(result.stdout().contains("Status: ready"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishDryRunRejectsArtifactSelectorThatDoesNotMatchPackageMode() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-selector-mismatch");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [publish]
+                releaseRepository = "company-releases"
+                artifacts = ["spring-boot-war"]
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Publish artifact selector `spring-boot-war` requires [package].mode = \"spring-boot-war\""));
+        assertTrue(result.stderr().contains("current package mode is `thin`"));
+    }
+
+    @Test
     void checkGeneratedSourcesReportsNoDeclaredSteps() throws IOException {
         Path projectDir = tempDir.resolve("check-no-generated-sources");
         Files.createDirectories(projectDir);
