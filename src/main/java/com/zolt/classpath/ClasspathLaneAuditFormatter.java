@@ -17,11 +17,11 @@ public final class ClasspathLaneAuditFormatter {
                     scope.lockfileName(),
                     yesNo(scope.entersMainCompileClasspath()),
                     yesNo(scope.entersMainRuntimeClasspath()),
-                    yesNo(entersTestRuntimeClasspath(scope)),
+                    yesNo(ClasspathLanePolicy.entersTestRuntimeClasspath(scope)),
                     yesNo(scope.entersMainProcessorClasspath()),
                     yesNo(scope.entersTestProcessorClasspath()),
                     yesNo(scope.packagedByDefault()),
-                    disposition(scope)));
+                    ClasspathLanePolicy.disposition(scope)));
         }
         output.append('\n');
         output.append("Resolved packages:\n");
@@ -35,9 +35,9 @@ public final class ClasspathLaneAuditFormatter {
                         .append(" [")
                         .append(lockPackage.scope().lockfileName())
                         .append("] lanes=")
-                        .append(String.join(",", lanes(lockPackage.scope())))
+                        .append(String.join(",", ClasspathLanePolicy.lanes(lockPackage.scope())))
                         .append(" package=")
-                        .append(disposition(lockPackage.scope()))
+                        .append(ClasspathLanePolicy.disposition(lockPackage.scope()))
                         .append('\n');
             }
         }
@@ -65,11 +65,11 @@ public final class ClasspathLaneAuditFormatter {
             stringField(json, 3, "scope", scope.lockfileName(), true);
             field(json, 3, "compile", scope.entersMainCompileClasspath(), true);
             field(json, 3, "runtime", scope.entersMainRuntimeClasspath(), true);
-            field(json, 3, "test", entersTestRuntimeClasspath(scope), true);
+            field(json, 3, "test", ClasspathLanePolicy.entersTestRuntimeClasspath(scope), true);
             field(json, 3, "processor", scope.entersMainProcessorClasspath(), true);
             field(json, 3, "testProcessor", scope.entersTestProcessorClasspath(), true);
             field(json, 3, "packageDefault", scope.packagedByDefault(), true);
-            stringField(json, 3, "disposition", disposition(scope), false);
+            stringField(json, 3, "disposition", ClasspathLanePolicy.disposition(scope), false);
             indent(json, 2).append("}");
             if (index + 1 < scopes.size()) {
                 json.append(',');
@@ -90,9 +90,9 @@ public final class ClasspathLaneAuditFormatter {
                 stringField(json, 3, "coordinate", coordinate(lockPackage), true);
                 stringField(json, 3, "scope", lockPackage.scope().lockfileName(), true);
                 field(json, 3, "direct", lockPackage.direct(), true);
-                stringArrayField(json, 3, "lanes", lanes(lockPackage.scope()), true);
+                stringArrayField(json, 3, "lanes", ClasspathLanePolicy.lanes(lockPackage.scope()), true);
                 field(json, 3, "packageDefault", lockPackage.scope().packagedByDefault(), true);
-                stringField(json, 3, "disposition", disposition(lockPackage.scope()), false);
+                stringField(json, 3, "disposition", ClasspathLanePolicy.disposition(lockPackage.scope()), false);
                 indent(json, 2).append("}");
                 if (index + 1 < packages.size()) {
                     json.append(',');
@@ -112,44 +112,6 @@ public final class ClasspathLaneAuditFormatter {
         return lockfile.packages().stream()
                 .sorted(Comparator.comparing(ClasspathLaneAuditFormatter::coordinate))
                 .toList();
-    }
-
-    private static List<String> lanes(DependencyScope scope) {
-        java.util.ArrayList<String> lanes = new java.util.ArrayList<>();
-        if (scope.entersMainCompileClasspath()) {
-            lanes.add("compile");
-        }
-        if (scope.entersMainRuntimeClasspath()) {
-            lanes.add("runtime");
-        }
-        if (entersTestRuntimeClasspath(scope)) {
-            lanes.add("test");
-        }
-        if (scope.entersMainProcessorClasspath()) {
-            lanes.add("processor");
-        }
-        if (scope.entersTestProcessorClasspath()) {
-            lanes.add("test-processor");
-        }
-        if (scope == DependencyScope.QUARKUS_DEPLOYMENT) {
-            lanes.add("quarkus-deployment");
-        }
-        return List.copyOf(lanes);
-    }
-
-    private static boolean entersTestRuntimeClasspath(DependencyScope scope) {
-        return scope.entersMainRuntimeClasspath() || scope.entersTestClasspath();
-    }
-
-    private static String disposition(DependencyScope scope) {
-        return switch (scope) {
-            case COMPILE, RUNTIME -> "package-default";
-            case PROVIDED -> "provided-container";
-            case DEV -> "development-only";
-            case TEST -> "test-only";
-            case PROCESSOR, TEST_PROCESSOR -> "processor-only";
-            case QUARKUS_DEPLOYMENT -> "quarkus-augmentation-only";
-        };
     }
 
     private static String coordinate(LockPackage lockPackage) {

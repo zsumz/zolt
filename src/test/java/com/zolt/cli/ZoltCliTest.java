@@ -4347,6 +4347,8 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("com.example:runtime-lib:1.0.0 [runtime] included -> WEB-INF/lib/runtime-lib-1.0.0.jar rule=spring-boot-war-runtime-lib"));
         assertTrue(result.stdout().contains("jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] provided -> WEB-INF/lib-provided/jakarta.servlet-api-6.1.0.jar rule=spring-boot-war-provided-lib"));
         assertTrue(result.stdout().contains("com.example:devtools:1.0.0 [dev] omitted rule=dev-only-omitted"));
+        assertTrue(result.stdout().contains("jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] provided -> WEB-INF/lib-provided/jakarta.servlet-api-6.1.0.jar rule=spring-boot-war-provided-lib lanes=compile packageDefault=false lane=provided-container"));
+        assertTrue(result.stdout().contains("com.example:devtools:1.0.0 [dev] omitted rule=dev-only-omitted lanes=runtime,test packageDefault=false lane=development-only"));
         assertTrue(result.stdout().contains("warning CONTAINER_DEPENDENCY_PACKAGED org.apache.tomcat.embed:tomcat-embed-core:10.1.40 rule=spring-boot-war-runtime-lib"));
         assertFalse(Files.exists(projectDir.resolve("target/package-plan-boot-war-0.1.0.war")));
     }
@@ -4369,6 +4371,12 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"mode\": \"thin\""));
         assertTrue(result.stdout().contains("\"runtimeClasspath\": \"" + projectDir.resolve("target/package-plan-json-0.1.0.runtime-classpath")));
         assertTrue(result.stdout().contains("\"coordinate\": \"com.example:runtime-lib:1.0.0\""));
+        assertTrue(result.stdout().contains("\"lanes\": [\"runtime\", \"test\"]"));
+        assertTrue(result.stdout().contains("\"packageDefault\": true"));
+        assertTrue(result.stdout().contains("\"laneDisposition\": \"package-default\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"com.example:devtools:1.0.0\""));
+        assertTrue(result.stdout().contains("\"packageDefault\": false"));
+        assertTrue(result.stdout().contains("\"laneDisposition\": \"development-only\""));
         assertTrue(result.stdout().contains("\"disposition\": \"runtime-classpath\""));
         assertTrue(result.stdout().contains("\"rule\": \"thin-runtime-classpath\""));
         assertTrue(result.stdout().contains("\"policies\": [\"strict-version: com.example:runtime-lib -> 1.0.0 (security baseline)\"]"));

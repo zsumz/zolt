@@ -24,6 +24,9 @@ public final class PackagePlanFormatter {
                 output.append(" -> ").append(dependency.location());
             }
             output.append(" rule=").append(dependency.ruleName());
+            output.append(" lanes=").append(String.join(",", dependency.lanes()));
+            output.append(" packageDefault=").append(dependency.packageDefault());
+            output.append(" lane=").append(dependency.laneDisposition());
             output.append(" (").append(dependency.reason()).append(")");
             if (!dependency.policies().isEmpty()) {
                 output.append(" policies=").append(String.join("; ", dependency.policies()));
@@ -78,6 +81,9 @@ public final class PackagePlanFormatter {
                 stringField(json, 3, "coordinate", dependency.coordinate(), true);
                 stringField(json, 3, "version", dependency.version(), true);
                 stringField(json, 3, "scope", dependency.scope().lockfileName(), true);
+                stringArrayField(json, 3, "lanes", dependency.lanes(), true);
+                field(json, 3, "packageDefault", dependency.packageDefault(), true);
+                stringField(json, 3, "laneDisposition", dependency.laneDisposition(), true);
                 stringField(json, 3, "disposition", dependency.disposition(), true);
                 stringField(json, 3, "rule", dependency.ruleName(), true);
                 stringField(json, 3, "location", dependency.location(), true);
@@ -119,6 +125,16 @@ public final class PackagePlanFormatter {
 
     private static void pathField(StringBuilder json, int level, String name, Path value, boolean trailingComma) {
         stringField(json, level, name, jsonPath(value), trailingComma);
+    }
+
+    private static void field(StringBuilder json, int level, String name, boolean value, boolean trailingComma) {
+        indent(json, level);
+        string(json, name);
+        json.append(": ").append(value);
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
     }
 
     private static void stringField(StringBuilder json, int level, String name, String value, boolean trailingComma) {
