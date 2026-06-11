@@ -11,15 +11,16 @@ public final class ClasspathLaneAuditFormatter {
         StringBuilder output = new StringBuilder();
         output.append("Classpath lane audit\n\n");
         output.append("Lane policy:\n");
-        output.append("scope               compile runtime test processor test-processor package-default disposition\n");
+        output.append("scope               compile runtime test processor test-processor tool-openapi package-default disposition\n");
         for (DependencyScope scope : scopes()) {
-            output.append("%-19s %-7s %-7s %-4s %-9s %-14s %-15s %s%n".formatted(
+            output.append("%-19s %-7s %-7s %-4s %-9s %-14s %-12s %-15s %s%n".formatted(
                     scope.lockfileName(),
                     yesNo(scope.entersMainCompileClasspath()),
                     yesNo(scope.entersMainRuntimeClasspath()),
                     yesNo(ClasspathLanePolicy.entersTestRuntimeClasspath(scope)),
                     yesNo(scope.entersMainProcessorClasspath()),
                     yesNo(scope.entersTestProcessorClasspath()),
+                    yesNo(scope == DependencyScope.TOOL_OPENAPI),
                     yesNo(scope.packagedByDefault()),
                     ClasspathLanePolicy.disposition(scope)));
         }
@@ -68,6 +69,7 @@ public final class ClasspathLaneAuditFormatter {
             field(json, 3, "test", ClasspathLanePolicy.entersTestRuntimeClasspath(scope), true);
             field(json, 3, "processor", scope.entersMainProcessorClasspath(), true);
             field(json, 3, "testProcessor", scope.entersTestProcessorClasspath(), true);
+            field(json, 3, "toolOpenapi", scope == DependencyScope.TOOL_OPENAPI, true);
             field(json, 3, "packageDefault", scope.packagedByDefault(), true);
             stringField(json, 3, "disposition", ClasspathLanePolicy.disposition(scope), false);
             indent(json, 2).append("}");

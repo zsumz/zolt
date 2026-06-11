@@ -28,6 +28,9 @@ public final class ClasspathLanePolicy {
         if (scope == DependencyScope.QUARKUS_DEPLOYMENT) {
             lanes.add("quarkus-deployment");
         }
+        if (scope == DependencyScope.TOOL_OPENAPI) {
+            lanes.add("tool-openapi");
+        }
         return List.copyOf(lanes);
     }
 
@@ -43,6 +46,7 @@ public final class ClasspathLanePolicy {
             case TEST -> "test-only";
             case PROCESSOR, TEST_PROCESSOR -> "processor-only";
             case QUARKUS_DEPLOYMENT -> "quarkus-augmentation-only";
+            case TOOL_OPENAPI -> "openapi-generator-tooling-only";
         };
     }
 }

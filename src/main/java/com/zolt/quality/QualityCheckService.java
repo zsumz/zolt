@@ -1577,15 +1577,7 @@ public final class QualityCheckService {
             GeneratedSourceCheckStep checkStep) {
         GeneratedSourceStep step = checkStep.step();
         String subject = generatedSection(checkStep);
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT) {
-            if (step.kind() == GeneratedSourceKind.OPENAPI) {
-                return Optional.of(QualityCheckResult.failed(
-                        GENERATED_SOURCES,
-                        member,
-                        subject,
-                        "OpenAPI generated-source step `" + step.id() + "` is typed but generation execution is not implemented yet.",
-                        "Track  for OpenAPI generation execution, or use kind = \"declared-root\" with committed generated sources for now."));
-            }
+        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
             return Optional.of(QualityCheckResult.failed(
                     GENERATED_SOURCES,
                     member,

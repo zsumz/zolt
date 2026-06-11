@@ -231,18 +231,20 @@ public final class BuildPlanService {
     private static PlanNode generatedSourceNode(Path root, String id, GeneratedSourceEvidence evidence) {
         GeneratedSourceStep step = evidence.step();
         List<PlanBlocker> blockers = new ArrayList<>();
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT) {
-            if (step.kind() == GeneratedSourceKind.OPENAPI) {
-                blockers.add(new PlanBlocker(
-                        "openapi-generation-not-implemented",
-                        "OpenAPI generated-source step `" + step.id() + "` is typed but generation execution is not implemented yet.",
-                        "Track  for OpenAPI generation execution, or use kind = \"declared-root\" with committed generated sources for now."));
-            } else {
-                blockers.add(new PlanBlocker(
-                        "unsupported-generated-source-kind",
-                        "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
-                        "Use declared-root or track typed generators in  and ."));
-            }
+        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
+            blockers.add(new PlanBlocker(
+                    "unsupported-generated-source-kind",
+                    "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
+                    "Use declared-root or add support for a Zolt-owned typed generator."));
+        }
+        if (step.kind() == GeneratedSourceKind.OPENAPI
+                && (step.openApi().toolCoordinate().isEmpty()
+                        || step.openApi().toolVersion().isEmpty()
+                        || step.openApi().generator().isEmpty())) {
+            blockers.add(new PlanBlocker(
+                    "openapi-generation-incomplete",
+                    "OpenAPI generated-source step `" + step.id() + "` is missing tool or generator settings.",
+                    "Add [generated.openapiTool] coordinate/version and generator or preset.generator."));
         }
         if (!"java".equals(step.language())) {
             blockers.add(new PlanBlocker(
@@ -261,7 +263,7 @@ public final class BuildPlanService {
                         "Create the input file or update [generated." + evidence.scope() + "." + step.id() + "].inputs."));
             }
         }
-        if (step.required() && !evidence.outputExists()) {
+        if (step.required() && step.kind() == GeneratedSourceKind.DECLARED_ROOT && !evidence.outputExists()) {
             blockers.add(new PlanBlocker(
                     "missing-generated-source-output",
                     "Required generated source output `" + step.output() + "` is missing.",

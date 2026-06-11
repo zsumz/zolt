@@ -55,6 +55,19 @@ exclude = [
 [test.annotationProcessors]
 "org.projectlombok:lombok" = {}
 
+[generated.openapiTool]
+coordinate = "org.openapitools:openapi-generator-cli"
+version = "7.11.0"
+
+[generated.openapiPresets.spring-api]
+generator = "spring"
+library = "spring-boot"
+apiPackage = "com.example.enterprise.generated.api"
+modelPackage = "com.example.enterprise.generated.model"
+invokerPackage = "com.example.enterprise.generated"
+additionalProperties = { sourceFolder = ".", interfaceOnly = "true", useTags = "true", useSpringBoot3 = "true", skipDefaultInterface = "true", generatedAnnotation = "false", openApiNullable = "false" }
+configOptions = { dateLibrary = "java8", documentationProvider = "none", useJakartaEe = "true" }
+
 [build]
 source = "src/main/java"
 test = "src/test/java"
@@ -80,12 +93,11 @@ projectVersion = { project = "version" }
 enterprisePlatformVersion = { value = "public-canary-2026.06" }
 
 [generated.main.public-api]
-kind = "declared-root"
+kind = "openapi"
 language = "java"
+input = "src/main/openapi/public-api.yaml"
 output = "target/generated/sources/openapi/public-api"
-inputs = ["src/main/openapi/public-api.yaml"]
-required = false
-clean = false
+preset = "spring-api"
 
 [test.runtime]
 systemProperties = { "logs.dir" = "${project.root}/target/test-logs" }

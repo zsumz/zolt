@@ -230,6 +230,9 @@ public final class DependencyGraphTraverser {
         if (parentScope == DependencyScope.QUARKUS_DEPLOYMENT) {
             return Optional.of(DependencyScope.QUARKUS_DEPLOYMENT);
         }
+        if (parentScope == DependencyScope.TOOL_OPENAPI) {
+            return Optional.of(DependencyScope.TOOL_OPENAPI);
+        }
         if (parentScope == DependencyScope.TEST) {
             return Optional.of(DependencyScope.TEST);
         }

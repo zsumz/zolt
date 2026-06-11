@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -19,6 +20,7 @@ public final class TestCompileService {
     private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
     private final GroovyCompilerRunner groovyCompilerRunner;
+    private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
 
     public TestCompileService() {
         this(new JdkDetector());
@@ -32,7 +34,27 @@ public final class TestCompileService {
                 new BuildFingerprintService(),
                 jdkDetector,
                 new JavacRunner(),
-                new GroovyCompilerRunner());
+                new GroovyCompilerRunner(),
+                new OpenApiGeneratedSourceService(jdkDetector));
+    }
+
+    TestCompileService(
+            BuildService buildService,
+            SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
+            BuildFingerprintService buildFingerprintService,
+            JdkChecker jdkDetector,
+            JavacRunner javacRunner,
+            GroovyCompilerRunner groovyCompilerRunner,
+            OpenApiGeneratedSourceService openApiGeneratedSourceService) {
+        this.buildService = buildService;
+        this.sourceDiscoverer = sourceDiscoverer;
+        this.resourceCopier = resourceCopier;
+        this.buildFingerprintService = buildFingerprintService;
+        this.jdkDetector = jdkDetector;
+        this.javacRunner = javacRunner;
+        this.groovyCompilerRunner = groovyCompilerRunner;
+        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
     }
 
     TestCompileService(
@@ -43,13 +65,15 @@ public final class TestCompileService {
             JdkChecker jdkDetector,
             JavacRunner javacRunner,
             GroovyCompilerRunner groovyCompilerRunner) {
-        this.buildService = buildService;
-        this.sourceDiscoverer = sourceDiscoverer;
-        this.resourceCopier = resourceCopier;
-        this.buildFingerprintService = buildFingerprintService;
-        this.jdkDetector = jdkDetector;
-        this.javacRunner = javacRunner;
-        this.groovyCompilerRunner = groovyCompilerRunner;
+        this(
+                buildService,
+                sourceDiscoverer,
+                resourceCopier,
+                buildFingerprintService,
+                jdkDetector,
+                javacRunner,
+                groovyCompilerRunner,
+                new OpenApiGeneratedSourceService(jdkDetector));
     }
 
     public TestCompileResult compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -62,7 +86,12 @@ public final class TestCompileService {
             Path cacheRoot) {
         BuildResultWithClasspaths buildResult = buildTestInputs(projectDirectory, config, cacheRoot);
         return new TestCompileResultWithClasspaths(
-                compileTests(projectDirectory, config, buildResult.classpaths(), buildResult.buildResult()),
+                compileTests(
+                        projectDirectory,
+                        config,
+                        buildResult.classpaths(),
+                        buildResult.buildResult(),
+                        buildResult.classpathPackages()),
                 buildResult.classpaths());
     }
 
@@ -79,6 +108,16 @@ public final class TestCompileService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult) {
+        return compileTests(projectDirectory, config, classpaths, buildResult, List.of());
+    }
+
+    private TestCompileResult compileTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            List<ResolvedClasspathPackage> classpathPackages) {
+        openApiGeneratedSourceService.generateTest(projectDirectory, config, classpathPackages);
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

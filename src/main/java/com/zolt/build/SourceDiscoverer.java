@@ -39,7 +39,7 @@ public final class SourceDiscoverer {
             String scope) {
         List<Path> roots = new ArrayList<>();
         for (GeneratedSourceStep step : steps) {
-            if (step.kind() != GeneratedSourceKind.DECLARED_ROOT) {
+            if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
                 throw new SourceDiscoveryException(
                         "Unsupported generated source kind `"
                                 + step.kind().configValue()

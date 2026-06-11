@@ -227,14 +227,12 @@ final class ZoltCliTest {
         CommandResult result = execute("plan", "--target", "build", "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("- generate-main-public-api [generated-source] blocked"));
+        assertTrue(result.stdout().contains("- generate-main-public-api [generated-source] ready"));
         assertTrue(result.stdout().contains("kind: openapi"));
         assertTrue(result.stdout().contains("ownership: zolt-owned-openapi"));
         assertTrue(result.stdout().contains("toolArtifact: org.openapitools:openapi-generator-cli:7.11.0"));
         assertTrue(result.stdout().contains("toolFingerprint: "));
         assertTrue(result.stdout().contains("optionsFingerprint: "));
-        assertTrue(result.stdout().contains("blocker openapi-generation-not-implemented"));
-        assertTrue(result.stdout().contains("Track  for OpenAPI generation execution"));
         assertEquals("", result.stderr());
     }
 
@@ -4166,7 +4164,7 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Classpath lane audit"));
-        assertTrue(result.stdout().contains("provided            yes     no      no   no        no             no              provided-container"));
+        assertTrue(result.stdout().contains("provided            yes     no      no   no        no             no           no              provided-container"));
         assertTrue(result.stdout().contains("- com.example:devtools:1.0.0 [dev] lanes=runtime,test package=development-only"));
         assertTrue(result.stdout().contains("- jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] lanes=compile package=provided-container"));
         assertEquals("", result.stderr());

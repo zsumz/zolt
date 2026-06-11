@@ -21,6 +21,9 @@ import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -1699,6 +1702,55 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void openApiToolResolvesToToolScopeOnly() {
+        addArtifact("org.openapitools", "openapi-generator-cli", "7.11.0", """
+                <project>
+                  <groupId>org.openapitools</groupId>
+                  <artifactId>openapi-generator-cli</artifactId>
+                  <version>7.11.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>generator-helper</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "generator-helper", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>generator-helper</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, openApiConfig(), cacheRoot);
+
+        assertEquals(2, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("org.openapitools", "openapi-generator-cli"))
+                        && lockPackage.scope() == DependencyScope.TOOL_OPENAPI
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "generator-helper"))
+                        && lockPackage.scope() == DependencyScope.TOOL_OPENAPI
+                        && !lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+        assertEquals(List.of(), classpaths.quarkusDeployment().entries());
+    }
+
+    @Test
     void quarkusRuntimeExtensionAddsDeploymentArtifactScope() {
         addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """
                 <project>
@@ -2331,6 +2383,37 @@ final class ResolveServiceTest {
                 Set.of(),
                 BuildSettings.defaults(),
                 null);
+    }
+
+    private ProjectConfig openApiConfig() {
+        OpenApiGenerationSettings settings = new OpenApiGenerationSettings(
+                Optional.of("org.openapitools:openapi-generator-cli"),
+                Optional.of("7.11.0"),
+                Optional.empty(),
+                Optional.of("spring"),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of());
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "public-api",
+                GeneratedSourceKind.OPENAPI,
+                "java",
+                "target/generated/sources/openapi/public-api",
+                List.of("src/main/openapi/public-api.yaml"),
+                true,
+                true,
+                settings);
+        return configWithDependencies(Map.of())
+                .withBuildSettings(BuildSettings.defaults().withGeneratedSources(List.of(step), List.of()));
     }
 
     private ProjectConfig configWithDependencyAndProcessor() {

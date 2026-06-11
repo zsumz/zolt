@@ -24,6 +24,9 @@ import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
@@ -407,6 +410,7 @@ public final class ResolveService {
         }
         addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
+        addOpenApiToolRequests(config, requests);
         return requests;
     }
 
@@ -516,6 +520,51 @@ public final class ResolveService {
                 version,
                 DependencyScope.RUNTIME,
                 RequestOrigin.TRANSITIVE));
+    }
+
+    private void addOpenApiToolRequests(
+            ProjectConfig config,
+            List<DependencyRequest> requests) {
+        List<GeneratedSourceStep> steps = openApiSteps(config);
+        if (steps.isEmpty()) {
+            return;
+        }
+        OpenApiGenerationSettings settings = steps.getFirst().openApi();
+        String coordinate = settings.toolCoordinate()
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new ResolveException(
+                        "OpenAPI generation requires [generated.openapiTool].coordinate. "
+                                + "Add org.openapitools:openapi-generator-cli with a version, run `zolt resolve`, then retry."));
+        String version = settings.toolVersion()
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new ResolveException(
+                        "OpenAPI generation requires [generated.openapiTool].version for "
+                                + coordinate
+                                + ". Add an explicit version, run `zolt resolve`, then retry."));
+        Coordinate parsed = coordinateParser.parse(coordinate + ":" + version);
+        PackageId packageId = PackageId.from(parsed);
+        boolean alreadyRequested = requests.stream()
+                .anyMatch(request -> request.packageId().equals(packageId)
+                        && request.scope() == DependencyScope.TOOL_OPENAPI);
+        if (alreadyRequested) {
+            return;
+        }
+        requests.add(new DependencyRequest(
+                packageId,
+                parsed.version().orElseThrow(),
+                DependencyScope.TOOL_OPENAPI,
+                RequestOrigin.DIRECT));
+    }
+
+    private static List<GeneratedSourceStep> openApiSteps(ProjectConfig config) {
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .forEach(steps::add);
+        config.build().generatedTestSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .forEach(steps::add);
+        return List.copyOf(steps);
     }
 
     private static boolean isSpringBootArchive(PackageMode mode) {

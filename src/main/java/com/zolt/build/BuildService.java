@@ -9,7 +9,9 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.CompilerSettings;
+import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
@@ -27,6 +29,7 @@ public final class BuildService {
     private final BuildFingerprintService buildFingerprintService;
     private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
+    private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
 
     public BuildService() {
         this(new JdkDetector());
@@ -42,7 +45,8 @@ public final class BuildService {
                 new BuildMetadataGenerator(),
                 new BuildFingerprintService(),
                 jdkDetector,
-                new JavacRunner());
+                new JavacRunner(),
+                new OpenApiGeneratedSourceService(jdkDetector));
     }
 
     BuildService(
@@ -54,7 +58,8 @@ public final class BuildService {
             BuildMetadataGenerator buildMetadataGenerator,
             BuildFingerprintService buildFingerprintService,
             JdkChecker jdkDetector,
-            JavacRunner javacRunner) {
+            JavacRunner javacRunner,
+            OpenApiGeneratedSourceService openApiGeneratedSourceService) {
         this.resolveService = resolveService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
@@ -64,6 +69,7 @@ public final class BuildService {
         this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
+        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -84,14 +90,50 @@ public final class BuildService {
         if (!Files.isRegularFile(lockfilePath)) {
             resolveResult = Optional.of(resolveService.resolve(projectDirectory, config, cacheRoot, false, offline));
         }
+        if (openApiToolingMissing(projectDirectory, config, offline)) {
+            resolveResult = Optional.of(resolveService.resolve(projectDirectory, config, cacheRoot, false, offline));
+        }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
         List<ResolvedClasspathPackage> classpathPackages = lockfileReader.classpathPackages(lockfile, cacheRoot);
         ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
+        openApiGeneratedSourceService.generateMain(projectDirectory, config, classpathPackages);
         return new BuildResultWithClasspaths(
                 build(projectDirectory, config, classpaths, resolveResult),
                 classpaths,
                 classpathPackages);
+    }
+
+    private boolean openApiToolingMissing(
+            Path projectDirectory,
+            ProjectConfig config,
+            boolean offline) {
+        if (!hasOpenApiGeneratedSources(config)) {
+            return false;
+        }
+        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return false;
+        }
+        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        boolean hasTool = lockfile.packages().stream()
+                .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_OPENAPI);
+        if (hasTool) {
+            return false;
+        }
+        if (offline) {
+            throw new BuildException(
+                    "OpenAPI generation requires locked tool artifacts in scope `tool-openapi`, but zolt.lock does not contain them. "
+                            + "Run `zolt resolve` without --offline to seed the OpenAPI generator tooling, then retry.");
+        }
+        return true;
+    }
+
+    private static boolean hasOpenApiGeneratedSources(ProjectConfig config) {
+        return config.build().generatedMainSources().stream()
+                .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                || config.build().generatedTestSources().stream()
+                        .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {
