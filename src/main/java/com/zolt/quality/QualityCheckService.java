@@ -423,7 +423,7 @@ public final class QualityCheckService {
                     EXECUTION_CONTEXT,
                     member,
                     "local",
-                    "Local context policy is active: local overlays are allowed, zolt.lock is not required before editing, and CI/release preflights remain explicit."));
+                    "Local context policy is active. Policy source: built-in local context. Local overlays are allowed, zolt.lock is not required before editing, and CI/release preflights remain explicit."));
         }
         if (context != QualityCheckContext.CI) {
             return List.of(QualityCheckResult.failed(
@@ -468,7 +468,7 @@ public final class QualityCheckService {
                 EXECUTION_CONTEXT,
                 member,
                 "ci",
-                "CI context policy is active: locked model checks, generated-source checks, package diagnostics, local overlay rejection, and credential preflight."));
+                "CI context policy is active. Policy source: built-in ci context. Locked model checks, generated-source checks, package diagnostics, local overlay rejection, and credential preflight are enabled."));
     }
 
     private List<QualityCheckResult> checkCredentialPolicy(

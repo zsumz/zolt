@@ -301,6 +301,7 @@ final class ZoltCliTest {
         assertEquals(0, resolveResult.exitCode());
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok execution-context ci CI context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in ci context"));
         assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml."));
         assertTrue(result.stdout().contains("ok project-model check-context-ci Project model is valid"));
         assertTrue(result.stdout().contains("ok generated-sources check-context-ci No declared generated-source steps require validation."));
@@ -318,7 +319,8 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
-        assertTrue(result.stdout().contains("local overlays are allowed"));
+        assertTrue(result.stdout().contains("Policy source: built-in local context"));
+        assertTrue(result.stdout().contains("Local overlays are allowed"));
         assertFalse(result.stdout().contains("lockfile zolt.lock"));
         assertEquals("", result.stderr());
     }
@@ -337,6 +339,7 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in local context"));
         assertTrue(result.stdout().contains("ok project-model check-context-local-explicit-check Project model is valid"));
         assertEquals("", result.stderr());
     }
@@ -527,6 +530,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"subject\":\"ci\""));
         assertTrue(result.stdout().contains("\"status\":\"passed\""));
         assertTrue(result.stdout().contains("CI context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in ci context"));
         assertEquals("", result.stderr());
     }
 
@@ -1038,6 +1042,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("Context: release"));
+        assertTrue(result.stdout().contains("Policy source: built-in release context"));
         assertTrue(result.stdout().contains("release context requires [package.metadata].name."));
         assertTrue(result.stdout().contains("release context requires [package.metadata].license."));
         assertTrue(result.stdout().contains("release context requires a sources jar"));
@@ -1117,6 +1122,7 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Context: release"));
+        assertTrue(result.stdout().contains("Policy source: built-in release context"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("- sources: target/publish-dry-run-release-context-ok-0.1.0-sources.jar"));
         assertTrue(result.stdout().contains("- javadoc: target/publish-dry-run-release-context-ok-0.1.0-javadoc.jar"));
@@ -1204,6 +1210,7 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("Version kind: snapshot"));
         assertTrue(result.stdout().contains("Context: release"));
+        assertTrue(result.stdout().contains("Policy source: built-in release context"));
         assertTrue(result.stdout().contains("release context rejects SNAPSHOT version `0.1.0-SNAPSHOT`"));
         assertTrue(result.stdout().contains("Status: blocked"));
         assertEquals("", result.stderr());

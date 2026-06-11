@@ -11,6 +11,7 @@ public final class PublishDryRunFormatter {
         output.append("Version kind: ").append(plan.versionKind()).append('\n');
         if (!plan.context().isBlank()) {
             output.append("Context: ").append(plan.context()).append('\n');
+            output.append("Policy source: built-in ").append(plan.context()).append(" context\n");
         }
         output.append("Target repository: ").append(plan.repositoryId()).append('\n');
         output.append("Target URL: ").append(plan.repositoryUrl()).append('\n');
