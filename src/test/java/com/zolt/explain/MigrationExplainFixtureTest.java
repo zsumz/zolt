@@ -131,6 +131,62 @@ final class MigrationExplainFixtureTest {
         assertTrue(json.contains("\"status\": \"blocked\""));
     }
 
+    @Test
+    void gradleEnterpriseSpringFixtureReportsReadinessScorecardWithoutExecutingGradle() throws IOException {
+        Path fixture = fixture("gradle-enterprise-spring");
+        Path marker = fixture.resolve("executed.txt");
+        Files.deleteIfExists(marker);
+
+        GradleInspectionResult first = new GradleStaticProjectInspector().inspect(fixture);
+        GradleInspectionResult second = new GradleStaticProjectInspector().inspect(fixture);
+        MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
+        String text = normalize(formatter.text(MigrationReadinessScorecards.from(first)), fixture);
+        String json = normalize(formatter.json(MigrationReadinessScorecards.from(first)), fixture);
+
+        assertEquals(text, normalize(formatter.text(MigrationReadinessScorecards.from(second)), fixture));
+        assertEquals(json, normalize(formatter.json(MigrationReadinessScorecards.from(second)), fixture));
+        assertFalse(Files.exists(marker));
+        assertTrue(text.contains("Zolt migration readiness scorecard: gradle project"));
+        assertTrue(text.contains("repositories: non-deterministic"));
+        assertTrue(text.contains("dependencies: blocked"));
+        assertTrue(text.contains("generated-sources: planned"));
+        assertTrue(text.contains("resources: supported"));
+        assertTrue(text.contains("tests: supported"));
+        assertTrue(text.contains("coverage: planned"));
+        assertTrue(text.contains("package: blocked"));
+        assertTrue(text.contains("publish: planned"));
+        assertTrue(text.contains("ci: planned"));
+        assertTrue(text.contains("mavenLocal() property switch -> local repository overlays"));
+        assertTrue(text.contains("bootWar archive mutation -> package placement policy"));
+        assertTrue(text.contains("This scorecard inspected build metadata statically and did not execute Maven or Gradle."));
+        assertTrue(json.contains("\"command\": \"explain-scorecard\""));
+        assertTrue(json.contains("\"name\": \"repositories\""));
+        assertTrue(json.contains("\"category\": \"non-deterministic\""));
+        assertTrue(json.contains("\"sourcePattern\": \"OpenAPI GenerateTask wired into sourceSets\""));
+        assertTrue(json.contains("\"zoltPrimitive\": \"kind = \\\"openapi\\\" generated-source steps\""));
+        assertTrue(json.contains("\"followUp\": \"\""));
+    }
+
+    @Test
+    void mavenFixtureReportsDeterministicReadinessScorecard() {
+        Path fixture = fixture("maven-simple");
+        MavenInspectionResult first = new MavenStaticProjectInspector().inspect(fixture);
+        MavenInspectionResult second = new MavenStaticProjectInspector().inspect(fixture);
+        MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
+        String text = normalize(formatter.text(MigrationReadinessScorecards.from(first)), fixture);
+        String json = normalize(formatter.json(MigrationReadinessScorecards.from(first)), fixture);
+
+        assertEquals(text, normalize(formatter.text(MigrationReadinessScorecards.from(second)), fixture));
+        assertEquals(json, normalize(formatter.json(MigrationReadinessScorecards.from(second)), fixture));
+        assertTrue(text.contains("Zolt migration readiness scorecard: maven project"));
+        assertTrue(text.contains("Status: supported"));
+        assertTrue(text.contains("repositories: supported"));
+        assertTrue(text.contains("publish: supported"));
+        assertTrue(json.contains("\"source\": \"maven\""));
+        assertTrue(json.contains("\"category\": \"supported\""));
+        assertTrue(json.contains("\"sourcePattern\": \"dependencies and dependencyManagement\""));
+    }
+
     private static Path fixture(String name) {
         return FIXTURE_ROOT.resolve(name);
     }

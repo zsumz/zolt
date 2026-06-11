@@ -956,6 +956,7 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Audit a Maven or Gradle project for future Zolt migration."));
         assertTrue(result.stdout().contains("--format"));
+        assertTrue(result.stdout().contains("--scorecard"));
         assertTrue(result.stdout().contains("--source"));
     }
 
@@ -1056,6 +1057,54 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"source\": \"maven\""));
         assertTrue(result.stdout().contains("\"root\": \"" + jsonPath(tempDir.toAbsolutePath().normalize()) + "\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"org.junit.jupiter:junit-jupiter:5.11.4\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainGradleScorecardJsonReportsReadinessConcerns() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'jacoco'
+                    id 'org.openapi.generator' version '7.11.0'
+                }
+                repositories {
+                    mavenLocal()
+                    mavenCentral()
+                }
+                configurations.all {
+                    resolutionStrategy.force 'com.google.guava:guava:33.4.8-jre'
+                }
+                tasks.register('generateApi') { }
+                sourceSets {
+                    main {
+                        java {
+                            srcDirs += "${buildDir}/generated/api".toString()
+                        }
+                    }
+                }
+                dependencies {
+                    implementation 'com.google.guava:guava:33.4.8-jre'
+                }
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "gradle",
+                "--scorecard",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"command\": \"explain-scorecard\""));
+        assertTrue(result.stdout().contains("\"source\": \"gradle\""));
+        assertTrue(result.stdout().contains("\"name\": \"repositories\""));
+        assertTrue(result.stdout().contains("\"status\": \"non-deterministic\""));
+        assertTrue(result.stdout().contains("\"category\": \"blocked\""));
+        assertTrue(result.stdout().contains("\"sourcePattern\": \"mavenLocal() property switch\""));
+        assertTrue(result.stdout().contains("\"zoltPrimitive\": \"local repository overlays\""));
+        assertTrue(result.stdout().contains("\"followUp\": \"\""));
         assertEquals("", result.stderr());
     }
 

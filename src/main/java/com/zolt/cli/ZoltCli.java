@@ -55,6 +55,8 @@ import com.zolt.explain.MavenExplainFormatter;
 import com.zolt.explain.MavenInspectionResult;
 import com.zolt.explain.MavenStaticProjectInspector;
 import com.zolt.explain.MigrationExplainException;
+import com.zolt.explain.MigrationReadinessScorecardFormatter;
+import com.zolt.explain.MigrationReadinessScorecards;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
 import com.zolt.ide.WorkspaceIdeModelJsonWriter;
@@ -964,6 +966,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--source", description = "Project source type: auto, maven, or gradle.")
         private Source source = Source.AUTO;
 
+        @Option(names = "--scorecard", description = "Print a migration readiness scorecard instead of the raw explain report.")
+        private boolean scorecard;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -977,6 +982,15 @@ public final class ZoltCli implements Runnable {
             if (detectedSource == Source.MAVEN) {
                 try {
                     MavenInspectionResult result = new MavenStaticProjectInspector().inspect(root);
+                    if (scorecard) {
+                        MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
+                        if (format == Format.JSON) {
+                            printAndFlush(spec, formatter.json(MigrationReadinessScorecards.from(result)));
+                        } else {
+                            printAndFlush(spec, formatter.text(MigrationReadinessScorecards.from(result)));
+                        }
+                        return 0;
+                    }
                     MavenExplainFormatter formatter = new MavenExplainFormatter();
                     if (format == Format.JSON) {
                         printAndFlush(spec, formatter.json(result));
@@ -992,6 +1006,15 @@ public final class ZoltCli implements Runnable {
             if (detectedSource == Source.GRADLE) {
                 try {
                     GradleInspectionResult result = new GradleStaticProjectInspector().inspect(root);
+                    if (scorecard) {
+                        MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
+                        if (format == Format.JSON) {
+                            printAndFlush(spec, formatter.json(MigrationReadinessScorecards.from(result)));
+                        } else {
+                            printAndFlush(spec, formatter.text(MigrationReadinessScorecards.from(result)));
+                        }
+                        return 0;
+                    }
                     GradleExplainFormatter formatter = new GradleExplainFormatter();
                     if (format == Format.JSON) {
                         printAndFlush(spec, formatter.json(result));
