@@ -4,6 +4,8 @@ import com.zolt.cache.ArtifactCacheException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackagePlanWarning;
+import com.zolt.generated.GeneratedSourceEvidence;
+import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
@@ -71,6 +73,7 @@ public final class QualityCheckService {
     private final WorkspaceResolveService workspaceResolveService;
     private final ZoltLockfileReader lockfileReader;
     private final PackagePlanService packagePlanService;
+    private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
 
     public QualityCheckService() {
         this(
@@ -80,7 +83,8 @@ public final class QualityCheckService {
                 new ResolveService(),
                 new WorkspaceResolveService(),
                 new ZoltLockfileReader(),
-                new PackagePlanService());
+                new PackagePlanService(),
+                new GeneratedSourceEvidenceService());
     }
 
     QualityCheckService(
@@ -90,7 +94,8 @@ public final class QualityCheckService {
             ResolveService resolveService,
             WorkspaceResolveService workspaceResolveService,
             ZoltLockfileReader lockfileReader,
-            PackagePlanService packagePlanService) {
+            PackagePlanService packagePlanService,
+            GeneratedSourceEvidenceService generatedSourceEvidenceService) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
@@ -98,6 +103,7 @@ public final class QualityCheckService {
         this.workspaceResolveService = workspaceResolveService;
         this.lockfileReader = lockfileReader;
         this.packagePlanService = packagePlanService;
+        this.generatedSourceEvidenceService = generatedSourceEvidenceService;
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -683,7 +689,7 @@ public final class QualityCheckService {
         return fileName.endsWith(".java") || fileName.endsWith(".groovy");
     }
 
-    private static List<QualityCheckResult> checkGeneratedSources(
+    private List<QualityCheckResult> checkGeneratedSources(
             Optional<String> member,
             Path projectRoot,
             ProjectConfig config) {
@@ -698,6 +704,7 @@ public final class QualityCheckService {
 
         List<QualityCheckResult> results = new ArrayList<>();
         Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
+        Map<String, GeneratedSourceEvidence> evidenceByKey = generatedSourceEvidenceByKey(normalizedRoot, config);
         for (GeneratedSourceCheckStep checkStep : steps) {
             GeneratedSourceStep step = checkStep.step();
             Optional<QualityCheckResult> invalid = invalidGeneratedSourceStep(member, normalizedRoot, checkStep);
@@ -706,9 +713,19 @@ public final class QualityCheckService {
                 continue;
             }
 
-            Path output = normalizedRoot.resolve(step.output()).normalize();
             String subject = generatedSection(checkStep);
-            if (!Files.isDirectory(output)) {
+            GeneratedSourceEvidence evidence = evidenceByKey.get(generatedSourceKey(checkStep.scope(), step.id()));
+            Optional<String> missingInput = firstMissingGeneratedInput(step, evidence);
+            if (missingInput.isPresent()) {
+                results.add(QualityCheckResult.failed(
+                        GENERATED_SOURCES,
+                        member,
+                        subject,
+                        "Generated source input `" + missingInput.orElseThrow() + "` is missing.",
+                        "Create the input file or update " + subject + ".inputs."));
+                continue;
+            }
+            if (!evidence.outputExists()) {
                 if (step.required()) {
                     results.add(QualityCheckResult.failed(
                             GENERATED_SOURCES,
@@ -728,6 +745,15 @@ public final class QualityCheckService {
                         "Generate it when needed, or set required = true if the root must exist for builds."));
                 continue;
             }
+            if ("stale".equals(evidence.freshness())) {
+                results.add(QualityCheckResult.failed(
+                        GENERATED_SOURCES,
+                        member,
+                        subject,
+                        "Generated source root `" + step.output() + "` is stale; one or more declared inputs are newer.",
+                        "Regenerate the source root or update " + subject + ".inputs."));
+                continue;
+            }
 
             results.add(QualityCheckResult.passed(
                     GENERATED_SOURCES,
@@ -739,9 +765,36 @@ public final class QualityCheckService {
                             + checkStep.scope()
                             + "-"
                             + step.id()
+                            + "` with ownership `"
+                            + evidence.ownership()
+                            + "` and freshness `"
+                            + evidence.freshness()
                             + "`."));
         }
         return List.copyOf(results);
+    }
+
+    private Map<String, GeneratedSourceEvidence> generatedSourceEvidenceByKey(Path projectRoot, ProjectConfig config) {
+        Map<String, GeneratedSourceEvidence> evidence = new LinkedHashMap<>();
+        for (GeneratedSourceEvidence generatedSource : generatedSourceEvidenceService.evidence(projectRoot, config.build())) {
+            evidence.put(generatedSourceKey(generatedSource.scope(), generatedSource.step().id()), generatedSource);
+        }
+        return Map.copyOf(evidence);
+    }
+
+    private static String generatedSourceKey(String scope, String id) {
+        return scope + ":" + id;
+    }
+
+    private static Optional<String> firstMissingGeneratedInput(
+            GeneratedSourceStep step,
+            GeneratedSourceEvidence evidence) {
+        for (int index = 0; index < step.inputs().size(); index++) {
+            if (!Files.exists(evidence.inputs().get(index))) {
+                return Optional.of(step.inputs().get(index));
+            }
+        }
+        return Optional.empty();
     }
 
     private static List<GeneratedSourceCheckStep> generatedSourceSteps(BuildSettings build) {

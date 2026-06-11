@@ -345,11 +345,11 @@ final class ZoltCliTest {
         Path projectDir = tempDir.resolve("check-generated-sources-ok");
         Files.createDirectories(projectDir.resolve("target/generated/sources/openapi/com/example"));
         Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
         Files.writeString(projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java"), """
                 package com.example;
                 public final class GeneratedApi {}
                 """);
-        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-ok")
                 + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
 
@@ -358,6 +358,7 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok generated-sources [generated.main.openapi] Generated source root `target/generated/sources/openapi` is declared"));
         assertTrue(result.stdout().contains("exported as IDE source root `generated-main-openapi`"));
+        assertTrue(result.stdout().contains("ownership `external-declared-root` and freshness `fresh`"));
         assertEquals("", result.stderr());
     }
 
@@ -389,6 +390,50 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("error generated-sources [generated.main.openapi] Generated source root `target/generated/sources/openapi` is missing."));
         assertTrue(result.stdout().contains("next: Run the generator that produces it, commit the generated sources"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesReportsMissingInputs() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-missing-input");
+        Files.createDirectories(projectDir.resolve("target/generated/sources/openapi/com/example"));
+        Files.writeString(projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java"), """
+                package com.example;
+                public final class GeneratedApi {}
+                """);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-missing-input")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error generated-sources [generated.main.openapi] Generated source input `src/main/openapi/api.yaml` is missing."));
+        assertTrue(result.stdout().contains("next: Create the input file or update [generated.main.openapi].inputs."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkGeneratedSourcesReportsStaleOutputs() throws IOException {
+        Path projectDir = tempDir.resolve("check-generated-sources-stale");
+        Path outputFile = projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java");
+        Path inputFile = projectDir.resolve("src/main/openapi/api.yaml");
+        Files.createDirectories(outputFile.getParent());
+        Files.createDirectories(inputFile.getParent());
+        Files.writeString(outputFile, """
+                package com.example;
+                public final class GeneratedApi {}
+                """);
+        Files.writeString(inputFile, "openapi: 3.1.0\n");
+        Files.setLastModifiedTime(outputFile, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(inputFile, FileTime.fromMillis(2_000));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-generated-sources-stale")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "generated-sources");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error generated-sources [generated.main.openapi] Generated source root `target/generated/sources/openapi` is stale; one or more declared inputs are newer."));
+        assertTrue(result.stdout().contains("next: Regenerate the source root or update [generated.main.openapi].inputs."));
         assertEquals("", result.stderr());
     }
 
