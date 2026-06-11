@@ -4384,6 +4384,72 @@ final class ZoltCliTest {
     }
 
     @Test
+    void packageCommandBuildsSpringBootWarWithProvidedTomcatLane() throws IOException {
+        Path projectDir = tempDir.resolve("spring-boot-war-provided-tomcat");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        createJarWithEntry(
+                cacheRoot.resolve("org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"),
+                "org/springframework/boot/SpringApplication.class");
+        createJarWithEntry(
+                cacheRoot.resolve(
+                        "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar"),
+                "org/springframework/boot/loader/launch/WarLauncher.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"),
+                "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(
+                cacheRoot.resolve(
+                        "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"),
+                "org/apache/catalina/startup/Tomcat.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar"),
+                "com/example/dev/DevTools.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar"),
+                "com/example/processor/Processor.class");
+        writeSpringBootWarProvidedTomcatLockfile(projectDir);
+
+        CommandResult result = execute(
+                "package",
+                "--mode", "spring-boot-war",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        Path warPath = projectDir.resolve("target/demo-0.1.0.war");
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Packaged"));
+        assertTrue(result.stdout().contains("spring-boot-war"));
+        assertTrue(result.stdout().contains("Wrote archive to " + warPath));
+        assertFalse(result.stdout().contains("CONTAINER_DEPENDENCY_PACKAGED"));
+        try (JarFile jar = new JarFile(warPath.toFile())) {
+            Attributes attributes = jar.getManifest().getMainAttributes();
+            assertEquals(
+                    "org.springframework.boot.loader.launch.WarLauncher",
+                    attributes.getValue(Attributes.Name.MAIN_CLASS));
+            assertEquals("com.example.Main", attributes.getValue("Start-Class"));
+            assertEquals("WEB-INF/lib-provided/", attributes.getValue("Spring-Boot-Lib-Provided"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/runtime-lib-1.0.0.jar"));
+            assertNotNull(jar.getEntry("WEB-INF/lib-provided/tomcat-embed-core-10.1.40.jar"));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/tomcat-embed-core-10.1.40.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/devtools-1.0.0.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/processor-1.0.0.jar")));
+        }
+    }
+
+    @Test
     void packageBuildsAndWritesJarWithManifest() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -5203,6 +5269,66 @@ final class ZoltCliTest {
                 dependencies = []
                 %s
                 """.formatted(policy, suspiciousContainer));
+    }
+
+    private static void writeSpringBootWarProvidedTomcatLockfile(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot"
+                version = "4.0.6"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot-loader"
+                version = "4.0.6"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.apache.tomcat.embed:tomcat-embed-core"
+                version = "10.1.40"
+                source = "maven-central"
+                scope = "provided"
+                direct = true
+                jar = "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:devtools"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "dev"
+                direct = true
+                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
+                dependencies = []
+                """);
     }
 
     private static String pom(String groupId, String artifactId, String version) {
