@@ -79,6 +79,7 @@ final class ZoltTomlWriterTest {
 
         assertEquals(original.project(), parsed.project());
         assertEquals(original.repositories(), parsed.repositories());
+        assertEquals(original.versionAliases(), parsed.versionAliases());
         assertEquals(original.platforms(), parsed.platforms());
         assertEquals(original.apiDependencies(), parsed.apiDependencies());
         assertEquals(original.managedApiDependencies(), parsed.managedApiDependencies());
@@ -97,6 +98,35 @@ final class ZoltTomlWriterTest {
         assertEquals(original.build(), parsed.build());
         assertEquals(original.compilerSettings(), parsed.compilerSettings());
         assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void writesVersionAliasesWhenPresent() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "aliases"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                boot = "4.0.6"
+                slf4j = "2.0.17"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = { versionRef = "boot" }
+
+                [dependencies]
+                "org.slf4j:slf4j-api" = { versionRef = "slf4j" }
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[versions]\n\"boot\" = \"4.0.6\"\n\"slf4j\" = \"2.0.17\""));
+        assertEquals(Map.of("boot", "4.0.6", "slf4j", "2.0.17"), parsed.versionAliases());
+        assertEquals("4.0.6", parsed.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertEquals("2.0.17", parsed.dependencies().get("org.slf4j:slf4j-api"));
     }
 
     @Test

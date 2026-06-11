@@ -400,7 +400,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [api.dependencies].com.acme:contract in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
+                "Invalid value for [api.dependencies].com.acme:contract in zolt.toml. Use a non-empty string version, { versionRef = \"alias\" }, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 
@@ -466,6 +466,138 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesVersionAliasesForVersionBearingFields() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "aliases"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                boot = "4.0.6"
+                slf4j = "2.0.17"
+                lombok = "1.18.38"
+                tomcat = "10.1.40"
+                junit = "5.11.4"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = { versionRef = "boot" }
+
+                [dependencies]
+                "org.slf4j:slf4j-api" = { versionRef = "slf4j" }
+
+                [annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "lombok" }
+
+                [test.annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "lombok" }
+
+                [test.dependencies]
+                "org.junit.jupiter:junit-jupiter" = { versionRef = "junit" }
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict" }
+                """);
+
+        assertEquals("4.0.6", config.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertEquals("4.0.6", config.versionAliases().get("boot"));
+        assertEquals("2.0.17", config.dependencies().get("org.slf4j:slf4j-api"));
+        assertEquals("1.18.38", config.annotationProcessors().get("org.projectlombok:lombok"));
+        assertEquals("1.18.38", config.testAnnotationProcessors().get("org.projectlombok:lombok"));
+        assertEquals("5.11.4", config.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+        assertEquals(
+                "10.1.40",
+                config.dependencyPolicy()
+                        .constraints()
+                        .get("org.apache.tomcat.embed:tomcat-embed-core")
+                        .version());
+    }
+
+    @Test
+    void rejectsUnknownVersionAliasReference() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "aliases"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [dependencies]
+                        "com.google.guava:guava" = { versionRef = "guava" }
+                        """));
+
+        assertEquals(
+                "Unknown versionRef `guava` in [dependencies.com.google.guava:guava]. Add [versions].guava or use an explicit version.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsMalformedVersionAliasName() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "aliases"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [versions]
+                        "spring boot" = "4.0.6"
+                        """));
+
+        assertEquals(
+                "Invalid [versions] alias `spring boot`. Alias names may contain only letters, digits, dot, underscore, and hyphen.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsVersionAndVersionRefTogether() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "aliases"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [versions]
+                        guava = "33.4.8-jre"
+
+                        [dependencies]
+                        "com.google.guava:guava" = { version = "33.4.8-jre", versionRef = "guava" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [dependencies.com.google.guava:guava] in zolt.toml. Use either version or versionRef, not both.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsVersionRefInNonVersionField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "aliases"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [package]
+                        versionRef = "guava"
+                        """));
+
+        assertEquals(
+                "Invalid value for [package].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.",
+                exception.getMessage());
+    }
+
+    @Test
     void parsesWorkspaceDependencies() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -503,7 +635,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [dependencies].com.acme:core in zolt.toml. Use either version or workspace, not both.",
+                "Invalid value for [dependencies].com.acme:core in zolt.toml. Use version, versionRef, or workspace; do not combine them.",
                 exception.getMessage());
     }
 
@@ -994,7 +1126,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version or {} for a platform-managed version. Inline tables may also include optional, publishOnly, and exclusions metadata.",
+                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version, { versionRef = \"alias\" }, or {} for a platform-managed version. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 
@@ -1337,7 +1469,7 @@ final class ZoltTomlParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
+                "Invalid value for [dependencies].com.google.guava:guava in zolt.toml. Use a non-empty string version, { versionRef = \"alias\" }, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 

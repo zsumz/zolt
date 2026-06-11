@@ -61,6 +61,9 @@ public final class ZoltTomlWriter {
         writeProject(toml, config.project());
         writeRepositories(toml, config.repositorySettings());
         writeRepositoryCredentials(toml, config.repositoryCredentials());
+        if (!config.versionAliases().isEmpty()) {
+            writeStringMap(toml, "versions", config.versionAliases());
+        }
         writeStringMap(toml, "platforms", config.platforms());
         writeDependencyPolicy(toml, config.dependencyPolicy());
         writeOptionalDependencies(
@@ -751,6 +754,7 @@ public final class ZoltTomlWriter {
                 config.repositories(),
                 config.repositorySettings(),
                 config.repositoryCredentials(),
+                config.versionAliases(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
