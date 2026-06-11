@@ -9,6 +9,9 @@ import com.zolt.build.PackagePlanService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.maven.ArtifactDescriptor;
+import com.zolt.maven.Coordinate;
+import com.zolt.maven.MavenRepositoryPathBuilder;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
@@ -24,6 +27,7 @@ import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -40,6 +44,7 @@ public final class PublishDryRunService {
     private final PackageEvidenceManifestReader evidenceManifestReader;
     private final ZoltLockfileReader lockfileReader;
     private final PublishPomGenerator pomGenerator;
+    private final MavenRepositoryPathBuilder repositoryPathBuilder;
     private final Function<String, String> environment;
 
     public PublishDryRunService() {
@@ -50,6 +55,7 @@ public final class PublishDryRunService {
                 new PackageEvidenceManifestReader(),
                 new ZoltLockfileReader(),
                 new PublishPomGenerator(),
+                new MavenRepositoryPathBuilder(),
                 System::getenv);
     }
 
@@ -61,6 +67,7 @@ public final class PublishDryRunService {
                 new PackageEvidenceManifestReader(),
                 new ZoltLockfileReader(),
                 new PublishPomGenerator(),
+                new MavenRepositoryPathBuilder(),
                 environment);
     }
 
@@ -71,6 +78,7 @@ public final class PublishDryRunService {
             PackageEvidenceManifestReader evidenceManifestReader,
             ZoltLockfileReader lockfileReader,
             PublishPomGenerator pomGenerator,
+            MavenRepositoryPathBuilder repositoryPathBuilder,
             Function<String, String> environment) {
         this.projectParser = projectParser;
         this.publishSettingsReader = publishSettingsReader;
@@ -78,6 +86,7 @@ public final class PublishDryRunService {
         this.evidenceManifestReader = evidenceManifestReader;
         this.lockfileReader = lockfileReader;
         this.pomGenerator = pomGenerator;
+        this.repositoryPathBuilder = repositoryPathBuilder;
         this.environment = environment;
     }
 
@@ -120,6 +129,10 @@ public final class PublishDryRunService {
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")
                 .normalize();
         String pomSha256 = writePom(root, pomPath, config, lockfile);
+        Coordinate coordinate = coordinate(config);
+        String artifactUploadPath = repositoryPathBuilder.artifactPath(
+                new ArtifactDescriptor(coordinate, Optional.empty(), extension(artifactPath)));
+        String pomUploadPath = repositoryPathBuilder.pomPath(coordinate);
         String artifactSha256 = "";
         if (!Files.isRegularFile(artifactPath)) {
             blockers.add("missing artifact: run `zolt package` to create " + displayPath(root, artifactPath));
@@ -146,10 +159,28 @@ public final class PublishDryRunService {
                 artifactId,
                 display(root, artifactPath),
                 artifactSha256,
+                artifactUploadPath,
                 display(root, evidencePath),
                 display(root, pomPath),
                 pomSha256,
+                pomUploadPath,
                 blockers);
+    }
+
+    private static Coordinate coordinate(ProjectConfig config) {
+        return new Coordinate(
+                config.project().group(),
+                config.project().name(),
+                Optional.of(config.project().version()));
+    }
+
+    private static String extension(Path artifactPath) {
+        String fileName = artifactPath.getFileName().toString();
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) {
+            throw new PublishException("Could not determine publish artifact extension from `" + fileName + "`.");
+        }
+        return fileName.substring(dot + 1);
     }
 
     private static boolean hasEmbeddedCredentials(String url) {

@@ -694,9 +694,11 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Target repository: company-releases"));
         assertTrue(result.stdout().contains("Target URL: https://repo.example.test/releases"));
         assertTrue(result.stdout().contains("Artifact path: target/demo-0.1.0.jar"));
+        assertTrue(result.stdout().contains("Artifact upload path: com/example/demo/0.1.0/demo-0.1.0.jar"));
         assertTrue(result.stdout().contains("Evidence: target/demo-0.1.0.jar.zolt-package.json"));
         assertTrue(result.stdout().contains("Generated POM: target/publish/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("POM checksum: sha256:"));
+        assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
         assertTrue(Files.exists(projectDir.resolve("target/publish/demo-0.1.0.pom")));
@@ -996,8 +998,10 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Artifact: spring-boot-war"));
         assertTrue(result.stdout().contains("Artifact path: target/demo-0.1.0.war"));
+        assertTrue(result.stdout().contains("Artifact upload path: com/example/demo/0.1.0/demo-0.1.0.war"));
         assertTrue(result.stdout().contains("Evidence: target/demo-0.1.0.war.zolt-package.json"));
         assertTrue(result.stdout().contains("Generated POM: target/publish/demo-0.1.0.pom"));
+        assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertEquals("", result.stderr());
     }
