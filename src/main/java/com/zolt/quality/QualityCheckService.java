@@ -28,6 +28,9 @@ import com.zolt.project.ResourceTokenSettings;
 import com.zolt.publish.PublishDryRunPlan;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishException;
+import com.zolt.publish.PublishRepositorySettings;
+import com.zolt.publish.PublishSettings;
+import com.zolt.publish.PublishSettingsReader;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -104,6 +107,7 @@ public final class QualityCheckService {
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final PackageEvidenceManifestReader packageEvidenceManifestReader;
     private final PublishDryRunService publishDryRunService;
+    private final PublishSettingsReader publishSettingsReader;
     private final Function<String, String> environment;
 
     public QualityCheckService() {
@@ -118,6 +122,7 @@ public final class QualityCheckService {
                 new GeneratedSourceEvidenceService(),
                 new PackageEvidenceManifestReader(),
                 new PublishDryRunService(),
+                new PublishSettingsReader(),
                 System::getenv);
     }
 
@@ -133,6 +138,7 @@ public final class QualityCheckService {
                 new GeneratedSourceEvidenceService(),
                 new PackageEvidenceManifestReader(),
                 new PublishDryRunService(),
+                new PublishSettingsReader(),
                 environment);
     }
 
@@ -147,6 +153,7 @@ public final class QualityCheckService {
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
             PackageEvidenceManifestReader packageEvidenceManifestReader,
             PublishDryRunService publishDryRunService,
+            PublishSettingsReader publishSettingsReader,
             Function<String, String> environment) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
@@ -158,6 +165,7 @@ public final class QualityCheckService {
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
         this.packageEvidenceManifestReader = packageEvidenceManifestReader;
         this.publishDryRunService = publishDryRunService;
+        this.publishSettingsReader = publishSettingsReader;
         this.environment = environment;
     }
 
@@ -290,6 +298,11 @@ public final class QualityCheckService {
                                     Optional.of(member.path()),
                                     member.config(),
                                     request.context()));
+                            results.addAll(checkPublishCredentialPolicy(
+                                    Optional.of(member.path()),
+                                    member.directory(),
+                                    member.config(),
+                                    request.context()));
                             results.addAll(checkResourceTokenInputs(
                                     Optional.of(member.path()),
                                     member.config(),
@@ -374,6 +387,7 @@ public final class QualityCheckService {
         List<QualityCheckResult> results = new ArrayList<>();
         results.addAll(checkExecutionContext(member, root, context));
         results.addAll(checkCredentialPolicy(member, config, context));
+        results.addAll(checkPublishCredentialPolicy(member, root, config, context));
         results.addAll(checkResourceTokenInputs(member, config, context));
         results.addAll(checkTestReports(member, root, reportsDir, reportsDir, context));
         results.addAll(checkPublishDryRun(member, root, context, requirePublishDryRun));
@@ -570,6 +584,97 @@ public final class QualityCheckService {
         return List.copyOf(results);
     }
 
+    private List<QualityCheckResult> checkPublishCredentialPolicy(
+            Optional<String> member,
+            Path root,
+            ProjectConfig config,
+            QualityCheckContext context) {
+        if (context != QualityCheckContext.CI) {
+            return List.of();
+        }
+        PublishSettings publish = publishSettingsReader.read(root.resolve("zolt.toml"), config.repositoryCredentials());
+        if (!publish.configured()) {
+            return List.of();
+        }
+
+        List<PublishRepositorySettings> repositories = publish.repositories().values().stream()
+                .sorted(Comparator.comparing(PublishRepositorySettings::id))
+                .toList();
+        List<QualityCheckResult> results = new ArrayList<>();
+        int credentialedRepositories = 0;
+        for (PublishRepositorySettings repository : repositories) {
+            Optional<QualityCheckResult> embeddedCredentials = embeddedPublishRepositoryCredentials(member, repository);
+            if (embeddedCredentials.isPresent()) {
+                results.add(embeddedCredentials.orElseThrow());
+                continue;
+            }
+            Optional<String> credentialId = repository.credentials();
+            if (credentialId.isEmpty()) {
+                continue;
+            }
+            credentialedRepositories++;
+            RepositoryCredentialSettings credential = config.repositoryCredentials().get(credentialId.orElseThrow());
+            if (credential == null) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credentialId.orElseThrow() + "]",
+                        "Publish repository `" + repository.id() + "` references missing credential metadata.",
+                        "Define [repositoryCredentials." + credentialId.orElseThrow() + "] with environment variable names, not secret values."));
+                continue;
+            }
+
+            List<String> missing = missingCredentialEnvironmentVariables(credential);
+            if (!missing.isEmpty()) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credential.id() + "]",
+                        "CI context requires environment variable"
+                                + (missing.size() == 1 ? " " : "s ")
+                                + String.join(", ", missing)
+                                + " for publish repository `"
+                                + repository.id()
+                                + "` credentials `"
+                                + credential.id()
+                                + "` before publish work starts.",
+                        "Set the named CI secret"
+                                + (missing.size() == 1 ? "" : "s")
+                                + " and rerun `zolt check --context ci`. Secret values are never printed."));
+                continue;
+            }
+
+            List<String> placeholders = placeholderCredentialEnvironmentVariables(credential);
+            if (!placeholders.isEmpty()) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credential.id() + "]",
+                        "CI context rejects placeholder credential value"
+                                + (placeholders.size() == 1 ? " " : "s ")
+                                + "for environment variable"
+                                + (placeholders.size() == 1 ? " " : "s ")
+                                + String.join(", ", placeholders)
+                                + " on publish repository `"
+                                + repository.id()
+                                + "`.",
+                        "Replace placeholder credentials with real CI secrets. Zolt reports only variable names, never secret values."));
+            }
+        }
+
+        if (results.isEmpty() && credentialedRepositories > 0) {
+            results.add(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "publish-credentials",
+                    "CI publish credential preflight passed for "
+                            + credentialedRepositories
+                            + " credentialed publish "
+                            + (credentialedRepositories == 1 ? "repository." : "repositories.")));
+        }
+        return List.copyOf(results);
+    }
+
     private List<QualityCheckResult> checkResourceTokenInputs(
             Optional<String> member,
             ProjectConfig config,
@@ -654,6 +759,30 @@ public final class QualityCheckService {
                     "[repositories." + repository.id() + "]",
                     "Repository `" + repository.id() + "` URL is not a valid URI.",
                     "Edit [repositories." + repository.id() + "] to use a Maven-compatible HTTPS URL without embedded credentials."));
+        }
+    }
+
+    private Optional<QualityCheckResult> embeddedPublishRepositoryCredentials(
+            Optional<String> member,
+            PublishRepositorySettings repository) {
+        try {
+            URI uri = new URI(repository.url());
+            if (uri.getUserInfo() == null || uri.getUserInfo().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "[publish.repositories." + repository.id() + "]",
+                    "CI context rejects embedded credentials in publish repository `" + repository.id() + "` URL.",
+                    "Move publish credentials to [repositoryCredentials] environment references. Do not commit username, password, or token values in publish repository URLs."));
+        } catch (URISyntaxException exception) {
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "[publish.repositories." + repository.id() + "]",
+                    "Publish repository `" + repository.id() + "` URL is not a valid URI.",
+                    "Edit [publish.repositories." + repository.id() + "] to use a Maven-compatible HTTPS URL without embedded credentials."));
         }
     }
 

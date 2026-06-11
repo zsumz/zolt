@@ -483,6 +483,39 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRejectsMissingPublishCredentialEnvironment() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-publish-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-publish-credentials") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                credentials = "publish-creds"
+
+                [repositoryCredentials.publish-creds]
+                usernameEnv = "ZOLT_TEST_MISSING_PUBLISH_CHECK_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_PUBLISH_CHECK_PASSWORD"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositoryCredentials.publish-creds] CI context requires environment variables ZOLT_TEST_MISSING_PUBLISH_CHECK_USERNAME, ZOLT_TEST_MISSING_PUBLISH_CHECK_PASSWORD"));
+        assertTrue(result.stdout().contains("publish repository `company-releases` credentials `publish-creds`"));
+        assertTrue(result.stdout().contains("Secret values are never printed"));
+        assertFalse(result.stdout().contains("repo.example.test/releases"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiRejectsEmbeddedRepositoryCredentials() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-embedded-credentials");
         Files.createDirectories(projectDir);
@@ -504,6 +537,35 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Move credentials to [repositoryCredentials] environment references"));
         assertFalse(result.stdout().contains("user:super-secret-token"));
         assertFalse(result.stdout().contains("repo.example.test/maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsEmbeddedPublishCredentials() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-embedded-publish-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-embedded-publish-credentials") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://publish-user:super-secret-token@repo.example.test/releases"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [publish.repositories.company-releases] CI context rejects embedded credentials in publish repository `company-releases` URL."));
+        assertTrue(result.stdout().contains("Move publish credentials to [repositoryCredentials] environment references"));
+        assertFalse(result.stdout().contains("publish-user"));
+        assertFalse(result.stdout().contains("super-secret-token"));
+        assertFalse(result.stdout().contains("repo.example.test/releases"));
         assertEquals("", result.stderr());
     }
 
