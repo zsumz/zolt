@@ -955,6 +955,7 @@ final class ZoltCliTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Audit a Maven or Gradle project for future Zolt migration."));
+        assertTrue(result.stdout().contains("--blockers"));
         assertTrue(result.stdout().contains("--format"));
         assertTrue(result.stdout().contains("--scorecard"));
         assertTrue(result.stdout().contains("--source"));
@@ -1105,6 +1106,53 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"sourcePattern\": \"mavenLocal() property switch\""));
         assertTrue(result.stdout().contains("\"zoltPrimitive\": \"local repository overlays\""));
         assertTrue(result.stdout().contains("\"followUp\": \"\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainGradleBlockerJsonReportsZoltNativeFollowUps() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                def token = findProperty('repoToken') ?: System.getenv('REPO_TOKEN') ?: 'dummy'
+                repositories {
+                    mavenLocal()
+                    maven {
+                        url = 'https://repo.example.invalid/maven'
+                        credentials {
+                            username = 'ci'
+                            password = token
+                        }
+                    }
+                }
+                configurations.all {
+                    exclude group: 'commons-logging', module: 'commons-logging'
+                }
+                tasks.named('jar') {
+                    exclude('BOOT-INF/lib/tomcat-*.jar')
+                }
+                dependencies {
+                    implementation 'com.google.guava:guava:33.4.8-jre'
+                }
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "gradle",
+                "--blockers",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"command\": \"explain-blockers\""));
+        assertTrue(result.stdout().contains("\"status\": \"blocked\""));
+        assertTrue(result.stdout().contains("\"sourcePattern\": \"credentials resolved from Gradle properties, env, or defaults\""));
+        assertTrue(result.stdout().contains("\"zoltPrimitive\": \"[repositories] credential identities\""));
+        assertTrue(result.stdout().contains("\"followUp\": \"\""));
+        assertTrue(result.stdout().contains("\"sourcePattern\": \"configurations.all, excludes, force, or resolutionStrategy\""));
+        assertTrue(result.stdout().contains("\"followUp\": \"\""));
+        assertFalse(result.stdout().contains("dummy"));
+        assertFalse(result.stdout().contains("REPO_TOKEN"));
         assertEquals("", result.stderr());
     }
 

@@ -54,6 +54,8 @@ import com.zolt.explain.GradleStaticProjectInspector;
 import com.zolt.explain.MavenExplainFormatter;
 import com.zolt.explain.MavenInspectionResult;
 import com.zolt.explain.MavenStaticProjectInspector;
+import com.zolt.explain.MigrationBlockerReportFormatter;
+import com.zolt.explain.MigrationBlockerReports;
 import com.zolt.explain.MigrationExplainException;
 import com.zolt.explain.MigrationReadinessScorecardFormatter;
 import com.zolt.explain.MigrationReadinessScorecards;
@@ -969,6 +971,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--scorecard", description = "Print a migration readiness scorecard instead of the raw explain report.")
         private boolean scorecard;
 
+        @Option(names = "--blockers", description = "Print a focused migration blocker report instead of the raw explain report.")
+        private boolean blockers;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -978,10 +983,24 @@ public final class ZoltCli implements Runnable {
         @Override
         public Integer call() {
             Path root = workingDirectory.toAbsolutePath().normalize();
+            if (scorecard && blockers) {
+                throw new CommandLine.ParameterException(
+                        spec.commandLine(),
+                        "`--scorecard` and `--blockers` select different explain reports. Choose one.");
+            }
             Source detectedSource = detectSource(root);
             if (detectedSource == Source.MAVEN) {
                 try {
                     MavenInspectionResult result = new MavenStaticProjectInspector().inspect(root);
+                    if (blockers) {
+                        MigrationBlockerReportFormatter formatter = new MigrationBlockerReportFormatter();
+                        if (format == Format.JSON) {
+                            printAndFlush(spec, formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                        } else {
+                            printAndFlush(spec, formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                        }
+                        return 0;
+                    }
                     if (scorecard) {
                         MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
                         if (format == Format.JSON) {
@@ -1006,6 +1025,15 @@ public final class ZoltCli implements Runnable {
             if (detectedSource == Source.GRADLE) {
                 try {
                     GradleInspectionResult result = new GradleStaticProjectInspector().inspect(root);
+                    if (blockers) {
+                        MigrationBlockerReportFormatter formatter = new MigrationBlockerReportFormatter();
+                        if (format == Format.JSON) {
+                            printAndFlush(spec, formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                        } else {
+                            printAndFlush(spec, formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                        }
+                        return 0;
+                    }
                     if (scorecard) {
                         MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
                         if (format == Format.JSON) {

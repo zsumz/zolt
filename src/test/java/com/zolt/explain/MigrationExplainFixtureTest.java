@@ -168,6 +168,39 @@ final class MigrationExplainFixtureTest {
     }
 
     @Test
+    void gradleEnterpriseSpringFixtureReportsBlockersWithFollowUpsWithoutExecutingGradle() throws IOException {
+        Path fixture = fixture("gradle-enterprise-spring");
+        Path marker = fixture.resolve("executed.txt");
+        Files.deleteIfExists(marker);
+
+        GradleInspectionResult first = new GradleStaticProjectInspector().inspect(fixture);
+        GradleInspectionResult second = new GradleStaticProjectInspector().inspect(fixture);
+        MigrationBlockerReportFormatter formatter = new MigrationBlockerReportFormatter();
+        String text = normalize(formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(first))), fixture);
+        String json = normalize(formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(first))), fixture);
+
+        assertEquals(text, normalize(formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(second))), fixture));
+        assertEquals(json, normalize(formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(second))), fixture));
+        assertFalse(Files.exists(marker));
+        assertTrue(text.contains("Zolt migration blocker report: gradle project"));
+        assertTrue(text.contains("blocked  configurations.all, excludes, force, or resolutionStrategy -> [dependencyPolicy] and [dependencyConstraints]"));
+        assertTrue(text.contains("blocked  imperative dependency or configuration mutation -> [dependencies], classpath lanes, processors, and generated roots"));
+        assertTrue(text.contains("blocked  bootWar archive mutation -> package placement policy"));
+        assertTrue(text.contains("non-deterministic  credentials resolved from Gradle properties, env, or defaults -> [repositories] credential identities"));
+        assertTrue(text.contains("planned  OpenAPI GenerateTask wired into sourceSets -> kind = \"openapi\" generated-source steps"));
+        assertTrue(text.contains("This blocker report inspected build metadata statically and did not execute Maven or Gradle."));
+        assertFalse(text.contains("ReadOnly"));
+        assertFalse(text.contains("ARTIFACTORY_ACCESS_TOKEN"));
+        assertTrue(json.contains("\"command\": \"explain-blockers\""));
+        assertTrue(json.contains("\"status\": \"blocked\""));
+        assertTrue(json.contains("\"severity\": \"block\""));
+        assertTrue(json.contains("\"sourcePattern\": \"bootWar archive mutation\""));
+        assertTrue(json.contains("\"zoltPrimitive\": \"package placement policy\""));
+        assertTrue(json.contains("\"followUp\": \"\""));
+        assertTrue(json.contains("\"signalId\": \"gradle.repository.credentials\""));
+    }
+
+    @Test
     void mavenFixtureReportsDeterministicReadinessScorecard() {
         Path fixture = fixture("maven-simple");
         MavenInspectionResult first = new MavenStaticProjectInspector().inspect(fixture);
