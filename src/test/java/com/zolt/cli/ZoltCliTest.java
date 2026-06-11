@@ -335,6 +335,60 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRejectsMissingRepositoryCredentialEnvironment() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-credentials") + """
+
+                [repositories]
+                company = { url = "https://repo.example.test/maven", credentials = "company-artifactory" }
+
+                [repositoryCredentials.company-artifactory]
+                usernameEnv = "ZOLT_TEST_MISSING_CHECK_CONTEXT_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_CHECK_CONTEXT_PASSWORD"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositoryCredentials.company-artifactory] CI context requires environment variables ZOLT_TEST_MISSING_CHECK_CONTEXT_USERNAME, ZOLT_TEST_MISSING_CHECK_CONTEXT_PASSWORD"));
+        assertTrue(result.stdout().contains("repository `company` credentials `company-artifactory`"));
+        assertTrue(result.stdout().contains("Secret values are never printed"));
+        assertFalse(result.stdout().contains("repo.example.test/maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsEmbeddedRepositoryCredentials() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-embedded-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-embedded-credentials") + """
+
+                [repositories]
+                company = "https://user:super-secret-token@repo.example.test/maven"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositories.company] CI context rejects embedded credentials in repository `company` URL."));
+        assertTrue(result.stdout().contains("Move credentials to [repositoryCredentials] environment references"));
+        assertFalse(result.stdout().contains("user:super-secret-token"));
+        assertFalse(result.stdout().contains("repo.example.test/maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiJsonOutputIsStable() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-json");
         Files.createDirectories(projectDir);

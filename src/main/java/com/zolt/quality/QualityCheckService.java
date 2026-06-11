@@ -21,6 +21,8 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
+import com.zolt.project.RepositoryCredentialSettings;
+import com.zolt.project.RepositorySettings;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -33,12 +35,15 @@ import com.zolt.workspace.WorkspaceMemberSelector;
 import com.zolt.workspace.WorkspaceSelection;
 import com.zolt.workspace.WorkspaceMember;
 import com.zolt.workspace.WorkspaceResolveService;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -48,6 +53,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 public final class QualityCheckService {
     public static final String COMMAND_SURFACE = "command-surface";
@@ -91,6 +97,7 @@ public final class QualityCheckService {
     private final PackagePlanService packagePlanService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final PackageEvidenceManifestReader packageEvidenceManifestReader;
+    private final Function<String, String> environment;
 
     public QualityCheckService() {
         this(
@@ -102,7 +109,22 @@ public final class QualityCheckService {
                 new ZoltLockfileReader(),
                 new PackagePlanService(),
                 new GeneratedSourceEvidenceService(),
-                new PackageEvidenceManifestReader());
+                new PackageEvidenceManifestReader(),
+                System::getenv);
+    }
+
+    QualityCheckService(Function<String, String> environment) {
+        this(
+                new ZoltTomlParser(),
+                new WorkspaceDiscoveryService(),
+                new WorkspaceMemberSelector(),
+                new ResolveService(),
+                new WorkspaceResolveService(),
+                new ZoltLockfileReader(),
+                new PackagePlanService(),
+                new GeneratedSourceEvidenceService(),
+                new PackageEvidenceManifestReader(),
+                environment);
     }
 
     QualityCheckService(
@@ -114,7 +136,8 @@ public final class QualityCheckService {
             ZoltLockfileReader lockfileReader,
             PackagePlanService packagePlanService,
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
-            PackageEvidenceManifestReader packageEvidenceManifestReader) {
+            PackageEvidenceManifestReader packageEvidenceManifestReader,
+            Function<String, String> environment) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
@@ -124,6 +147,7 @@ public final class QualityCheckService {
         this.packagePlanService = packagePlanService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
         this.packageEvidenceManifestReader = packageEvidenceManifestReader;
+        this.environment = environment;
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -196,9 +220,10 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceProjectResult(config));
-                case EXECUTION_CONTEXT -> results.add(checkExecutionContext(
+                case EXECUTION_CONTEXT -> results.addAll(checkExecutionContext(
                         Optional.empty(),
                         request.projectRoot(),
+                        config,
                         request.context()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
@@ -239,10 +264,21 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceWorkspaceResult(workspace, selection));
-                case EXECUTION_CONTEXT -> results.add(checkExecutionContext(
-                        Optional.empty(),
-                        workspace.root(),
-                        request.context()));
+                case EXECUTION_CONTEXT -> {
+                    results.addAll(checkExecutionContext(
+                            Optional.empty(),
+                            workspace.root(),
+                            request.context()));
+                    if (request.context() == QualityCheckContext.CI) {
+                        for (String memberPath : selection.includedMembers()) {
+                            WorkspaceMember member = members.get(memberPath);
+                            results.addAll(checkCredentialPolicy(
+                                    Optional.of(member.path()),
+                                    member.config(),
+                                    request.context()));
+                        }
+                    }
+                }
                 case LOCKFILE -> results.add(checkWorkspaceLockfile(request, workspace));
                 case PROJECT_MODEL -> {
                     for (String memberPath : selection.includedMembers()) {
@@ -296,6 +332,17 @@ public final class QualityCheckService {
         return List.copyOf(results);
     }
 
+    private List<QualityCheckResult> checkExecutionContext(
+            Optional<String> member,
+            Path root,
+            ProjectConfig config,
+            QualityCheckContext context) {
+        List<QualityCheckResult> results = new ArrayList<>();
+        results.addAll(checkExecutionContext(member, root, context));
+        results.addAll(checkCredentialPolicy(member, config, context));
+        return List.copyOf(results);
+    }
+
     private QualityCheckResult checkProjectLockfile(QualityCheckRequest request, ProjectConfig config) {
         Path lockfile = request.projectRoot().resolve("zolt.lock");
         if (!Files.isRegularFile(lockfile)) {
@@ -330,33 +377,33 @@ public final class QualityCheckService {
         }
     }
 
-    private QualityCheckResult checkExecutionContext(
+    private List<QualityCheckResult> checkExecutionContext(
             Optional<String> member,
             Path root,
             QualityCheckContext context) {
         if (context == null) {
-            return QualityCheckResult.passed(
+            return List.of(QualityCheckResult.passed(
                     EXECUTION_CONTEXT,
                     member,
                     "default",
-                    "No execution context policy was requested.");
+                    "No execution context policy was requested."));
         }
         if (context != QualityCheckContext.CI) {
-            return QualityCheckResult.failed(
+            return List.of(QualityCheckResult.failed(
                     EXECUTION_CONTEXT,
                     member,
                     context.configValue(),
                     "Unsupported execution context `" + context.configValue() + "`.",
-                    "Use --context ci for the current Zolt-owned context policy.");
+                    "Use --context ci for the current Zolt-owned context policy."));
         }
         Path lockfile = root.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfile)) {
-            return QualityCheckResult.failed(
+            return List.of(QualityCheckResult.failed(
                     EXECUTION_CONTEXT,
                     member,
                     "ci",
                     "CI context requires zolt.lock before build work starts.",
-                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`.");
+                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`."));
         }
         try {
             ZoltLockfile parsed = lockfileReader.read(lockfile);
@@ -365,26 +412,179 @@ public final class QualityCheckService {
                     .findFirst();
             if (localOverlay.isPresent()) {
                 LockPackage lockPackage = localOverlay.orElseThrow();
-                return QualityCheckResult.failed(
+                return List.of(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
                         member,
                         coordinate(lockPackage),
                         "CI context rejects local repository overlay origin `" + lockPackage.source() + "`.",
-                        "Run `zolt resolve --locked --no-local-overlays` or refresh zolt.lock without local overlays.");
+                        "Run `zolt resolve --locked --no-local-overlays` or refresh zolt.lock without local overlays."));
             }
         } catch (LockfileReadException exception) {
-            return QualityCheckResult.failed(
+            return List.of(QualityCheckResult.failed(
                     EXECUTION_CONTEXT,
                     member,
                     "zolt.lock",
                     exception.getMessage(),
-                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`.");
+                    "Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`."));
         }
-        return QualityCheckResult.passed(
+        return List.of(QualityCheckResult.passed(
                 EXECUTION_CONTEXT,
                 member,
                 "ci",
-                "CI context policy is active: locked model checks, generated-source checks, package diagnostics, and local overlay rejection.");
+                "CI context policy is active: locked model checks, generated-source checks, package diagnostics, local overlay rejection, and credential preflight."));
+    }
+
+    private List<QualityCheckResult> checkCredentialPolicy(
+            Optional<String> member,
+            ProjectConfig config,
+            QualityCheckContext context) {
+        if (context != QualityCheckContext.CI) {
+            return List.of();
+        }
+
+        List<RepositorySettings> repositories = config.repositorySettings().values().stream()
+                .sorted(Comparator.comparing(RepositorySettings::id))
+                .toList();
+        List<QualityCheckResult> results = new ArrayList<>();
+        int credentialedRepositories = 0;
+        for (RepositorySettings repository : repositories) {
+            Optional<QualityCheckResult> embeddedCredentials = embeddedRepositoryCredentials(member, repository);
+            if (embeddedCredentials.isPresent()) {
+                results.add(embeddedCredentials.orElseThrow());
+                continue;
+            }
+            Optional<String> credentialId = repository.credentials();
+            if (credentialId.isEmpty()) {
+                continue;
+            }
+            credentialedRepositories++;
+            RepositoryCredentialSettings credential = config.repositoryCredentials().get(credentialId.orElseThrow());
+            if (credential == null) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credentialId.orElseThrow() + "]",
+                        "Repository `" + repository.id() + "` references missing credential metadata.",
+                        "Define [repositoryCredentials." + credentialId.orElseThrow() + "] with environment variable names, not secret values."));
+                continue;
+            }
+
+            List<String> missing = missingCredentialEnvironmentVariables(credential);
+            if (!missing.isEmpty()) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credential.id() + "]",
+                        "CI context requires environment variable"
+                                + (missing.size() == 1 ? " " : "s ")
+                                + String.join(", ", missing)
+                                + " for repository `"
+                                + repository.id()
+                                + "` credentials `"
+                                + credential.id()
+                                + "` before resolve/build work starts.",
+                        "Set the named CI secret"
+                                + (missing.size() == 1 ? "" : "s")
+                                + " and rerun `zolt check --context ci`. Secret values are never printed."));
+                continue;
+            }
+
+            List<String> placeholders = placeholderCredentialEnvironmentVariables(credential);
+            if (!placeholders.isEmpty()) {
+                results.add(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        "[repositoryCredentials." + credential.id() + "]",
+                        "CI context rejects placeholder credential value"
+                                + (placeholders.size() == 1 ? " " : "s ")
+                                + "for environment variable"
+                                + (placeholders.size() == 1 ? " " : "s ")
+                                + String.join(", ", placeholders)
+                                + " on repository `"
+                                + repository.id()
+                                + "`.",
+                        "Replace placeholder credentials with real CI secrets. Zolt reports only variable names, never secret values."));
+            }
+        }
+
+        if (results.isEmpty() && credentialedRepositories > 0) {
+            results.add(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "repository-credentials",
+                    "CI credential preflight passed for "
+                            + credentialedRepositories
+                            + " credentialed "
+                            + (credentialedRepositories == 1 ? "repository." : "repositories.")));
+        }
+        return List.copyOf(results);
+    }
+
+    private Optional<QualityCheckResult> embeddedRepositoryCredentials(
+            Optional<String> member,
+            RepositorySettings repository) {
+        try {
+            URI uri = new URI(repository.url());
+            if (uri.getUserInfo() == null || uri.getUserInfo().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "[repositories." + repository.id() + "]",
+                    "CI context rejects embedded credentials in repository `" + repository.id() + "` URL.",
+                    "Move credentials to [repositoryCredentials] environment references. Do not commit username, password, or token values in repository URLs."));
+        } catch (URISyntaxException exception) {
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "[repositories." + repository.id() + "]",
+                    "Repository `" + repository.id() + "` URL is not a valid URI.",
+                    "Edit [repositories." + repository.id() + "] to use a Maven-compatible HTTPS URL without embedded credentials."));
+        }
+    }
+
+    private List<String> missingCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
+        List<String> missing = new ArrayList<>();
+        if (isMissingEnvironmentValue(credential.usernameEnv())) {
+            missing.add(credential.usernameEnv());
+        }
+        if (isMissingEnvironmentValue(credential.passwordEnv())) {
+            missing.add(credential.passwordEnv());
+        }
+        return List.copyOf(missing);
+    }
+
+    private List<String> placeholderCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
+        List<String> placeholders = new ArrayList<>();
+        if (isPlaceholderCredential(environment.apply(credential.usernameEnv()))) {
+            placeholders.add(credential.usernameEnv());
+        }
+        if (isPlaceholderCredential(environment.apply(credential.passwordEnv()))) {
+            placeholders.add(credential.passwordEnv());
+        }
+        return List.copyOf(placeholders);
+    }
+
+    private boolean isMissingEnvironmentValue(String name) {
+        String value = environment.apply(name);
+        return value == null || value.isBlank();
+    }
+
+    private static boolean isPlaceholderCredential(String value) {
+        if (value == null) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return Set.of(
+                "read.only",
+                "readonly",
+                "change-me",
+                "changeme",
+                "dummy",
+                "example",
+                "password",
+                "secret").contains(normalized);
     }
 
     private QualityCheckResult checkWorkspaceLockfile(QualityCheckRequest request, Workspace workspace) {
