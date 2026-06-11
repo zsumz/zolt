@@ -41,6 +41,7 @@ import com.zolt.build.TestSelectionException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathFormatter;
+import com.zolt.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.doctor.JdkDetector;
@@ -114,8 +115,8 @@ import com.zolt.selfhost.SelfHostingParityService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
-import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyJsonFormatter;
+import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
 import com.zolt.workspace.WorkspaceBuildResult;
@@ -962,7 +963,11 @@ public final class ZoltCli implements Runnable {
             TEST("test"),
             PROCESSOR("processor"),
             TEST_PROCESSOR("test-processor"),
-            QUARKUS_DEPLOYMENT("quarkus-deployment");
+            QUARKUS_DEPLOYMENT("quarkus-deployment"),
+            AUDIT("audit");
+
+            private static final String SUPPORTED =
+                    "compile, runtime, test, processor, test-processor, quarkus-deployment, or audit";
 
             private final String label;
 
@@ -978,15 +983,23 @@ public final class ZoltCli implements Runnable {
                 }
                 throw new ClasspathCommandException(
                         "Unknown classpath kind `" + value
-                                + "`. Use compile, runtime, test, processor, test-processor, or quarkus-deployment.");
+                                + "`. Use " + SUPPORTED + ".");
             }
+        }
+
+        enum Format {
+            TEXT,
+            JSON
         }
 
         @Parameters(
                 index = "0",
-                paramLabel = "compile|runtime|test|processor|test-processor|quarkus-deployment",
-                description = "Classpath kind to print.")
+                paramLabel = "compile|runtime|test|processor|test-processor|quarkus-deployment|audit",
+                description = "Classpath kind to print, or audit to inspect all Zolt-owned lanes.")
         private String kind;
+
+        @Option(names = "--format", description = "Output format for audit: text or json.")
+        private Format format = Format.TEXT;
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
@@ -1001,16 +1014,30 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
-                ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(
-                        lockfileReader.read(workingDirectory.resolve("zolt.lock")),
-                        cacheRoot));
-                String output = new ClasspathFormatter().format(switch (Kind.parse(kind)) {
+                ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
+                Kind parsedKind = Kind.parse(kind);
+                if (parsedKind == Kind.AUDIT) {
+                    ClasspathLaneAuditFormatter formatter = new ClasspathLaneAuditFormatter();
+                    String output = format == Format.JSON
+                            ? formatter.formatJson(lockfile)
+                            : formatter.formatText(lockfile);
+                    printAndFlush(spec, output);
+                    return;
+                }
+                if (format == Format.JSON) {
+                    throw new ClasspathCommandException(
+                            "`zolt classpath --format json` is supported for `audit` only. "
+                                    + "Use `zolt classpath audit --format json`.");
+                }
+                ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+                String output = new ClasspathFormatter().format(switch (parsedKind) {
                     case COMPILE -> classpaths.compile();
                     case RUNTIME -> classpaths.runtime();
                     case TEST -> classpaths.test();
                     case PROCESSOR -> classpaths.processor();
                     case TEST_PROCESSOR -> classpaths.testProcessor();
                     case QUARKUS_DEPLOYMENT -> classpaths.quarkusDeployment();
+                    case AUDIT -> throw new ClasspathCommandException("Classpath audit should be handled before formatting.");
                 });
                 printAndFlush(spec, output);
             } catch (ClasspathCommandException | LockfileReadException exception) {
