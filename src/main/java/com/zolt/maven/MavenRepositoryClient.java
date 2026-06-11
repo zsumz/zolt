@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.util.Optional;
 
 public final class MavenRepositoryClient {
@@ -62,6 +63,30 @@ public final class MavenRepositoryClient {
         return fetch(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor), authentication);
     }
 
+    public void uploadPom(URI repositoryBaseUri, Coordinate coordinate, Path source) {
+        uploadPom(repositoryBaseUri, coordinate, source, RepositoryAuthentication.none());
+    }
+
+    public void uploadPom(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        upload(repositoryBaseUri, coordinate, pathBuilder.pomPath(coordinate), source, authentication);
+    }
+
+    public void uploadArtifact(URI repositoryBaseUri, ArtifactDescriptor descriptor, Path source) {
+        uploadArtifact(repositoryBaseUri, descriptor, source, RepositoryAuthentication.none());
+    }
+
+    public void uploadArtifact(
+            URI repositoryBaseUri,
+            ArtifactDescriptor descriptor,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        upload(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor), source, authentication);
+    }
+
     private RepositoryArtifact fetch(
             URI repositoryBaseUri,
             Coordinate coordinate,
@@ -117,6 +142,66 @@ public final class MavenRepositoryClient {
         throw downloadException(coordinate, artifactUri, httpPolicy.maxAttempts(), lastIoException);
     }
 
+    private void upload(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            String path,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        URI artifactUri = artifactUri(repositoryBaseUri, path);
+        HttpRequest.BodyPublisher bodyPublisher;
+        try {
+            bodyPublisher = HttpRequest.BodyPublishers.ofFile(source);
+        } catch (IOException exception) {
+            throw new RepositoryClientException(
+                    "Could not read upload source for "
+                            + coordinate
+                            + " at "
+                            + source
+                            + ". Check that the file exists and is readable.",
+                    exception);
+        }
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
+                .timeout(httpPolicy.requestTimeout())
+                .PUT(bodyPublisher);
+        authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
+        HttpRequest request = requestBuilder.build();
+
+        IOException lastIoException = null;
+        for (int attempt = 1; attempt <= httpPolicy.maxAttempts(); attempt++) {
+            HttpResponse<byte[]> response;
+            try {
+                response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            } catch (IOException exception) {
+                lastIoException = exception;
+                if (!hasAttemptsRemaining(attempt)) {
+                    throw uploadException(coordinate, artifactUri, attempt, exception);
+                }
+                sleepBeforeRetry("uploading", coordinate, artifactUri, attempt);
+                continue;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new RepositoryClientException(
+                        "Upload interrupted while publishing "
+                                + coordinate
+                                + " to "
+                                + artifactUri
+                                + ". Try again.",
+                        exception);
+            }
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return;
+            }
+            if (!transientStatus(response.statusCode()) || !hasAttemptsRemaining(attempt)) {
+                throw statusException("uploading", coordinate, artifactUri, response.statusCode(), attempt);
+            }
+            sleepBeforeRetry("uploading", coordinate, artifactUri, attempt);
+        }
+
+        throw uploadException(coordinate, artifactUri, httpPolicy.maxAttempts(), lastIoException);
+    }
+
     private boolean hasAttemptsRemaining(int attempt) {
         return attempt < httpPolicy.maxAttempts();
     }
@@ -130,10 +215,21 @@ public final class MavenRepositoryClient {
             URI artifactUri,
             int statusCode,
             int attempts) {
+        return statusException("fetching", coordinate, artifactUri, statusCode, attempts);
+    }
+
+    private RepositoryClientException statusException(
+            String operation,
+            Coordinate coordinate,
+            URI artifactUri,
+            int statusCode,
+            int attempts) {
         return new RepositoryClientException(
                 "Repository returned HTTP "
                         + statusCode
-                        + " for "
+                        + " while "
+                        + operation
+                        + " "
                         + coordinate
                         + " at "
                         + artifactUri
@@ -153,6 +249,21 @@ public final class MavenRepositoryClient {
                         + artifactUri
                         + attemptsMessage(attempts)
                         + ". Check your network, proxy, or repository URL and try again.",
+                        cause);
+    }
+
+    private static RepositoryClientException uploadException(
+            Coordinate coordinate,
+            URI artifactUri,
+            int attempts,
+            IOException cause) {
+        return new RepositoryClientException(
+                "Could not upload "
+                        + coordinate
+                        + " to "
+                        + artifactUri
+                        + attemptsMessage(attempts)
+                        + ". Check your network, proxy, repository URL, and publish permissions, then try again.",
                 cause);
     }
 
@@ -164,6 +275,10 @@ public final class MavenRepositoryClient {
     }
 
     private void sleepBeforeRetry(Coordinate coordinate, URI artifactUri, int attempt) {
+        sleepBeforeRetry("fetching", coordinate, artifactUri, attempt);
+    }
+
+    private void sleepBeforeRetry(String operation, Coordinate coordinate, URI artifactUri, int attempt) {
         if (httpPolicy.retryBackoff().isZero()) {
             return;
         }
@@ -172,7 +287,9 @@ public final class MavenRepositoryClient {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new RepositoryClientException(
-                    "Download interrupted while retrying "
+                    "Repository request interrupted while retrying "
+                            + operation
+                            + " "
                             + coordinate
                             + " from "
                             + artifactUri
