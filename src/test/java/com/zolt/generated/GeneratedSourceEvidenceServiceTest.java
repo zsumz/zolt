@@ -95,6 +95,8 @@ final class GeneratedSourceEvidenceServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Map.of("useTags", "true", "interfaceOnly", "true"),
+                Map.of("generatedAnnotation", "false", "useBeanValidation", "true"),
+                Map.of("dateLibrary", "java8", "useSpringBoot3", "true"),
                 Map.of("models", "", "apis", ""),
                 Map.of("OffsetDateTime", "Instant"),
                 Map.of("Instant", "java.time.Instant"));
@@ -110,6 +112,8 @@ final class GeneratedSourceEvidenceServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Map.of("interfaceOnly", "true", "useTags", "true"),
+                Map.of("useBeanValidation", "true", "generatedAnnotation", "false"),
+                Map.of("useSpringBoot3", "true", "dateLibrary", "java8"),
                 Map.of("apis", "", "models", ""),
                 Map.of("OffsetDateTime", "Instant"),
                 Map.of("Instant", "java.time.Instant"));

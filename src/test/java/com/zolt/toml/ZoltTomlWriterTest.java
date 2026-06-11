@@ -531,6 +531,8 @@ final class ZoltTomlWriterTest {
                                         Optional.empty(),
                                         Optional.empty(),
                                         Map.of("interfaceOnly", "true"),
+                                        Map.of("useBeanValidation", "true"),
+                                        Map.of("dateLibrary", "java8"),
                                         Map.of(),
                                         Map.of("OffsetDateTime", "Instant"),
                                         Map.of()))),
@@ -547,6 +549,8 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("input = \"src/main/openapi/public-api.yaml\""));
         assertFalse(toml.contains("inputs = [\"src/main/openapi/public-api.yaml\"]"));
         assertTrue(toml.contains("options = { \"interfaceOnly\" = \"true\" }"));
+        assertTrue(toml.contains("additionalProperties = { \"useBeanValidation\" = \"true\" }"));
+        assertTrue(toml.contains("configOptions = { \"dateLibrary\" = \"java8\" }"));
         assertEquals(config.build().generatedMainSources(), parsed.build().generatedMainSources());
     }
 

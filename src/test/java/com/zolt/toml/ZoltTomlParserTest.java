@@ -769,6 +769,8 @@ final class ZoltTomlParserTest {
                 apiPackage = "com.example.api"
                 modelPackage = "com.example.api.model"
                 options = { interfaceOnly = "true", useTags = "true" }
+                additionalProperties = { generatedAnnotation = "false" }
+                configOptions = { dateLibrary = "java8" }
                 typeMappings = { OffsetDateTime = "Instant" }
 
                 [generated.main.public-api]
@@ -779,6 +781,8 @@ final class ZoltTomlParserTest {
                 preset = "spring-api"
                 modelPackage = "com.example.public.model"
                 options = { hideGenerationTimestamp = "true", useTags = "false" }
+                additionalProperties = { useBeanValidation = "true" }
+                configOptions = { useSpringBoot3 = "true" }
                 importMappings = { Instant = "java.time.Instant" }
                 """);
 
@@ -800,6 +804,12 @@ final class ZoltTomlParserTest {
                 "hideGenerationTimestamp", "true",
                 "interfaceOnly", "true",
                 "useTags", "false"), step.openApi().options());
+        assertEquals(Map.of(
+                "generatedAnnotation", "false",
+                "useBeanValidation", "true"), step.openApi().additionalProperties());
+        assertEquals(Map.of(
+                "dateLibrary", "java8",
+                "useSpringBoot3", "true"), step.openApi().configOptions());
         assertEquals(Map.of("OffsetDateTime", "Instant"), step.openApi().typeMappings());
         assertEquals(Map.of("Instant", "java.time.Instant"), step.openApi().importMappings());
     }
@@ -822,6 +832,27 @@ final class ZoltTomlParserTest {
                 """));
 
         assertTrue(exception.getMessage().contains("Unknown field [generated.main.openapi].command"));
+    }
+
+    @Test
+    void rejectsInvalidOpenApiOptionMapShapes() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.openapi]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/api.yaml"
+                output = "target/generated/sources/openapi"
+                configOptions = { useSpringBoot3 = true }
+                """));
+
+        assertTrue(exception.getMessage().contains("Invalid value for [generated.main.openapi.configOptions].useSpringBoot3"));
+        assertTrue(exception.getMessage().contains("Use a non-empty string value."));
     }
 
     @Test

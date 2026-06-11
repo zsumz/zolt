@@ -99,6 +99,8 @@ public final class ZoltTomlParser {
             "config",
             "templateDir",
             "options",
+            "additionalProperties",
+            "configOptions",
             "globalProperties",
             "typeMappings",
             "importMappings");
@@ -111,6 +113,8 @@ public final class ZoltTomlParser {
             "config",
             "templateDir",
             "options",
+            "additionalProperties",
+            "configOptions",
             "globalProperties",
             "typeMappings",
             "importMappings");
@@ -649,6 +653,8 @@ public final class ZoltTomlParser {
                 optionalString(table, section, "config"),
                 optionalString(table, section, "templateDir"),
                 stringMap(optionalTable(table, "options"), section + ".options"),
+                stringMap(optionalTable(table, "additionalProperties"), section + ".additionalProperties"),
+                stringMap(optionalTable(table, "configOptions"), section + ".configOptions"),
                 stringMap(optionalTable(table, "globalProperties"), section + ".globalProperties"),
                 stringMap(optionalTable(table, "typeMappings"), section + ".typeMappings"),
                 stringMap(optionalTable(table, "importMappings"), section + ".importMappings"));
@@ -671,6 +677,8 @@ public final class ZoltTomlParser {
                 step.config().or(() -> preset.config()),
                 step.templateDir().or(() -> preset.templateDir()),
                 mergedMap(preset.options(), step.options()),
+                mergedMap(preset.additionalProperties(), step.additionalProperties()),
+                mergedMap(preset.configOptions(), step.configOptions()),
                 mergedMap(preset.globalProperties(), step.globalProperties()),
                 mergedMap(preset.typeMappings(), step.typeMappings()),
                 mergedMap(preset.importMappings(), step.importMappings()));

@@ -17,6 +17,8 @@ public record OpenApiGenerationSettings(
         Optional<String> config,
         Optional<String> templateDir,
         Map<String, String> options,
+        Map<String, String> additionalProperties,
+        Map<String, String> configOptions,
         Map<String, String> globalProperties,
         Map<String, String> typeMappings,
         Map<String, String> importMappings) {
@@ -32,6 +34,8 @@ public record OpenApiGenerationSettings(
         config = config == null ? Optional.empty() : config;
         templateDir = templateDir == null ? Optional.empty() : templateDir;
         options = sortedCopy(options);
+        additionalProperties = sortedCopy(additionalProperties);
+        configOptions = sortedCopy(configOptions);
         globalProperties = sortedCopy(globalProperties);
         typeMappings = sortedCopy(typeMappings);
         importMappings = sortedCopy(importMappings);
@@ -49,6 +53,8 @@ public record OpenApiGenerationSettings(
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                Map.of(),
+                Map.of(),
                 Map.of(),
                 Map.of(),
                 Map.of(),

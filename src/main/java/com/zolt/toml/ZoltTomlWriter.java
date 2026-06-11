@@ -1074,6 +1074,12 @@ public final class ZoltTomlWriter {
         if (!settings.options().isEmpty()) {
             writeInlineStringMap(toml, "options", settings.options());
         }
+        if (!settings.additionalProperties().isEmpty()) {
+            writeInlineStringMap(toml, "additionalProperties", settings.additionalProperties());
+        }
+        if (!settings.configOptions().isEmpty()) {
+            writeInlineStringMap(toml, "configOptions", settings.configOptions());
+        }
         if (!settings.globalProperties().isEmpty()) {
             writeInlineStringMap(toml, "globalProperties", settings.globalProperties());
         }

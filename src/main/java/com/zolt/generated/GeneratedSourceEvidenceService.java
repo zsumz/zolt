@@ -96,6 +96,8 @@ public final class GeneratedSourceEvidenceService {
         line(canonical, "config", settings.config());
         line(canonical, "templateDir", settings.templateDir());
         map(canonical, "options", settings.options());
+        map(canonical, "additionalProperties", settings.additionalProperties());
+        map(canonical, "configOptions", settings.configOptions());
         map(canonical, "globalProperties", settings.globalProperties());
         map(canonical, "typeMappings", settings.typeMappings());
         map(canonical, "importMappings", settings.importMappings());
