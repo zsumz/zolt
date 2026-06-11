@@ -113,6 +113,8 @@ public final class GradleStaticProjectInspector {
         }
         signals.addAll(dynamicSignals(project, content));
         signals.addAll(dependencySignals(project, dependencies));
+        signals.addAll(pluginSignals(project, plugins));
+        signals.addAll(enterpriseSignals(project, content));
         return new GradleProjectInspection(
                 relativePath,
                 relativePath.toString().equals(".") ? projectDirectory.getFileName().toString() : projectDirectory.getFileName().toString(),
@@ -174,18 +176,20 @@ public final class GradleStaticProjectInspector {
     }
 
     private static List<GradleRepositoryInspection> parseRepositories(String content) {
-        String block = block(content, "repositories").orElse("");
         List<GradleRepositoryInspection> repositories = new ArrayList<>();
-        if (block.contains("mavenCentral()")) {
+        if (content.contains("mavenCentral()")) {
             repositories.add(new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2"));
         }
-        if (block.contains("gradlePluginPortal()")) {
+        if (content.contains("gradlePluginPortal()")) {
             repositories.add(new GradleRepositoryInspection("gradlePluginPortal", "https://plugins.gradle.org/m2"));
         }
-        if (block.contains("google()")) {
+        if (content.contains("google()")) {
             repositories.add(new GradleRepositoryInspection("google", "https://dl.google.com/dl/android/maven2"));
         }
-        Matcher urlMatcher = REPOSITORY_URL_PATTERN.matcher(block);
+        if (content.contains("mavenLocal()")) {
+            repositories.add(new GradleRepositoryInspection("mavenLocal", "~/.m2/repository"));
+        }
+        Matcher urlMatcher = REPOSITORY_URL_PATTERN.matcher(content);
         while (urlMatcher.find()) {
             repositories.add(new GradleRepositoryInspection("maven", urlMatcher.group(1)));
         }
@@ -259,6 +263,9 @@ public final class GradleStaticProjectInspector {
             return List.of(defaultRoot);
         }
         List<String> roots = new ArrayList<>();
+        if (containsAny(sourceSetBlock.orElseThrow(), "srcDirs +=", "srcDir(")) {
+            roots.add(defaultRoot);
+        }
         Matcher srcDirs = Pattern.compile("\\bsrcDirs?\\s*(?:=\\s*)?(?:\\[([^]]*)]|([^\\n]+))").matcher(sourceSetBlock.orElseThrow());
         while (srcDirs.find()) {
             String value = srcDirs.group(1) == null ? srcDirs.group(2) : srcDirs.group(1);
@@ -298,6 +305,99 @@ public final class GradleStaticProjectInspector {
                         project,
                         "Dependency `" + dependency.resolvedCoordinate() + "` uses dynamic version `" + version + "`."));
             }
+        }
+        return signals;
+    }
+
+    private static List<ExplainSignal> pluginSignals(String project, List<GradlePluginInspection> plugins) {
+        List<ExplainSignal> signals = new ArrayList<>();
+        boolean enterpriseContext = plugins.stream()
+                .map(GradlePluginInspection::id)
+                .anyMatch(GradleStaticProjectInspector::enterprisePluginContext);
+        if (!enterpriseContext) {
+            return signals;
+        }
+        for (GradlePluginInspection plugin : plugins) {
+            String mapping = enterprisePluginMapping(plugin.id());
+            if (!mapping.isBlank()) {
+                signals.add(ExplainSignals.GRADLE_ENTERPRISE_PLUGIN_MAPPED.signal(
+                        project,
+                        "Gradle plugin `" + plugin.id() + "` maps to " + mapping + "."));
+            }
+        }
+        return signals;
+    }
+
+    private static String enterprisePluginMapping(String pluginId) {
+        return switch (pluginId) {
+            case "java", "java-library" -> "Zolt Java source, javac, classpath, and package primitives";
+            case "war" -> "Zolt WAR and Spring Boot WAR package modes";
+            case "org.springframework.boot" -> "Zolt Spring Boot platform, run, test, and executable archive support";
+            case "io.spring.dependency-management" -> "Zolt [platforms] BOM imports and dependency policy";
+            case "org.openapi.generator" -> "Zolt typed OpenAPI generated-source steps";
+            case "jacoco" -> "planned Zolt coverage command";
+            case "maven-publish" -> "planned Zolt publication metadata, dry-run, and publish commands";
+            default -> "";
+        };
+    }
+
+    private static boolean enterprisePluginContext(String pluginId) {
+        return switch (pluginId) {
+            case "war",
+                    "org.springframework.boot",
+                    "io.spring.dependency-management",
+                    "org.openapi.generator",
+                    "jacoco",
+                    "maven-publish" -> true;
+            default -> false;
+        };
+    }
+
+    private static List<ExplainSignal> enterpriseSignals(String project, String content) {
+        List<ExplainSignal> signals = new ArrayList<>();
+        String repositoriesBlock = block(content, "repositories").orElse("");
+        if (repositoriesBlock.contains("credentials")) {
+            signals.add(ExplainSignals.GRADLE_REPOSITORY_CREDENTIALS.signal(
+                    project,
+                    "Gradle repository credentials are resolved inside the build script."));
+        }
+        if (repositoriesBlock.contains("mavenLocal()")) {
+            signals.add(ExplainSignals.GRADLE_REPOSITORY_MAVEN_LOCAL.signal(
+                    project,
+                    "Gradle build can read Maven-local artifacts through mavenLocal()."));
+        }
+        if (containsAny(content, "resolutionStrategy", ".force ", " force '", " force \"", "exclude group:")) {
+            signals.add(ExplainSignals.GRADLE_DEPENDENCY_POLICY_MUTATION.signal(
+                    project,
+                    "Gradle build mutates dependency policy through excludes, resolutionStrategy, or forced versions."));
+        }
+        if (containsAny(content, "GenerateTask", "generatorName", "inputSpec", "sourceSets") && content.contains("openapi")) {
+            signals.add(ExplainSignals.GRADLE_OPENAPI_GENERATED_SOURCES.signal(
+                    project,
+                    "Gradle OpenAPI generator tasks feed generated Java sources into sourceSets."));
+        }
+        if (containsAny(content, "processResources", "ReplaceTokens", "filter(")) {
+            signals.add(ExplainSignals.GRADLE_RESOURCE_FILTERING.signal(
+                    project,
+                    "Gradle processResources performs token/resource filtering."));
+        }
+        if (containsAny(content, "tasks.named('test')", "tasks.named(\"test\")", "test {")
+                && containsAny(content, "systemProperty", "environment", "jvmArgs", "testLogging")) {
+            signals.add(ExplainSignals.GRADLE_TEST_RUNTIME_SETTINGS.signal(
+                    project,
+                    "Gradle test task declares runtime properties, environment, JVM args, or event logging."));
+        }
+        if (containsAny(content, "tasks.named('bootWar')", "tasks.named(\"bootWar\")", "bootWar {")
+                && containsAny(content, "exclude(", "WEB-INF/lib")) {
+            signals.add(ExplainSignals.GRADLE_PACKAGE_ARCHIVE_MUTATION.signal(
+                    project,
+                    "Gradle bootWar package content is changed with archive excludes."));
+        }
+        if (containsAny(content, "publishing", "MavenPublication", "publications {", "repositories {")
+                && content.contains("mavenJava")) {
+            signals.add(ExplainSignals.GRADLE_PUBLICATION_DETECTED.signal(
+                    project,
+                    "Gradle Maven Publish configuration selects artifacts and repositories."));
         }
         return signals;
     }
@@ -427,7 +527,7 @@ public final class GradleStaticProjectInspector {
 
     private static String stripComments(String content) {
         String noBlockComments = content.replaceAll("(?s)/\\*.*?\\*/", "");
-        return noBlockComments.replaceAll("(?m)//.*$", "");
+        return noBlockComments.replaceAll("(?m)(^|\\s)//.*$", "$1");
     }
 
     private static List<String> quotedValues(String input) {

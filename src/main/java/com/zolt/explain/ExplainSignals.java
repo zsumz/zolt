@@ -80,6 +80,51 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Fix gradle/libs.versions.toml before relying on version catalog migration hints.");
+    public static final ExplainSignalDefinition GRADLE_ENTERPRISE_PLUGIN_MAPPED = new ExplainSignalDefinition(
+            "gradle.enterprise-plugin.mapped",
+            ExplainSignal.Severity.OK,
+            ExplainSignal.Category.BUILDABILITY,
+            "Map the plugin to the named Zolt primitive and verify the generated zolt.toml with zolt explain.");
+    public static final ExplainSignalDefinition GRADLE_REPOSITORY_CREDENTIALS = new ExplainSignalDefinition(
+            "gradle.repository.credentials",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Move credential lookup to Zolt repository credential identities or local/CI secret config.");
+    public static final ExplainSignalDefinition GRADLE_REPOSITORY_MAVEN_LOCAL = new ExplainSignalDefinition(
+            "gradle.repository.maven-local",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Use explicit Zolt repository overlays for local development and reject them in CI with --no-local-overlays.");
+    public static final ExplainSignalDefinition GRADLE_DEPENDENCY_POLICY_MUTATION = new ExplainSignalDefinition(
+            "gradle.dependency-policy.mutation",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Replace global Gradle excludes and forced versions with explicit Zolt dependency policy constraints.");
+    public static final ExplainSignalDefinition GRADLE_OPENAPI_GENERATED_SOURCES = new ExplainSignalDefinition(
+            "gradle.openapi.generated-sources",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Model OpenAPI generation as typed Zolt generated-source steps instead of Gradle GenerateTask closures.");
+    public static final ExplainSignalDefinition GRADLE_RESOURCE_FILTERING = new ExplainSignalDefinition(
+            "gradle.resource-filtering",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.CACHEABILITY,
+            "Move resource token replacement to Zolt resource filtering with explicit tokens and include globs.");
+    public static final ExplainSignalDefinition GRADLE_TEST_RUNTIME_SETTINGS = new ExplainSignalDefinition(
+            "gradle.test-runtime-settings",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Move test system properties, environment, JVM args, and reporting to Zolt test runtime settings.");
+    public static final ExplainSignalDefinition GRADLE_PACKAGE_ARCHIVE_MUTATION = new ExplainSignalDefinition(
+            "gradle.package.archive-mutation",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Replace package archive mutation with Zolt dependency scopes and package placement diagnostics.");
+    public static final ExplainSignalDefinition GRADLE_PUBLICATION_DETECTED = new ExplainSignalDefinition(
+            "gradle.publication.detected",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Map Maven Publish configuration to Zolt publication metadata, dry-run routing, and credential policy.");
 
     private static final List<ExplainSignalDefinition> DEFINITIONS = List.of(
             MAVEN_MODULE_MISSING_POM,
@@ -96,7 +141,16 @@ public final class ExplainSignals {
             GRADLE_DEPENDENCY_DYNAMIC_VERSION,
             GRADLE_CROSS_PROJECT_BUILD_LOGIC,
             GRADLE_CUSTOM_TASK_DETECTED,
-            GRADLE_VERSION_CATALOG_MALFORMED);
+            GRADLE_VERSION_CATALOG_MALFORMED,
+            GRADLE_ENTERPRISE_PLUGIN_MAPPED,
+            GRADLE_REPOSITORY_CREDENTIALS,
+            GRADLE_REPOSITORY_MAVEN_LOCAL,
+            GRADLE_DEPENDENCY_POLICY_MUTATION,
+            GRADLE_OPENAPI_GENERATED_SOURCES,
+            GRADLE_RESOURCE_FILTERING,
+            GRADLE_TEST_RUNTIME_SETTINGS,
+            GRADLE_PACKAGE_ARCHIVE_MUTATION,
+            GRADLE_PUBLICATION_DETECTED);
     private static final Comparator<ExplainSignal> COMPARATOR = Comparator
             .comparingInt((ExplainSignal signal) -> severityRank(signal.severity()))
             .thenComparingInt(signal -> categoryRank(signal.category()))

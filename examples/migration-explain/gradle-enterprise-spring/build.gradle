@@ -1,0 +1,153 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
+
+plugins {
+    id 'java'
+    id 'war'
+    id 'maven-publish'
+    id 'jacoco'
+    id 'org.openapi.generator' version '7.11.0'
+    id 'org.springframework.boot' version '3.3.6'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group "${applicationGroupId}"
+
+def useMavenLocal = providers.gradleProperty('useMavenLocal')
+        .map { it.toBoolean() }
+        .getOrElse(false)
+def artifactoryUsername = (findProperty('artifactoryUsername')
+        ?: System.getenv('ARTIFACTORY_USERNAME')
+        ?: 'read.only').toString()
+def artifactoryPassword = (findProperty('artifactoryPassword')
+        ?: System.getenv('ARTIFACTORY_ACCESS_TOKEN')
+        ?: 'ReadOnly').toString()
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.named('bootWar') {
+    exclude('WEB-INF/lib/tomcat-*.jar')
+}
+
+configurations {
+    developmentOnly
+    runtimeClasspath {
+        extendsFrom developmentOnly
+    }
+
+    configureEach {
+        exclude group: 'commons-logging', module: 'commons-logging'
+    }
+
+    all {
+        resolutionStrategy {
+            force 'org.apache.tomcat.embed:tomcat-embed-core:10.1.40'
+        }
+    }
+}
+
+repositories {
+    if (useMavenLocal) {
+        mavenLocal()
+    }
+    maven {
+        url = 'https://artifactory.example.com/artifactory/java-virtual'
+        credentials {
+            username = artifactoryUsername
+            password = artifactoryPassword
+        }
+    }
+}
+
+tasks.register('buildJavaRestTemplateSdk', GenerateTask) {
+    generatorName = 'spring'
+    library = 'spring-boot'
+    inputSpec = "$projectDir/src/main/resources/api-specification.yaml"
+    outputDir = "${buildDir}/generated/com/example/service"
+    typeMappings = ["OffsetDateTime": "LocalDateTime"]
+    importMappings = ["java.time.OffsetDateTime": "java.time.LocalDateTime"]
+    additionalProperties = [useSpringBoot3: 'true', useLombok: 'true']
+    configOptions = [interfaceOnly: 'true', useTags: 'true']
+    globalProperties = [apis: "", models: "", supportingFiles: "false"]
+    skipValidateSpec = true
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += "${buildDir}/generated/com/example/service".toString()
+        }
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn 'buildJavaRestTemplateSdk'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "com.example.platform:enterprise-bom:${enterprisePlatformVersion}"
+    }
+}
+
+dependencies {
+    providedCompile 'org.apache.tomcat.embed:tomcat-embed-core:10.1.40'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation('org.ehcache:ehcache') {
+        exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime'
+    }
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'logs.dir', "${project.rootDir}/test-logs"
+    environment 'TZ', 'America/Chicago'
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            credentials {
+                username = artifactoryUsername
+                password = artifactoryPassword
+            }
+            url = project.version.endsWith('-SNAPSHOT')
+                    ? 'https://artifactory.example.com/artifactory/java-snapshots-local/'
+                    : 'https://artifactory.example.com/artifactory/java-releases-local/'
+        }
+    }
+
+    publications {
+        mavenJava(MavenPublication) {
+            artifact bootWar
+        }
+    }
+}
+
+processResources {
+    filter(ReplaceTokens, tokens: [
+            projectVersion: project.property('version') as String,
+            enterprisePlatformVersion: project.property('enterprisePlatformVersion') as String
+    ])
+}

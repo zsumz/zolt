@@ -95,6 +95,42 @@ final class MigrationExplainFixtureTest {
         assertTrue(json.contains("\"id\": \"gradle.dependency.dynamic-version\""));
     }
 
+    @Test
+    void gradleEnterpriseSpringFixtureReportsZoltPrimitiveMappingsWithoutExecutingGradle() throws IOException {
+        Path fixture = fixture("gradle-enterprise-spring");
+        Path marker = fixture.resolve("executed.txt");
+        Files.deleteIfExists(marker);
+
+        GradleInspectionResult first = new GradleStaticProjectInspector().inspect(fixture);
+        GradleInspectionResult second = new GradleStaticProjectInspector().inspect(fixture);
+        GradleExplainFormatter formatter = new GradleExplainFormatter();
+        String text = normalize(formatter.text(first), fixture);
+        String json = normalize(formatter.json(first), fixture);
+
+        assertEquals(goldenGradleEnterpriseSpringText(), text);
+        assertEquals(text, normalize(formatter.text(second), fixture));
+        assertEquals(json, normalize(formatter.json(second), fixture));
+        assertFalse(Files.exists(marker));
+        assertSignalIds(
+                first,
+                "gradle.enterprise-plugin.mapped",
+                "gradle.repository.credentials",
+                "gradle.repository.maven-local",
+                "gradle.dependency-policy.mutation",
+                "gradle.openapi.generated-sources",
+                "gradle.resource-filtering",
+                "gradle.test-runtime-settings",
+                "gradle.package.archive-mutation",
+                "gradle.publication.detected");
+        assertTrue(text.contains("Gradle plugin `org.springframework.boot` maps to Zolt Spring Boot platform"));
+        assertTrue(text.contains("Gradle OpenAPI generator tasks feed generated Java sources into sourceSets."));
+        assertTrue(text.contains("Gradle bootWar package content is changed with archive excludes."));
+        assertTrue(text.contains("This command inspected Gradle metadata statically and did not execute Gradle."));
+        assertTrue(json.contains("\"id\": \"gradle.repository.maven-local\""));
+        assertTrue(json.contains("\"id\": \"gradle.package.archive-mutation\""));
+        assertTrue(json.contains("\"status\": \"blocked\""));
+    }
+
     private static Path fixture(String name) {
         return FIXTURE_ROOT.resolve(name);
     }
@@ -316,6 +352,59 @@ final class MigrationExplainFixtureTest {
                     "nextSteps": ["Review the static report, then create zolt.toml and run zolt resolve."]
                   }
                 }
+                """;
+    }
+
+    private static String goldenGradleEnterpriseSpringText() {
+        return """
+                Zolt explain: Gradle project
+
+                Project
+                  Root: $ROOT
+                  Settings: settings.gradle
+                  Included projects: 0
+                  Projects: 1
+                  Version catalog aliases: 0
+                  Signals: 17
+
+                Projects
+                  - . (gradle-enterprise-spring, dsl=groovy, java=17)
+                    build file: build.gradle
+                    plugins: 7
+                    repositories: 2
+                    dependencies: 6
+
+                What Zolt can build
+                  warn  Gradle build declares custom tasks.
+                  warn  Gradle OpenAPI generator tasks feed generated Java sources into sourceSets.
+                  warn  Gradle Maven Publish configuration selects artifacts and repositories.
+                  warn  Gradle test task declares runtime properties, environment, JVM args, or event logging.
+                  ok  Gradle plugin `io.spring.dependency-management` maps to Zolt [platforms] BOM imports and dependency policy.
+                  ok  Gradle plugin `jacoco` maps to planned Zolt coverage command.
+                  ok  Gradle plugin `java` maps to Zolt Java source, javac, classpath, and package primitives.
+                  ok  Gradle plugin `maven-publish` maps to planned Zolt publication metadata, dry-run, and publish commands.
+                  ok  Gradle plugin `org.openapi.generator` maps to Zolt typed OpenAPI generated-source steps.
+                  ok  Gradle plugin `org.springframework.boot` maps to Zolt Spring Boot platform, run, test, and executable archive support.
+                  ok  Gradle plugin `war` maps to Zolt WAR and Spring Boot WAR package modes.
+
+                What can cache
+                  warn  Gradle processResources performs token/resource filtering.
+
+                Non-determinism
+                  warn  Gradle repository credentials are resolved inside the build script.
+                  warn  Gradle build can read Maven-local artifacts through mavenLocal().
+
+                Migration blockers
+                  block  Gradle build mutates dependency policy through excludes, resolutionStrategy, or forced versions.
+                  block  Gradle build uses imperative dependency or configuration mutation.
+                  block  Gradle bootWar package content is changed with archive excludes.
+
+                Next steps
+                  1. Replace global Gradle excludes and forced versions with explicit Zolt dependency policy constraints.
+                  2. Replace imperative Gradle logic with explicit Zolt dependencies, platforms, processors, and source roots.
+                  3. Replace package archive mutation with Zolt dependency scopes and package placement diagnostics.
+
+                This command inspected Gradle metadata statically and did not execute Gradle.
                 """;
     }
 }
