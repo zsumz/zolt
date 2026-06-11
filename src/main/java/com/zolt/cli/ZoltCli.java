@@ -92,6 +92,9 @@ import com.zolt.publish.PublishDryRunFormatter;
 import com.zolt.publish.PublishDryRunPlan;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishException;
+import com.zolt.publish.PublishUploadFormatter;
+import com.zolt.publish.PublishUploadResult;
+import com.zolt.publish.PublishUploadService;
 import com.zolt.quality.QualityCheckFormatter;
 import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckReport;
@@ -2005,7 +2008,7 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    @Command(name = "publish", description = "Preview publication of Zolt-produced artifacts.")
+    @Command(name = "publish", description = "Publish Zolt-produced artifacts to Maven-compatible repositories.")
     public static final class PublishCommand implements Callable<Integer> {
         @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
         private boolean dryRun;
@@ -2018,18 +2021,15 @@ public final class ZoltCli implements Runnable {
 
         @Override
         public Integer call() {
-            if (!dryRun) {
-                spec.commandLine().getOut().println("""
-                        zolt publish upload is not available yet.
-                        Run `zolt publish --dry-run` to preview artifact routing, evidence, and blockers without uploading.
-                        Track upload implementation in followUps/-add-maven-publication.md.
-                        """.stripTrailing());
-                return 1;
-            }
             try {
-                PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
-                printAndFlush(spec, PublishDryRunFormatter.text(plan));
-                return plan.ok() ? 0 : 1;
+                if (dryRun) {
+                    PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
+                    printAndFlush(spec, PublishDryRunFormatter.text(plan));
+                    return plan.ok() ? 0 : 1;
+                }
+                PublishUploadResult result = new PublishUploadService().upload(workingDirectory);
+                printAndFlush(spec, PublishUploadFormatter.text(result));
+                return 0;
             } catch (PublishException | ZoltConfigException | PackageException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 spec.commandLine().getErr().flush();

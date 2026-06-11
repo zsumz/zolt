@@ -641,14 +641,49 @@ final class ZoltCliTest {
     }
 
     @Test
-    void publishWithoutDryRunExplainsUploadIsFutureWork() {
-        CommandResult result = execute("publish");
+    void publishUploadsArtifactAndGeneratedPom() throws IOException {
+        Path projectDir = tempDir.resolve("publish-upload-release");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/publish-upload-release-0.1.0.jar");
+        Files.writeString(artifact, "fake package\n");
+        Files.writeString(projectDir.resolve("target/publish-upload-release-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/publish-upload-release-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(artifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("zolt publish upload is not available yet."));
-        assertTrue(result.stdout().contains("zolt publish --dry-run"));
-        assertTrue(result.stdout().contains("followUps/-add-maven-publication.md"));
-        assertEquals("", result.stderr());
+        try (TestRepository repository = TestRepository.start()) {
+            Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-upload-release") + """
+
+                    [publish]
+                    releaseRepository = "company-releases"
+
+                    [publish.repositories.company-releases]
+                    url = "%s"
+                    """.formatted(repository.baseUri()));
+
+            CommandResult result = execute(
+                    "publish",
+                    "--cwd", projectDir.toString());
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Zolt publish"));
+            assertTrue(result.stdout().contains("Coordinate: com.example:publish-upload-release:0.1.0"));
+            assertTrue(result.stdout().contains("Target repository: company-releases"));
+            assertTrue(result.stdout().contains("Artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"));
+            assertTrue(result.stdout().contains("POM uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"));
+            assertTrue(result.stdout().contains("Status: uploaded"));
+            assertEquals("", result.stderr());
+            assertEquals(
+                    "fake package\n",
+                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"), StandardCharsets.UTF_8));
+            assertTrue(new String(
+                    repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"),
+                    StandardCharsets.UTF_8).contains("<artifactId>publish-upload-release</artifactId>"));
+        }
     }
 
     @Test
@@ -6690,6 +6725,7 @@ final class ZoltCliTest {
     private static final class TestRepository implements AutoCloseable {
         private final HttpServer server;
         private final Map<String, byte[]> responses = new HashMap<>();
+        private final Map<String, byte[]> uploads = new HashMap<>();
         private final URI baseUri;
 
         private TestRepository(HttpServer server) {
@@ -6724,7 +6760,20 @@ final class ZoltCliTest {
             responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
         }
 
+        byte[] uploaded(String path) {
+            byte[] bytes = uploads.get(path);
+            if (bytes == null) {
+                throw new AssertionError("No upload recorded for " + path);
+            }
+            return bytes.clone();
+        }
+
         private void handle(HttpExchange exchange) throws IOException {
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                uploads.put(exchange.getRequestURI().getPath(), exchange.getRequestBody().readAllBytes());
+                respond(exchange, 201, "created".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
             byte[] body = responses.get(exchange.getRequestURI().getPath());
             if (body == null) {
                 respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
