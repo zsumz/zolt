@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
@@ -75,6 +76,28 @@ final class DependencyWhyFormatterTest {
         assertEquals(
                 "Package com.example:missing is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id.",
                 exception.getMessage());
+    }
+
+    @Test
+    void explainsPackageAbsentBecausePolicyExcludedIt() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(lockPackage("com.example", "app", "1.0.0", true, List.of())),
+                List.of(),
+                List.of(new LockPolicyEffect(
+                        "global-exclusion",
+                        new PackageId("commons-logging", "commons-logging"),
+                        Optional.of("1.2"),
+                        Optional.of("com.example:app:1.0.0"),
+                        "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)")));
+
+        String output = formatter.format(config(), lockfile, new PackageId("commons-logging", "commons-logging"));
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- commons-logging:commons-logging (excluded by dependency policy)
+                   \\- global-exclusion requested 1.2 from com.example:app:1.0.0: [dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)
+                """, output);
     }
 
     private static ZoltLockfile lockfile() {

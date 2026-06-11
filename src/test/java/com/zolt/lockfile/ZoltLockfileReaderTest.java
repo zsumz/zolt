@@ -54,6 +54,27 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsPolicyEffects() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[policy]]
+                kind = "global-exclusion"
+                id = "commons-logging:commons-logging"
+                requested = "1.2"
+                source = "org.springframework.boot:spring-boot-starter-web:3.3.6"
+                policy = "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)"
+                """);
+
+        LockPolicyEffect effect = lockfile.policyEffects().getFirst();
+        assertEquals("global-exclusion", effect.kind());
+        assertEquals(new PackageId("commons-logging", "commons-logging"), effect.packageId());
+        assertEquals("1.2", effect.requestedVersion().orElseThrow());
+        assertEquals("org.springframework.boot:spring-boot-starter-web:3.3.6", effect.source().orElseThrow());
+        assertEquals("[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)", effect.policy());
+    }
+
+    @Test
     void readsInternalToolingScopes() {
         ZoltLockfile lockfile = reader.read("""
                 version = 1

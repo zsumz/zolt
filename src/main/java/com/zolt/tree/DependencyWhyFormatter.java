@@ -1,6 +1,7 @@
 package com.zolt.tree;
 
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.PackageId;
@@ -13,8 +14,16 @@ import java.util.Optional;
 
 public final class DependencyWhyFormatter {
     public String format(ProjectConfig config, ZoltLockfile lockfile, PackageId target) {
-        List<LockPackage> path = pathTo(lockfile, target).orElseThrow(() -> new DependencyWhyException(
-                "Package " + target + " is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id."));
+        Optional<List<LockPackage>> resolvedPath = pathTo(lockfile, target);
+        if (resolvedPath.isEmpty()) {
+            List<LockPolicyEffect> exclusionEffects = exclusionEffects(lockfile, target);
+            if (!exclusionEffects.isEmpty()) {
+                return formatExcluded(config, target, exclusionEffects);
+            }
+            throw new DependencyWhyException(
+                    "Package " + target + " is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id.");
+        }
+        List<LockPackage> path = resolvedPath.orElseThrow();
         StringBuilder output = new StringBuilder();
         output.append(config.project().group())
                 .append(':')
@@ -30,6 +39,29 @@ public final class DependencyWhyFormatter {
                     .append(path.get(index).version());
             appendPolicies(output, path.get(index));
             output.append('\n');
+        }
+        return output.toString();
+    }
+
+    private static String formatExcluded(
+            ProjectConfig config,
+            PackageId target,
+            List<LockPolicyEffect> effects) {
+        StringBuilder output = new StringBuilder();
+        output.append(config.project().group())
+                .append(':')
+                .append(config.project().name())
+                .append(':')
+                .append(config.project().version())
+                .append('\n');
+        output.append("\\- ")
+                .append(target)
+                .append(" (excluded by dependency policy)")
+                .append('\n');
+        for (LockPolicyEffect effect : effects) {
+            output.append("   \\- ")
+                    .append(formatPolicyEffect(effect))
+                    .append('\n');
         }
         return output.toString();
     }
@@ -89,6 +121,39 @@ public final class DependencyWhyFormatter {
         output.append(" (policy: ")
                 .append(String.join("; ", lockPackage.policies().stream().sorted().toList()))
                 .append(')');
+    }
+
+    private static List<LockPolicyEffect> exclusionEffects(ZoltLockfile lockfile, PackageId target) {
+        return lockfile.policyEffects().stream()
+                .filter(effect -> effect.packageId().equals(target))
+                .filter(DependencyWhyFormatter::exclusion)
+                .sorted(Comparator.comparing(DependencyWhyFormatter::policyEffectSortKey))
+                .toList();
+    }
+
+    private static boolean exclusion(LockPolicyEffect effect) {
+        return "global-exclusion".equals(effect.kind()) || "edge-exclusion".equals(effect.kind());
+    }
+
+    private static String formatPolicyEffect(LockPolicyEffect effect) {
+        StringBuilder output = new StringBuilder();
+        output.append(effect.kind());
+        effect.requestedVersion().ifPresent(version -> output.append(" requested ").append(version));
+        effect.source().ifPresent(source -> output.append(" from ").append(source));
+        output.append(": ").append(effect.policy());
+        return output.toString();
+    }
+
+    private static String policyEffectSortKey(LockPolicyEffect effect) {
+        return effect.kind()
+                + ":"
+                + effect.packageId()
+                + ":"
+                + effect.requestedVersion().orElse("")
+                + ":"
+                + effect.source().orElse("")
+                + ":"
+                + effect.policy();
     }
 
     private record PathItem(LockPackage lockPackage, List<LockPackage> path) {

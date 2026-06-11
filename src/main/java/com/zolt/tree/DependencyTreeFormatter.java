@@ -2,6 +2,7 @@ package com.zolt.tree;
 
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ConflictSelectionReason;
@@ -37,6 +38,7 @@ public final class DependencyTreeFormatter {
                     index == directPackages.size() - 1,
                     List.of());
         }
+        writePolicyEffects(output, lockfile);
         return output.toString();
     }
 
@@ -124,5 +126,48 @@ public final class DependencyTreeFormatter {
         output.append(" (policy: ")
                 .append(String.join("; ", lockPackage.policies().stream().sorted().toList()))
                 .append(')');
+    }
+
+    private static void writePolicyEffects(StringBuilder output, ZoltLockfile lockfile) {
+        List<LockPolicyEffect> exclusionEffects = lockfile.policyEffects().stream()
+                .filter(DependencyTreeFormatter::exclusion)
+                .sorted(Comparator.comparing(DependencyTreeFormatter::policyEffectSortKey))
+                .toList();
+        if (exclusionEffects.isEmpty()) {
+            return;
+        }
+        output.append("Policy effects\n");
+        for (LockPolicyEffect effect : exclusionEffects) {
+            output.append("- ")
+                    .append(formatPolicyEffect(effect))
+                    .append('\n');
+        }
+    }
+
+    private static boolean exclusion(LockPolicyEffect effect) {
+        return "global-exclusion".equals(effect.kind()) || "edge-exclusion".equals(effect.kind());
+    }
+
+    private static String formatPolicyEffect(LockPolicyEffect effect) {
+        StringBuilder output = new StringBuilder();
+        output.append(effect.kind())
+                .append(' ')
+                .append(effect.packageId());
+        effect.requestedVersion().ifPresent(version -> output.append(':').append(version));
+        effect.source().ifPresent(source -> output.append(" from ").append(source));
+        output.append(": ").append(effect.policy());
+        return output.toString();
+    }
+
+    private static String policyEffectSortKey(LockPolicyEffect effect) {
+        return effect.kind()
+                + ":"
+                + effect.packageId()
+                + ":"
+                + effect.requestedVersion().orElse("")
+                + ":"
+                + effect.source().orElse("")
+                + ":"
+                + effect.policy();
     }
 }

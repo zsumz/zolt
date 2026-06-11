@@ -27,6 +27,9 @@ public final class ZoltLockfileWriter {
         for (LockPackage lockPackage : sortedPackages(lockfile.packages())) {
             writePackage(output, lockPackage);
         }
+        for (LockPolicyEffect policyEffect : sortedPolicyEffects(lockfile.policyEffects())) {
+            writePolicyEffect(output, policyEffect);
+        }
         for (LockConflict conflict : sortedConflicts(lockfile.conflicts())) {
             writeConflict(output, conflict);
         }
@@ -69,6 +72,16 @@ public final class ZoltLockfileWriter {
         output.append("\n\n");
     }
 
+    private void writePolicyEffect(StringBuilder output, LockPolicyEffect policyEffect) {
+        output.append("[[policy]]\n");
+        assignment(output, "kind", policyEffect.kind());
+        assignment(output, "id", policyEffect.packageId().toString());
+        policyEffect.requestedVersion().ifPresent(value -> assignment(output, "requested", value));
+        policyEffect.source().ifPresent(value -> assignment(output, "source", value));
+        assignment(output, "policy", policyEffect.policy());
+        output.append('\n');
+    }
+
     private void writeConflict(StringBuilder output, LockConflict conflict) {
         output.append("[[conflict]]\n");
         assignment(output, "id", conflict.packageId().toString());
@@ -105,6 +118,20 @@ public final class ZoltLockfileWriter {
     private static List<LockConflict> sortedConflicts(List<LockConflict> conflicts) {
         return conflicts.stream()
                 .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .toList();
+    }
+
+    private static List<LockPolicyEffect> sortedPolicyEffects(List<LockPolicyEffect> policyEffects) {
+        return policyEffects.stream()
+                .sorted(Comparator.comparing(policyEffect -> policyEffect.kind()
+                        + ":"
+                        + policyEffect.packageId()
+                        + ":"
+                        + policyEffect.requestedVersion().orElse("")
+                        + ":"
+                        + policyEffect.source().orElse("")
+                        + ":"
+                        + policyEffect.policy()))
                 .toList();
     }
 

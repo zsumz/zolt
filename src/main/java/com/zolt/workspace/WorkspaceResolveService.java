@@ -2,6 +2,7 @@ package com.zolt.workspace;
 
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
@@ -205,6 +206,7 @@ public final class WorkspaceResolveService {
     private static ZoltLockfile aggregate(Workspace workspace, List<MemberResolveOutput> memberOutputs) {
         Map<String, LockPackage> packages = new LinkedHashMap<>();
         Map<String, LockConflict> conflicts = new LinkedHashMap<>();
+        Map<String, LockPolicyEffect> policyEffects = new LinkedHashMap<>();
         for (LockPackage lockPackage : workspacePackages(workspace)) {
             String key = packageKey(lockPackage);
             LockPackage existingPackage = packages.get(key);
@@ -221,6 +223,9 @@ public final class WorkspaceResolveService {
             for (LockConflict conflict : memberOutput.lockfile().conflicts()) {
                 conflicts.putIfAbsent(conflictKey(conflict), conflict);
             }
+            for (LockPolicyEffect policyEffect : memberOutput.lockfile().policyEffects()) {
+                policyEffects.putIfAbsent(policyEffectKey(policyEffect), policyEffect);
+            }
         }
 
         GlobalExternalSelection globalSelection = selectGlobalExternalPackages(externalCandidates);
@@ -236,7 +241,8 @@ public final class WorkspaceResolveService {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
                 List.copyOf(packages.values()),
-                List.copyOf(conflicts.values()));
+                List.copyOf(conflicts.values()),
+                List.copyOf(policyEffects.values()));
     }
 
     private static GlobalExternalSelection selectGlobalExternalPackages(List<LockPackage> candidates) {
@@ -475,6 +481,18 @@ public final class WorkspaceResolveService {
 
     private static String conflictKey(LockConflict conflict) {
         return conflict.packageId() + ":" + conflict.selectedVersion() + ":" + conflict.reason();
+    }
+
+    private static String policyEffectKey(LockPolicyEffect policyEffect) {
+        return policyEffect.kind()
+                + ":"
+                + policyEffect.packageId()
+                + ":"
+                + policyEffect.requestedVersion().orElse("")
+                + ":"
+                + policyEffect.source().orElse("")
+                + ":"
+                + policyEffect.policy();
     }
 
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {

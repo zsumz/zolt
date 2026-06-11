@@ -96,7 +96,8 @@ public final class ZoltLockfileReader {
         return new ZoltLockfile(
                 version,
                 packages(result.getArray("package")),
-                conflicts(result.getArray("conflict")));
+                conflicts(result.getArray("conflict")),
+                policyEffects(result.getArray("policy")));
     }
 
     private static List<LockPackage> packages(TomlArray packageArray) {
@@ -156,6 +157,27 @@ public final class ZoltLockfileReader {
                     reason(requireString(table, "reason"))));
         }
         return conflicts;
+    }
+
+    private static List<LockPolicyEffect> policyEffects(TomlArray policyArray) {
+        if (policyArray == null) {
+            return List.of();
+        }
+
+        List<LockPolicyEffect> policyEffects = new ArrayList<>();
+        for (int index = 0; index < policyArray.size(); index++) {
+            TomlTable table = policyArray.getTable(index);
+            if (table == null) {
+                throw new LockfileReadException("Invalid policy entry at index " + index + " in zolt.lock.");
+            }
+            policyEffects.add(new LockPolicyEffect(
+                    requireString(table, "kind"),
+                    packageId(requireString(table, "id")),
+                    optionalString(table, "requested"),
+                    optionalString(table, "source"),
+                    requireString(table, "policy")));
+        }
+        return policyEffects;
     }
 
     private static int requireInt(TomlTable table, String key) {

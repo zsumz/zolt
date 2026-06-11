@@ -54,6 +54,39 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
+    void writesPolicyEffectsDeterministically() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(),
+                List.of(),
+                List.of(
+                        new LockPolicyEffect(
+                                "global-exclusion",
+                                new PackageId("org.slf4j", "jcl-over-slf4j"),
+                                Optional.of("2.0.16"),
+                                Optional.of("com.example:app:1.0.0"),
+                                "[dependencyPolicy].exclude org.slf4j:jcl-over-slf4j"),
+                        new LockPolicyEffect(
+                                "global-exclusion",
+                                new PackageId("commons-logging", "commons-logging"),
+                                Optional.of("1.2"),
+                                Optional.of("com.example:app:1.0.0"),
+                                "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)")));
+
+        String output = writer.write(lockfile);
+
+        assertTrue(output.indexOf("commons-logging:commons-logging") < output.indexOf("org.slf4j:jcl-over-slf4j"));
+        assertTrue(output.contains("""
+                [[policy]]
+                kind = "global-exclusion"
+                id = "commons-logging:commons-logging"
+                requested = "1.2"
+                source = "com.example:app:1.0.0"
+                policy = "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)"
+                """));
+    }
+
+    @Test
     void writesInternalToolingScopeNames() {
         ZoltLockfile lockfile = new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,

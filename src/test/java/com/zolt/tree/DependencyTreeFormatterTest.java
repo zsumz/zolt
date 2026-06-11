@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
@@ -78,6 +79,29 @@ final class DependencyTreeFormatterTest {
         assertEquals("""
                 com.example:demo:0.1.0
                 \\- com.example:app:1.0.0 (policy: managed-version: com.example:app -> 1.0.0 from com.example:platform:1.0.0)
+                """, output);
+    }
+
+    @Test
+    void showsExcludedPolicyEffects() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(lockPackage("com.example", "app", "1.0.0", true, List.of())),
+                List.of(),
+                List.of(new LockPolicyEffect(
+                        "global-exclusion",
+                        new PackageId("commons-logging", "commons-logging"),
+                        Optional.of("1.2"),
+                        Optional.of("com.example:app:1.0.0"),
+                        "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)")));
+
+        String output = formatter.format(config(), lockfile);
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                Policy effects
+                - global-exclusion commons-logging:commons-logging:1.2 from com.example:app:1.0.0: [dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)
                 """, output);
     }
 

@@ -4,6 +4,7 @@ import com.zolt.cache.CachedArtifact;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.maven.ArtifactDescriptor;
@@ -562,7 +563,8 @@ public final class ResolveService {
                             graph,
                             artifacts.get(plan.artifactDescriptor()),
                             managedDirectScopes,
-                            managedVersionDetails))
+                            managedVersionDetails,
+                            graph.policyEffects()))
                     .toList();
             List<LockConflict> conflicts = selection.conflicts().stream()
                     .map(conflict -> new LockConflict(
@@ -571,7 +573,11 @@ public final class ResolveService {
                             conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
                             conflict.selectionReason()))
                     .toList();
-            return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, packages, conflicts);
+            return new ZoltLockfile(
+                    ZoltLockfile.CURRENT_VERSION,
+                    packages,
+                    conflicts,
+                    lockPolicyEffects(graph.policyEffects()));
         } finally {
             context.addLockfileAssemblyNanos(elapsedSince(started));
         }
@@ -739,7 +745,8 @@ public final class ResolveService {
             ResolutionGraph graph,
             CachedArtifact artifact,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
-            Map<PackageId, ManagedVersion> managedVersionDetails) {
+            Map<PackageId, ManagedVersion> managedVersionDetails,
+            List<DependencyPolicyEffect> policyEffects) {
         PackageNode node = plan.node();
         SelectedScope selectedScope = plan.selectedScope();
         ArtifactDescriptor descriptor = plan.artifactDescriptor();
@@ -764,7 +771,8 @@ public final class ResolveService {
                         selectedScope,
                         context.config.dependencyPolicy().constraints(),
                         managedDirectScopes,
-                        managedVersionDetails));
+                        managedVersionDetails,
+                        policyEffects));
     }
 
     private static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
@@ -780,7 +788,8 @@ public final class ResolveService {
             SelectedScope selectedScope,
             Map<String, DependencyConstraint> constraints,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
-            Map<PackageId, ManagedVersion> managedVersions) {
+            Map<PackageId, ManagedVersion> managedVersions,
+            List<DependencyPolicyEffect> policyEffects) {
         List<String> policies = new ArrayList<>();
         if (selectedScope.direct()
                 && managedDirectScopes.getOrDefault(node.packageId(), List.of()).contains(selectedScope.scope())) {
@@ -801,11 +810,43 @@ public final class ResolveService {
         if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
             return policies;
         }
-        String policy = "strict-version: " + node.packageId() + " -> " + constraint.version();
-        policies.add(constraint.reason()
-                .map(reason -> policy + " (" + reason + ")")
-                .orElse(policy));
+        List<String> strictPolicies = policyEffects.stream()
+                .filter(effect -> "strict-version".equals(effect.kind()))
+                .filter(effect -> effect.packageId().equals(node.packageId()))
+                .map(DependencyPolicyEffect::policy)
+                .distinct()
+                .sorted()
+                .toList();
+        if (strictPolicies.isEmpty()) {
+            String policy = "strict-version: " + node.packageId() + " -> " + constraint.version();
+            policies.add(constraint.reason()
+                    .map(reason -> policy + " (" + reason + ")")
+                    .orElse(policy));
+        } else {
+            policies.addAll(strictPolicies);
+        }
         return List.copyOf(policies);
+    }
+
+    private static List<LockPolicyEffect> lockPolicyEffects(List<DependencyPolicyEffect> policyEffects) {
+        return policyEffects.stream()
+                .map(effect -> new LockPolicyEffect(
+                        effect.kind(),
+                        effect.packageId(),
+                        effect.requestedVersion(),
+                        effect.source(),
+                        effect.policy()))
+                .distinct()
+                .sorted(Comparator.comparing(effect -> effect.kind()
+                        + ":"
+                        + effect.packageId()
+                        + ":"
+                        + effect.requestedVersion().orElse("")
+                        + ":"
+                        + effect.source().orElse("")
+                        + ":"
+                        + effect.policy()))
+                .toList();
     }
 
     private Map<PackageId, List<DependencyScope>> managedDirectScopes(ProjectConfig config) {

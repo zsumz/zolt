@@ -10,6 +10,7 @@ import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
@@ -324,6 +325,12 @@ final class ResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))));
         assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib"))));
+        assertTrue(lockfile.policyEffects().stream().anyMatch(effect ->
+                "edge-exclusion".equals(effect.kind())
+                        && effect.packageId().equals(new PackageId("com.example", "lib"))
+                        && effect.requestedVersion().orElseThrow().equals("1.0.0")
+                        && effect.source().orElseThrow().equals("com.example:app:1.0.0")
+                        && effect.policy().contains("dependency edge exclusion")));
     }
 
     @Test
@@ -346,6 +353,14 @@ final class ResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))));
         assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib"))));
+        LockPolicyEffect effect = lockfile.policyEffects().stream()
+                .filter(policyEffect -> policyEffect.packageId().equals(new PackageId("com.example", "lib")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("global-exclusion", effect.kind());
+        assertEquals("1.0.0", effect.requestedVersion().orElseThrow());
+        assertEquals("com.example:app:1.0.0", effect.source().orElseThrow());
+        assertEquals("[dependencyPolicy].exclude com.example:lib (Use the internal logging bridge instead)", effect.policy());
     }
 
     @Test
@@ -380,8 +395,14 @@ final class ResolveServiceTest {
         assertEquals(2, result.resolvedCount());
         assertEquals("2.0.0", lib.version());
         assertEquals(
-                List.of("strict-version: com.example:lib -> 2.0.0 (Enterprise baseline)"),
+                List.of("strict-version: com.example:lib requested 1.0.0 -> 2.0.0 (Enterprise baseline)"),
                 lib.policies());
+        assertTrue(lockfile.policyEffects().stream().anyMatch(effect ->
+                "strict-version".equals(effect.kind())
+                        && effect.packageId().equals(new PackageId("com.example", "lib"))
+                        && effect.requestedVersion().orElseThrow().equals("1.0.0")
+                        && effect.source().orElseThrow().equals("com.example:app:1.0.0")
+                        && effect.policy().equals("strict-version: com.example:lib requested 1.0.0 -> 2.0.0 (Enterprise baseline)")));
     }
 
     @Test

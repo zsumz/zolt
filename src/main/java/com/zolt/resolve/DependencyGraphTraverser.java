@@ -23,7 +23,7 @@ public final class DependencyGraphTraverser {
     private final DependencyNormalizer normalizer;
     private final DependencyTraversalPolicy traversalPolicy;
     private final DependencyRelocator relocator;
-    private final List<DependencyExclusion> globalExclusions;
+    private final List<GlobalExclusion> globalExclusions;
     private final Map<PackageId, DependencyConstraint> strictConstraints;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
@@ -59,6 +59,7 @@ public final class DependencyGraphTraverser {
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
         SequencedMap<NodeKey, PackageNode> nodes = new LinkedHashMap<>();
         List<ResolutionEdge> edges = new ArrayList<>();
+        List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
         Set<VisitKey> visited = new TreeSet<>();
         ArrayDeque<TraversalItem> queue = new ArrayDeque<>();
 
@@ -98,7 +99,9 @@ public final class DependencyGraphTraverser {
 
                 for (NormalizedDependency dependency : dependencies) {
                     Coordinate candidate = coordinate(dependency.rawDependency());
-                    if (item.excludes(candidate) || globallyExcludes(candidate)) {
+                    List<DependencyPolicyEffect> exclusionEffects = exclusionEffects(item, node, dependency, candidate);
+                    if (!exclusionEffects.isEmpty()) {
+                        policyEffects.addAll(exclusionEffects);
                         continue;
                     }
 
@@ -115,8 +118,9 @@ public final class DependencyGraphTraverser {
                             dependency.rawDependency().groupId(),
                             dependency.rawDependency().artifactId());
                     DependencyConstraint constraint = strictConstraints.get(packageId);
+                    Optional<String> originalRequestedVersion = dependency.rawDependency().version();
                     String requestedVersion = constraint == null
-                            ? dependency.rawDependency().version()
+                            ? originalRequestedVersion
                                     .orElseThrow(() -> new GraphTraversalException(
                                             "Dependency "
                                                     + dependency.rawDependency().groupId()
@@ -128,6 +132,13 @@ public final class DependencyGraphTraverser {
                                                     + node.selectedVersion()
                                                     + " does not declare or inherit a version."))
                             : constraint.version();
+                    if (constraint != null) {
+                        policyEffects.add(strictVersionEffect(
+                                packageId,
+                                originalRequestedVersion,
+                                node,
+                                constraint));
+                    }
                     DependencyRequest transitiveRequest = new DependencyRequest(
                             packageId,
                             requestedVersion,
@@ -138,7 +149,11 @@ public final class DependencyGraphTraverser {
             }
         }
 
-        return new ResolutionGraph(List.copyOf(nodes.values()), List.copyOf(edges), List.of());
+        return new ResolutionGraph(
+                List.copyOf(nodes.values()),
+                List.copyOf(edges),
+                List.of(),
+                sortedPolicyEffects(policyEffects));
     }
 
     private static List<TraversalItem> frontier(ArrayDeque<TraversalItem> queue) {
@@ -173,12 +188,14 @@ public final class DependencyGraphTraverser {
                 Optional.ofNullable(request.requestedVersion()));
     }
 
-    private static List<DependencyExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
+    private static List<GlobalExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
         if (dependencyPolicy == null) {
             return List.of();
         }
         return dependencyPolicy.exclusions().stream()
-                .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
+                .map(exclusion -> new GlobalExclusion(
+                        new DependencyExclusion(exclusion.group(), exclusion.artifact()),
+                        exclusion.reason()))
                 .toList();
     }
 
@@ -228,8 +245,87 @@ public final class DependencyGraphTraverser {
         return Optional.empty();
     }
 
-    private boolean globallyExcludes(Coordinate coordinate) {
-        return globalExclusions.stream().anyMatch(exclusion -> exclusion.matches(coordinate));
+    private List<DependencyPolicyEffect> exclusionEffects(
+            TraversalItem item,
+            PackageNode source,
+            NormalizedDependency dependency,
+            Coordinate coordinate) {
+        List<DependencyPolicyEffect> effects = new ArrayList<>();
+        item.matchingExclusions(coordinate).stream()
+                .map(exclusion -> new DependencyPolicyEffect(
+                        "edge-exclusion",
+                        new PackageId(coordinate.groupId(), coordinate.artifactId()),
+                        dependency.rawDependency().version(),
+                        Optional.of(coordinate(source)),
+                        "dependency edge exclusion from "
+                                + coordinate(source)
+                                + " to "
+                                + coordinate.groupId()
+                                + ":"
+                                + coordinate.artifactId()))
+                .forEach(effects::add);
+        matchingGlobalExclusions(coordinate).stream()
+                .map(exclusion -> new DependencyPolicyEffect(
+                        "global-exclusion",
+                        new PackageId(coordinate.groupId(), coordinate.artifactId()),
+                        dependency.rawDependency().version(),
+                        Optional.of(coordinate(source)),
+                        exclusion.reason()
+                                .map(reason -> "[dependencyPolicy].exclude "
+                                        + coordinate.groupId()
+                                        + ":"
+                                        + coordinate.artifactId()
+                                        + " ("
+                                        + reason
+                                        + ")")
+                                .orElse("[dependencyPolicy].exclude "
+                                        + coordinate.groupId()
+                                        + ":"
+                                        + coordinate.artifactId())))
+                .forEach(effects::add);
+        return effects;
+    }
+
+    private List<GlobalExclusion> matchingGlobalExclusions(Coordinate coordinate) {
+        return globalExclusions.stream()
+                .filter(exclusion -> exclusion.exclusion().matches(coordinate))
+                .toList();
+    }
+
+    private static DependencyPolicyEffect strictVersionEffect(
+            PackageId packageId,
+            Optional<String> requestedVersion,
+            PackageNode source,
+            DependencyConstraint constraint) {
+        String policy = "strict-version: "
+                + packageId
+                + " requested "
+                + requestedVersion.orElse("<missing>")
+                + " -> "
+                + constraint.version();
+        return new DependencyPolicyEffect(
+                "strict-version",
+                packageId,
+                requestedVersion,
+                Optional.of(coordinate(source)),
+                constraint.reason()
+                        .map(reason -> policy + " (" + reason + ")")
+                        .orElse(policy));
+    }
+
+    private static List<DependencyPolicyEffect> sortedPolicyEffects(List<DependencyPolicyEffect> policyEffects) {
+        return policyEffects.stream()
+                .distinct()
+                .sorted(Comparator.comparing(policyEffect -> policyEffect.kind()
+                        + ":"
+                        + policyEffect.packageId()
+                        + ":"
+                        + policyEffect.requestedVersion().orElse("")
+                        + ":"
+                        + policyEffect.source().orElse("")
+                        + ":"
+                        + policyEffect.policy()))
+                .toList();
     }
 
     private static String requestSortKey(DependencyRequest request) {
@@ -245,6 +341,10 @@ public final class DependencyGraphTraverser {
                 + raw.version().orElse("")
                 + ":"
                 + dependency.scope();
+    }
+
+    private static String coordinate(PackageNode node) {
+        return node.packageId() + ":" + node.selectedVersion();
     }
 
     private record NodeKey(PackageId packageId, String version) implements Comparable<NodeKey> {
@@ -307,8 +407,18 @@ public final class DependencyGraphTraverser {
             return new TraversalItem(Optional.of(parent), request, edgeExclusions, decision);
         }
 
-        boolean excludes(Coordinate coordinate) {
-            return edgeExclusions.stream().anyMatch(exclusion -> exclusion.matches(coordinate));
+        List<DependencyExclusion> matchingExclusions(Coordinate coordinate) {
+            return edgeExclusions.stream()
+                    .filter(exclusion -> exclusion.matches(coordinate))
+                    .toList();
+        }
+    }
+
+    private record GlobalExclusion(
+            DependencyExclusion exclusion,
+            Optional<String> reason) {
+        private GlobalExclusion {
+            reason = reason == null ? Optional.empty() : reason;
         }
     }
 }
