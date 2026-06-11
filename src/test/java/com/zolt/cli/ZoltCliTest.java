@@ -797,6 +797,77 @@ final class ZoltCliTest {
     }
 
     @Test
+    void publishDryRunProducesDeterministicOutputAndPom() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-deterministic");
+        Files.createDirectories(projectDir.resolve("target"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-dry-run-deterministic") + """
+
+                [dependencies]
+                "org.example:zeta" = "2.0.0"
+                "org.example:alpha" = "1.0.0"
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.example:zeta"
+                version = "2.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "org/example/zeta/2.0.0/zeta-2.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.example:alpha"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "org/example/alpha/1.0.0/alpha-1.0.0.jar"
+                dependencies = []
+                """);
+        Path artifact = projectDir.resolve("target/publish-dry-run-deterministic-0.1.0.jar");
+        Files.writeString(artifact, "fake deterministic package\n");
+        Files.writeString(projectDir.resolve("target/publish-dry-run-deterministic-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/publish-dry-run-deterministic-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(artifact)));
+
+        CommandResult first = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+        String firstPom = Files.readString(projectDir.resolve("target/publish/publish-dry-run-deterministic-0.1.0.pom"));
+        CommandResult second = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+        String secondPom = Files.readString(projectDir.resolve("target/publish/publish-dry-run-deterministic-0.1.0.pom"));
+
+        assertEquals(0, first.exitCode());
+        assertEquals(0, second.exitCode());
+        assertEquals(first.stdout(), second.stdout());
+        assertEquals(firstPom, secondPom);
+        int alphaIndex = firstPom.indexOf("<artifactId>alpha</artifactId>");
+        int zetaIndex = firstPom.indexOf("<artifactId>zeta</artifactId>");
+        assertTrue(alphaIndex >= 0);
+        assertTrue(zetaIndex > alphaIndex);
+        assertTrue(first.stdout().contains("Status: ready"));
+        assertEquals("", first.stderr());
+        assertEquals("", second.stderr());
+    }
+
+    @Test
     void publishDryRunRoutesSnapshotAndReportsMissingCredentialsAndArtifact() throws IOException {
         Path projectDir = tempDir.resolve("publish-dry-run-snapshot-blocked");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
