@@ -10,8 +10,10 @@ import com.zolt.resolve.PackageId;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class PackagePlanService {
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
@@ -37,10 +39,11 @@ public final class PackagePlanService {
         Path projectRoot = projectRoot(projectDirectory);
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath.toAbsolutePath().normalize());
         PackageMode mode = config.packageSettings().mode();
+        Set<PackageId> providedPackageIds = providedPackageIds(lockfile);
         List<PackagePlanDependency> dependencies = lockfile.packages().stream()
                 .filter(lockPackage -> lockPackage.jar().isPresent())
                 .sorted(Comparator.comparing(PackagePlanService::sortKey))
-                .map(lockPackage -> dependency(mode, lockPackage))
+                .map(lockPackage -> dependency(mode, lockPackage, providedPackageIds))
                 .toList();
         return new PackagePlan(
                 projectRoot,
@@ -53,13 +56,26 @@ public final class PackagePlanService {
                 warnings(mode, dependencies));
     }
 
-    private static PackagePlanDependency dependency(PackageMode mode, LockPackage lockPackage) {
+    private static Set<PackageId> providedPackageIds(ZoltLockfile lockfile) {
+        Set<PackageId> packageIds = new LinkedHashSet<>();
+        for (LockPackage lockPackage : lockfile.packages()) {
+            if (lockPackage.scope() == DependencyScope.PROVIDED && lockPackage.direct()) {
+                packageIds.add(lockPackage.packageId());
+            }
+        }
+        return Set.copyOf(packageIds);
+    }
+
+    private static PackagePlanDependency dependency(
+            PackageMode mode,
+            LockPackage lockPackage,
+            Set<PackageId> providedPackageIds) {
         String nestedJar = nestedJarName(lockPackage);
         return switch (mode) {
             case THIN -> thinDependency(lockPackage);
             case SPRING_BOOT -> springBootDependency(lockPackage, nestedJar);
-            case WAR -> warDependency(lockPackage, nestedJar);
-            case SPRING_BOOT_WAR -> springBootWarDependency(lockPackage, nestedJar);
+            case WAR -> warDependency(lockPackage, nestedJar, providedPackageIds);
+            case SPRING_BOOT_WAR -> springBootWarDependency(lockPackage, nestedJar, providedPackageIds);
             case QUARKUS -> new PackagePlanDependency(
                     coordinate(lockPackage),
                     lockPackage.version(),
@@ -126,7 +142,13 @@ public final class PackagePlanService {
                 lockPackage.policies());
     }
 
-    private static PackagePlanDependency warDependency(LockPackage lockPackage, String nestedJar) {
+    private static PackagePlanDependency warDependency(
+            LockPackage lockPackage,
+            String nestedJar,
+            Set<PackageId> providedPackageIds) {
+        if (isProvidedCoordinateOverride(lockPackage, providedPackageIds)) {
+            return providedCoordinateOverride(lockPackage, false);
+        }
         boolean included = lockPackage.scope().packagedByDefault();
         return new PackagePlanDependency(
                 coordinate(lockPackage),
@@ -141,7 +163,10 @@ public final class PackagePlanService {
                 lockPackage.policies());
     }
 
-    private static PackagePlanDependency springBootWarDependency(LockPackage lockPackage, String nestedJar) {
+    private static PackagePlanDependency springBootWarDependency(
+            LockPackage lockPackage,
+            String nestedJar,
+            Set<PackageId> providedPackageIds) {
         if (lockPackage.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
             return new PackagePlanDependency(
                     coordinate(lockPackage),
@@ -164,6 +189,9 @@ public final class PackagePlanService {
                     "provided dependency is available to java -jar without entering servlet container WEB-INF/lib",
                     lockPackage.policies());
         }
+        if (isProvidedCoordinateOverride(lockPackage, providedPackageIds)) {
+            return providedCoordinateOverride(lockPackage, true);
+        }
         boolean included = lockPackage.scope().packagedByDefault();
         return new PackagePlanDependency(
                 coordinate(lockPackage),
@@ -175,6 +203,27 @@ public final class PackagePlanService {
                 included
                         ? "runtime dependency packaged for the Spring Boot WAR launcher"
                         : omissionReason(lockPackage.scope(), false),
+                lockPackage.policies());
+    }
+
+    private static boolean isProvidedCoordinateOverride(
+            LockPackage lockPackage,
+            Set<PackageId> providedPackageIds) {
+        return lockPackage.scope() != DependencyScope.PROVIDED
+                && providedPackageIds.contains(lockPackage.packageId());
+    }
+
+    private static PackagePlanDependency providedCoordinateOverride(
+            LockPackage lockPackage,
+            boolean springBootWar) {
+        return new PackagePlanDependency(
+                coordinate(lockPackage),
+                lockPackage.version(),
+                lockPackage.scope(),
+                "omitted",
+                springBootWar ? "spring-boot-war-provided-coordinate-override" : "war-provided-coordinate-override",
+                "",
+                "same coordinate is declared in [provided.dependencies], so this runtime path is omitted from the deployable runtime lib directory",
                 lockPackage.policies());
     }
 

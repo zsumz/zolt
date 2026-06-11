@@ -26,7 +26,11 @@ exclude = [
 "org.springframework.boot:spring-boot-starter-actuator" = {}
 "org.springframework.boot:spring-boot-starter-log4j2" = {}
 "org.springframework.boot:spring-boot-starter-validation" = {}
-"org.springframework.boot:spring-boot-starter-webmvc" = {}
+"org.springframework.boot:spring-boot-starter-webmvc" = { exclusions = [
+  { group = "org.apache.tomcat.embed", artifact = "tomcat-embed-core" },
+  { group = "org.apache.tomcat.embed", artifact = "tomcat-embed-el" },
+  { group = "org.apache.tomcat.embed", artifact = "tomcat-embed-websocket" }
+] }
 
 [runtime.dependencies]
 "org.apache.logging.log4j:log4j-jul" = {}

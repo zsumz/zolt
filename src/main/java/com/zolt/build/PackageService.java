@@ -412,9 +412,11 @@ public final class PackageService {
             Optional<List<ResolvedClasspathPackage>> classpathPackages) {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path warPath = archivePath(projectDirectory, config, "war");
-        List<RuntimeJar> runtimeJars = classpathPackages
-                .map(this::runtimeJars)
-                .orElseGet(() -> runtimeJars(lockfileReader.read(projectDirectory.resolve("zolt.lock")), cacheRoot));
+        List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
+                .orElseGet(() -> packagedClasspathPackages(
+                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
+                        cacheRoot));
+        List<RuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         GeneratedManifest manifest = manifestGenerator.generateWithoutMain(config);
 
         try {
@@ -469,8 +471,8 @@ public final class PackageService {
                 .orElseGet(() -> lockfileReader.classpathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        List<RuntimeJar> runtimeJars = runtimeJars(resolvedPackages);
         List<RuntimeJar> providedJars = providedJars(resolvedPackages);
+        List<RuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         SpringBootLoader loader = springBootWarLoader(runtimeJars);
 
         try {
@@ -859,6 +861,13 @@ public final class PackageService {
         return List.copyOf(runtimeJars.values());
     }
 
+    private List<RuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
+        Set<PackageId> providedPackageIds = providedPackageIds(classpathPackages);
+        return runtimeJars(classpathPackages).stream()
+                .filter(runtimeJar -> !providedPackageIds.contains(runtimeJar.packageId()))
+                .toList();
+    }
+
     private List<RuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
         Map<String, RuntimeJar> providedJars = new LinkedHashMap<>();
         classpathPackages.stream()
@@ -870,6 +879,15 @@ public final class PackageService {
                         dependency.resolvedPackage().jarPath()))
                 .forEach(runtimeJar -> providedJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
         return List.copyOf(providedJars.values());
+    }
+
+    private Set<PackageId> providedPackageIds(List<ResolvedClasspathPackage> classpathPackages) {
+        Set<PackageId> packageIds = new LinkedHashSet<>();
+        classpathPackages.stream()
+                .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
+                .map(dependency -> dependency.resolvedPackage().packageId())
+                .forEach(packageIds::add);
+        return Set.copyOf(packageIds);
     }
 
     private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {

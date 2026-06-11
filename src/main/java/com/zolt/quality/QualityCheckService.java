@@ -4,6 +4,10 @@ import com.zolt.cache.ArtifactCacheException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackagePlanWarning;
+import com.zolt.build.PackageEvidenceManifest;
+import com.zolt.build.PackageEvidenceManifestReader;
+import com.zolt.build.PackageEvidenceManifestWriter;
+import com.zolt.build.PackageException;
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockPackage;
@@ -31,8 +35,11 @@ import com.zolt.workspace.WorkspaceMember;
 import com.zolt.workspace.WorkspaceResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,6 +81,7 @@ public final class QualityCheckService {
     private final ZoltLockfileReader lockfileReader;
     private final PackagePlanService packagePlanService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final PackageEvidenceManifestReader packageEvidenceManifestReader;
 
     public QualityCheckService() {
         this(
@@ -84,7 +92,8 @@ public final class QualityCheckService {
                 new WorkspaceResolveService(),
                 new ZoltLockfileReader(),
                 new PackagePlanService(),
-                new GeneratedSourceEvidenceService());
+                new GeneratedSourceEvidenceService(),
+                new PackageEvidenceManifestReader());
     }
 
     QualityCheckService(
@@ -95,7 +104,8 @@ public final class QualityCheckService {
             WorkspaceResolveService workspaceResolveService,
             ZoltLockfileReader lockfileReader,
             PackagePlanService packagePlanService,
-            GeneratedSourceEvidenceService generatedSourceEvidenceService) {
+            GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            PackageEvidenceManifestReader packageEvidenceManifestReader) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
@@ -104,6 +114,7 @@ public final class QualityCheckService {
         this.lockfileReader = lockfileReader;
         this.packagePlanService = packagePlanService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.packageEvidenceManifestReader = packageEvidenceManifestReader;
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -527,6 +538,10 @@ public final class QualityCheckService {
                     member.isPresent() ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
         }
         if (plan.warnings().isEmpty()) {
+            Optional<QualityCheckResult> staleEvidence = stalePackageEvidence(member, plan);
+            if (staleEvidence.isPresent()) {
+                return List.of(staleEvidence.orElseThrow());
+            }
             long policyEffects = plan.dependencies().stream()
                     .filter(dependency -> !dependency.policies().isEmpty())
                     .count();
@@ -554,6 +569,66 @@ public final class QualityCheckService {
                     warning.nextStep()));
         }
         return List.copyOf(results);
+    }
+
+    private Optional<QualityCheckResult> stalePackageEvidence(Optional<String> member, PackagePlan plan) {
+        Path archive = plan.archivePath();
+        if (!Files.exists(archive)) {
+            return Optional.empty();
+        }
+        Path root = plan.projectRoot().toAbsolutePath().normalize();
+        Path manifestPath = PackageEvidenceManifestWriter.evidenceManifestPath(archive);
+        if (!Files.isRegularFile(manifestPath)) {
+            return Optional.of(QualityCheckResult.failed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    displayPath(root, archive),
+                    "Package artifact exists, but package evidence manifest is missing.",
+                    "Run `zolt package` to regenerate " + displayPath(root, manifestPath) + "."));
+        }
+        try {
+            PackageEvidenceManifest manifest = packageEvidenceManifestReader.read(manifestPath);
+            String actualSha256 = sha256(archive);
+            if (!actualSha256.equals(manifest.archiveSha256())) {
+                return Optional.of(QualityCheckResult.failed(
+                        PACKAGE_CONTENTS,
+                        member,
+                        displayPath(root, manifestPath),
+                        "Package evidence manifest is stale for `" + displayPath(root, archive) + "`.",
+                        "Run `zolt package` to regenerate the artifact and evidence manifest."));
+            }
+        } catch (PackageException exception) {
+            return Optional.of(QualityCheckResult.failed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    displayPath(root, manifestPath),
+                    exception.getMessage(),
+                    "Run `zolt package` to regenerate package evidence."));
+        }
+        return Optional.empty();
+    }
+
+    private static String sha256(Path path) {
+        try {
+            return "sha256:" + HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+        } catch (java.io.IOException exception) {
+            throw new PackageException(
+                    "Could not read package artifact at "
+                            + path
+                            + ". Check that the file is readable and retry.",
+                    exception);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new PackageException("Could not compute package artifact checksum because SHA-256 is unavailable.", exception);
+        }
+    }
+
+    private static String displayPath(Path root, Path path) {
+        Path normalized = path.toAbsolutePath().normalize();
+        if (normalized.startsWith(root)) {
+            return root.relativize(normalized).toString();
+        }
+        return normalized.toString();
     }
 
     private static QualityCheckResult checkManifestMetadata(

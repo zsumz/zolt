@@ -16,6 +16,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -325,6 +326,69 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok package-contents check-package-contents-policy Package mode `spring-boot` has"));
         assertTrue(result.stdout().contains("1 dependencies include dependency policy effects."));
+    }
+
+    @Test
+    void checkPackageContentsReportsMissingEvidenceForExistingArchive() throws IOException {
+        Path projectDir = tempDir.resolve("check-package-contents-missing-evidence");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        CommandResult packageResult = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        Files.delete(projectDir.resolve("target/demo-0.1.0.jar.zolt-package.json"));
+
+        CommandResult result = execute(
+                "check",
+                "--cwd", projectDir.toString(),
+                "--check", "package-contents");
+
+        assertEquals(0, packageResult.exitCode());
+        assertEquals(1, result.exitCode());
+        assertTrue(Files.exists(jarPath));
+        assertTrue(result.stdout().contains("error package-contents target/demo-0.1.0.jar Package artifact exists, but package evidence manifest is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt package` to regenerate target/demo-0.1.0.jar.zolt-package.json."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkPackageContentsReportsStalePackageEvidence() throws IOException {
+        Path projectDir = tempDir.resolve("check-package-contents-stale-evidence");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        CommandResult packageResult = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        Files.writeString(jarPath, "tampered\n", StandardOpenOption.APPEND);
+
+        CommandResult result = execute(
+                "check",
+                "--cwd", projectDir.toString(),
+                "--check", "package-contents");
+
+        assertEquals(0, packageResult.exitCode());
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error package-contents target/demo-0.1.0.jar.zolt-package.json Package evidence manifest is stale for `target/demo-0.1.0.jar`."));
+        assertTrue(result.stdout().contains("next: Run `zolt package` to regenerate the artifact and evidence manifest."));
+        assertEquals("", result.stderr());
     }
 
     @Test
@@ -4732,6 +4796,9 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Wrote package evidence to " + warPath + ".zolt-package.json"));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json")));
         assertFalse(result.stdout().contains("CONTAINER_DEPENDENCY_PACKAGED"));
+        String evidence = Files.readString(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json"));
+        assertTrue(evidence.contains("\"rule\": \"spring-boot-war-provided-coordinate-override\""));
+        assertTrue(evidence.contains("\"rule\": \"spring-boot-war-provided-lib\""));
         try (JarFile jar = new JarFile(warPath.toFile())) {
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals(
@@ -5687,6 +5754,15 @@ final class ZoltCliTest {
                 scope = "runtime"
                 direct = false
                 jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.apache.tomcat.embed:tomcat-embed-core"
+                version = "10.1.40"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"
                 dependencies = []
 
                 [[package]]
