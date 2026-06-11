@@ -51,6 +51,7 @@ final class QualityCheckServiceTest {
                 null,
                 false,
                 false,
+                false,
                 WorkspaceSelectionRequest.defaults()));
 
         assertEquals("error", report.status());

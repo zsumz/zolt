@@ -290,6 +290,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--require-publish-dry-run", description = "Require publish dry-run preflight during CI context checks without uploading.")
         private boolean requirePublishDryRun;
 
+        @Option(names = "--require-offline-ready", description = "Require locked dependency metadata to be available from the local cache during CI context checks.")
+        private boolean requireOfflineReady;
+
         @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
         private boolean workspace;
 
@@ -335,6 +338,7 @@ public final class ZoltCli implements Runnable {
                             reportsDir,
                             requirePackage,
                             requirePublishDryRun,
+                            requireOfflineReady,
                             workspaceSelection(all, members, memberGroups))),
                     ZoltCli::qualityCheckAttributes);
             if (format == Format.JSON) {

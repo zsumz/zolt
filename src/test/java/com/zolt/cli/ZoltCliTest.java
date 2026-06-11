@@ -310,6 +310,72 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRequireOfflineReadyPassesWithSeededCache() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("check-context-ci-offline-ready-ok");
+            Path cacheRoot = tempDir.resolve("cache-offline-ready-ok");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+
+            CommandResult result = execute(
+                    "check",
+                    "--context", "ci",
+                    "--require-offline-ready",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml and locked artifacts are available from the local cache."));
+            assertEquals("", result.stderr());
+        }
+    }
+
+    @Test
+    void checkContextCiRequireOfflineReadyReportsMissingCache() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("check-context-ci-offline-ready-missing-cache");
+            Path seededCache = tempDir.resolve("cache-offline-ready-seeded");
+            Path emptyCache = tempDir.resolve("cache-offline-ready-empty");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", seededCache.toString());
+
+            CommandResult result = execute(
+                    "check",
+                    "--context", "ci",
+                    "--require-offline-ready",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", emptyCache.toString());
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stdout().contains("error lockfile zolt.lock Offline mode requires cached POM"));
+            assertTrue(result.stdout().contains("next: Run `zolt resolve` to seed the cache, then retry `zolt check --context ci --require-offline-ready`."));
+            assertEquals("", result.stderr());
+        }
+    }
+
+    @Test
     void checkContextLocalReportsDeveloperPolicyWithoutLockfile() throws IOException {
         Path projectDir = tempDir.resolve("check-context-local");
         Files.createDirectories(projectDir);

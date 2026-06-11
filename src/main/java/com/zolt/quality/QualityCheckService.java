@@ -375,6 +375,8 @@ public final class QualityCheckService {
 
     private QualityCheckResult checkProjectLockfile(QualityCheckRequest request, ProjectConfig config) {
         Path lockfile = request.projectRoot().resolve("zolt.lock");
+        boolean requireOfflineReady = request.context() == QualityCheckContext.CI && request.requireOfflineReady();
+        boolean offline = request.offline() || requireOfflineReady;
         if (!Files.isRegularFile(lockfile)) {
             return QualityCheckResult.failed(
                     LOCKFILE,
@@ -384,12 +386,14 @@ public final class QualityCheckService {
                     "Run `zolt resolve`.");
         }
         try {
-            resolveService.resolve(request.projectRoot(), config, request.cacheRoot(), true, request.offline());
+            resolveService.resolve(request.projectRoot(), config, request.cacheRoot(), true, offline);
             return QualityCheckResult.passed(
                     LOCKFILE,
                     Optional.empty(),
                     "zolt.lock",
-                    "zolt.lock matches zolt.toml.");
+                    requireOfflineReady
+                            ? "zolt.lock matches zolt.toml and locked artifacts are available from the local cache."
+                            : "zolt.lock matches zolt.toml.");
         } catch (ResolveException exception) {
             return QualityCheckResult.failed(
                     LOCKFILE,
@@ -403,7 +407,9 @@ public final class QualityCheckService {
                     Optional.empty(),
                     "zolt.lock",
                     exception.getMessage(),
-                    "Run `zolt resolve` without --offline to seed the cache, then retry `zolt check --check lockfile --offline`.");
+                    requireOfflineReady
+                            ? "Run `zolt resolve` to seed the cache, then retry `zolt check --context ci --require-offline-ready`."
+                            : "Run `zolt resolve` without --offline to seed the cache, then retry `zolt check --check lockfile --offline`.");
         }
     }
 
@@ -783,6 +789,8 @@ public final class QualityCheckService {
 
     private QualityCheckResult checkWorkspaceLockfile(QualityCheckRequest request, Workspace workspace) {
         Path lockfile = workspace.root().resolve("zolt.lock");
+        boolean requireOfflineReady = request.context() == QualityCheckContext.CI && request.requireOfflineReady();
+        boolean offline = request.offline() || requireOfflineReady;
         if (!Files.isRegularFile(lockfile)) {
             return QualityCheckResult.failed(
                     LOCKFILE,
@@ -792,12 +800,14 @@ public final class QualityCheckService {
                     "Run `zolt resolve --workspace`.");
         }
         try {
-            workspaceResolveService.resolve(workspace.root(), request.cacheRoot(), true, request.offline());
+            workspaceResolveService.resolve(workspace.root(), request.cacheRoot(), true, offline);
             return QualityCheckResult.passed(
                     LOCKFILE,
                     Optional.empty(),
                     "zolt.lock",
-                    "Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files.");
+                    requireOfflineReady
+                            ? "Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files, and locked artifacts are available from the local cache."
+                            : "Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files.");
         } catch (ResolveException exception) {
             return QualityCheckResult.failed(
                     LOCKFILE,
@@ -811,7 +821,9 @@ public final class QualityCheckService {
                     Optional.empty(),
                     "zolt.lock",
                     exception.getMessage(),
-                    "Run `zolt resolve --workspace` without --offline to seed the cache, then retry `zolt check --workspace --check lockfile --offline`.");
+                    requireOfflineReady
+                            ? "Run `zolt resolve --workspace` to seed the cache, then retry `zolt check --workspace --context ci --require-offline-ready`."
+                            : "Run `zolt resolve --workspace` without --offline to seed the cache, then retry `zolt check --workspace --check lockfile --offline`.");
         }
     }
 

@@ -14,6 +14,7 @@ public record QualityCheckRequest(
         Path reportsDir,
         boolean requirePackage,
         boolean requirePublishDryRun,
+        boolean requireOfflineReady,
         WorkspaceSelectionRequest workspaceSelection) {
     public QualityCheckRequest {
         projectRoot = projectRoot.toAbsolutePath().normalize();
