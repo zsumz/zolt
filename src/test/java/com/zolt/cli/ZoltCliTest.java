@@ -836,6 +836,60 @@ final class ZoltCliTest {
     }
 
     @Test
+    void publishDryRunBlocksAndRedactsEmbeddedRepositoryCredentials() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-redacted-url");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://publish-user:super-secret@repo.example.test/releases"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Target URL: https://***@repo.example.test/releases"));
+        assertTrue(result.stdout().contains("Status: blocked"));
+        assertTrue(result.stdout().contains("publish repository `company-releases` URL contains embedded credentials"));
+        assertTrue(result.stdout().contains("Move credentials to [repositoryCredentials] environment references."));
+        assertFalse(result.stdout().contains("publish-user"));
+        assertFalse(result.stdout().contains("super-secret"));
+        assertFalse(result.stderr().contains("publish-user"));
+        assertFalse(result.stderr().contains("super-secret"));
+    }
+
+    @Test
+    void publishDryRunRejectsSnapshotVersionWithoutSnapshotTarget() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-missing-snapshot-target");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml"))
+                .replace("version = \"0.1.0\"", "version = \"0.1.0-SNAPSHOT\"") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Project version `0.1.0-SNAPSHOT` requires [publish].snapshotRepository"));
+        assertEquals("", result.stdout());
+    }
+
+    @Test
     void publishDryRunSelectsSpringBootWarArtifactExplicitly() throws IOException {
         Path projectDir = tempDir.resolve("publish-dry-run-spring-boot-war");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

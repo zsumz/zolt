@@ -14,6 +14,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -103,6 +105,11 @@ public final class PublishDryRunService {
             throw new PublishException("Publish repository `" + repositoryId + "` is not defined.");
         }
         List<String> blockers = new ArrayList<>();
+        if (hasEmbeddedCredentials(repository.url())) {
+            blockers.add("publish repository `"
+                    + repository.id()
+                    + "` URL contains embedded credentials. Move credentials to [repositoryCredentials] environment references.");
+        }
         blockers.addAll(credentialBlockers(repository, config.repositoryCredentials()));
 
         ZoltLockfile lockfile = lockfile(root);
@@ -135,7 +142,7 @@ public final class PublishDryRunService {
                 config.project().group() + ":" + config.project().name() + ":" + config.project().version(),
                 versionKind,
                 repository.id(),
-                repository.url(),
+                redactedRepositoryUrl(repository.url()),
                 artifactId,
                 display(root, artifactPath),
                 artifactSha256,
@@ -143,6 +150,28 @@ public final class PublishDryRunService {
                 display(root, pomPath),
                 pomSha256,
                 blockers);
+    }
+
+    private static boolean hasEmbeddedCredentials(String url) {
+        try {
+            URI uri = new URI(url);
+            return uri.getRawUserInfo() != null && !uri.getRawUserInfo().isBlank();
+        } catch (URISyntaxException exception) {
+            return false;
+        }
+    }
+
+    private static String redactedRepositoryUrl(String url) {
+        try {
+            URI uri = new URI(url);
+            String userInfo = uri.getRawUserInfo();
+            if (userInfo == null || userInfo.isBlank()) {
+                return url;
+            }
+            return url.replace(userInfo + "@", "***@");
+        } catch (URISyntaxException exception) {
+            return url;
+        }
     }
 
     private static String selectedArtifactId(List<String> artifacts, PackageMode packageMode) {
