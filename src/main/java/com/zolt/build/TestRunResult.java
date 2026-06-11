@@ -1,5 +1,8 @@
 package com.zolt.build;
 
+import java.nio.file.Path;
+import java.util.Optional;
+
 public record TestRunResult(
         TestCompileResult compileResult,
         String output,
@@ -10,10 +13,12 @@ public record TestRunResult(
         long testRunnerStartupNanos,
         long testRunnerRequestNanos,
         TestSelection testSelection,
-        TestJvmArguments testJvmArguments) {
+        TestJvmArguments testJvmArguments,
+        Optional<Path> reportsDirectory) {
     public TestRunResult {
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
         testJvmArguments = testJvmArguments == null ? TestJvmArguments.empty() : testJvmArguments;
+        reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
     }
 
     public TestRunResult(
@@ -35,7 +40,8 @@ public record TestRunResult(
                 testRunnerStartupNanos,
                 testRunnerRequestNanos,
                 TestSelection.empty(),
-                TestJvmArguments.empty());
+                TestJvmArguments.empty(),
+                Optional.empty());
     }
 
     public TestRunResult(
@@ -58,7 +64,8 @@ public record TestRunResult(
                 testRunnerStartupNanos,
                 testRunnerRequestNanos,
                 testSelection,
-                TestJvmArguments.empty());
+                TestJvmArguments.empty(),
+                Optional.empty());
     }
 
     public TestRunResult(TestCompileResult compileResult, String output) {

@@ -806,6 +806,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("--include-tag"));
         assertTrue(result.stdout().contains("--exclude-tag"));
         assertTrue(result.stdout().contains("--jvm-arg"));
+        assertTrue(result.stdout().contains("--reports-dir"));
     }
 
     @Test
@@ -3435,6 +3436,7 @@ final class ZoltCliTest {
                 "test",
                 "--workspace",
                 "--all",
+                "--reports-dir", "target/test-reports",
                 "--timings",
                 "--timings-format", "json",
                 "--cwd", apiDir.toString(),
@@ -3443,8 +3445,12 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Tests passed in modules/core"));
+        assertTrue(result.stdout().contains("Wrote test reports for modules/core to "));
         assertTrue(result.stdout().contains("Tests passed in apps/api"));
+        assertTrue(result.stdout().contains("Wrote test reports for apps/api to "));
         assertTrue(result.stdout().contains("Tests passed for 2 workspace members"));
+        assertTrue(Files.exists(coreDir.resolve("target/test-reports/modules/core/TEST-fake-console.xml")));
+        assertTrue(Files.exists(apiDir.resolve("target/test-reports/apps/api/TEST-fake-console.xml")));
         String[] lines = result.stderr().lines().toArray(String[]::new);
         assertEquals(4, lines.length);
         assertTrue(lines[0].contains("\"phase\":\"plan workspace tests\""));
@@ -3583,6 +3589,46 @@ final class ZoltCliTest {
         assertTrue(lines[3].contains("\"testPatterns\":\"1\""));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
+    }
+
+    @Test
+    void testCommandWritesJUnitReportsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("reports-demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("reports-demo"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
+        Files.createDirectories(testSource.getParent());
+        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
+
+        CommandResult result = execute(
+                "test",
+                "--reports-dir", "target/test-reports",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        Path report = projectDir.resolve("target/test-reports/TEST-fake-console.xml");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Tests passed"));
+        assertTrue(result.stdout().contains("Wrote test reports to "
+                + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
+        assertTrue(Files.exists(report));
+        assertTrue(Files.readString(report).contains("testsuite"));
     }
 
     @Test
@@ -4981,8 +5027,17 @@ final class ZoltCliTest {
                     private ConsoleLauncher() {
                     }
 
-                    public static void main(String[] args) {
+                    public static void main(String[] args) throws Exception {
                         System.out.println("fake console");
+                        for (int index = 0; index + 1 < args.length; index++) {
+                            if ("--reports-dir".equals(args[index])) {
+                                java.nio.file.Path reports = java.nio.file.Path.of(args[index + 1]);
+                                java.nio.file.Files.createDirectories(reports);
+                                java.nio.file.Files.writeString(
+                                        reports.resolve("TEST-fake-console.xml"),
+                                        "<testsuite name=\\"fake-console\\" tests=\\"1\\" failures=\\"0\\"></testsuite>\\n");
+                            }
+                        }
                     }
                 }
                 """);

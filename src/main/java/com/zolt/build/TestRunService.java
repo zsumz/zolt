@@ -115,6 +115,16 @@ public final class TestRunService {
             Path cacheRoot,
             TestSelection selection,
             TestJvmArguments jvmArguments) {
+        return runTests(projectDirectory, config, cacheRoot, selection, jvmArguments, TestReportSettings.disabled());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
@@ -123,7 +133,8 @@ public final class TestRunService {
                 compileResult.classpaths(),
                 compileResult.testCompileResult(),
                 selection,
-                jvmArguments);
+                jvmArguments,
+                reportSettings);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -158,7 +169,18 @@ public final class TestRunService {
             TestCompileResult compileResult,
             TestSelection selection,
             TestJvmArguments jvmArguments) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments);
+        return runCompiledTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, TestReportSettings.disabled());
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings);
     }
 
     public TestRunResult runTests(
@@ -185,8 +207,19 @@ public final class TestRunService {
             BuildResult buildResult,
             TestSelection selection,
             TestJvmArguments jvmArguments) {
+        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, TestReportSettings.disabled());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments);
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings);
     }
 
     public TestCompileResult compileTests(
@@ -217,7 +250,20 @@ public final class TestRunService {
             TestCompileResult compileResult,
             TestSelection selection,
             TestJvmArguments jvmArguments) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, TestReportSettings.disabled());
+    }
+
+    private TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
+        TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
+        Optional<Path> reportsDirectory = testReportSettings.absoluteReportsDirectory(projectDirectory);
         TestRuntimeInputs testRuntime = testRuntimeInputs(
                 projectDirectory,
                 config.build().testRuntime(),
@@ -250,6 +296,11 @@ public final class TestRunService {
                     testRuntime);
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
+            if (reportsDirectory.isPresent()) {
+                throw new TestRunException(
+                        "JUnit XML reports are not supported by the Quarkus plain-JUnit worker path yet. "
+                                + "Run without --reports-dir or use the JUnit Console path for this project.");
+            }
             QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
             failOnUnsupportedQuarkusTests(
                     projectDirectory,
@@ -271,9 +322,15 @@ public final class TestRunService {
                     -1L,
                     -1L,
                     testSelection,
-                    testJvmArguments);
+                    testJvmArguments,
+                    reportsDirectory);
         }
         if (plainJunitWorkerEnabled) {
+            if (reportsDirectory.isPresent()) {
+                throw new TestRunException(
+                        "JUnit XML reports are not supported by the opt-in Zolt JUnit worker path yet. "
+                                + "Run without --reports-dir or unset zolt.junit.worker.");
+            }
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
@@ -302,7 +359,8 @@ public final class TestRunService {
                     result.startupNanos(),
                     result.requestNanos(),
                     testSelection,
-                    testJvmArguments);
+                    testJvmArguments,
+                    reportsDirectory);
         }
         JavaRunResult result;
         try {
@@ -311,13 +369,16 @@ public final class TestRunService {
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
                     jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel, testJvmArguments),
-                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection),
+                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection, reportsDirectory),
                     testRuntime.environment());
         } catch (JavaRunException exception) {
             if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
                 throw noSelectedTestsMatched(exception.getMessage(), exception);
             }
-            throw exception;
+            if (reportsDirectory.isEmpty()) {
+                throw exception;
+            }
+            throw testFailed(exception, reportsDirectory);
         }
         if (!testSelection.emptySelection() && noTestsFound(result.output())) {
             throw noSelectedTestsMatched(result.output(), null);
@@ -333,19 +394,25 @@ public final class TestRunService {
                 -1L,
                 -1L,
                 testSelection,
-                testJvmArguments);
+                testJvmArguments,
+                reportsDirectory);
     }
 
     private List<String> consoleArguments(
             List<Path> runnerClasspath,
             Path testOutputDirectory,
-            TestSelection selection) {
+            TestSelection selection,
+            Optional<Path> reportsDirectory) {
         List<String> arguments = new ArrayList<>();
         arguments.add("execute");
         arguments.add("--disable-banner");
         arguments.add("--class-path");
         arguments.add(joined(runnerClasspath));
         addConsoleSelectors(arguments, testOutputDirectory.toAbsolutePath().normalize(), selection);
+        reportsDirectory.ifPresent(directory -> {
+            arguments.add("--reports-dir");
+            arguments.add(directory.toString());
+        });
         arguments.add("--details");
         arguments.add("summary");
         return List.copyOf(arguments);
@@ -396,6 +463,14 @@ public final class TestRunService {
                 + "Check --test, --tests, --include-tag, and --exclude-tag values, then run `zolt test` again.\n"
                 + output.stripTrailing();
         return cause == null ? new TestRunException(message) : new TestRunException(message, cause);
+    }
+
+    private static TestRunException testFailed(JavaRunException exception, Optional<Path> reportsDirectory) {
+        String message = exception.getMessage();
+        if (reportsDirectory.isPresent()) {
+            message = message + "\nTest reports: " + reportsDirectory.orElseThrow();
+        }
+        return new TestRunException(message, exception);
     }
 
     private String joined(List<Path> classpath) {

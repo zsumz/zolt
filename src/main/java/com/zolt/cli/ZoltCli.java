@@ -32,6 +32,7 @@ import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestCompileResultWithClasspaths;
 import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
@@ -1426,6 +1427,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--jvm-arg", description = "Pass one JVM argument to the test runner process. May be repeated.")
         private List<String> jvmArgs = List.of();
 
+        @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
+        private Path reportsDir;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -1448,6 +1452,7 @@ public final class ZoltCli implements Runnable {
                         includedTags,
                         excludedTags);
                 TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
+                TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
                 if (workspace) {
                     WorkspaceTestService workspaceTestService = new WorkspaceTestService();
                     WorkspaceTestResult result = timings.measure(
@@ -1471,7 +1476,8 @@ public final class ZoltCli implements Runnable {
                                                 buildResult,
                                                 cacheRoot,
                                                 testSelection,
-                                                testJvmArguments),
+                                                testJvmArguments,
+                                                reportSettings),
                                         ZoltCli::workspaceTestAttributes);
                             },
                             ZoltCli::workspaceTestAttributes);
@@ -1484,6 +1490,11 @@ public final class ZoltCli implements Runnable {
                             spec.commandLine().getOut().println();
                         }
                         spec.commandLine().getOut().println("Tests passed in " + member.member());
+                        member.result().reportsDirectory().ifPresent(directory ->
+                                spec.commandLine().getOut().println("Wrote test reports for "
+                                        + member.member()
+                                        + " to "
+                                        + directory));
                     }
                     spec.commandLine().getOut().println(
                             "Tests passed for "
@@ -1531,7 +1542,8 @@ public final class ZoltCli implements Runnable {
                                             compileResult.classpaths(),
                                             compileResult.testCompileResult(),
                                             testSelection,
-                                            testJvmArguments),
+                                            testJvmArguments,
+                                            reportSettings),
                                     ZoltCli::testExecutionAttributes);
                         },
                         ZoltCli::testRunAttributes);
@@ -1540,6 +1552,8 @@ public final class ZoltCli implements Runnable {
                     spec.commandLine().getOut().println();
                 }
                 spec.commandLine().getOut().println("Tests passed");
+                result.reportsDirectory().ifPresent(directory ->
+                        spec.commandLine().getOut().println("Wrote test reports to " + directory));
             } catch (BuildException
                     | JavacException
                     | GroovyCompileException

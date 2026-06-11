@@ -2,6 +2,7 @@ package com.zolt.workspace;
 
 import com.zolt.build.TestSelection;
 import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -94,7 +95,18 @@ public final class WorkspaceTestService {
             Path cacheRoot,
             TestSelection testSelection,
             TestJvmArguments jvmArguments) {
+        return runTests(plan, buildResult, cacheRoot, testSelection, jvmArguments, TestReportSettings.disabled());
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings) {
         TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
+        TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
@@ -111,7 +123,8 @@ public final class WorkspaceTestService {
                             memberBuild.classpaths(),
                             memberBuild.result(),
                             testSelection,
-                            testJvmArguments)));
+                            testJvmArguments,
+                            testReportSettings.forWorkspaceMember(member.path()))));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }

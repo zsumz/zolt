@@ -84,6 +84,54 @@ final class TestRunServiceTest {
     }
 
     @Test
+    void passesReportsDirectoryToJUnitConsole() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")));
+
+        Path reportsDirectory = projectDir.resolve("target/test-reports").toAbsolutePath().normalize();
+        assertEquals(Optional.of(reportsDirectory), result.reportsDirectory());
+        List<String> command = commands.getFirst();
+        assertEquals(reportsDirectory.toString(), commandArgumentAfter(command, "--reports-dir"));
+    }
+
+    @Test
+    void reportsDirectoryFailurePointsToReports() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        TestRunService service = service((command, outputConsumer) ->
+                new JavaRunner.ProcessResult(1, "test failure\n"));
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> service.runTests(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.reportsDirectory(Path.of("target/test-reports"))));
+
+        assertTrue(exception.getMessage().contains("test failure"));
+        assertTrue(exception.getMessage().contains("Test reports: "
+                + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
+    }
+
+    @Test
     void appliesClassSelectionToJUnitConsoleWithoutClasspathScan() throws IOException {
         writeConsoleLockfile();
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
