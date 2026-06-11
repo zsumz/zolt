@@ -1125,6 +1125,78 @@ final class ZoltCliTest {
     }
 
     @Test
+    void publishDryRunBlocksStalePackageEvidence() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-stale-package-evidence");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/publish-dry-run-stale-package-evidence-0.1.0.jar");
+        Files.writeString(artifact, "fake package\n");
+        Files.writeString(projectDir.resolve("target/publish-dry-run-stale-package-evidence-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/publish-dry-run-stale-package-evidence-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(artifact)));
+        Files.writeString(artifact, "tampered\n", StandardOpenOption.APPEND);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-dry-run-stale-package-evidence") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Evidence: target/publish-dry-run-stale-package-evidence-0.1.0.jar.zolt-package.json"));
+        assertTrue(result.stdout().contains("Status: blocked"));
+        assertTrue(result.stdout().contains("stale package evidence: run `zolt package` to refresh target/publish-dry-run-stale-package-evidence-0.1.0.jar.zolt-package.json"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishDryRunBlocksPackageEvidenceForDifferentArchive() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-evidence-archive-mismatch");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/publish-dry-run-evidence-archive-mismatch-0.1.0.jar");
+        Files.writeString(artifact, "fake package\n");
+        Files.writeString(projectDir.resolve("target/publish-dry-run-evidence-archive-mismatch-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/other-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(artifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-dry-run-evidence-archive-mismatch") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                """);
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Status: blocked"));
+        assertTrue(result.stdout().contains("package evidence archive mismatch: target/publish-dry-run-evidence-archive-mismatch-0.1.0.jar.zolt-package.json describes target/other-0.1.0.jar"));
+        assertTrue(result.stdout().contains("but publish selected target/publish-dry-run-evidence-archive-mismatch-0.1.0.jar"));
+        assertTrue(result.stdout().contains("Run `zolt package` to refresh package evidence."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void publishDryRunReleaseContextRequiresReleaseMetadataAndSupplementalArtifacts() throws IOException {
         Path projectDir = tempDir.resolve("publish-dry-run-release-context-blocked");
         Files.createDirectories(projectDir.resolve("target"));

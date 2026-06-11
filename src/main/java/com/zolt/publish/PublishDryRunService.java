@@ -144,6 +144,16 @@ public final class PublishDryRunService {
             try {
                 PackageEvidenceManifest evidence = evidenceManifestReader.read(evidencePath);
                 artifactSha256 = evidence.archiveSha256();
+                Path evidenceArchive = root.resolve(evidence.archive()).normalize();
+                if (!evidenceArchive.equals(artifactPath)) {
+                    blockers.add("package evidence archive mismatch: "
+                            + displayPath(root, evidencePath)
+                            + " describes "
+                            + displayPath(root, evidenceArchive)
+                            + " but publish selected "
+                            + displayPath(root, artifactPath)
+                            + ". Run `zolt package` to refresh package evidence.");
+                }
                 String actualSha256 = sha256(artifactPath);
                 if (!actualSha256.equals(evidence.archiveSha256())) {
                     blockers.add("stale package evidence: run `zolt package` to refresh " + displayPath(root, evidencePath));
