@@ -74,6 +74,7 @@ final class TestRunServiceTest {
         assertTrue(command.contains("^(Test.*|.+[.$]Test.*|.*Tests?)$"));
         assertTrue(command.contains(".*Spec"));
         assertTrue(command.contains("--details"));
+        assertEquals("summary", commandArgumentAfter(command, "--details"));
         String launcherClasspath = launcherClasspath(command);
         assertTrue(launcherClasspath.contains("junit-platform-console-standalone-1.11.4.jar"));
         assertFalse(launcherClasspath.contains("target/test-classes"));
@@ -199,6 +200,33 @@ final class TestRunServiceTest {
         assertEquals(Map.of(
                 "APP_HOME", root.toString(),
                 "TZ", "America/Chicago"), environments.getFirst());
+        assertEquals("tree", commandArgumentAfter(command, "--details"));
+        assertEquals("ascii", commandArgumentAfter(command, "--details-theme"));
+    }
+
+    @Test
+    void cliTestEventsEnableDetailedJUnitConsoleOutput() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of("failed", "passed", "failed"));
+
+        List<String> command = commands.getFirst();
+        assertEquals("tree", commandArgumentAfter(command, "--details"));
+        assertEquals("ascii", commandArgumentAfter(command, "--details-theme"));
     }
 
     @Test

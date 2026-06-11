@@ -73,6 +73,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.project.TestRuntimeSettings;
 import com.zolt.quality.QualityCheckFormatter;
 import com.zolt.quality.QualityCheckReport;
 import com.zolt.quality.QualityCheckRequest;
@@ -1427,6 +1428,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--jvm-arg", description = "Pass one JVM argument to the test runner process. May be repeated.")
         private List<String> jvmArgs = List.of();
 
+        @Option(names = "--test-event", description = "Show JUnit test events: passed, skipped, or failed. May be repeated.")
+        private List<String> testEvents = List.of();
+
         @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
         private Path reportsDir;
 
@@ -1452,6 +1456,7 @@ public final class ZoltCli implements Runnable {
                         includedTags,
                         excludedTags);
                 TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
+                List<String> requestedTestEvents = validatedTestEvents(testEvents);
                 TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
                 if (workspace) {
                     WorkspaceTestService workspaceTestService = new WorkspaceTestService();
@@ -1477,7 +1482,8 @@ public final class ZoltCli implements Runnable {
                                                 cacheRoot,
                                                 testSelection,
                                                 testJvmArguments,
-                                                reportSettings),
+                                                reportSettings,
+                                                requestedTestEvents),
                                         ZoltCli::workspaceTestAttributes);
                             },
                             ZoltCli::workspaceTestAttributes);
@@ -1543,7 +1549,8 @@ public final class ZoltCli implements Runnable {
                                             compileResult.testCompileResult(),
                                             testSelection,
                                             testJvmArguments,
-                                            reportSettings),
+                                            reportSettings,
+                                            requestedTestEvents),
                                     ZoltCli::testExecutionAttributes);
                         },
                         ZoltCli::testRunAttributes);
@@ -1572,6 +1579,24 @@ public final class ZoltCli implements Runnable {
                 printTimings(spec, "test", workingDirectory, timingOptions, timings);
             }
         }
+    }
+
+    private static List<String> validatedTestEvents(List<String> events) {
+        if (events == null || events.isEmpty()) {
+            return List.of();
+        }
+        List<String> validated = new ArrayList<>();
+        for (String event : events) {
+            try {
+                TestRuntimeSettings.validateEvent("--test-event", event);
+            } catch (IllegalArgumentException exception) {
+                throw new TestRunException(exception.getMessage(), exception);
+            }
+            if (!validated.contains(event)) {
+                validated.add(event);
+            }
+        }
+        return List.copyOf(validated);
     }
 
     @Command(name = "package", description = "Package compiled classes into a jar.")

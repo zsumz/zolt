@@ -37,13 +37,17 @@ public record TestRuntimeSettings(
             validateName("test.runtime.environment", key);
         }
         for (String event : events) {
-            validateNonBlank("test.runtime.events", event);
-            if (!SUPPORTED_EVENTS.contains(event)) {
-                throw new IllegalArgumentException(
-                        "Unsupported test runtime event `"
-                                + event
-                                + "`. Supported test runtime events are: passed, skipped, failed.");
-            }
+            validateEvent("test.runtime.events", event);
+        }
+    }
+
+    public static void validateEvent(String section, String event) {
+        validateNonBlank(section, event);
+        if (!SUPPORTED_EVENTS.contains(event)) {
+            throw new IllegalArgumentException(
+                    "Unsupported test runtime event `"
+                            + event
+                            + "`. Supported test runtime events are: passed, skipped, failed.");
         }
     }
 

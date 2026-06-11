@@ -105,6 +105,17 @@ public final class WorkspaceTestService {
             TestSelection testSelection,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings) {
+        return runTests(plan, buildResult, cacheRoot, testSelection, jvmArguments, reportSettings, List.of());
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
         TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Workspace workspace = plan.workspace();
@@ -124,7 +135,8 @@ public final class WorkspaceTestService {
                             memberBuild.result(),
                             testSelection,
                             testJvmArguments,
-                            testReportSettings.forWorkspaceMember(member.path()))));
+                            testReportSettings.forWorkspaceMember(member.path()),
+                            cliEvents)));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }

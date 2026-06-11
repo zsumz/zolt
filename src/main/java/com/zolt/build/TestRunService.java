@@ -125,6 +125,17 @@ public final class TestRunService {
             TestSelection selection,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings) {
+        return runTests(projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, List.of());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
@@ -134,7 +145,8 @@ public final class TestRunService {
                 compileResult.testCompileResult(),
                 selection,
                 jvmArguments,
-                reportSettings);
+                reportSettings,
+                cliEvents);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -180,7 +192,19 @@ public final class TestRunService {
             TestSelection selection,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings);
+        return runCompiledTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, List.of());
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents);
     }
 
     public TestRunResult runTests(
@@ -218,8 +242,20 @@ public final class TestRunService {
             TestSelection selection,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings) {
+        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, List.of());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings);
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents);
     }
 
     public TestCompileResult compileTests(
@@ -261,13 +297,26 @@ public final class TestRunService {
             TestSelection selection,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, List.of());
+    }
+
+    private TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Optional<Path> reportsDirectory = testReportSettings.absoluteReportsDirectory(projectDirectory);
         TestRuntimeInputs testRuntime = testRuntimeInputs(
                 projectDirectory,
                 config.build().testRuntime(),
-                jvmArguments);
+                jvmArguments,
+                cliEvents);
         TestJvmArguments testJvmArguments = testRuntime.jvmArguments();
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
@@ -369,7 +418,12 @@ public final class TestRunService {
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
                     jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel, testJvmArguments),
-                    consoleArguments(runnerClasspath, compileResult.outputDirectory(), testSelection, reportsDirectory),
+                    consoleArguments(
+                            runnerClasspath,
+                            compileResult.outputDirectory(),
+                            testSelection,
+                            reportsDirectory,
+                            testRuntime.events()),
                     testRuntime.environment());
         } catch (JavaRunException exception) {
             if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
@@ -402,7 +456,8 @@ public final class TestRunService {
             List<Path> runnerClasspath,
             Path testOutputDirectory,
             TestSelection selection,
-            Optional<Path> reportsDirectory) {
+            Optional<Path> reportsDirectory,
+            List<String> events) {
         List<String> arguments = new ArrayList<>();
         arguments.add("execute");
         arguments.add("--disable-banner");
@@ -414,7 +469,13 @@ public final class TestRunService {
             arguments.add(directory.toString());
         });
         arguments.add("--details");
-        arguments.add("summary");
+        if (events == null || events.isEmpty()) {
+            arguments.add("summary");
+        } else {
+            arguments.add("tree");
+            arguments.add("--details-theme");
+            arguments.add("ascii");
+        }
         return List.copyOf(arguments);
     }
 
@@ -615,7 +676,8 @@ public final class TestRunService {
     private static TestRuntimeInputs testRuntimeInputs(
             Path projectDirectory,
             TestRuntimeSettings settings,
-            TestJvmArguments cliJvmArguments) {
+            TestJvmArguments cliJvmArguments,
+            List<String> cliEvents) {
         TestRuntimeSettings testRuntimeSettings = settings == null ? TestRuntimeSettings.defaults() : settings;
         TestJvmArguments commandLineArguments = cliJvmArguments == null ? TestJvmArguments.empty() : cliJvmArguments;
         List<String> arguments = new ArrayList<>();
@@ -636,7 +698,23 @@ public final class TestRunService {
                     entry.getKey(),
                     expandProjectRoot(projectDirectory, entry.getValue(), "test.runtime.environment"));
         }
-        return new TestRuntimeInputs(new TestJvmArguments(arguments), Collections.unmodifiableMap(environment));
+        List<String> events = new ArrayList<>(testRuntimeSettings.events());
+        if (cliEvents != null) {
+            for (String event : cliEvents) {
+                try {
+                    TestRuntimeSettings.validateEvent("--test-event", event);
+                } catch (IllegalArgumentException exception) {
+                    throw new TestRunException(exception.getMessage(), exception);
+                }
+                if (!events.contains(event)) {
+                    events.add(event);
+                }
+            }
+        }
+        return new TestRuntimeInputs(
+                new TestJvmArguments(arguments),
+                Collections.unmodifiableMap(environment),
+                List.copyOf(events));
     }
 
     private static String expandProjectRoot(Path projectDirectory, String value, String section) {
@@ -776,6 +854,7 @@ public final class TestRunService {
 
     record TestRuntimeInputs(
             TestJvmArguments jvmArguments,
-            Map<String, String> environment) {
+            Map<String, String> environment,
+            List<String> events) {
     }
 }

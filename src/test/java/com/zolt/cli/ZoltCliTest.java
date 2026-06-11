@@ -806,6 +806,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("--include-tag"));
         assertTrue(result.stdout().contains("--exclude-tag"));
         assertTrue(result.stdout().contains("--jvm-arg"));
+        assertTrue(result.stdout().contains("--test-event"));
         assertTrue(result.stdout().contains("--reports-dir"));
     }
 
@@ -825,6 +826,16 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Zolt owns the test classpath"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
+
+    @Test
+    void testRejectsInvalidEventBeforeReadingProjectConfig() {
+        CommandResult result = execute("test", "--cwd", tempDir.toString(), "--test-event", "verbose");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Unsupported test runtime event `verbose`"));
+        assertTrue(result.stderr().contains("passed, skipped, failed"));
         assertFalse(result.stderr().contains("Could not read zolt.toml"));
     }
 
@@ -3632,6 +3643,42 @@ final class ZoltCliTest {
     }
 
     @Test
+    void testCommandPrintsRequestedEventOutput() throws IOException {
+        Path projectDir = tempDir.resolve("events-demo");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("events-demo"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
+        Files.createDirectories(testSource.getParent());
+        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
+
+        CommandResult result = execute(
+                "test",
+                "--test-event", "failed",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("fake console event output"));
+        assertTrue(result.stdout().contains("Tests passed"));
+    }
+
+    @Test
     void testCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
@@ -5029,6 +5076,11 @@ final class ZoltCliTest {
 
                     public static void main(String[] args) throws Exception {
                         System.out.println("fake console");
+                        for (int index = 0; index + 1 < args.length; index++) {
+                            if ("--details".equals(args[index]) && "tree".equals(args[index + 1])) {
+                                System.out.println("fake console event output");
+                            }
+                        }
                         for (int index = 0; index + 1 < args.length; index++) {
                             if ("--reports-dir".equals(args[index])) {
                                 java.nio.file.Path reports = java.nio.file.Path.of(args[index + 1]);
