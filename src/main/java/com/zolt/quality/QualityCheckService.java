@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 public final class QualityCheckService {
     public static final String COMMAND_SURFACE = "command-surface";
@@ -224,7 +225,8 @@ public final class QualityCheckService {
                         Optional.empty(),
                         request.projectRoot(),
                         config,
-                        request.context()));
+                        request.context(),
+                        request.reportsDir()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
                 case DEPENDENCY_METADATA -> results.addAll(checkProjectDependencyMetadata(
@@ -275,6 +277,14 @@ public final class QualityCheckService {
                             results.addAll(checkCredentialPolicy(
                                     Optional.of(member.path()),
                                     member.config(),
+                                    request.context()));
+                            results.addAll(checkTestReports(
+                                    Optional.of(member.path()),
+                                    member.directory(),
+                                    request.reportsDir() == null
+                                            ? null
+                                            : request.reportsDir().resolve(member.path()),
+                                    request.reportsDir(),
                                     request.context()));
                         }
                     }
@@ -336,10 +346,12 @@ public final class QualityCheckService {
             Optional<String> member,
             Path root,
             ProjectConfig config,
-            QualityCheckContext context) {
+            QualityCheckContext context,
+            Path reportsDir) {
         List<QualityCheckResult> results = new ArrayList<>();
         results.addAll(checkExecutionContext(member, root, context));
         results.addAll(checkCredentialPolicy(member, config, context));
+        results.addAll(checkTestReports(member, root, reportsDir, reportsDir, context));
         return List.copyOf(results);
     }
 
@@ -585,6 +597,109 @@ public final class QualityCheckService {
                 "example",
                 "password",
                 "secret").contains(normalized);
+    }
+
+    private List<QualityCheckResult> checkTestReports(
+            Optional<String> member,
+            Path projectRoot,
+            Path reportsDir,
+            Path commandReportsDir,
+            QualityCheckContext context) {
+        if (context != QualityCheckContext.CI || reportsDir == null) {
+            return List.of();
+        }
+        Optional<QualityCheckResult> invalidPath = invalidReportsPath(member, reportsDir);
+        if (invalidPath.isPresent()) {
+            return List.of(invalidPath.orElseThrow());
+        }
+        Path absoluteReportsDir = projectRoot.toAbsolutePath().normalize()
+                .resolve(reportsDir)
+                .normalize();
+        if (!Files.isDirectory(absoluteReportsDir)) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteReportsDir),
+                    "CI context expected JUnit XML reports, but the report directory is missing.",
+                    testReportsNextStep(member, commandReportsDir)));
+        }
+        try {
+            long xmlReports = countJUnitXmlReports(absoluteReportsDir);
+            if (xmlReports == 0) {
+                return List.of(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        displayPath(projectRoot, absoluteReportsDir),
+                        "CI context expected JUnit XML reports, but none were found.",
+                        testReportsNextStep(member, commandReportsDir)));
+            }
+            return List.of(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "test-reports",
+                    "CI test report preflight found "
+                            + xmlReports
+                            + " JUnit XML "
+                            + (xmlReports == 1 ? "report." : "reports.")));
+        } catch (java.io.IOException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteReportsDir),
+                    "Could not inspect JUnit XML reports: " + exception.getMessage(),
+                    "Check report directory permissions, then rerun `zolt check --context ci --reports-dir " + commandReportsDir + "`."));
+        }
+    }
+
+    private static String testReportsNextStep(Optional<String> member, Path commandReportsDir) {
+        if (member.isPresent()) {
+            return "Run `zolt test --workspace --reports-dir "
+                    + commandReportsDir
+                    + "` before `zolt check --workspace --context ci --reports-dir "
+                    + commandReportsDir
+                    + "`.";
+        }
+        return "Run `zolt test --reports-dir "
+                + commandReportsDir
+                + "` before `zolt check --context ci --reports-dir "
+                + commandReportsDir
+                + "`.";
+    }
+
+    private static Optional<QualityCheckResult> invalidReportsPath(
+            Optional<String> member,
+            Path reportsDir) {
+        if (reportsDir.isAbsolute()) {
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "--reports-dir",
+                    "Test reports directory must be project-relative.",
+                    "Use a path such as `target/test-reports`."));
+        }
+        if (reportsDir.normalize().startsWith("..")) {
+            return Optional.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "--reports-dir",
+                    "Test reports directory must stay inside the project.",
+                    "Use a path such as `target/test-reports`."));
+        }
+        return Optional.empty();
+    }
+
+    private static long countJUnitXmlReports(Path reportsDir) throws java.io.IOException {
+        try (Stream<Path> paths = Files.walk(reportsDir)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(QualityCheckService::isJUnitXmlReport)
+                    .count();
+        }
+    }
+
+    private static boolean isJUnitXmlReport(Path path) {
+        String fileName = path.getFileName().toString();
+        return fileName.startsWith("TEST-") && fileName.endsWith(".xml");
     }
 
     private QualityCheckResult checkWorkspaceLockfile(QualityCheckRequest request, Workspace workspace) {

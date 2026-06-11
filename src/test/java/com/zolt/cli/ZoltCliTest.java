@@ -389,6 +389,76 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRejectsMissingJUnitReportsWhenConfigured() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-reports");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-reports"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "target/test-reports",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context target/test-reports CI context expected JUnit XML reports, but the report directory is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt test --reports-dir target/test-reports`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiAcceptsJUnitReportsWhenConfigured() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-reports-ok");
+        Path reportsDir = projectDir.resolve("target/test-reports");
+        Files.createDirectories(reportsDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-reports-ok"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(reportsDir.resolve("TEST-demo.xml"), "<testsuite tests=\"1\" failures=\"0\"/>\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "target/test-reports",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context test-reports CI test report preflight found 1 JUnit XML report."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiAcceptsWorkspaceJUnitReportsWhenConfigured() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-context-ci-workspace-reports-ok");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path reportsDir = apiDir.resolve("target/test-reports/apps/api");
+        Files.createDirectories(reportsDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-context-ci-workspace-reports-ok"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(reportsDir.resolve("TEST-api.xml"), "<testsuite tests=\"1\" failures=\"0\"/>\n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "target/test-reports",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context apps/api test-reports CI test report preflight found 1 JUnit XML report."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiJsonOutputIsStable() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-json");
         Files.createDirectories(projectDir);

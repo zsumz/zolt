@@ -271,6 +271,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--context", description = "Apply a built-in check context. Supported values: ci.")
         private QualityCheckContext context;
 
+        @Option(names = "--reports-dir", description = "Validate project-relative JUnit XML report output for CI context.")
+        private Path reportsDir;
+
         @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
         private boolean workspace;
 
@@ -313,6 +316,7 @@ public final class ZoltCli implements Runnable {
                             workspace,
                             checks,
                             context,
+                            reportsDir,
                             workspaceSelection(all, members, memberGroups))),
                     ZoltCli::qualityCheckAttributes);
             if (format == Format.JSON) {
