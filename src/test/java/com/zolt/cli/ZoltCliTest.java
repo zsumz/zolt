@@ -4540,6 +4540,8 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Packaged"));
         assertTrue(result.stdout().contains("spring-boot-war"));
         assertTrue(result.stdout().contains("Wrote archive to " + warPath));
+        assertTrue(result.stdout().contains("Wrote package evidence to " + warPath + ".zolt-package.json"));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json")));
         assertFalse(result.stdout().contains("CONTAINER_DEPENDENCY_PACKAGED"));
         try (JarFile jar = new JarFile(warPath.toFile())) {
             Attributes attributes = jar.getManifest().getMainAttributes();
@@ -4589,8 +4591,10 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains(
                 "Wrote runtime classpath to " + projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
         assertTrue(result.stdout().contains("Wrote archive to " + jarPath));
+        assertTrue(result.stdout().contains("Wrote package evidence to " + jarPath + ".zolt-package.json"));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.jar.zolt-package.json")));
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             assertNotNull(jar.getEntry("com/example/Main.class"));
             assertEquals(

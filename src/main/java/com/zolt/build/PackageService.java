@@ -62,6 +62,7 @@ public final class PackageService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final QuarkusBuildAugmenter quarkusBuildAugmenter;
+    private final PackageEvidenceManifestWriter evidenceManifestWriter;
 
     public PackageService() {
         this(
@@ -80,12 +81,31 @@ public final class PackageService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             QuarkusBuildAugmenter quarkusBuildAugmenter) {
+        this(
+                buildService,
+                resolveService,
+                manifestGenerator,
+                lockfileReader,
+                classpathBuilder,
+                quarkusBuildAugmenter,
+                new PackageEvidenceManifestWriter());
+    }
+
+    PackageService(
+            BuildService buildService,
+            ResolveService resolveService,
+            ManifestGenerator manifestGenerator,
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder,
+            QuarkusBuildAugmenter quarkusBuildAugmenter,
+            PackageEvidenceManifestWriter evidenceManifestWriter) {
         this.buildService = buildService;
         this.resolveService = resolveService;
         this.manifestGenerator = manifestGenerator;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.quarkusBuildAugmenter = quarkusBuildAugmenter;
+        this.evidenceManifestWriter = evidenceManifestWriter;
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -131,6 +151,15 @@ public final class PackageService {
 
     private static boolean isSpringBootArchive(PackageMode mode) {
         return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
+    }
+
+    private static String applicationLayout(PackageMode mode) {
+        return switch (mode) {
+            case THIN, UBER -> "archive root";
+            case SPRING_BOOT -> "BOOT-INF/classes";
+            case WAR, SPRING_BOOT_WAR -> "WEB-INF/classes";
+            case QUARKUS -> "target/quarkus-app/app";
+        };
     }
 
     public PackageResult packageJar(
@@ -245,14 +274,28 @@ public final class PackageService {
                 buildResult,
                 classpathPackages,
                 classpaths);
-        return new PackageResult(
-                result.buildResult(),
+        PackagePlan plan = packagePlan(projectDirectory, config, result);
+        Path evidenceManifest = evidenceManifestWriter.write(projectDirectory, config, plan, result, artifacts);
+        return result.withArtifactsAndEvidence(artifacts, Optional.of(evidenceManifest));
+    }
+
+    private PackagePlan packagePlan(
+            Path projectDirectory,
+            ProjectConfig config,
+            PackageResult result) {
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        if (Files.isRegularFile(projectRoot.resolve("zolt.lock"))) {
+            return new PackagePlanService().plan(projectRoot, config);
+        }
+        return new PackagePlan(
+                projectRoot,
                 result.mode(),
                 result.jarPath(),
+                result.buildResult().outputDirectory(),
+                applicationLayout(result.mode()),
                 result.runtimeClasspathPath(),
-                result.entryCount(),
-                result.hasMainClass(),
-                artifacts);
+                List.of(),
+                List.of());
     }
 
     private PackageResult packageThinJar(

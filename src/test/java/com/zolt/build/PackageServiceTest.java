@@ -11,6 +11,8 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
+import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -159,6 +161,71 @@ final class PackageServiceTest {
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
             assertEquals("name=demo\nversion=0.1.0\n", readEntry(jar, "application.properties"));
         }
+    }
+
+    @Test
+    void writesDeterministicPackageEvidenceManifestWithoutResourceTokenValues() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        source("src/main/resources/application.properties", "name=@projectName@\nsecret=@secretToken@\n");
+        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        source("target/generated/sources/openapi/com/example/generated/GeneratedApi.java", """
+                package com.example.generated;
+
+                public interface GeneratedApi {
+                }
+                """);
+        ResourceFilteringSettings filtering = new ResourceFilteringSettings(
+                true,
+                false,
+                List.of("**/*.properties"),
+                ResourceMissingTokenPolicy.FAIL,
+                Map.of(
+                        "projectName", ResourceTokenSettings.project("name"),
+                        "secretToken", ResourceTokenSettings.literal("super-secret-value")));
+        BuildSettings build = BuildSettings.defaults()
+                .withResourceFiltering(filtering)
+                .withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "openapi",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/sources/openapi",
+                                List.of("src/main/openapi/api.yaml"),
+                                true,
+                                false)),
+                        List.of());
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(build);
+
+        PackageResult first = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+        String firstEvidence = Files.readString(first.evidenceManifestPath().orElseThrow());
+        PackageResult second = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+        String secondEvidence = Files.readString(second.evidenceManifestPath().orElseThrow());
+
+        assertEquals(firstEvidence, secondEvidence);
+        assertEquals(
+                projectDir.resolve("target/demo-0.1.0.jar.zolt-package.json"),
+                first.evidenceManifestPath().orElseThrow());
+        assertTrue(firstEvidence.contains("\"schema\": \"zolt.package-evidence.v1\""));
+        assertTrue(firstEvidence.contains("\"archive\": \"target/demo-0.1.0.jar\""));
+        assertTrue(firstEvidence.contains("\"archiveSha256\": \"sha256:"));
+        assertTrue(firstEvidence.contains("\"resourceFiltering\": {"));
+        assertTrue(firstEvidence.contains("\"source\": \"literal\""));
+        assertTrue(firstEvidence.contains("\"source\": \"project\""));
+        assertTrue(firstEvidence.contains("\"path\": \"src/main/resources/application.properties\""));
+        assertTrue(firstEvidence.contains("\"generatedSources\": ["));
+        assertTrue(firstEvidence.contains("\"id\": \"generated-main-openapi\""));
+        assertTrue(firstEvidence.contains("\"path\": \"src/main/openapi/api.yaml\""));
+        assertTrue(firstEvidence.contains("\"freshness\": \"fresh\""));
+        assertFalse(firstEvidence.contains("super-secret-value"));
     }
 
     @Test
@@ -526,6 +593,16 @@ final class PackageServiceTest {
         assertEquals(PackageMode.SPRING_BOOT_WAR, result.mode());
         assertEquals(projectDir.resolve("target/demo-0.1.0.war"), result.jarPath());
         assertTrue(result.hasMainClass());
+        String evidence = Files.readString(result.evidenceManifestPath().orElseThrow());
+        assertTrue(evidence.contains("\"archive\": \"target/demo-0.1.0.war\""));
+        assertTrue(evidence.contains("\"coordinate\": \"org.apache.tomcat.embed:tomcat-embed-core:10.1.40\""));
+        assertTrue(evidence.contains("\"scope\": \"provided\""));
+        assertTrue(evidence.contains("\"disposition\": \"provided\""));
+        assertTrue(evidence.contains("\"rule\": \"spring-boot-war-provided-lib\""));
+        assertTrue(evidence.contains("\"location\": \"WEB-INF/lib-provided/tomcat-embed-core-10.1.40.jar\""));
+        assertTrue(evidence.contains("\"laneDisposition\": \"provided-container\""));
+        assertTrue(evidence.contains("\"coordinate\": \"com.example:devtools:1.0.0\""));
+        assertTrue(evidence.contains("\"rule\": \"dev-only-omitted\""));
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals(

@@ -10,13 +10,29 @@ public record PackageResult(
         PackageMode mode,
         Path jarPath,
         Optional<Path> runtimeClasspathPath,
+        Optional<Path> evidenceManifestPath,
         int entryCount,
         boolean hasMainClass,
         List<PackageArtifact> artifacts) {
     public PackageResult {
         mode = mode == null ? PackageMode.THIN : mode;
         runtimeClasspathPath = runtimeClasspathPath == null ? Optional.empty() : runtimeClasspathPath;
+        evidenceManifestPath = evidenceManifestPath == null ? Optional.empty() : evidenceManifestPath;
         artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
+    }
+
+    public PackageResult withArtifactsAndEvidence(
+            List<PackageArtifact> artifacts,
+            Optional<Path> evidenceManifestPath) {
+        return new PackageResult(
+                buildResult,
+                mode,
+                jarPath,
+                runtimeClasspathPath,
+                evidenceManifestPath,
+                entryCount,
+                hasMainClass,
+                artifacts);
     }
 
     public PackageResult(
@@ -26,7 +42,7 @@ public record PackageResult(
             Optional<Path> runtimeClasspathPath,
             int entryCount,
             boolean hasMainClass) {
-        this(buildResult, mode, jarPath, runtimeClasspathPath, entryCount, hasMainClass, List.of());
+        this(buildResult, mode, jarPath, runtimeClasspathPath, Optional.empty(), entryCount, hasMainClass, List.of());
     }
 
     public PackageResult(

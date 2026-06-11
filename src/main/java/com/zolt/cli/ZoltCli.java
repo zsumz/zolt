@@ -1781,6 +1781,8 @@ public final class ZoltCli implements Runnable {
                             spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
                         }
                         spec.commandLine().getOut().println("Wrote archive to " + member.result().jarPath());
+                        member.result().evidenceManifestPath().ifPresent(path ->
+                                spec.commandLine().getOut().println("Wrote package evidence to " + path));
                         for (PackageArtifact artifact : member.result().artifacts()) {
                             spec.commandLine().getOut().println(
                                     "Wrote "
@@ -1867,6 +1869,8 @@ public final class ZoltCli implements Runnable {
                             spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
                 }
                 spec.commandLine().getOut().println("Wrote archive to " + result.jarPath());
+                result.evidenceManifestPath().ifPresent(path ->
+                        spec.commandLine().getOut().println("Wrote package evidence to " + path));
                 for (PackageArtifact artifact : result.artifacts()) {
                     spec.commandLine().getOut().println(
                             "Wrote "
