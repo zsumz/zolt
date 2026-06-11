@@ -192,7 +192,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("error package-contents org.apache.tomcat.embed:tomcat-embed-core:10.1.40"));
-        assertTrue(result.stdout().contains("Container-style dependency `org.apache.tomcat.embed:tomcat-embed-core:10.1.40` is packaged in WEB-INF/lib/tomcat-embed-core-10.1.40.jar."));
+        assertTrue(result.stdout().contains("Container-style dependency `org.apache.tomcat.embed:tomcat-embed-core:10.1.40` is packaged in WEB-INF/lib/tomcat-embed-core-10.1.40.jar by package rule `war-runtime-lib`."));
         assertTrue(result.stdout().contains("next: Move it to [provided.dependencies]"));
     }
 
@@ -4100,11 +4100,11 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Package plan"));
         assertTrue(result.stdout().contains("Mode: spring-boot-war"));
         assertTrue(result.stdout().contains("Application layout: WEB-INF/classes"));
-        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-loader:4.0.6 [runtime] loader -> archive root"));
-        assertTrue(result.stdout().contains("com.example:runtime-lib:1.0.0 [runtime] included -> WEB-INF/lib/runtime-lib-1.0.0.jar"));
-        assertTrue(result.stdout().contains("jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] provided -> WEB-INF/lib-provided/jakarta.servlet-api-6.1.0.jar"));
-        assertTrue(result.stdout().contains("com.example:devtools:1.0.0 [dev] omitted"));
-        assertTrue(result.stdout().contains("warning CONTAINER_DEPENDENCY_PACKAGED org.apache.tomcat.embed:tomcat-embed-core:10.1.40"));
+        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-loader:4.0.6 [runtime] loader -> archive root rule=spring-boot-war-loader-expanded"));
+        assertTrue(result.stdout().contains("com.example:runtime-lib:1.0.0 [runtime] included -> WEB-INF/lib/runtime-lib-1.0.0.jar rule=spring-boot-war-runtime-lib"));
+        assertTrue(result.stdout().contains("jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] provided -> WEB-INF/lib-provided/jakarta.servlet-api-6.1.0.jar rule=spring-boot-war-provided-lib"));
+        assertTrue(result.stdout().contains("com.example:devtools:1.0.0 [dev] omitted rule=dev-only-omitted"));
+        assertTrue(result.stdout().contains("warning CONTAINER_DEPENDENCY_PACKAGED org.apache.tomcat.embed:tomcat-embed-core:10.1.40 rule=spring-boot-war-runtime-lib"));
         assertFalse(Files.exists(projectDir.resolve("target/package-plan-boot-war-0.1.0.war")));
     }
 
@@ -4127,6 +4127,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"runtimeClasspath\": \"" + projectDir.resolve("target/package-plan-json-0.1.0.runtime-classpath")));
         assertTrue(result.stdout().contains("\"coordinate\": \"com.example:runtime-lib:1.0.0\""));
         assertTrue(result.stdout().contains("\"disposition\": \"runtime-classpath\""));
+        assertTrue(result.stdout().contains("\"rule\": \"thin-runtime-classpath\""));
         assertTrue(result.stdout().contains("\"policies\": [\"strict-version: com.example:runtime-lib -> 1.0.0 (security baseline)\"]"));
         assertTrue(result.stdout().contains("\"warnings\": []"));
     }

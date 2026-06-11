@@ -8,6 +8,7 @@ public record PackagePlanDependency(
         String version,
         DependencyScope scope,
         String disposition,
+        String ruleName,
         String location,
         String reason,
         List<String> policies) {
@@ -18,6 +19,7 @@ public record PackagePlanDependency(
             throw new PackageException("Package plan dependency scope is required.");
         }
         disposition = requireNonBlank(disposition, "Package plan dependency disposition is required.");
+        ruleName = requireNonBlank(ruleName, "Package plan dependency rule name is required.");
         location = location == null ? "" : location;
         reason = requireNonBlank(reason, "Package plan dependency reason is required.");
         policies = policies == null ? List.of() : List.copyOf(policies);

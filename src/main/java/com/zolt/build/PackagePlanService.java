@@ -65,6 +65,9 @@ public final class PackagePlanService {
                     lockPackage.version(),
                     lockPackage.scope(),
                     lockPackage.scope().entersMainRuntimeClasspath() ? "included" : "omitted",
+                    lockPackage.scope().entersMainRuntimeClasspath()
+                            ? "quarkus-runtime-lib"
+                            : omissionRule(lockPackage.scope(), false),
                     lockPackage.scope().entersMainRuntimeClasspath() ? "target/quarkus-app/lib/" + nestedJar : "",
                     lockPackage.scope().entersMainRuntimeClasspath()
                             ? "main runtime dependency for Quarkus augmentation output"
@@ -75,6 +78,7 @@ public final class PackagePlanService {
                     lockPackage.version(),
                     lockPackage.scope(),
                     "unsupported",
+                    "uber-unsupported",
                     "",
                     "package mode `uber` is not implemented yet",
                     lockPackage.policies());
@@ -88,6 +92,7 @@ public final class PackagePlanService {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "runtime-classpath" : "omitted",
+                included ? "thin-runtime-classpath" : omissionRule(lockPackage.scope(), false),
                 included ? "runtime-classpath sidecar" : "",
                 included
                         ? "dependency remains outside the thin jar and is written to the runtime classpath sidecar"
@@ -102,6 +107,7 @@ public final class PackagePlanService {
                     lockPackage.version(),
                     lockPackage.scope(),
                     "loader",
+                    "spring-boot-loader-expanded",
                     "archive root",
                     "Spring Boot loader classes are expanded at the archive root",
                     lockPackage.policies());
@@ -112,6 +118,7 @@ public final class PackagePlanService {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
+                included ? "spring-boot-runtime-nested" : omissionRule(lockPackage.scope(), false),
                 included ? "BOOT-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged as a nested Spring Boot jar"
@@ -126,6 +133,7 @@ public final class PackagePlanService {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
+                included ? "war-runtime-lib" : omissionRule(lockPackage.scope(), false),
                 included ? "WEB-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged for the servlet container"
@@ -140,6 +148,7 @@ public final class PackagePlanService {
                     lockPackage.version(),
                     lockPackage.scope(),
                     "loader",
+                    "spring-boot-war-loader-expanded",
                     "archive root",
                     "Spring Boot WAR launcher classes are expanded at the archive root",
                     lockPackage.policies());
@@ -150,6 +159,7 @@ public final class PackagePlanService {
                     lockPackage.version(),
                     lockPackage.scope(),
                     "provided",
+                    "spring-boot-war-provided-lib",
                     "WEB-INF/lib-provided/" + nestedJar,
                     "provided dependency is available to java -jar without entering servlet container WEB-INF/lib",
                     lockPackage.policies());
@@ -160,6 +170,7 @@ public final class PackagePlanService {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
+                included ? "spring-boot-war-runtime-lib" : omissionRule(lockPackage.scope(), true),
                 included ? "WEB-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged for the Spring Boot WAR launcher"
@@ -182,8 +193,12 @@ public final class PackagePlanService {
             warnings.add(new PackagePlanWarning(
                     "CONTAINER_DEPENDENCY_PACKAGED",
                     dependency.coordinate(),
+                    dependency.ruleName(),
                     "Container-style dependency `" + dependency.coordinate() + "` is packaged in "
                             + dependency.location()
+                            + " by package rule `"
+                            + dependency.ruleName()
+                            + "`"
                             + ".",
                     "Move it to [provided.dependencies] when the servlet container supplies it, then run `zolt resolve`."));
         }
@@ -209,6 +224,20 @@ public final class PackagePlanService {
             case PROCESSOR, TEST_PROCESSOR -> "annotation processor dependency is excluded from package artifacts";
             case QUARKUS_DEPLOYMENT -> "Quarkus deployment dependency is build-time tooling, not package runtime";
             case COMPILE, RUNTIME -> "dependency scope is not packaged by this mode";
+        };
+    }
+
+    private static String omissionRule(DependencyScope scope, boolean springBootWar) {
+        if (scope == DependencyScope.PROVIDED && springBootWar) {
+            return "spring-boot-war-provided-lib";
+        }
+        return switch (scope) {
+            case PROVIDED -> "provided-container-omitted";
+            case DEV -> "dev-only-omitted";
+            case TEST -> "test-omitted";
+            case PROCESSOR, TEST_PROCESSOR -> "processor-omitted";
+            case QUARKUS_DEPLOYMENT -> "quarkus-deployment-omitted";
+            case COMPILE, RUNTIME -> "non-runtime-omitted";
         };
     }
 

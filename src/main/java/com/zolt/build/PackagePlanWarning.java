@@ -3,11 +3,13 @@ package com.zolt.build;
 public record PackagePlanWarning(
         String code,
         String subject,
+        String ruleName,
         String message,
         String nextStep) {
     public PackagePlanWarning {
         code = requireNonBlank(code, "Package plan warning code is required.");
         subject = requireNonBlank(subject, "Package plan warning subject is required.");
+        ruleName = requireNonBlank(ruleName, "Package plan warning rule name is required.");
         message = requireNonBlank(message, "Package plan warning message is required.");
         nextStep = requireNonBlank(nextStep, "Package plan warning next step is required.");
     }

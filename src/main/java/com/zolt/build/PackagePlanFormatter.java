@@ -23,6 +23,7 @@ public final class PackagePlanFormatter {
             if (!dependency.location().isBlank()) {
                 output.append(" -> ").append(dependency.location());
             }
+            output.append(" rule=").append(dependency.ruleName());
             output.append(" (").append(dependency.reason()).append(")");
             if (!dependency.policies().isEmpty()) {
                 output.append(" policies=").append(String.join("; ", dependency.policies()));
@@ -34,6 +35,8 @@ public final class PackagePlanFormatter {
                     .append(warning.code())
                     .append(' ')
                     .append(warning.subject())
+                    .append(" rule=")
+                    .append(warning.ruleName())
                     .append(' ')
                     .append(warning.message())
                     .append('\n')
@@ -76,6 +79,7 @@ public final class PackagePlanFormatter {
                 stringField(json, 3, "version", dependency.version(), true);
                 stringField(json, 3, "scope", dependency.scope().lockfileName(), true);
                 stringField(json, 3, "disposition", dependency.disposition(), true);
+                stringField(json, 3, "rule", dependency.ruleName(), true);
                 stringField(json, 3, "location", dependency.location(), true);
                 stringField(json, 3, "reason", dependency.reason(), true);
                 stringArrayField(json, 3, "policies", dependency.policies(), false);
@@ -99,6 +103,7 @@ public final class PackagePlanFormatter {
                 indent(json, 2).append("{\n");
                 stringField(json, 3, "code", warning.code(), true);
                 stringField(json, 3, "subject", warning.subject(), true);
+                stringField(json, 3, "rule", warning.ruleName(), true);
                 stringField(json, 3, "message", warning.message(), true);
                 stringField(json, 3, "nextStep", warning.nextStep(), false);
                 indent(json, 2).append("}");
