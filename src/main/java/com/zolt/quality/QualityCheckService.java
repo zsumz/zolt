@@ -242,7 +242,8 @@ public final class QualityCheckService {
                         Optional.empty(),
                         request.projectRoot(),
                         config,
-                        request.projectRoot().resolve("zolt.lock")));
+                        request.projectRoot().resolve("zolt.lock"),
+                        request.requirePackage()));
                 case MANIFEST_METADATA -> results.add(checkManifestMetadata(
                         Optional.empty(),
                         config));
@@ -316,7 +317,8 @@ public final class QualityCheckService {
                                 Optional.of(member.path()),
                                 member.directory(),
                                 member.config(),
-                                workspace.root().resolve("zolt.lock")));
+                                workspace.root().resolve("zolt.lock"),
+                                request.requirePackage()));
                     }
                 }
                 case MANIFEST_METADATA -> {
@@ -906,7 +908,8 @@ public final class QualityCheckService {
             Optional<String> member,
             Path projectRoot,
             ProjectConfig config,
-            Path lockfilePath) {
+            Path lockfilePath,
+            boolean requirePackage) {
         if (!Files.isRegularFile(lockfilePath)) {
             return List.of(QualityCheckResult.failed(
                     PACKAGE_CONTENTS,
@@ -927,6 +930,14 @@ public final class QualityCheckService {
                     member.isPresent() ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
         }
         if (plan.warnings().isEmpty()) {
+            if (requirePackage && !Files.isRegularFile(plan.archivePath())) {
+                return List.of(QualityCheckResult.failed(
+                        PACKAGE_CONTENTS,
+                        member,
+                        displayPath(projectRoot, plan.archivePath()),
+                        "CI context requires the configured package artifact, but it is missing.",
+                        "Run `zolt package` before `zolt check --context ci --require-package`."));
+            }
             Optional<QualityCheckResult> staleEvidence = stalePackageEvidence(member, plan);
             if (staleEvidence.isPresent()) {
                 return List.of(staleEvidence.orElseThrow());

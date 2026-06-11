@@ -12,6 +12,7 @@ public record QualityCheckRequest(
         List<String> checks,
         QualityCheckContext context,
         Path reportsDir,
+        boolean requirePackage,
         WorkspaceSelectionRequest workspaceSelection) {
     public QualityCheckRequest {
         projectRoot = projectRoot.toAbsolutePath().normalize();

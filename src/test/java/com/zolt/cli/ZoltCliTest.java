@@ -524,6 +524,56 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiRequiresPackageArtifactWhenConfigured() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-require-package-missing");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-require-package-missing"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--require-package",
+                "--check", "package-contents",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error package-contents target/check-context-ci-require-package-missing-0.1.0.jar CI context requires the configured package artifact, but it is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt package` before `zolt check --context ci --require-package`."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiAcceptsRequiredPackageArtifactWithFreshEvidence() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-require-package-ok");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        CommandResult packageResult = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--require-package",
+                "--check", "package-contents",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, packageResult.exitCode());
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok package-contents demo Package mode `thin` has 0 dependency dispositions."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkPackageContentsReportsMissingEvidenceForExistingArchive() throws IOException {
         Path projectDir = tempDir.resolve("check-package-contents-missing-evidence");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

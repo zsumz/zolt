@@ -49,6 +49,7 @@ final class QualityCheckServiceTest {
                 List.of(QualityCheckService.EXECUTION_CONTEXT),
                 QualityCheckContext.CI,
                 null,
+                false,
                 WorkspaceSelectionRequest.defaults()));
 
         assertEquals("error", report.status());
