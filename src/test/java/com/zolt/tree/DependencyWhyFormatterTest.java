@@ -46,6 +46,27 @@ final class DependencyWhyFormatterTest {
     }
 
     @Test
+    void showsPoliciesOnPathPackages() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(lockPackage(
+                        "com.example",
+                        "app",
+                        "1.0.0",
+                        true,
+                        List.of(),
+                        List.of("managed-version: com.example:app -> 1.0.0 from com.example:platform:1.0.0"))),
+                List.of());
+
+        String output = formatter.format(config(), lockfile, new PackageId("com.example", "app"));
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0 (policy: managed-version: com.example:app -> 1.0.0 from com.example:platform:1.0.0)
+                """, output);
+    }
+
+    @Test
     void missingPackageMessageExplainsNextStep() {
         DependencyWhyException exception = assertThrows(
                 DependencyWhyException.class,
@@ -91,5 +112,29 @@ final class DependencyWhyFormatterTest {
                 Optional.empty(),
                 Optional.empty(),
                 dependencies);
+    }
+
+    private static LockPackage lockPackage(
+            String groupId,
+            String artifactId,
+            String version,
+            boolean direct,
+            List<String> dependencies,
+            List<String> policies) {
+        return new LockPackage(
+                new PackageId(groupId, artifactId),
+                version,
+                "maven-central",
+                DependencyScope.COMPILE,
+                direct,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                policies);
     }
 }

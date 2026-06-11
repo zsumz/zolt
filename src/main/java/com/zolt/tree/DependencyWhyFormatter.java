@@ -27,8 +27,9 @@ public final class DependencyWhyFormatter {
                     .append("\\- ")
                     .append(path.get(index).packageId())
                     .append(':')
-                    .append(path.get(index).version())
-                    .append('\n');
+                    .append(path.get(index).version());
+            appendPolicies(output, path.get(index));
+            output.append('\n');
         }
         return output.toString();
     }
@@ -79,6 +80,15 @@ public final class DependencyWhyFormatter {
         java.util.ArrayList<LockPackage> updated = new java.util.ArrayList<>(path);
         updated.add(lockPackage);
         return List.copyOf(updated);
+    }
+
+    private static void appendPolicies(StringBuilder output, LockPackage lockPackage) {
+        if (lockPackage.policies().isEmpty()) {
+            return;
+        }
+        output.append(" (policy: ")
+                .append(String.join("; ", lockPackage.policies().stream().sorted().toList()))
+                .append(')');
     }
 
     private record PathItem(LockPackage lockPackage, List<LockPackage> path) {

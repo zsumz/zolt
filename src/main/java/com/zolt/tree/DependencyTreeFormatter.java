@@ -60,6 +60,7 @@ public final class DependencyTreeFormatter {
                     .append(reason(conflict.reason()))
                     .append(')');
         }
+        appendPolicies(output, lockPackage);
         if (ancestors.contains(coordinate)) {
             output.append(" (cycle)");
         }
@@ -114,5 +115,14 @@ public final class DependencyTreeFormatter {
             case DIRECT_DEPENDENCY -> "direct dependency wins";
             case NEWEST_VERSION -> "newest version wins";
         };
+    }
+
+    private static void appendPolicies(StringBuilder output, LockPackage lockPackage) {
+        if (lockPackage.policies().isEmpty()) {
+            return;
+        }
+        output.append(" (policy: ")
+                .append(String.join("; ", lockPackage.policies().stream().sorted().toList()))
+                .append(')');
     }
 }

@@ -553,8 +553,16 @@ public final class ResolveService {
                     .toList();
             Map<ArtifactDescriptor, CachedArtifact> artifacts = context.getArtifacts(
                     packagePlans.stream().map(LockPackagePlan::artifactDescriptor).toList());
+            Map<PackageId, List<DependencyScope>> managedDirectScopes = managedDirectScopes(context.config);
+            Map<PackageId, ManagedVersion> managedVersionDetails = context.projectManagedVersionDetails();
             List<LockPackage> packages = packagePlans.stream()
-                    .map(plan -> lockPackage(context, plan, graph, artifacts.get(plan.artifactDescriptor())))
+                    .map(plan -> lockPackage(
+                            context,
+                            plan,
+                            graph,
+                            artifacts.get(plan.artifactDescriptor()),
+                            managedDirectScopes,
+                            managedVersionDetails))
                     .toList();
             List<LockConflict> conflicts = selection.conflicts().stream()
                     .map(conflict -> new LockConflict(
@@ -729,7 +737,9 @@ public final class ResolveService {
             RepositoryContext context,
             LockPackagePlan plan,
             ResolutionGraph graph,
-            CachedArtifact artifact) {
+            CachedArtifact artifact,
+            Map<PackageId, List<DependencyScope>> managedDirectScopes,
+            Map<PackageId, ManagedVersion> managedVersionDetails) {
         PackageNode node = plan.node();
         SelectedScope selectedScope = plan.selectedScope();
         ArtifactDescriptor descriptor = plan.artifactDescriptor();
@@ -749,7 +759,12 @@ public final class ResolveService {
                 jarArtifact ? Optional.empty() : Optional.of(descriptor.extension()),
                 jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
                 dependenciesFor(node, graph),
-                policiesFor(node, selectedScope, context.config.dependencyPolicy().constraints()));
+                policiesFor(
+                        node,
+                        selectedScope,
+                        context.config.dependencyPolicy().constraints(),
+                        managedDirectScopes,
+                        managedVersionDetails));
     }
 
     private static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
@@ -763,18 +778,65 @@ public final class ResolveService {
     private static List<String> policiesFor(
             PackageNode node,
             SelectedScope selectedScope,
-            Map<String, DependencyConstraint> constraints) {
+            Map<String, DependencyConstraint> constraints,
+            Map<PackageId, List<DependencyScope>> managedDirectScopes,
+            Map<PackageId, ManagedVersion> managedVersions) {
+        List<String> policies = new ArrayList<>();
+        if (selectedScope.direct()
+                && managedDirectScopes.getOrDefault(node.packageId(), List.of()).contains(selectedScope.scope())) {
+            ManagedVersion managedVersion = managedVersions.get(node.packageId());
+            if (managedVersion != null && managedVersion.version().equals(node.selectedVersion())) {
+                policies.add("managed-version: "
+                        + node.packageId()
+                        + " -> "
+                        + managedVersion.version()
+                        + " from "
+                        + managedVersion.platform());
+            }
+        }
         if (selectedScope.direct()) {
-            return List.of();
+            return policies;
         }
         DependencyConstraint constraint = constraints.get(node.packageId().toString());
         if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
-            return List.of();
+            return policies;
         }
         String policy = "strict-version: " + node.packageId() + " -> " + constraint.version();
-        return List.of(constraint.reason()
+        policies.add(constraint.reason()
                 .map(reason -> policy + " (" + reason + ")")
                 .orElse(policy));
+        return List.copyOf(policies);
+    }
+
+    private Map<PackageId, List<DependencyScope>> managedDirectScopes(ProjectConfig config) {
+        Map<PackageId, List<DependencyScope>> scopes = new LinkedHashMap<>();
+        addManagedDirectScopes(scopes, config.managedApiDependencies(), DependencyScope.COMPILE);
+        addManagedDirectScopes(scopes, config.managedDependencies(), DependencyScope.COMPILE);
+        addManagedDirectScopes(scopes, config.managedRuntimeDependencies(), DependencyScope.RUNTIME);
+        addManagedDirectScopes(scopes, config.managedProvidedDependencies(), DependencyScope.PROVIDED);
+        addManagedDirectScopes(scopes, config.managedDevDependencies(), DependencyScope.DEV);
+        addManagedDirectScopes(scopes, config.managedTestDependencies(), DependencyScope.TEST);
+        addManagedDirectScopes(scopes, config.managedAnnotationProcessors(), DependencyScope.PROCESSOR);
+        addManagedDirectScopes(scopes, config.managedTestAnnotationProcessors(), DependencyScope.TEST_PROCESSOR);
+        return scopes.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                                .distinct()
+                                .sorted(Comparator.comparing(DependencyScope::lockfileName))
+                                .toList(),
+                        (first, second) -> first,
+                        LinkedHashMap::new));
+    }
+
+    private void addManagedDirectScopes(
+            Map<PackageId, List<DependencyScope>> scopes,
+            Iterable<String> dependencies,
+            DependencyScope scope) {
+        for (String dependency : dependencies) {
+            Coordinate coordinate = coordinateParser.parse(dependency);
+            scopes.computeIfAbsent(PackageId.from(coordinate), ignored -> new ArrayList<>()).add(scope);
+        }
     }
 
     private static String sha256(byte[] bytes) {
@@ -873,6 +935,9 @@ public final class ResolveService {
             ArtifactDescriptor artifactDescriptor) {
     }
 
+    private record ManagedVersion(String version, String platform) {
+    }
+
     private record ArtifactDownloadFailure(String artifactKey, String message) {
     }
 
@@ -905,6 +970,7 @@ public final class ResolveService {
         private final Map<String, CompletableFuture<RawPom>> rawPomLoads = new ConcurrentHashMap<>();
         private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
         private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
+        private Map<PackageId, ManagedVersion> projectManagedVersions;
         private int downloadCount;
         private int pomCacheHits;
         private int pomCacheMisses;
@@ -1259,6 +1325,16 @@ public final class ResolveService {
 
         Map<PackageId, String> projectManagedVersions() {
             Map<PackageId, String> versions = new LinkedHashMap<>();
+            projectManagedVersionDetails().forEach((packageId, managedVersion) ->
+                    versions.put(packageId, managedVersion.version()));
+            return versions;
+        }
+
+        Map<PackageId, ManagedVersion> projectManagedVersionDetails() {
+            if (projectManagedVersions != null) {
+                return projectManagedVersions;
+            }
+            Map<PackageId, ManagedVersion> details = new LinkedHashMap<>();
             config.platforms().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(platform -> {
@@ -1270,13 +1346,15 @@ public final class ResolveService {
                             }
                             RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
                             if (managedJarDependency(interpolated) && interpolated.version().isPresent()) {
-                                versions.put(
-                                        new PackageId(interpolated.groupId(), interpolated.artifactId()),
-                                        interpolated.version().orElseThrow());
+                                PackageId packageId = new PackageId(interpolated.groupId(), interpolated.artifactId());
+                                details.put(
+                                        packageId,
+                                        new ManagedVersion(interpolated.version().orElseThrow(), platform.getKey() + ":" + platform.getValue()));
                             }
                         }
                     });
-            return versions;
+            projectManagedVersions = Map.copyOf(details);
+            return projectManagedVersions;
         }
 
         List<DependencyRequest> projectPlatformPropertiesRequests() {
