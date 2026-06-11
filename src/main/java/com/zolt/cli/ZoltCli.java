@@ -59,6 +59,7 @@ import com.zolt.ide.IdeModelService;
 import com.zolt.ide.WorkspaceIdeModelJsonWriter;
 import com.zolt.ide.WorkspaceIdeModelService;
 import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
@@ -114,6 +115,7 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.tree.DependencyTreeFormatter;
+import com.zolt.tree.DependencyJsonFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
 import com.zolt.workspace.WorkspaceBuildResult;
@@ -759,8 +761,16 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "tree", description = "Display the resolved dependency graph.")
     public static final class TreeCommand implements Runnable {
+        enum Format {
+            TEXT,
+            JSON
+        }
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--format", description = "Output format: text or json.")
+        private Format format = Format.TEXT;
 
         @Spec
         private CommandSpec spec;
@@ -769,9 +779,10 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                String output = new DependencyTreeFormatter().format(
-                        config,
-                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
+                ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
+                String output = format == Format.JSON
+                        ? new DependencyJsonFormatter().tree(config, lockfile)
+                        : new DependencyTreeFormatter().format(config, lockfile);
                 printAndFlush(spec, output);
             } catch (LockfileReadException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
@@ -782,11 +793,19 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "why", description = "Explain why a package is present.")
     public static final class WhyCommand implements Runnable {
+        enum Format {
+            TEXT,
+            JSON
+        }
+
         @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Package id to explain.")
         private String packageId;
 
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
+
+        @Option(names = "--format", description = "Output format: text or json.")
+        private Format format = Format.TEXT;
 
         @Spec
         private CommandSpec spec;
@@ -798,10 +817,11 @@ public final class ZoltCli implements Runnable {
             try {
                 Coordinate coordinate = coordinateParser.parse(packageId);
                 ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                String output = new DependencyWhyFormatter().format(
-                        config,
-                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")),
-                        new PackageId(coordinate.groupId(), coordinate.artifactId()));
+                ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
+                PackageId target = new PackageId(coordinate.groupId(), coordinate.artifactId());
+                String output = format == Format.JSON
+                        ? new DependencyJsonFormatter().why(config, lockfile, target)
+                        : new DependencyWhyFormatter().format(config, lockfile, target);
                 printAndFlush(spec, output);
             } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());

@@ -102,7 +102,19 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$TreeCommand$Format",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$WhyCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.ZoltCli$WhyCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
