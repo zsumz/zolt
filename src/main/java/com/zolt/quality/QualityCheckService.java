@@ -23,6 +23,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.project.ResourceFilteringSettings;
+import com.zolt.project.ResourceTokenSettings;
 import com.zolt.publish.PublishDryRunPlan;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishException;
@@ -288,6 +290,10 @@ public final class QualityCheckService {
                                     Optional.of(member.path()),
                                     member.config(),
                                     request.context()));
+                            results.addAll(checkResourceTokenInputs(
+                                    Optional.of(member.path()),
+                                    member.config(),
+                                    request.context()));
                             results.addAll(checkTestReports(
                                     Optional.of(member.path()),
                                     member.directory(),
@@ -368,6 +374,7 @@ public final class QualityCheckService {
         List<QualityCheckResult> results = new ArrayList<>();
         results.addAll(checkExecutionContext(member, root, context));
         results.addAll(checkCredentialPolicy(member, config, context));
+        results.addAll(checkResourceTokenInputs(member, config, context));
         results.addAll(checkTestReports(member, root, reportsDir, reportsDir, context));
         results.addAll(checkPublishDryRun(member, root, context, requirePublishDryRun));
         return List.copyOf(results);
@@ -561,6 +568,69 @@ public final class QualityCheckService {
                             + (credentialedRepositories == 1 ? "repository." : "repositories.")));
         }
         return List.copyOf(results);
+    }
+
+    private List<QualityCheckResult> checkResourceTokenInputs(
+            Optional<String> member,
+            ProjectConfig config,
+            QualityCheckContext context) {
+        if (context != QualityCheckContext.CI) {
+            return List.of();
+        }
+        ResourceFilteringSettings filtering = config.build().resourceFiltering();
+        if ((!filtering.enabled() && !filtering.testEnabled()) || filtering.tokens().isEmpty()) {
+            return List.of();
+        }
+        List<QualityCheckResult> failures = new ArrayList<>();
+        int envTokens = 0;
+        int literalTokens = 0;
+        int projectTokens = 0;
+        for (Map.Entry<String, ResourceTokenSettings> entry : filtering.tokens().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList()) {
+            ResourceTokenSettings token = entry.getValue();
+            if (token.env().isPresent()) {
+                envTokens++;
+                String env = token.env().orElseThrow();
+                if (isMissingEnvironmentValue(env)) {
+                    failures.add(QualityCheckResult.failed(
+                            EXECUTION_CONTEXT,
+                            member,
+                            "[resources.tokens." + entry.getKey() + "]",
+                            "CI context requires environment variable "
+                                    + env
+                                    + " for resource token `"
+                                    + entry.getKey()
+                                    + "` before resource copying.",
+                            "Set the named CI variable or change [resources.tokens]."
+                                    + entry.getKey()
+                                    + " to an explicit non-secret value/project source. Values are never printed."));
+                }
+            } else if (token.project().isPresent()) {
+                projectTokens++;
+            } else {
+                literalTokens++;
+            }
+        }
+        if (!failures.isEmpty()) {
+            return List.copyOf(failures);
+        }
+        int total = envTokens + literalTokens + projectTokens;
+        return List.of(QualityCheckResult.passed(
+                EXECUTION_CONTEXT,
+                member,
+                "resource-token-inputs",
+                "CI resource token preflight passed for "
+                        + total
+                        + " "
+                        + (total == 1 ? "token" : "tokens")
+                        + ": env="
+                        + envTokens
+                        + ", project="
+                        + projectTokens
+                        + ", literal="
+                        + literalTokens
+                        + "."));
     }
 
     private Optional<QualityCheckResult> embeddedRepositoryCredentials(
