@@ -83,6 +83,36 @@ final class WorkspaceIdeModelServiceTest {
                 workspaceOutput = "target/classes"
                 members = ["apps/api"]
                 dependencies = []
+
+                [[package]]
+                id = "org.projectlombok:lombok"
+                version = "1.18.42"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test-processor"
+                direct = true
+                jar = "com/example/test-processor/1.0.0/test-processor-1.0.0.jar"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.2"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-rest-deployment/3.33.2/quarkus-rest-deployment-3.33.2.jar"
+                members = ["apps/api"]
+                dependencies = []
                 """);
 
         WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
@@ -97,6 +127,22 @@ final class WorkspaceIdeModelServiceTest {
                 .resolve("modules/core/target/classes")
                 .toAbsolutePath()
                 .normalize()));
+        assertEquals(
+                List.of(tempDir.resolve("cache/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar")
+                        .toAbsolutePath()
+                        .normalize()),
+                apiModel.classpaths().processor());
+        assertEquals(
+                List.of(tempDir.resolve("cache/com/example/test-processor/1.0.0/test-processor-1.0.0.jar")
+                        .toAbsolutePath()
+                        .normalize()),
+                apiModel.classpaths().testProcessor());
+        assertEquals(
+                List.of(tempDir.resolve(
+                                "cache/io/quarkus/quarkus-rest-deployment/3.33.2/quarkus-rest-deployment-3.33.2.jar")
+                        .toAbsolutePath()
+                        .normalize()),
+                apiModel.classpaths().quarkusDeployment());
         assertEquals(List.of(), apiModel.diagnostics());
         assertEquals(List.of(), model.diagnostics());
     }

@@ -165,11 +165,17 @@ public record IdeModel(
     public record ClasspathInfo(
             List<Path> compile,
             List<Path> runtime,
-            List<Path> test) {
+            List<Path> test,
+            List<Path> processor,
+            List<Path> testProcessor,
+            List<Path> quarkusDeployment) {
         public ClasspathInfo {
             compile = List.copyOf(compile);
             runtime = List.copyOf(runtime);
             test = List.copyOf(test);
+            processor = List.copyOf(processor);
+            testProcessor = List.copyOf(testProcessor);
+            quarkusDeployment = List.copyOf(quarkusDeployment);
         }
     }
 

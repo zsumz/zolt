@@ -78,6 +78,33 @@ final class IdeModelServiceTest {
                 direct = false
                 jar = "org/springframework/spring-webmvc/7.0.5/spring-webmvc-7.0.5.jar"
                 dependencies = []
+
+                [[package]]
+                id = "org.projectlombok:lombok"
+                version = "1.18.42"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.example:test-processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "test-processor"
+                direct = true
+                jar = "com/example/test-processor/1.0.0/test-processor-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.2"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-rest-deployment/3.33.2/quarkus-rest-deployment-3.33.2.jar"
+                dependencies = []
                 """);
 
         IdeModel model = service.export(projectDir, cacheRoot);
@@ -112,6 +139,20 @@ final class IdeModelServiceTest {
                         "org/springframework/boot/spring-boot-starter-webmvc/4.0.6/spring-boot-starter-webmvc-4.0.6.jar"),
                 absoluteCache.resolve("org/springframework/spring-webmvc/7.0.5/spring-webmvc-7.0.5.jar")),
                 model.classpaths().runtime());
+        assertEquals(
+                List.of(absoluteCache.resolve("org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar")),
+                model.classpaths().processor());
+        assertEquals(
+                List.of(absoluteCache.resolve("com/example/test-processor/1.0.0/test-processor-1.0.0.jar")),
+                model.classpaths().testProcessor());
+        assertEquals(
+                List.of(absoluteCache.resolve(
+                        "io/quarkus/quarkus-rest-deployment/3.33.2/quarkus-rest-deployment-3.33.2.jar")),
+                model.classpaths().quarkusDeployment());
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"processor\": ["));
+        assertTrue(json.contains("\"testProcessor\": ["));
+        assertTrue(json.contains("\"quarkusDeployment\": ["));
         assertEquals(List.of(), model.diagnostics());
     }
 

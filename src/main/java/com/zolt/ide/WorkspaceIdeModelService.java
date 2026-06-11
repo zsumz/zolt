@@ -239,7 +239,9 @@ public final class WorkspaceIdeModelService {
         Map<String, IdeModel.ClasspathInfo> classpathsByMember = new LinkedHashMap<>();
         if (lockfile == null) {
             for (WorkspaceMember member : workspace.members()) {
-                classpathsByMember.put(member.path(), new IdeModel.ClasspathInfo(List.of(), List.of(), List.of()));
+                classpathsByMember.put(
+                        member.path(),
+                        new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
             }
             return Collections.unmodifiableMap(classpathsByMember);
         }
@@ -259,7 +261,10 @@ public final class WorkspaceIdeModelService {
                     new IdeModel.ClasspathInfo(
                             absoluteEntries(classpaths.compile()),
                             withOutputs(List.of(mainOutput), classpaths.runtime()),
-                            withOutputs(List.of(mainOutput, testOutput), classpaths.test())));
+                            withOutputs(List.of(mainOutput, testOutput), classpaths.test()),
+                            absoluteEntries(classpaths.processor()),
+                            absoluteEntries(classpaths.testProcessor()),
+                            absoluteEntries(classpaths.quarkusDeployment())));
         }
         return Collections.unmodifiableMap(classpathsByMember);
     }

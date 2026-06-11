@@ -2822,7 +2822,10 @@ final class ZoltCliTest {
                       "%s",
                       "%s",
                       "%s"
-                    ]
+                    ],
+                    "processor": [],
+                    "testProcessor": [],
+                    "quarkusDeployment": []
                   },
                   "frameworks": {
                     "quarkus": {

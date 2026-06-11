@@ -560,7 +560,10 @@ public final class IdeModelService {
             return new IdeModel.ClasspathInfo(
                     absoluteEntries(dependencyClasspaths.compile()),
                     withOutputs(List.of(mainOutput), dependencyClasspaths.runtime()),
-                    withOutputs(List.of(mainOutput, testOutput), dependencyClasspaths.test()));
+                    withOutputs(List.of(mainOutput, testOutput), dependencyClasspaths.test()),
+                    absoluteEntries(dependencyClasspaths.processor()),
+                    absoluteEntries(dependencyClasspaths.testProcessor()),
+                    absoluteEntries(dependencyClasspaths.quarkusDeployment()));
         } catch (LockfileReadException exception) {
             diagnostics.add(new IdeModel.Diagnostic(
                     "error",
@@ -573,7 +576,7 @@ public final class IdeModelService {
     }
 
     private static IdeModel.ClasspathInfo emptyClasspaths() {
-        return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of());
+        return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     private IdeModel.FrameworkInfo frameworkInfo(
