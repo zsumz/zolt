@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 public enum QualityCheckContext {
+    LOCAL("local"),
     CI("ci");
 
     private final String configValue;

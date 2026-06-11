@@ -278,7 +278,7 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--check", description = "Run a quality check id. May be repeated.")
         private List<String> checks = List.of();
 
-        @Option(names = "--context", description = "Apply a built-in check context. Supported values: ci.")
+        @Option(names = "--context", description = "Apply a built-in check context. Supported values: local, ci.")
         private QualityCheckContext context;
 
         @Option(names = "--reports-dir", description = "Validate project-relative JUnit XML report output for CI context.")

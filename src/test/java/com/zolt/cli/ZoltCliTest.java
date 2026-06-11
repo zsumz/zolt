@@ -309,6 +309,52 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextLocalReportsDeveloperPolicyWithoutLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-local");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-local"));
+
+        CommandResult result = execute("check", "--context", "local", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
+        assertTrue(result.stdout().contains("local overlays are allowed"));
+        assertFalse(result.stdout().contains("lockfile zolt.lock"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextLocalPrependsPolicyToExplicitChecks() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-local-explicit-check");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-local-explicit-check"));
+
+        CommandResult result = execute(
+                "check",
+                "--context", "local",
+                "--check", "project-model",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
+        assertTrue(result.stdout().contains("ok project-model check-context-local-explicit-check Project model is valid"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkRejectsMalformedContext() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-malformed");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-malformed"));
+
+        CommandResult result = execute("check", "--context", "profile-dev", "--cwd", projectDir.toString());
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Invalid value for option '--context': expected one of [LOCAL, CI]"));
+    }
+
+    @Test
     void checkContextCiRejectsLocalOverlayOrigins() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-local-overlay");
         Files.createDirectories(projectDir);

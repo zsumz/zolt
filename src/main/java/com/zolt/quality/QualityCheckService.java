@@ -418,6 +418,13 @@ public final class QualityCheckService {
                     "default",
                     "No execution context policy was requested."));
         }
+        if (context == QualityCheckContext.LOCAL) {
+            return List.of(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "local",
+                    "Local context policy is active: local overlays are allowed, zolt.lock is not required before editing, and CI/release preflights remain explicit."));
+        }
         if (context != QualityCheckContext.CI) {
             return List.of(QualityCheckResult.failed(
                     EXECUTION_CONTEXT,
@@ -1718,10 +1725,13 @@ public final class QualityCheckService {
             if (request.context() == QualityCheckContext.CI) {
                 return CI_CONTEXT_CHECKS;
             }
+            if (request.context() == QualityCheckContext.LOCAL) {
+                return List.of(EXECUTION_CONTEXT);
+            }
             return List.of(COMMAND_SURFACE);
         }
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        if (request.context() == QualityCheckContext.CI) {
+        if (request.context() == QualityCheckContext.CI || request.context() == QualityCheckContext.LOCAL) {
             normalized.add(EXECUTION_CONTEXT);
         }
         for (String rawCheck : rawChecks) {
