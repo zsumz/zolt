@@ -2167,6 +2167,32 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkJsonIncludesMachineReadableBlockers() throws IOException {
+        Path projectDir = tempDir.resolve("check-json-blockers");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-json-blockers"));
+
+        CommandResult result = execute(
+                "check",
+                "--cwd", projectDir.toString(),
+                "--check", "lockfile",
+                "--format", "json");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("\"status\":\"error\""));
+        assertTrue(result.stdout().contains("\"checks\":["));
+        assertTrue(result.stdout().contains("\"blockers\":[{"));
+        assertTrue(result.stdout().indexOf("\"blockers\"") > result.stdout().indexOf("\"checks\""));
+        assertTrue(result.stdout().contains("\"id\":\"lockfile\""));
+        assertTrue(result.stdout().contains("\"severity\":\"error\""));
+        assertTrue(result.stdout().contains("\"member\":null"));
+        assertTrue(result.stdout().contains("\"subject\":\"zolt.lock\""));
+        assertTrue(result.stdout().contains("\"message\":\"zolt.lock is missing.\""));
+        assertTrue(result.stdout().contains("\"nextStep\":\"Run `zolt resolve`.\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkLockfilePassesWhenLockedResolveMatches() throws IOException {
         Path projectDir = tempDir.resolve("check-lock-ok");
         Files.createDirectories(projectDir);

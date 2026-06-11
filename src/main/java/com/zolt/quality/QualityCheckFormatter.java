@@ -43,6 +43,18 @@ public final class QualityCheckFormatter {
             appendCheck(output, check);
             first = false;
         }
+        output.append("],\"blockers\":[");
+        first = true;
+        for (QualityCheckResult check : report.checks()) {
+            if (check.status() != QualityCheckStatus.FAILED) {
+                continue;
+            }
+            if (!first) {
+                output.append(',');
+            }
+            appendBlocker(output, check);
+            first = false;
+        }
         output.append("]}").append(System.lineSeparator());
         return output.toString();
     }
@@ -54,6 +66,27 @@ public final class QualityCheckFormatter {
         jsonField(output, "severity", check.severity().jsonValue());
         output.append(',');
         jsonField(output, "status", check.status().jsonValue());
+        output.append(',');
+        output.append("\"member\":");
+        if (check.member().isPresent()) {
+            jsonString(output, check.member().orElseThrow());
+        } else {
+            output.append("null");
+        }
+        output.append(',');
+        jsonField(output, "subject", check.subject());
+        output.append(',');
+        jsonField(output, "message", check.message());
+        output.append(',');
+        jsonField(output, "nextStep", check.nextStep());
+        output.append('}');
+    }
+
+    private static void appendBlocker(StringBuilder output, QualityCheckResult check) {
+        output.append('{');
+        jsonField(output, "id", check.id());
+        output.append(',');
+        jsonField(output, "severity", check.severity().jsonValue());
         output.append(',');
         output.append("\"member\":");
         if (check.member().isPresent()) {
