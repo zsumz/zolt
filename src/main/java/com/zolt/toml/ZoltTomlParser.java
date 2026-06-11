@@ -1348,6 +1348,7 @@ public final class ZoltTomlParser {
                             "Invalid value for [" + section + "]." + key + ".exclusions in zolt.toml. Exclusions apply to external dependency edges, not workspace dependencies.");
                 }
                 String version = null;
+                String versionRef = null;
                 boolean managedDependency = false;
                 String workspacePathValue = null;
                 if (rawVersion == null && rawVersionRef == null && rawWorkspace == null) {
@@ -1358,6 +1359,9 @@ public final class ZoltTomlParser {
                 } else if (rawVersion != null || rawVersionRef != null) {
                     version = optionalVersionOrRef(dependencyTable, section + "." + key, versionAliases)
                             .orElseThrow();
+                    if (rawVersionRef instanceof String alias) {
+                        versionRef = alias;
+                    }
                     if (!publishOnly) {
                         versioned.put(key, version);
                     }
@@ -1376,6 +1380,7 @@ public final class ZoltTomlParser {
                         section,
                         key,
                         version,
+                        versionRef,
                         managedDependency,
                         workspacePathValue,
                         optional,

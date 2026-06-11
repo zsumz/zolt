@@ -125,9 +125,42 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(toml);
 
         assertTrue(toml.contains("[versions]\n\"boot\" = \"4.0.6\"\n\"slf4j\" = \"2.0.17\""));
+        assertTrue(toml.contains("\"org.slf4j:slf4j-api\" = { versionRef = \"slf4j\" }"));
         assertEquals(Map.of("boot", "4.0.6", "slf4j", "2.0.17"), parsed.versionAliases());
         assertEquals("4.0.6", parsed.platforms().get("org.springframework.boot:spring-boot-dependencies"));
         assertEquals("2.0.17", parsed.dependencies().get("org.slf4j:slf4j-api"));
+    }
+
+    @Test
+    void addsVersionRefDependencyWhileKeepingConcreteResolverInput() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "aliases"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                guava = "33.4.8-jre"
+                """);
+
+        config = writer.addVersionRefDependency(
+                config,
+                DependencySection.MAIN,
+                "com.google.guava:guava",
+                "guava",
+                "33.4.8-jre");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"com.google.guava:guava\" = { versionRef = \"guava\" }"));
+        assertEquals("33.4.8-jre", parsed.dependencies().get("com.google.guava:guava"));
+        assertEquals(
+                "guava",
+                parsed.dependencyMetadata()
+                        .get(DependencyMetadata.key("dependencies", "com.google.guava:guava"))
+                        .versionRef());
     }
 
     @Test

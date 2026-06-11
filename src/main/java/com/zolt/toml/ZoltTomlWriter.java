@@ -317,6 +317,31 @@ public final class ZoltTomlWriter {
         };
     }
 
+    public ProjectConfig addVersionRefDependency(
+            ProjectConfig config,
+            DependencySection section,
+            String coordinate,
+            String versionRef,
+            String version) {
+        ProjectConfig updated = addDependency(config, section, coordinate, version);
+        String sectionName = sectionName(section);
+        DependencyMetadata existing = config.dependencyMetadata()
+                .get(DependencyMetadata.key(sectionName, coordinate));
+        DependencyMetadata metadata = new DependencyMetadata(
+                sectionName,
+                coordinate,
+                version,
+                versionRef,
+                false,
+                null,
+                existing != null && existing.optional(),
+                existing != null && existing.publishOnly(),
+                existing == null ? List.of() : existing.exclusions());
+        Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>(updated.dependencyMetadata());
+        dependencyMetadata.put(DependencyMetadata.key(sectionName, coordinate), metadata);
+        return updated.withDependencyMetadata(dependencyMetadata);
+    }
+
     public ProjectConfig addManagedDependency(ProjectConfig config, DependencySection section, String coordinate) {
         return switch (section) {
             case API -> copy(
@@ -902,6 +927,19 @@ public final class ZoltTomlWriter {
                 || workspace.containsKey(coordinate);
     }
 
+    private static String sectionName(DependencySection section) {
+        return switch (section) {
+            case MAIN -> "dependencies";
+            case API -> "api.dependencies";
+            case RUNTIME -> "runtime.dependencies";
+            case PROVIDED -> "provided.dependencies";
+            case DEV -> "dev.dependencies";
+            case TEST -> "test.dependencies";
+            case PROCESSOR -> "annotationProcessors";
+            case TEST_PROCESSOR -> "test.annotationProcessors";
+        };
+    }
+
     private static void writeProject(StringBuilder toml, ProjectMetadata project) {
         toml.append("[project]\n");
         writeAssignment(toml, "name", project.name());
@@ -1368,7 +1406,9 @@ public final class ZoltTomlWriter {
         String version = metadata.version() == null ? versioned.get(coordinate) : metadata.version();
         String workspacePath = metadata.workspace() == null ? workspace.get(coordinate) : metadata.workspace();
         boolean managedDependency = metadata.managed() || managed.contains(coordinate);
-        if (version != null) {
+        if (metadata.versionRef() != null) {
+            parts.add("versionRef = " + quote(metadata.versionRef()));
+        } else if (version != null) {
             parts.add("version = " + quote(version));
         } else if (workspacePath != null) {
             parts.add("workspace = " + quote(workspacePath));

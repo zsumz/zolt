@@ -84,6 +84,7 @@ import com.zolt.policy.DependencyPolicyReport;
 import com.zolt.policy.DependencyPolicyReportException;
 import com.zolt.policy.DependencyPolicyReportFormatter;
 import com.zolt.policy.DependencyPolicyReportService;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -397,6 +398,9 @@ public final class ZoltCli implements Runnable {
         @Option(names = "--managed", description = "Use a version managed by a declared platform.")
         private boolean managed;
 
+        @Option(names = "--version-ref", description = "Use a version alias declared in [versions].")
+        private String versionRef;
+
         @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
         private boolean noResolve;
 
@@ -447,17 +451,51 @@ public final class ZoltCli implements Runnable {
                 throw new AddCommandException(
                         "Managed dependency coordinate must not include a version. Use `group:artifact`.");
             }
+            if (versionRef != null && versionRef.isBlank()) {
+                throw new AddCommandException(
+                        "Version alias for --version-ref must be non-empty. Use `--version-ref <alias>`.");
+            }
+            if (managed && versionRef != null) {
+                throw new AddCommandException(
+                        "`--managed` and `--version-ref` cannot be used together. Choose a platform-managed dependency or a named [versions] alias.");
+            }
+            if (versionRef != null && coordinate.version().isPresent()) {
+                throw new AddCommandException(
+                        "Version-ref dependency coordinate must not include a version. Use `--version-ref "
+                                + versionRef
+                                + " group:artifact`.");
+            }
             if (managed) {
-                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", true);
+                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", true, null);
+            }
+            if (versionRef != null) {
+                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", false, versionRef);
             }
             String version = coordinate.version().orElseThrow(() -> new AddCommandException(
                     "Dependency coordinate must include a version. Use `group:artifact:version` or add `--managed` when a declared platform should provide the version."));
-            return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false);
+            return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false, null);
         }
 
         private ProjectConfig updateConfig(ProjectConfig config, AddRequest request) {
             if (request.managed()) {
                 return tomlWriter.addManagedDependency(config, request.section(), request.coordinate());
+            }
+            if (request.versionRef() != null) {
+                String version = config.versionAliases().get(request.versionRef());
+                if (version == null) {
+                    throw new AddCommandException(
+                            "Unknown versionRef `"
+                                    + request.versionRef()
+                                    + "`. Add [versions]."
+                                    + request.versionRef()
+                                    + " or use an explicit version.");
+                }
+                return tomlWriter.addVersionRefDependency(
+                        config,
+                        request.section(),
+                        request.coordinate(),
+                        request.versionRef(),
+                        version);
             }
             return tomlWriter.addDependency(config, request.section(), request.coordinate(), request.version());
         }
@@ -469,6 +507,7 @@ public final class ZoltCli implements Runnable {
             String existingWorkspace = workspaceDependencies(original, request.section()).get(request.coordinate());
             String conflicting = conflictingDependencies(original, request.section()).get(request.coordinate());
             String conflictingWorkspace = conflictingWorkspaceDependencies(original, request.section()).get(request.coordinate());
+            String existingVersionRef = versionRef(original, request.section(), request.coordinate());
             boolean existingManaged = managedDependencies(original, request.section()).contains(request.coordinate());
             boolean conflictingManaged = conflictingManagedDependencies(original, request.section()).contains(request.coordinate());
             if (request.managed()) {
@@ -489,6 +528,36 @@ public final class ZoltCli implements Runnable {
                 } else {
                     spec.commandLine().getOut().println("Added dependency " + request.coordinate()
                             + " with a platform-managed version to [" + section + "]");
+                }
+                return;
+            }
+            if (request.versionRef() != null) {
+                String version = original.versionAliases().get(request.versionRef());
+                String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
+                if (request.versionRef().equals(existingVersionRef)) {
+                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                            + " already uses " + versionRefDescription + " in [" + section + "]");
+                } else if (existingVersionRef != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from versionRef `" + existingVersionRef + "` to " + versionRefDescription
+                            + " in [" + section + "]");
+                } else if (existingManaged) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from managed version to " + versionRefDescription + " in [" + section + "]");
+                } else if (existing != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from " + existing + " to " + versionRefDescription + " in [" + section + "]");
+                } else if (existingWorkspace != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from workspace member " + existingWorkspace
+                            + " to " + versionRefDescription + " in [" + section + "]");
+                } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
+                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                            + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
+                            + " to " + versionRefDescription + " in [" + section + "]");
+                } else {
+                    spec.commandLine().getOut().println("Added dependency " + request.coordinate()
+                            + " with " + versionRefDescription + " to [" + section + "]");
                 }
                 return;
             }
@@ -3150,7 +3219,12 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    private record AddRequest(DependencySection section, String coordinate, String version, boolean managed) {
+    private record AddRequest(
+            DependencySection section,
+            String coordinate,
+            String version,
+            boolean managed,
+            String versionRef) {
     }
 
     private record RemoveRequest(DependencySection section, String coordinate) {
@@ -3293,6 +3367,11 @@ public final class ZoltCli implements Runnable {
             return "managed version";
         }
         return "workspace member " + workspace;
+    }
+
+    private static String versionRef(ProjectConfig config, DependencySection section, String coordinate) {
+        DependencyMetadata metadata = config.dependencyMetadata().get(DependencyMetadata.key(sectionName(section), coordinate));
+        return metadata == null ? null : metadata.versionRef();
     }
 
     private static boolean hasDependency(ProjectConfig config, DependencySection section, String coordinate) {
