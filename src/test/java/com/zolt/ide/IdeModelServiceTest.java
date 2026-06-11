@@ -379,7 +379,10 @@ final class IdeModelServiceTest {
                         "main-compile",
                         "fresh",
                         true,
-                        true),
+                        true,
+                        "",
+                        "",
+                        ""),
                 new IdeModel.GeneratedSourceInfo(
                         "generated-test-fixtures",
                         "generated-test-fixtures",
@@ -394,7 +397,10 @@ final class IdeModelServiceTest {
                         "test-compile",
                         "fresh",
                         true,
-                        true)),
+                        true,
+                        "",
+                        "",
+                        "")),
                 model.generatedSources());
         String json = new IdeModelJsonWriter().write(model);
         assertTrue(json.contains("\"generatedSources\": ["));

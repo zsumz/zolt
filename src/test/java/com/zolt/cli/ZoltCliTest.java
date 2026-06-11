@@ -200,6 +200,45 @@ final class ZoltCliTest {
     }
 
     @Test
+    void planShowsTypedOpenApiGenerationEvidenceWithoutExecutingIt() throws IOException {
+        Path projectDir = tempDir.resolve("plan-openapi-generated-source");
+        Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("src/main/openapi/public-api.yaml"), "openapi: 3.1.0\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-openapi-generated-source") + """
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                version = "7.11.0"
+
+                [generated.openapiPresets.spring-api]
+                generator = "spring"
+                library = "spring-boot"
+                options = { interfaceOnly = "true" }
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                preset = "spring-api"
+                options = { hideGenerationTimestamp = "true" }
+                """);
+
+        CommandResult result = execute("plan", "--target", "build", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("- generate-main-public-api [generated-source] blocked"));
+        assertTrue(result.stdout().contains("kind: openapi"));
+        assertTrue(result.stdout().contains("ownership: zolt-owned-openapi"));
+        assertTrue(result.stdout().contains("toolArtifact: org.openapitools:openapi-generator-cli:7.11.0"));
+        assertTrue(result.stdout().contains("toolFingerprint: "));
+        assertTrue(result.stdout().contains("optionsFingerprint: "));
+        assertTrue(result.stdout().contains("blocker openapi-generation-not-implemented"));
+        assertTrue(result.stdout().contains("Track  for OpenAPI generation execution"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void planReportsStaleGeneratedSourceOutputs() throws IOException {
         Path projectDir = tempDir.resolve("plan-stale-generated-source");
         Path input = projectDir.resolve("src/main/openapi/api.yaml");

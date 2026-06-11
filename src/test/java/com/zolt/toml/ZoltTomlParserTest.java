@@ -751,6 +751,60 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesOpenApiGeneratedSourceStepsWithMergedPresetSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "openapi-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                version = "7.11.0"
+
+                [generated.openapiPresets.spring-api]
+                generator = "spring"
+                library = "spring-boot"
+                apiPackage = "com.example.api"
+                modelPackage = "com.example.api.model"
+                options = { interfaceOnly = "true", useTags = "true" }
+                typeMappings = { OffsetDateTime = "Instant" }
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                preset = "spring-api"
+                modelPackage = "com.example.public.model"
+                options = { hideGenerationTimestamp = "true", useTags = "false" }
+                importMappings = { Instant = "java.time.Instant" }
+                """);
+
+        assertEquals(1, config.build().generatedMainSources().size());
+        var step = config.build().generatedMainSources().getFirst();
+        assertEquals("public-api", step.id());
+        assertEquals(GeneratedSourceKind.OPENAPI, step.kind());
+        assertEquals(List.of("src/main/openapi/public-api.yaml"), step.inputs());
+        assertTrue(step.required());
+        assertTrue(step.clean());
+        assertEquals("org.openapitools:openapi-generator-cli", step.openApi().toolCoordinate().orElseThrow());
+        assertEquals("7.11.0", step.openApi().toolVersion().orElseThrow());
+        assertEquals("spring-api", step.openApi().preset().orElseThrow());
+        assertEquals("spring", step.openApi().generator().orElseThrow());
+        assertEquals("spring-boot", step.openApi().library().orElseThrow());
+        assertEquals("com.example.api", step.openApi().apiPackage().orElseThrow());
+        assertEquals("com.example.public.model", step.openApi().modelPackage().orElseThrow());
+        assertEquals(Map.of(
+                "hideGenerationTimestamp", "true",
+                "interfaceOnly", "true",
+                "useTags", "false"), step.openApi().options());
+        assertEquals(Map.of("OffsetDateTime", "Instant"), step.openApi().typeMappings());
+        assertEquals(Map.of("Instant", "java.time.Instant"), step.openApi().importMappings());
+    }
+
+    @Test
     void rejectsGeneratedSourceCommands() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]

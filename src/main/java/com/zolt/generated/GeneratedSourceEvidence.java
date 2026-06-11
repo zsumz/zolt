@@ -15,7 +15,10 @@ public record GeneratedSourceEvidence(
         boolean inputsPresent,
         String freshness,
         String ownership,
-        String compileLane) {
+        String compileLane,
+        String toolArtifact,
+        String toolFingerprint,
+        String optionsFingerprint) {
     public GeneratedSourceEvidence {
         inputs = inputs == null ? List.of() : List.copyOf(inputs);
     }

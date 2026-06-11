@@ -18,6 +18,7 @@ import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -504,6 +505,49 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("clean = true"));
         assertEquals(config.build().generatedMainSources(), parsed.build().generatedMainSources());
         assertEquals(config.build().generatedTestSources(), parsed.build().generatedTestSources());
+    }
+
+    @Test
+    void writesOpenApiGeneratedSourceStepsWhenConfigured() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withBuildSettings(BuildSettings.defaults().withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "public-api",
+                                GeneratedSourceKind.OPENAPI,
+                                "java",
+                                "target/generated/sources/openapi/public-api",
+                                List.of("src/main/openapi/public-api.yaml"),
+                                true,
+                                true,
+                                new OpenApiGenerationSettings(
+                                        Optional.of("org.openapitools:openapi-generator-cli"),
+                                        Optional.of("7.11.0"),
+                                        Optional.empty(),
+                                        Optional.of("spring"),
+                                        Optional.of("spring-boot"),
+                                        Optional.of("com.example.api"),
+                                        Optional.of("com.example.api.model"),
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        Map.of("interfaceOnly", "true"),
+                                        Map.of(),
+                                        Map.of("OffsetDateTime", "Instant"),
+                                        Map.of()))),
+                        List.of()));
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[generated.openapiTool]\n"));
+        assertTrue(toml.contains("coordinate = \"org.openapitools:openapi-generator-cli\""));
+        assertTrue(toml.contains("version = \"7.11.0\""));
+        assertTrue(toml.contains("[generated.main.public-api]\n"));
+        assertTrue(toml.contains("kind = \"openapi\""));
+        assertTrue(toml.contains("input = \"src/main/openapi/public-api.yaml\""));
+        assertFalse(toml.contains("inputs = [\"src/main/openapi/public-api.yaml\"]"));
+        assertTrue(toml.contains("options = { \"interfaceOnly\" = \"true\" }"));
+        assertEquals(config.build().generatedMainSources(), parsed.build().generatedMainSources());
     }
 
     @Test

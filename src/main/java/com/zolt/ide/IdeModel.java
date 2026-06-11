@@ -124,7 +124,10 @@ public record IdeModel(
             String compileLane,
             String freshness,
             boolean outputExists,
-            boolean inputsPresent) {
+            boolean inputsPresent,
+            String toolArtifact,
+            String toolFingerprint,
+            String optionsFingerprint) {
         public GeneratedSourceInfo {
             inputs = List.copyOf(inputs);
         }

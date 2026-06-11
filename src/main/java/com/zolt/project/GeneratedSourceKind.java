@@ -5,7 +5,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 public enum GeneratedSourceKind {
-    DECLARED_ROOT("declared-root");
+    DECLARED_ROOT("declared-root"),
+    OPENAPI("openapi");
 
     private final String configValue;
 

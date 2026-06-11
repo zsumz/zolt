@@ -206,6 +206,9 @@ public final class PackageEvidenceManifestWriter {
                 stringField(json, 3, "ownership", evidence.ownership(), true);
                 stringField(json, 3, "compileLane", evidence.compileLane(), true);
                 stringField(json, 3, "freshness", evidence.freshness(), true);
+                stringField(json, 3, "toolArtifact", evidence.toolArtifact(), true);
+                stringField(json, 3, "toolFingerprint", evidence.toolFingerprint(), true);
+                stringField(json, 3, "optionsFingerprint", evidence.optionsFingerprint(), true);
                 fingerprintedPaths(json, 3, "inputs", projectRoot, evidence.inputs(), false);
                 indent(json, 2).append("}");
                 if (index + 1 < generatedSources.size()) {

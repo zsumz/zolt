@@ -9,7 +9,19 @@ public record GeneratedSourceStep(
         String output,
         List<String> inputs,
         boolean required,
-        boolean clean) {
+        boolean clean,
+        OpenApiGenerationSettings openApi) {
+    public GeneratedSourceStep(
+            String id,
+            GeneratedSourceKind kind,
+            String language,
+            String output,
+            List<String> inputs,
+            boolean required,
+            boolean clean) {
+        this(id, kind, language, output, inputs, required, clean, OpenApiGenerationSettings.empty());
+    }
+
     public GeneratedSourceStep {
         id = requireNonBlank(id, "Generated source step id");
         kind = kind == null ? GeneratedSourceKind.DECLARED_ROOT : kind;
@@ -19,6 +31,7 @@ public record GeneratedSourceStep(
         for (String input : inputs) {
             requireNonBlank(input, "Generated source input");
         }
+        openApi = openApi == null ? OpenApiGenerationSettings.empty() : openApi;
     }
 
     private static String requireNonBlank(String value, String name) {

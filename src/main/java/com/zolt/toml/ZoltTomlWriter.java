@@ -10,8 +10,10 @@ import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
+import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -1010,8 +1012,24 @@ public final class ZoltTomlWriter {
     }
 
     private static void writeGeneratedSources(StringBuilder toml, BuildSettings build) {
+        writeOpenApiTool(toml, build);
         writeGeneratedSourceScope(toml, "generated.main", build.generatedMainSources());
         writeGeneratedSourceScope(toml, "generated.test", build.generatedTestSources());
+    }
+
+    private static void writeOpenApiTool(StringBuilder toml, BuildSettings build) {
+        Optional<OpenApiGenerationSettings> settings = java.util.stream.Stream
+                .concat(build.generatedMainSources().stream(), build.generatedTestSources().stream())
+                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .map(GeneratedSourceStep::openApi)
+                .filter(openApi -> openApi.toolCoordinate().isPresent() || openApi.toolVersion().isPresent())
+                .findFirst();
+        if (settings.isEmpty()) {
+            return;
+        }
+        toml.append("\n[generated.openapiTool]\n");
+        settings.orElseThrow().toolCoordinate().ifPresent(coordinate -> writeAssignment(toml, "coordinate", coordinate));
+        settings.orElseThrow().toolVersion().ifPresent(version -> writeAssignment(toml, "version", version));
     }
 
     private static void writeGeneratedSourceScope(
@@ -1028,13 +1046,42 @@ public final class ZoltTomlWriter {
             writeAssignment(toml, "kind", step.kind().configValue());
             writeAssignment(toml, "language", step.language());
             writeAssignment(toml, "output", step.output());
-            writeStringArray(toml, "inputs", step.inputs());
+            if (step.kind() == GeneratedSourceKind.OPENAPI) {
+                writeAssignment(toml, "input", step.inputs().getFirst());
+                writeOpenApiSettings(toml, step.openApi());
+            } else {
+                writeStringArray(toml, "inputs", step.inputs());
+            }
             if (!step.required()) {
                 writeAssignment(toml, "required", false);
             }
-            if (step.clean()) {
+            if (step.kind() == GeneratedSourceKind.OPENAPI && !step.clean()) {
+                writeAssignment(toml, "clean", false);
+            } else if (step.kind() != GeneratedSourceKind.OPENAPI && step.clean()) {
                 writeAssignment(toml, "clean", true);
             }
+        }
+    }
+
+    private static void writeOpenApiSettings(StringBuilder toml, OpenApiGenerationSettings settings) {
+        settings.generator().ifPresent(value -> writeAssignment(toml, "generator", value));
+        settings.library().ifPresent(value -> writeAssignment(toml, "library", value));
+        settings.apiPackage().ifPresent(value -> writeAssignment(toml, "apiPackage", value));
+        settings.modelPackage().ifPresent(value -> writeAssignment(toml, "modelPackage", value));
+        settings.invokerPackage().ifPresent(value -> writeAssignment(toml, "invokerPackage", value));
+        settings.config().ifPresent(value -> writeAssignment(toml, "config", value));
+        settings.templateDir().ifPresent(value -> writeAssignment(toml, "templateDir", value));
+        if (!settings.options().isEmpty()) {
+            writeInlineStringMap(toml, "options", settings.options());
+        }
+        if (!settings.globalProperties().isEmpty()) {
+            writeInlineStringMap(toml, "globalProperties", settings.globalProperties());
+        }
+        if (!settings.typeMappings().isEmpty()) {
+            writeInlineStringMap(toml, "typeMappings", settings.typeMappings());
+        }
+        if (!settings.importMappings().isEmpty()) {
+            writeInlineStringMap(toml, "importMappings", settings.importMappings());
         }
     }
 

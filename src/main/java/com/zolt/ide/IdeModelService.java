@@ -417,7 +417,10 @@ public final class IdeModelService {
                 evidence.compileLane(),
                 evidence.freshness(),
                 evidence.outputExists(),
-                evidence.inputsPresent());
+                evidence.inputsPresent(),
+                evidence.toolArtifact(),
+                evidence.toolFingerprint(),
+                evidence.optionsFingerprint());
     }
 
     private List<IdeModel.ResourceRoot> resourceRoots(Path root, ProjectConfig config) {

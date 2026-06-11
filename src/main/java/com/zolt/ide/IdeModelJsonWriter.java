@@ -158,7 +158,10 @@ public final class IdeModelJsonWriter {
                 stringField(json, 3, "compileLane", generatedSource.compileLane(), true);
                 stringField(json, 3, "freshness", generatedSource.freshness(), true);
                 field(json, 3, "outputExists", generatedSource.outputExists(), true);
-                field(json, 3, "inputsPresent", generatedSource.inputsPresent(), false);
+                field(json, 3, "inputsPresent", generatedSource.inputsPresent(), true);
+                stringField(json, 3, "toolArtifact", generatedSource.toolArtifact(), true);
+                stringField(json, 3, "toolFingerprint", generatedSource.toolFingerprint(), true);
+                stringField(json, 3, "optionsFingerprint", generatedSource.optionsFingerprint(), false);
                 indent(json, 2).append("}");
                 if (index < generatedSources.size() - 1) {
                     json.append(',');

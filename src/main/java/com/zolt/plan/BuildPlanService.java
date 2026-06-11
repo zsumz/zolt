@@ -232,10 +232,17 @@ public final class BuildPlanService {
         GeneratedSourceStep step = evidence.step();
         List<PlanBlocker> blockers = new ArrayList<>();
         if (step.kind() != GeneratedSourceKind.DECLARED_ROOT) {
-            blockers.add(new PlanBlocker(
-                    "unsupported-generated-source-kind",
-                    "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
-                    "Use declared-root or track typed generators in  and ."));
+            if (step.kind() == GeneratedSourceKind.OPENAPI) {
+                blockers.add(new PlanBlocker(
+                        "openapi-generation-not-implemented",
+                        "OpenAPI generated-source step `" + step.id() + "` is typed but generation execution is not implemented yet.",
+                        "Track  for OpenAPI generation execution, or use kind = \"declared-root\" with committed generated sources for now."));
+            } else {
+                blockers.add(new PlanBlocker(
+                        "unsupported-generated-source-kind",
+                        "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
+                        "Use declared-root or track typed generators in  and ."));
+            }
         }
         if (!"java".equals(step.language())) {
             blockers.add(new PlanBlocker(
@@ -287,7 +294,10 @@ public final class BuildPlanService {
                         "ownership: " + evidence.ownership(),
                         "outputExists: " + evidence.outputExists(),
                         "inputsPresent: " + evidence.inputsPresent(),
-                        "freshness: " + evidence.freshness()),
+                        "freshness: " + evidence.freshness(),
+                        "toolArtifact: " + evidence.toolArtifact(),
+                        "toolFingerprint: " + evidence.toolFingerprint(),
+                        "optionsFingerprint: " + evidence.optionsFingerprint()),
                 blockers);
     }
 
