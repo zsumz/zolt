@@ -100,6 +100,44 @@ final class ReleaseArchiveServiceTest {
     }
 
     @Test
+    void assemblesTarGzArchiveForLinuxArm64Target() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+
+        ReleaseArchiveResult result = service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_ARM64,
+                binary,
+                Path.of("dist"));
+
+        assertEquals(projectDir.resolve("dist/zolt-0.1.0-linux-arm64.tar.gz"), result.archivePath());
+        assertEquals("zolt-0.1.0-linux-arm64", result.rootDirectory());
+        assertTrue(Files.readString(result.manifestPath()).contains("\"target\": \"linux-arm64\""));
+        assertEquals(List.of(
+                "zolt-0.1.0-linux-arm64/",
+                "zolt-0.1.0-linux-arm64/bin/",
+                "zolt-0.1.0-linux-arm64/bin/zolt",
+                "zolt-0.1.0-linux-arm64/README.md",
+                "zolt-0.1.0-linux-arm64/LICENSE"), tarEntries(result.archivePath()));
+    }
+
+    @Test
+    void currentTargetInfersLinuxArm64FromAarch64() {
+        String originalOs = System.getProperty("os.name");
+        String originalArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "aarch64");
+
+            assertEquals(ReleaseTarget.LINUX_ARM64, ReleaseTarget.current());
+        } finally {
+            restoreSystemProperty("os.name", originalOs);
+            restoreSystemProperty("os.arch", originalArch);
+        }
+    }
+
+    @Test
     void manifestIsDeterministicAndListsExistingArchives() throws IOException {
         writeProjectFiles();
         Path unixBinary = writeBinary("target/native/zolt");
@@ -159,6 +197,7 @@ final class ReleaseArchiveServiceTest {
 
         assertTrue(exception.getMessage().contains("Unknown release target `solaris-sparc`"));
         assertTrue(exception.getMessage().contains("macos-arm64"));
+        assertTrue(exception.getMessage().contains("linux-arm64"));
         assertTrue(exception.getMessage().contains("windows-x64"));
     }
 
@@ -233,5 +272,13 @@ final class ReleaseArchiveServiceTest {
             return parts[1];
         }
         return parts[0];
+    }
+
+    private static void restoreSystemProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
     }
 }

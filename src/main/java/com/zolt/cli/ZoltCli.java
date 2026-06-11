@@ -2272,7 +2272,7 @@ public final class ZoltCli implements Runnable {
 
     @Command(name = "release-archive", description = "Assemble a release archive from a native binary.")
     public static final class ReleaseArchiveCommand implements Runnable {
-        @Option(names = "--target", description = "Release target. Supported: macos-arm64, macos-x64, linux-x64, windows-x64.")
+        @Option(names = "--target", description = "Release target. Supported: macos-arm64, macos-x64, linux-arm64, linux-x64, windows-x64.")
         private String target;
 
         @Option(names = "--binary", description = "Path to the native binary to archive.")

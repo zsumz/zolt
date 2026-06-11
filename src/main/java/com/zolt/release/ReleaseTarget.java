@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 public enum ReleaseTarget {
     MACOS_ARM64("macos-arm64", ".tar.gz", "zolt"),
     MACOS_X64("macos-x64", ".tar.gz", "zolt"),
+    LINUX_ARM64("linux-arm64", ".tar.gz", "zolt"),
     LINUX_X64("linux-x64", ".tar.gz", "zolt"),
     WINDOWS_X64("windows-x64", ".zip", "zolt.exe");
 
@@ -54,6 +55,9 @@ public enum ReleaseTarget {
         if ((os.contains("mac") || os.contains("darwin")) && x64(arch)) {
             return MACOS_X64;
         }
+        if (os.contains("linux") && arm64(arch)) {
+            return LINUX_ARM64;
+        }
         if (os.contains("linux") && x64(arch)) {
             return LINUX_X64;
         }
@@ -76,5 +80,9 @@ public enum ReleaseTarget {
 
     private static boolean x64(String arch) {
         return arch.equals("x86_64") || arch.equals("amd64");
+    }
+
+    private static boolean arm64(String arch) {
+        return arch.equals("aarch64") || arch.equals("arm64");
     }
 }
