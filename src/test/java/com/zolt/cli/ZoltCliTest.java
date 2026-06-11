@@ -16,6 +16,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -190,6 +191,29 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("mode: dry-run"));
         assertTrue(result.stdout().contains("- publish-dry-run [publish] planned"));
         assertTrue(result.stdout().contains("mode: dry-run"));
+    }
+
+    @Test
+    void planReportsStaleGeneratedSourceOutputs() throws IOException {
+        Path projectDir = tempDir.resolve("plan-stale-generated-source");
+        Path input = projectDir.resolve("src/main/openapi/api.yaml");
+        Path output = projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java");
+        Files.createDirectories(input.getParent());
+        Files.createDirectories(output.getParent());
+        Files.writeString(input, "openapi: 3.1.0\n");
+        Files.writeString(output, "package com.example; public final class GeneratedApi {}\n");
+        Files.setLastModifiedTime(output, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(input, FileTime.fromMillis(2_000));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-stale-generated-source")
+                + generatedSourceConfig("main", "openapi", "target/generated/sources/openapi", "src/main/openapi/api.yaml", true));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute("plan", "--target", "build", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("freshness: stale"));
+        assertTrue(result.stdout().contains("blocker stale-generated-source-output"));
+        assertTrue(result.stdout().contains("Required generated source output `target/generated/sources/openapi` is older"));
     }
 
     @Test
@@ -2867,6 +2891,7 @@ final class ZoltCliTest {
                       "generated": true
                     }
                   ],
+                  "generatedSources": [],
                   "resourceRoots": [
                     {
                       "id": "main-resources",

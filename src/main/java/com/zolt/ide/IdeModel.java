@@ -13,6 +13,7 @@ public record IdeModel(
         PackageInfo packageInfo,
         PathInfo paths,
         List<SourceRoot> sourceRoots,
+        List<GeneratedSourceInfo> generatedSources,
         List<ResourceRoot> resourceRoots,
         OutputInfo outputs,
         DependencyInfo dependencies,
@@ -21,6 +22,7 @@ public record IdeModel(
         List<Diagnostic> diagnostics) {
     public IdeModel {
         sourceRoots = List.copyOf(sourceRoots);
+        generatedSources = List.copyOf(generatedSources);
         resourceRoots = List.copyOf(resourceRoots);
         diagnostics = List.copyOf(diagnostics);
     }
@@ -106,6 +108,26 @@ public record IdeModel(
             String language,
             Path path,
             boolean generated) {
+    }
+
+    public record GeneratedSourceInfo(
+            String id,
+            String sourceRootId,
+            String scope,
+            String kind,
+            String language,
+            Path output,
+            List<Path> inputs,
+            boolean required,
+            boolean clean,
+            String ownership,
+            String compileLane,
+            String freshness,
+            boolean outputExists,
+            boolean inputsPresent) {
+        public GeneratedSourceInfo {
+            inputs = List.copyOf(inputs);
+        }
     }
 
     public record ResourceRoot(

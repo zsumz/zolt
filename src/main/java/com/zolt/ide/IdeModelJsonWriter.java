@@ -24,6 +24,8 @@ public final class IdeModelJsonWriter {
         comma(json);
         sourceRoots(json, model.sourceRoots());
         comma(json);
+        generatedSources(json, model.generatedSources());
+        comma(json);
         resourceRoots(json, model.resourceRoots());
         comma(json);
         outputs(json, model.outputs());
@@ -127,6 +129,38 @@ public final class IdeModelJsonWriter {
                 field(json, 3, "generated", root.generated(), false);
                 indent(json, 2).append("}");
                 if (index < roots.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, 1);
+        }
+        json.append("]");
+    }
+
+    private static void generatedSources(StringBuilder json, List<IdeModel.GeneratedSourceInfo> generatedSources) {
+        indent(json, 1).append("\"generatedSources\": [");
+        if (!generatedSources.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < generatedSources.size(); index++) {
+                IdeModel.GeneratedSourceInfo generatedSource = generatedSources.get(index);
+                indent(json, 2).append("{\n");
+                stringField(json, 3, "id", generatedSource.id(), true);
+                stringField(json, 3, "sourceRootId", generatedSource.sourceRootId(), true);
+                stringField(json, 3, "scope", generatedSource.scope(), true);
+                stringField(json, 3, "kind", generatedSource.kind(), true);
+                stringField(json, 3, "language", generatedSource.language(), true);
+                pathField(json, 3, "output", generatedSource.output(), true);
+                pathArrayField(json, 3, "inputs", generatedSource.inputs(), true);
+                field(json, 3, "required", generatedSource.required(), true);
+                field(json, 3, "clean", generatedSource.clean(), true);
+                stringField(json, 3, "ownership", generatedSource.ownership(), true);
+                stringField(json, 3, "compileLane", generatedSource.compileLane(), true);
+                stringField(json, 3, "freshness", generatedSource.freshness(), true);
+                field(json, 3, "outputExists", generatedSource.outputExists(), true);
+                field(json, 3, "inputsPresent", generatedSource.inputsPresent(), false);
+                indent(json, 2).append("}");
+                if (index < generatedSources.size() - 1) {
                     json.append(',');
                 }
                 json.append('\n');

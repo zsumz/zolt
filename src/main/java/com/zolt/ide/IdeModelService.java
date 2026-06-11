@@ -3,6 +3,8 @@ package com.zolt.ide;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.generated.GeneratedSourceEvidence;
+import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -40,6 +42,7 @@ public final class IdeModelService {
     private final ClasspathBuilder classpathBuilder;
     private final ResolveService resolveService;
     private final QuarkusPlanService quarkusPlanService;
+    private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
 
     public IdeModelService() {
         this(
@@ -47,7 +50,8 @@ public final class IdeModelService {
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new ResolveService(),
-                new QuarkusPlanService());
+                new QuarkusPlanService(),
+                new GeneratedSourceEvidenceService());
     }
 
     IdeModelService(
@@ -55,12 +59,14 @@ public final class IdeModelService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             ResolveService resolveService,
-            QuarkusPlanService quarkusPlanService) {
+            QuarkusPlanService quarkusPlanService,
+            GeneratedSourceEvidenceService generatedSourceEvidenceService) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.resolveService = resolveService;
         this.quarkusPlanService = quarkusPlanService;
+        this.generatedSourceEvidenceService = generatedSourceEvidenceService;
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot) {
@@ -111,6 +117,7 @@ public final class IdeModelService {
                         packageInfo(root, config),
                         new IdeModel.PathInfo(root, configPath, lockfilePath),
                         sourceRoots(root, config),
+                        generatedSources(root, config),
                         resourceRoots(root, config),
                         outputInfo(root, config),
                         dependencyInfo(config),
@@ -153,6 +160,7 @@ public final class IdeModelService {
                 packageInfo(root, config),
                 new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
                 sourceRoots(root, config),
+                generatedSources(root, config),
                 resourceRoots(root, config),
                 outputInfo(root, config),
                 dependencyInfo(config),
@@ -384,6 +392,33 @@ public final class IdeModelService {
     }
 
     private record GeneratedSourceRoot(String id, Path path) {}
+
+    private List<IdeModel.GeneratedSourceInfo> generatedSources(Path root, ProjectConfig config) {
+        if (config == null) {
+            return List.of();
+        }
+        return generatedSourceEvidenceService.evidence(root, config.build()).stream()
+                .map(this::generatedSourceInfo)
+                .toList();
+    }
+
+    private IdeModel.GeneratedSourceInfo generatedSourceInfo(GeneratedSourceEvidence evidence) {
+        return new IdeModel.GeneratedSourceInfo(
+                evidence.id(),
+                evidence.sourceRootId(),
+                evidence.scope(),
+                evidence.step().kind().configValue(),
+                evidence.step().language(),
+                evidence.output(),
+                evidence.inputs(),
+                evidence.step().required(),
+                evidence.step().clean(),
+                evidence.ownership(),
+                evidence.compileLane(),
+                evidence.freshness(),
+                evidence.outputExists(),
+                evidence.inputsPresent());
+    }
 
     private List<IdeModel.ResourceRoot> resourceRoots(Path root, ProjectConfig config) {
         if (config == null) {

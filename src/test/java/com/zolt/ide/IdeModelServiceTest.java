@@ -7,6 +7,7 @@ import com.zolt.quarkus.QuarkusAugmentationMetadataWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -309,7 +310,22 @@ final class IdeModelServiceTest {
     @Test
     void exportsDeclaredGeneratedSourceRootsForEditors() throws IOException {
         Path projectDir = tempDir.resolve("generated-sources");
-        Files.createDirectories(projectDir);
+        Path mainInput = projectDir.resolve("src/main/openapi/api.yaml");
+        Path mainOutput = projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java");
+        Path testInput = projectDir.resolve("src/test/fixtures/schema.json");
+        Path testOutput = projectDir.resolve("target/generated/test-sources/fixtures/com/example/GeneratedFixture.java");
+        Files.createDirectories(mainInput.getParent());
+        Files.createDirectories(mainOutput.getParent());
+        Files.createDirectories(testInput.getParent());
+        Files.createDirectories(testOutput.getParent());
+        Files.writeString(mainInput, "openapi: 3.1.0\n");
+        Files.writeString(mainOutput, "package com.example; public final class GeneratedApi {}\n");
+        Files.writeString(testInput, "{}\n");
+        Files.writeString(testOutput, "package com.example; public final class GeneratedFixture {}\n");
+        Files.setLastModifiedTime(mainInput, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(mainOutput, FileTime.fromMillis(2_000));
+        Files.setLastModifiedTime(testInput, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(testOutput, FileTime.fromMillis(2_000));
         Files.writeString(projectDir.resolve("zolt.toml"), """
                 [project]
                 name = "generated-sources"
@@ -328,6 +344,8 @@ final class IdeModelServiceTest {
                 language = "java"
                 output = "target/generated/test-sources/fixtures"
                 inputs = ["src/test/fixtures/schema.json"]
+                required = false
+                clean = true
                 """);
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
@@ -346,9 +364,45 @@ final class IdeModelServiceTest {
                 "java",
                 root.resolve("target/generated/test-sources/fixtures"),
                 true)));
+        assertEquals(List.of(
+                new IdeModel.GeneratedSourceInfo(
+                        "generated-main-openapi",
+                        "generated-main-openapi",
+                        "main",
+                        "declared-root",
+                        "java",
+                        root.resolve("target/generated/sources/openapi"),
+                        List.of(root.resolve("src/main/openapi/api.yaml")),
+                        true,
+                        false,
+                        "external-declared-root",
+                        "main-compile",
+                        "fresh",
+                        true,
+                        true),
+                new IdeModel.GeneratedSourceInfo(
+                        "generated-test-fixtures",
+                        "generated-test-fixtures",
+                        "test",
+                        "declared-root",
+                        "java",
+                        root.resolve("target/generated/test-sources/fixtures"),
+                        List.of(root.resolve("src/test/fixtures/schema.json")),
+                        false,
+                        true,
+                        "zolt-owned-clean",
+                        "test-compile",
+                        "fresh",
+                        true,
+                        true)),
+                model.generatedSources());
         String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"generatedSources\": ["));
         assertTrue(json.contains("\"id\": \"generated-main-openapi\""));
         assertTrue(json.contains("\"id\": \"generated-test-fixtures\""));
+        assertTrue(json.contains("\"ownership\": \"external-declared-root\""));
+        assertTrue(json.contains("\"compileLane\": \"test-compile\""));
+        assertTrue(json.contains("\"freshness\": \"fresh\""));
     }
 
     @Test
