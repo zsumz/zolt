@@ -88,6 +88,10 @@ import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.publish.PublishDryRunFormatter;
+import com.zolt.publish.PublishDryRunPlan;
+import com.zolt.publish.PublishDryRunService;
+import com.zolt.publish.PublishException;
 import com.zolt.quality.QualityCheckFormatter;
 import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckReport;
@@ -190,6 +194,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
                 ZoltCli.PackageCommand.class,
+                ZoltCli.PublishCommand.class,
                 ZoltCli.RunPackageCommand.class,
                 ZoltCli.NativeCommand.class,
                 ZoltCli.NativeSmokeCommand.class,
@@ -1996,6 +2001,39 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "package", workingDirectory, timingOptions, timings);
+            }
+        }
+    }
+
+    @Command(name = "publish", description = "Preview publication of Zolt-produced artifacts.")
+    public static final class PublishCommand implements Callable<Integer> {
+        @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
+        private boolean dryRun;
+
+        @Option(names = "--cwd", hidden = true)
+        private Path workingDirectory = Path.of(".");
+
+        @Spec
+        private CommandSpec spec;
+
+        @Override
+        public Integer call() {
+            if (!dryRun) {
+                spec.commandLine().getOut().println("""
+                        zolt publish upload is not available yet.
+                        Run `zolt publish --dry-run` to preview artifact routing, evidence, and blockers without uploading.
+                        Track upload implementation in followUps/-add-maven-publication.md.
+                        """.stripTrailing());
+                return 1;
+            }
+            try {
+                PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
+                printAndFlush(spec, PublishDryRunFormatter.text(plan));
+                return plan.ok() ? 0 : 1;
+            } catch (PublishException | ZoltConfigException | PackageException exception) {
+                spec.commandLine().getErr().println("error: " + exception.getMessage());
+                spec.commandLine().getErr().flush();
+                return 1;
             }
         }
     }

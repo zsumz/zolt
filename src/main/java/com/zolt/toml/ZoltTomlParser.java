@@ -61,6 +61,7 @@ public final class ZoltTomlParser {
             "generated",
             "compiler",
             "package",
+            "publish",
             "framework",
             "native");
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");

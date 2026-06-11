@@ -103,3 +103,14 @@ license = "Apache-2.0"
 developers = ["Zolt maintainers"]
 scm = "https://example.com/zolt-enterprise-canary.git"
 issues = "https://example.com/zolt-enterprise-canary/issues"
+
+[publish]
+releaseRepository = "company-releases"
+snapshotRepository = "company-snapshots"
+artifacts = ["main"]
+
+[publish.repositories.company-releases]
+url = "https://repo.example.test/releases"
+
+[publish.repositories.company-snapshots]
+url = "https://repo.example.test/snapshots"

@@ -100,6 +100,7 @@ final class ZoltCliTest {
                 "run",
                 "test",
                 "package",
+                "publish",
                 "run-package",
                 "native",
                 "native-smoke",
@@ -633,6 +634,105 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("error package-contents target/demo-0.1.0.jar.zolt-package.json Package evidence manifest is stale for `target/demo-0.1.0.jar`."));
         assertTrue(result.stdout().contains("next: Run `zolt package` to regenerate the artifact and evidence manifest."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishWithoutDryRunExplainsUploadIsFutureWork() {
+        CommandResult result = execute("publish");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("zolt publish upload is not available yet."));
+        assertTrue(result.stdout().contains("zolt publish --dry-run"));
+        assertTrue(result.stdout().contains("followUps/-add-maven-publication.md"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishDryRunRoutesReleaseArtifactWithoutUploading() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-release");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [publish]
+                releaseRepository = "company-releases"
+                snapshotRepository = "company-snapshots"
+                artifacts = ["main"]
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+
+                [publish.repositories.company-snapshots]
+                url = "https://repo.example.test/snapshots"
+                """);
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        CommandResult packageResult = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, packageResult.exitCode());
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Zolt publish dry run"));
+        assertTrue(result.stdout().contains("Coordinate: com.example:demo:0.1.0"));
+        assertTrue(result.stdout().contains("Version kind: release"));
+        assertTrue(result.stdout().contains("Target repository: company-releases"));
+        assertTrue(result.stdout().contains("Target URL: https://repo.example.test/releases"));
+        assertTrue(result.stdout().contains("Artifact path: target/demo-0.1.0.jar"));
+        assertTrue(result.stdout().contains("Evidence: target/demo-0.1.0.jar.zolt-package.json"));
+        assertTrue(result.stdout().contains("Status: ready"));
+        assertTrue(result.stdout().contains("No upload was performed."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void publishDryRunRoutesSnapshotAndReportsMissingCredentialsAndArtifact() throws IOException {
+        Path projectDir = tempDir.resolve("publish-dry-run-snapshot-blocked");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml"))
+                .replace("version = \"0.1.0\"", "version = \"0.1.0-SNAPSHOT\"") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+                snapshotRepository = "company-snapshots"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+
+                [publish.repositories.company-snapshots]
+                url = "https://repo.example.test/snapshots"
+                credentials = "publish-creds"
+
+                [repositoryCredentials.publish-creds]
+                usernameEnv = "ZOLT_TEST_MISSING_PUBLISH_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_PUBLISH_PASSWORD"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "publish",
+                "--dry-run",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Version kind: snapshot"));
+        assertTrue(result.stdout().contains("Target repository: company-snapshots"));
+        assertTrue(result.stdout().contains("Status: blocked"));
+        assertTrue(result.stdout().contains("missing credential environment variables ZOLT_TEST_MISSING_PUBLISH_USERNAME, ZOLT_TEST_MISSING_PUBLISH_PASSWORD"));
+        assertTrue(result.stdout().contains("missing artifact: run `zolt package`"));
+        assertFalse(result.stdout().contains("repo.example.test/snapshots@"));
         assertEquals("", result.stderr());
     }
 
