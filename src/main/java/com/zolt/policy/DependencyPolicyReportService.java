@@ -34,31 +34,44 @@ public final class DependencyPolicyReportService {
             ProjectConfig config,
             ZoltLockfile lockfile) {
         Map<String, List<DependencyPolicyReport.ManagedPackageDiagnostic>> packagesByPlatform = new LinkedHashMap<>();
+        Map<String, Optional<String>> versionRefsByPlatform = new LinkedHashMap<>();
         config.platforms().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> packagesByPlatform.put(entry.getKey() + ":" + entry.getValue(), new ArrayList<>()));
+                .forEach(entry -> {
+                    String platform = entry.getKey() + ":" + entry.getValue();
+                    packagesByPlatform.put(platform, new ArrayList<>());
+                    versionRefsByPlatform.put(platform, platformVersionRef(config, entry.getKey()));
+                });
 
         lockfile.packages().stream()
                 .sorted(Comparator.comparing(DependencyPolicyReportService::packageSortKey))
                 .forEach(lockPackage -> {
                     for (String policy : lockPackage.policies()) {
-                        managedPlatform(policy).ifPresent(platform -> packagesByPlatform
-                                .computeIfAbsent(platform, ignored -> new ArrayList<>())
-                                .add(new DependencyPolicyReport.ManagedPackageDiagnostic(
-                                        lockPackage.packageId().toString(),
-                                        lockPackage.version(),
-                                        lockPackage.scope().lockfileName(),
-                                        policy)));
+                        managedPlatform(policy).ifPresent(platform -> {
+                            versionRefsByPlatform.putIfAbsent(platform, Optional.empty());
+                            packagesByPlatform.computeIfAbsent(platform, ignored -> new ArrayList<>())
+                                    .add(new DependencyPolicyReport.ManagedPackageDiagnostic(
+                                            lockPackage.packageId().toString(),
+                                            lockPackage.version(),
+                                            lockPackage.scope().lockfileName(),
+                                            policy));
+                        });
                     }
                 });
 
         return packagesByPlatform.entrySet().stream()
                 .map(entry -> new DependencyPolicyReport.PlatformPolicyDiagnostic(
                         entry.getKey(),
+                        versionRefsByPlatform.getOrDefault(entry.getKey(), Optional.empty()),
                         entry.getValue().stream()
                                 .sorted(Comparator.comparing(DependencyPolicyReportService::managedPackageSortKey))
                                 .toList()))
                 .toList();
+    }
+
+    private static Optional<String> platformVersionRef(ProjectConfig config, String coordinate) {
+        DependencyMetadata metadata = config.dependencyMetadata().get(DependencyMetadata.key("platforms", coordinate));
+        return metadata == null ? Optional.empty() : Optional.ofNullable(metadata.versionRef());
     }
 
     private static Optional<String> managedPlatform(String policy) {

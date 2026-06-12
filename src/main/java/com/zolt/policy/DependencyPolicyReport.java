@@ -19,8 +19,10 @@ public record DependencyPolicyReport(
 
     public record PlatformPolicyDiagnostic(
             String platform,
+            Optional<String> versionRef,
             List<ManagedPackageDiagnostic> packages) {
         public PlatformPolicyDiagnostic {
+            versionRef = versionRef == null ? Optional.empty() : versionRef;
             packages = packages == null ? List.of() : List.copyOf(packages);
         }
     }

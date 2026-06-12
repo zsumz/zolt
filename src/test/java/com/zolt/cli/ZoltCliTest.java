@@ -4071,7 +4071,7 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Dependency policy diagnostics"));
         assertTrue(result.stdout().contains("Platforms: 1"));
-        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-dependencies:4.0.6 manages 1 selected packages"));
+        assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-dependencies:4.0.6 versionRef=spring-boot manages 1 selected packages"));
         assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-starter-web:4.0.6 [compile] managed-version: org.springframework.boot:spring-boot-starter-web -> 4.0.6 from org.springframework.boot:spring-boot-dependencies:4.0.6"));
         assertTrue(result.stdout().contains("org.apache.tomcat.embed:tomcat-embed-core strict 10.1.40 versionRef=tomcat-baseline status=pinned selected=10.1.40 source=org.springframework.boot:spring-boot-starter-web:4.0.6 reason=Container baseline"));
         assertTrue(result.stdout().contains("com.example:unused strict 1.0.0 status=unmatched"));
@@ -4093,6 +4093,7 @@ final class ZoltCliTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().startsWith("{\n  \"projectRoot\": \""));
         assertTrue(result.stdout().contains("\"platform\": \"org.springframework.boot:spring-boot-dependencies:4.0.6\""));
+        assertTrue(result.stdout().contains("\"versionRef\": \"spring-boot\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"org.apache.tomcat.embed:tomcat-embed-core\""));
         assertTrue(result.stdout().contains("\"versionRef\": \"tomcat-baseline\""));
         assertTrue(result.stdout().contains("\"status\": \"pinned\""));
@@ -7061,12 +7062,13 @@ final class ZoltCliTest {
                 [repositories]
                 test = "https://repo.maven.apache.org/maven2"
 
-                [platforms]
-                "org.springframework.boot:spring-boot-dependencies" = "4.0.6"
-
                 [versions]
+                "spring-boot" = "4.0.6"
                 "direct-lib" = "1.2.3"
                 "tomcat-baseline" = "10.1.40"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = { versionRef = "spring-boot" }
 
                 [dependencies]
                 "com.example:direct-lib" = { versionRef = "direct-lib" }

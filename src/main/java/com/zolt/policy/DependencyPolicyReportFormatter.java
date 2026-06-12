@@ -13,7 +13,9 @@ public final class DependencyPolicyReportFormatter {
         for (DependencyPolicyReport.PlatformPolicyDiagnostic platform : report.platforms()) {
             output.append("- ")
                     .append(platform.platform())
-                    .append(" manages ")
+                    .append(" ");
+            platform.versionRef().ifPresent(versionRef -> output.append("versionRef=").append(versionRef).append(" "));
+            output.append("manages ")
                     .append(platform.packages().size())
                     .append(" selected packages")
                     .append('\n');
@@ -107,6 +109,7 @@ public final class DependencyPolicyReportFormatter {
                 DependencyPolicyReport.PlatformPolicyDiagnostic platform = platforms.get(index);
                 indent(json, 2).append("{\n");
                 stringField(json, 3, "platform", platform.platform(), true);
+                optionalStringField(json, 3, "versionRef", platform.versionRef(), true);
                 managedPackages(json, platform.packages());
                 json.append('\n');
                 indent(json, 2).append("}");
