@@ -176,16 +176,19 @@ public final class BuildService {
                         javacOptions(config));
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
-        long fingerprintWriteStarted = System.nanoTime();
-        buildFingerprintService.writeMainCompileFingerprint(
-                projectDirectory,
-                config,
-                lockfilePath,
-                sources,
-                classpaths,
-                outputDirectory,
-                generatedSourcesDirectory);
-        long fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+        long fingerprintWriteNanos = 0L;
+        if (!compileSkipped) {
+            long fingerprintWriteStarted = System.nanoTime();
+            buildFingerprintService.writeMainCompileFingerprint(
+                    projectDirectory,
+                    config,
+                    lockfilePath,
+                    sources,
+                    classpaths,
+                    outputDirectory,
+                    generatedSourcesDirectory);
+            fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+        }
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),

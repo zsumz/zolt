@@ -195,9 +195,13 @@ final class TestCompileServiceTest {
         assertTrue(second.testCompilationSkipped());
         assertEquals(1, second.sourceCount());
         assertTrue(second.buildResult().mainFingerprintCheckNanos() > 0);
-        assertTrue(second.buildResult().mainFingerprintWriteNanos() > 0);
+        assertTrue(first.buildResult().mainFingerprintWriteNanos() > 0);
+        assertEquals(0L, second.buildResult().mainFingerprintWriteNanos());
         assertTrue(second.testFingerprintCheckNanos() > 0);
-        assertTrue(second.testFingerprintWriteNanos() > 0);
+        assertTrue(first.testFingerprintWriteNanos() > 0);
+        assertEquals(0L, second.testFingerprintWriteNanos());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/.zolt-build-main.fingerprint.state")));
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/.zolt-build-test.fingerprint.state")));
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
     }
 

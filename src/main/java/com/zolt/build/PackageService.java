@@ -50,7 +50,9 @@ public final class PackageService {
     private static final String LEGACY_BOOT_WAR_LAUNCHER = "org.springframework.boot.loader.WarLauncher";
     private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
             ".zolt-build-main.fingerprint",
-            ".zolt-build-test.fingerprint");
+            ".zolt-build-main.fingerprint.state",
+            ".zolt-build-test.fingerprint",
+            ".zolt-build-test.fingerprint.state");
     private static final PackageId SPRING_BOOT_PACKAGE = new PackageId("org.springframework.boot", "spring-boot");
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
             "org.springframework.boot",

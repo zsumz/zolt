@@ -9,21 +9,32 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class BuildFingerprintService {
     private static final String VERSION = "1";
+    private static final String STATE_VERSION = "1";
     private static final String MAIN_FILE_NAME = ".zolt-build-main.fingerprint";
     private static final String TEST_FILE_NAME = ".zolt-build-test.fingerprint";
+    private static final String STATE_SUFFIX = ".state";
     private static final List<String> OUTPUT_DIRECTORY_NAMES = List.of("build", "target");
-    private static final List<String> LOCAL_FINGERPRINT_FILES = List.of(MAIN_FILE_NAME, TEST_FILE_NAME);
+    private static final List<String> LOCAL_FINGERPRINT_FILES = List.of(
+            MAIN_FILE_NAME,
+            TEST_FILE_NAME,
+            MAIN_FILE_NAME + STATE_SUFFIX,
+            TEST_FILE_NAME + STATE_SUFFIX);
 
     public boolean isMainCompileCurrent(
             Path projectDirectory,
@@ -170,7 +181,30 @@ public final class BuildFingerprintService {
             return false;
         }
         try {
-            return Files.readString(fingerprintPath).equals(fingerprint(
+            String existing = Files.readString(fingerprintPath);
+            Optional<FingerprintState> state = readState(fingerprintPath);
+            if (state.isPresent() && state.orElseThrow().matchesFingerprint(existing)) {
+                try {
+                    return existing.equals(fingerprint(
+                            projectDirectory,
+                            config,
+                            lockfilePath,
+                            sourceRoots,
+                            resourceRoots,
+                            sources,
+                            generatedSteps,
+                            compileClasspath,
+                            processorClasspath,
+                            outputDirectory,
+                            outputDirectoryName,
+                            generatedSourcesDirectory,
+                            state.orElseThrow(),
+                            null));
+                } catch (FingerprintStateMiss ignored) {
+                    // Fall back to the full content-hash path below.
+                }
+            }
+            return existing.equals(fingerprint(
                     projectDirectory,
                     config,
                     lockfilePath,
@@ -182,7 +216,9 @@ public final class BuildFingerprintService {
                     processorClasspath,
                     outputDirectory,
                     outputDirectoryName,
-                    generatedSourcesDirectory));
+                    generatedSourcesDirectory,
+                    null,
+                    null));
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not read build fingerprint at "
@@ -209,22 +245,24 @@ public final class BuildFingerprintService {
         Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
         try {
             Files.createDirectories(fingerprintPath.getParent());
-            Files.writeString(
-                    fingerprintPath,
-                    fingerprint(
-                            projectDirectory,
-                            config,
-                            lockfilePath,
-                            sourceRoots,
-                            resourceRoots,
-                            sources,
-                            generatedSteps,
-                            compileClasspath,
-                            processorClasspath,
-                            outputDirectory,
-                            outputDirectoryName,
-                            generatedSourcesDirectory),
-                    StandardCharsets.UTF_8);
+            Map<Path, CachedFileHash> state = new LinkedHashMap<>();
+            String content = fingerprint(
+                    projectDirectory,
+                    config,
+                    lockfilePath,
+                    sourceRoots,
+                    resourceRoots,
+                    sources,
+                    generatedSteps,
+                    compileClasspath,
+                    processorClasspath,
+                    outputDirectory,
+                    outputDirectoryName,
+                    generatedSourcesDirectory,
+                    null,
+                    state);
+            Files.writeString(fingerprintPath, content, StandardCharsets.UTF_8);
+            writeState(fingerprintPath, content, state);
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not write build fingerprint at "
@@ -236,6 +274,10 @@ public final class BuildFingerprintService {
 
     private static Path fingerprintPath(Path outputDirectory, String fileName) {
         return outputDirectory.resolve(fileName);
+    }
+
+    private static Path statePath(Path fingerprintPath) {
+        return fingerprintPath.resolveSibling(fingerprintPath.getFileName() + STATE_SUFFIX);
     }
 
     private String fingerprint(
@@ -250,44 +292,58 @@ public final class BuildFingerprintService {
             Classpath processorClasspath,
             Path outputDirectory,
             String outputDirectoryName,
-            Path generatedSourcesDirectory) {
+            Path generatedSourcesDirectory,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
         line(content, "version", VERSION);
         line(content, "projectConfig", sha256(config.toString().getBytes(StandardCharsets.UTF_8)));
-        line(content, "zoltToml", fileHash(projectRoot.resolve("zolt.toml")));
-        line(content, "lockfile", fileHash(lockfilePath));
+        line(content, "zoltToml", fileHash(projectRoot.resolve("zolt.toml"), cachedState, collectedState));
+        line(content, "lockfile", fileHash(lockfilePath, cachedState, collectedState));
         section(content, "sourceRoots", sourceRoots.stream().map(BuildFingerprintService::normalize).toList());
         line(content, "outputDirectory", normalize(outputDirectoryName));
         line(content, "generatedSourcesDirectory", relative(projectRoot, generatedSourcesDirectory));
         line(content, "compilerSettings", config.compilerSettings().toString());
-        section(content, "compileClasspath", classpathEntries(compileClasspath));
-        section(content, "processorClasspath", classpathEntries(processorClasspath));
-        section(content, "sources", fileEntries(projectRoot, sources));
-        section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps));
-        section(content, "resources", resourceEntries(projectRoot, resourceRoots, config.build()));
-        section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory));
+        section(content, "compileClasspath", classpathEntries(compileClasspath, cachedState, collectedState));
+        section(content, "processorClasspath", classpathEntries(processorClasspath, cachedState, collectedState));
+        section(content, "sources", fileEntries(projectRoot, sources, cachedState, collectedState));
+        section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
+        section(content, "resources", resourceEntries(projectRoot, resourceRoots, config.build(), cachedState, collectedState));
+        section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory, cachedState, collectedState));
         section(content, "expectedClasses", expectedClassEntries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
     }
 
-    private static List<String> classpathEntries(Classpath classpath) {
+    private static List<String> classpathEntries(
+            Classpath classpath,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> path + "|" + fileHash(path))
+                .map(path -> path + "|" + fileHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static List<String> fileEntries(Path projectRoot, List<Path> files) {
+    private static List<String> fileEntries(
+            Path projectRoot,
+            List<Path> files,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         return files.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> relative(projectRoot, path) + "|" + fileHash(path))
+                .map(path -> relative(projectRoot, path) + "|" + fileHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static List<String> resourceEntries(Path projectRoot, List<String> configuredRoots, BuildSettings settings) {
+    private static List<String> resourceEntries(
+            Path projectRoot,
+            List<String> configuredRoots,
+            BuildSettings settings,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         List<Path> resources = new ArrayList<>();
         Path mainOutput = projectRoot.resolve(settings.output()).normalize();
         Path testOutput = projectRoot.resolve(settings.testOutput()).normalize();
@@ -312,20 +368,28 @@ public final class BuildFingerprintService {
                         exception);
             }
         }
-        return fileEntries(projectRoot, resources);
+        return fileEntries(projectRoot, resources, cachedState, collectedState);
     }
 
-    private static List<String> generatedSourceInputEntries(Path projectRoot, List<GeneratedSourceStep> steps) {
+    private static List<String> generatedSourceInputEntries(
+            Path projectRoot,
+            List<GeneratedSourceStep> steps,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         return steps.stream()
                 .flatMap(step -> step.inputs().stream())
                 .map(input -> projectRoot.resolve(input).normalize())
                 .distinct()
                 .sorted()
-                .map(path -> relative(projectRoot, path) + "|" + fileHash(path))
+                .map(path -> relative(projectRoot, path) + "|" + fileHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static List<String> generatedSourceEntries(Path projectRoot, Path generatedSourcesDirectory) {
+    private static List<String> generatedSourceEntries(
+            Path projectRoot,
+            Path generatedSourcesDirectory,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         if (!Files.isDirectory(generatedSourcesDirectory)) {
             return List.of();
         }
@@ -335,7 +399,9 @@ public final class BuildFingerprintService {
                     paths.filter(Files::isRegularFile)
                             .map(Path::normalize)
                             .filter(path -> path.getFileName().toString().endsWith(".java"))
-                            .toList());
+                            .toList(),
+                    cachedState,
+                    collectedState);
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not fingerprint generated sources under "
@@ -434,15 +500,30 @@ public final class BuildFingerprintService {
     }
 
     private static String fileHash(Path path) {
+        return fileHash(path, null, null);
+    }
+
+    private static String fileHash(
+            Path path,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         Path normalized = path.toAbsolutePath().normalize();
         if (Files.isDirectory(normalized)) {
-            return directoryHash(normalized);
+            return directoryHash(normalized, cachedState, collectedState);
         }
         if (!Files.isRegularFile(normalized)) {
             return "missing";
         }
+        if (cachedState != null) {
+            return cachedState.hashIfCurrent(normalized)
+                    .orElseThrow(FingerprintStateMiss::new);
+        }
         try {
-            return sha256(Files.readAllBytes(normalized));
+            String hash = sha256(Files.readAllBytes(normalized));
+            if (collectedState != null) {
+                collectedState.put(normalized, CachedFileHash.read(normalized, hash));
+            }
+            return hash;
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not fingerprint file "
@@ -452,7 +533,10 @@ public final class BuildFingerprintService {
         }
     }
 
-    private static String directoryHash(Path directory) {
+    private static String directoryHash(
+            Path directory,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
         try (Stream<Path> paths = Files.walk(directory)) {
             StringBuilder content = new StringBuilder();
             paths.filter(Files::isRegularFile)
@@ -462,7 +546,7 @@ public final class BuildFingerprintService {
                     .forEach(path -> content
                             .append(directory.relativize(path).toString().replace('\\', '/'))
                             .append('|')
-                            .append(fileHash(path))
+                            .append(fileHash(path, cachedState, collectedState))
                             .append('\n'));
             return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
         } catch (IOException exception) {
@@ -486,5 +570,140 @@ public final class BuildFingerprintService {
     private static boolean startsWithOutputDirectorySegment(Path relativePath) {
         return relativePath.getNameCount() > 0
                 && OUTPUT_DIRECTORY_NAMES.contains(relativePath.getName(0).toString());
+    }
+
+    private static Optional<FingerprintState> readState(Path fingerprintPath) {
+        Path statePath = statePath(fingerprintPath);
+        if (!Files.isRegularFile(statePath)) {
+            return Optional.empty();
+        }
+        try {
+            return FingerprintState.parse(Files.readAllLines(statePath, StandardCharsets.UTF_8));
+        } catch (IOException exception) {
+            throw new BuildException(
+                    "Could not read build fingerprint state at "
+                            + statePath
+                            + ". Delete the file or rerun `zolt build` to refresh it.",
+                    exception);
+        }
+    }
+
+    private static void writeState(Path fingerprintPath, String fingerprint, Map<Path, CachedFileHash> collectedState) {
+        Path statePath = statePath(fingerprintPath);
+        try {
+            Files.writeString(
+                    statePath,
+                    FingerprintState.format(fingerprint, collectedState),
+                    StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new BuildException(
+                    "Could not write build fingerprint state at "
+                            + statePath
+                            + ". Check that the build output directory is writable.",
+                    exception);
+        }
+    }
+
+    private record CachedFileHash(
+            Path path,
+            long size,
+            long lastModifiedNanos,
+            String hash) {
+        static CachedFileHash read(Path path, String hash) throws IOException {
+            Path normalized = path.toAbsolutePath().normalize();
+            BasicFileAttributes attributes = Files.readAttributes(normalized, BasicFileAttributes.class);
+            return new CachedFileHash(
+                    normalized,
+                    attributes.size(),
+                    attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS),
+                    hash);
+        }
+
+        boolean isCurrent() {
+            try {
+                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                return attributes.isRegularFile()
+                        && attributes.size() == size
+                        && attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS) == lastModifiedNanos;
+            } catch (IOException exception) {
+                return false;
+            }
+        }
+    }
+
+    private record FingerprintState(
+            String fingerprintSha256,
+            Map<Path, CachedFileHash> files) {
+        static Optional<FingerprintState> parse(List<String> lines) {
+            if (lines.size() < 2 || !("version=" + STATE_VERSION).equals(lines.get(0))) {
+                return Optional.empty();
+            }
+            String fingerprintSha256 = value(lines.get(1), "fingerprintSha256=");
+            if (fingerprintSha256 == null || fingerprintSha256.isBlank()) {
+                return Optional.empty();
+            }
+            Map<Path, CachedFileHash> files = new LinkedHashMap<>();
+            for (int index = 2; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\t", -1);
+                if (parts.length != 5 || !"file".equals(parts[0])) {
+                    return Optional.empty();
+                }
+                try {
+                    Path path = Path.of(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8))
+                            .toAbsolutePath()
+                            .normalize();
+                    long size = Long.parseLong(parts[2]);
+                    long lastModifiedNanos = Long.parseLong(parts[3]);
+                    files.put(path, new CachedFileHash(path, size, lastModifiedNanos, parts[4]));
+                } catch (IllegalArgumentException exception) {
+                    return Optional.empty();
+                }
+            }
+            return Optional.of(new FingerprintState(fingerprintSha256, Map.copyOf(files)));
+        }
+
+        static String format(String fingerprint, Map<Path, CachedFileHash> files) {
+            StringBuilder content = new StringBuilder();
+            line(content, "version", STATE_VERSION);
+            line(content, "fingerprintSha256", sha256(fingerprint.getBytes(StandardCharsets.UTF_8)));
+            files.values().stream()
+                    .sorted(Comparator.comparing(cached -> cached.path().toString()))
+                    .forEach(cached -> content
+                            .append("file")
+                            .append('\t')
+                            .append(Base64.getUrlEncoder().withoutPadding().encodeToString(
+                                    cached.path().toString().getBytes(StandardCharsets.UTF_8)))
+                            .append('\t')
+                            .append(cached.size())
+                            .append('\t')
+                            .append(cached.lastModifiedNanos())
+                            .append('\t')
+                            .append(cached.hash())
+                            .append('\n'));
+            return content.toString();
+        }
+
+        boolean matchesFingerprint(String fingerprint) {
+            return fingerprintSha256.equals(sha256(fingerprint.getBytes(StandardCharsets.UTF_8)));
+        }
+
+        Optional<String> hashIfCurrent(Path path) {
+            CachedFileHash file = files.get(path.toAbsolutePath().normalize());
+            if (file == null || !file.isCurrent()) {
+                return Optional.empty();
+            }
+            return Optional.of(file.hash());
+        }
+
+        private static String value(String line, String prefix) {
+            return line.startsWith(prefix) ? line.substring(prefix.length()) : null;
+        }
+    }
+
+    private static final class FingerprintStateMiss extends RuntimeException {
     }
 }

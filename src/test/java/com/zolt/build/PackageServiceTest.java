@@ -3,6 +3,7 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -75,6 +76,8 @@ final class PackageServiceTest {
         try (JarFile jar = new JarFile(result.jarPath().toFile())) {
             assertNotNull(jar.getEntry("META-INF/MANIFEST.MF"));
             assertNotNull(jar.getEntry("com/example/Main.class"));
+            assertNull(jar.getEntry(".zolt-build-main.fingerprint"));
+            assertNull(jar.getEntry(".zolt-build-main.fingerprint.state"));
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals("1.0", attributes.getValue(Attributes.Name.MANIFEST_VERSION));
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));

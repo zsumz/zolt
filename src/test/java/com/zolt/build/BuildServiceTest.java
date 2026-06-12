@@ -156,8 +156,30 @@ final class BuildServiceTest {
         assertTrue(second.mainCompilationSkipped());
         assertEquals(1, second.sourceCount());
         assertTrue(second.mainFingerprintCheckNanos() > 0);
-        assertTrue(second.mainFingerprintWriteNanos() > 0);
+        assertTrue(first.mainFingerprintWriteNanos() > 0);
+        assertEquals(0L, second.mainFingerprintWriteNanos());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/.zolt-build-main.fingerprint.state")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void staleMainFingerprintStateFallsBackToFullFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(projectDir.resolve("target/classes/.zolt-build-main.fingerprint.state"), "version=stale\n");
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertTrue(result.mainCompilationSkipped());
     }
 
     @Test

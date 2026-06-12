@@ -164,17 +164,20 @@ public final class TestCompileService {
                         groovyCompileClasspath,
                         outputDirectory);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config);
-        long fingerprintWriteStarted = System.nanoTime();
-        buildFingerprintService.writeTestCompileFingerprint(
-                projectDirectory,
-                config,
-                lockfilePath,
-                sources,
-                testCompileClasspath,
-                classpaths.testProcessor(),
-                outputDirectory,
-                generatedSourcesDirectory);
-        long fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+        long fingerprintWriteNanos = 0L;
+        if (!compileSkipped) {
+            long fingerprintWriteStarted = System.nanoTime();
+            buildFingerprintService.writeTestCompileFingerprint(
+                    projectDirectory,
+                    config,
+                    lockfilePath,
+                    sources,
+                    testCompileClasspath,
+                    classpaths.testProcessor(),
+                    outputDirectory,
+                    generatedSourcesDirectory);
+            fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+        }
         return new TestCompileResult(
                 buildResult,
                 javacResult.sourceCount() + groovyResult.sourceCount(),
