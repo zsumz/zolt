@@ -35,12 +35,14 @@ public record DependencyPolicyReport(
             String coordinate,
             String kind,
             String requestedVersion,
+            Optional<String> versionRef,
             Optional<String> selectedVersion,
             String status,
             Optional<String> source,
             Optional<String> reason,
             List<String> policies) {
         public ConstraintPolicyDiagnostic {
+            versionRef = versionRef == null ? Optional.empty() : versionRef;
             selectedVersion = selectedVersion == null ? Optional.empty() : selectedVersion;
             source = source == null ? Optional.empty() : source;
             reason = reason == null ? Optional.empty() : reason;

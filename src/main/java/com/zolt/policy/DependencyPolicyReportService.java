@@ -110,6 +110,7 @@ public final class DependencyPolicyReportService {
                 constraint.coordinate(),
                 constraint.kind().configValue(),
                 constraint.version(),
+                constraint.versionRef(),
                 selectedVersion,
                 status,
                 source,

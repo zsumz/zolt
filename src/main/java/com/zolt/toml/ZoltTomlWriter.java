@@ -1389,10 +1389,12 @@ public final class ZoltTomlWriter {
         if (!policy.constraints().isEmpty()) {
             toml.append("[dependencyConstraints]\n");
             for (DependencyConstraint constraint : sortedDependencyConstraints(policy.constraints()).values()) {
-                toml.append(quote(constraint.coordinate())).append(" = { version = ")
-                        .append(quote(constraint.version()))
-                        .append(", kind = ")
-                        .append(quote(constraint.kind().configValue()));
+                toml.append(quote(constraint.coordinate())).append(" = { ");
+                constraint.versionRef()
+                        .ifPresentOrElse(
+                                versionRef -> toml.append("versionRef = ").append(quote(versionRef)),
+                                () -> toml.append("version = ").append(quote(constraint.version())));
+                toml.append(", kind = ").append(quote(constraint.kind().configValue()));
                 constraint.reason().ifPresent(reason -> toml.append(", reason = ").append(quote(reason)));
                 toml.append(" }\n");
             }

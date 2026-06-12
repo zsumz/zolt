@@ -1090,6 +1090,18 @@ public final class ZoltTomlParser {
         return Optional.of(requiredVersionRef(table, section, versionAliases));
     }
 
+    private static Optional<String> optionalVersionRef(
+            TomlTable table,
+            String section,
+            Map<String, String> versionAliases) {
+        Object rawVersionRef = table.get(List.of("versionRef"));
+        if (rawVersionRef == null) {
+            return Optional.empty();
+        }
+        requiredVersionRef(table, section, versionAliases);
+        return Optional.of((String) rawVersionRef);
+    }
+
     private static String requiredVersionRef(
             TomlTable table,
             String section,
@@ -1274,6 +1286,10 @@ public final class ZoltTomlParser {
                     constraintTable,
                     "dependencyConstraints." + coordinate,
                     versionAliases);
+            Optional<String> versionRef = optionalVersionRef(
+                    constraintTable,
+                    "dependencyConstraints." + coordinate,
+                    versionAliases);
             String kindValue = stringOrDefault(
                     constraintTable,
                     "dependencyConstraints." + coordinate,
@@ -1292,6 +1308,7 @@ public final class ZoltTomlParser {
                             "Missing required field [dependencyConstraints."
                                     + coordinate
                                     + "].version in zolt.toml. Add version or versionRef.")),
+                    versionRef,
                     kind,
                     optionalString(constraintTable, "dependencyConstraints." + coordinate, "reason")));
         }

@@ -4073,7 +4073,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Platforms: 1"));
         assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-dependencies:4.0.6 manages 1 selected packages"));
         assertTrue(result.stdout().contains("org.springframework.boot:spring-boot-starter-web:4.0.6 [compile] managed-version: org.springframework.boot:spring-boot-starter-web -> 4.0.6 from org.springframework.boot:spring-boot-dependencies:4.0.6"));
-        assertTrue(result.stdout().contains("org.apache.tomcat.embed:tomcat-embed-core strict 10.1.40 status=pinned selected=10.1.40 source=org.springframework.boot:spring-boot-starter-web:4.0.6 reason=Container baseline"));
+        assertTrue(result.stdout().contains("org.apache.tomcat.embed:tomcat-embed-core strict 10.1.40 versionRef=tomcat-baseline status=pinned selected=10.1.40 source=org.springframework.boot:spring-boot-starter-web:4.0.6 reason=Container baseline"));
         assertTrue(result.stdout().contains("com.example:unused strict 1.0.0 status=unmatched"));
         assertTrue(result.stdout().contains("com.example:direct-lib status=direct-conflict reason=Direct dependency conflict fixture"));
         assertTrue(result.stdout().contains("commons-logging:commons-logging status=matched reason=Use jcl-over-slf4j"));
@@ -4094,6 +4094,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().startsWith("{\n  \"projectRoot\": \""));
         assertTrue(result.stdout().contains("\"platform\": \"org.springframework.boot:spring-boot-dependencies:4.0.6\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"org.apache.tomcat.embed:tomcat-embed-core\""));
+        assertTrue(result.stdout().contains("\"versionRef\": \"tomcat-baseline\""));
         assertTrue(result.stdout().contains("\"status\": \"pinned\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"com.example:unused\""));
         assertTrue(result.stdout().contains("\"status\": \"unmatched\""));
@@ -7065,6 +7066,7 @@ final class ZoltCliTest {
 
                 [versions]
                 "direct-lib" = "1.2.3"
+                "tomcat-baseline" = "10.1.40"
 
                 [dependencies]
                 "com.example:direct-lib" = { versionRef = "direct-lib" }
@@ -7079,7 +7081,7 @@ final class ZoltCliTest {
 
                 [dependencyConstraints]
                 "com.example:unused" = { version = "1.0.0", kind = "strict", reason = "Unused baseline" }
-                "org.apache.tomcat.embed:tomcat-embed-core" = { version = "10.1.40", kind = "strict", reason = "Container baseline" }
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat-baseline", kind = "strict", reason = "Container baseline" }
 
                 [build]
                 source = "src/main/java"

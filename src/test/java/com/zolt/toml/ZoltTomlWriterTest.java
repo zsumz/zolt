@@ -289,6 +289,33 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesDependencyConstraintVersionRefsWhenPresent() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [versions]
+                tomcat = "10.1.40"
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict", reason = "Container baseline" }
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"org.apache.tomcat.embed:tomcat-embed-core\" = { versionRef = \"tomcat\", kind = \"strict\", reason = \"Container baseline\" }"));
+        DependencyConstraint constraint = parsed.dependencyPolicy()
+                .constraints()
+                .get("org.apache.tomcat.embed:tomcat-embed-core");
+        assertEquals("10.1.40", constraint.version());
+        assertEquals("tomcat", constraint.versionRef().orElseThrow());
+    }
+
+    @Test
     void writesApiDependencies() {
         ProjectConfig config = parser.parse("""
                 [project]

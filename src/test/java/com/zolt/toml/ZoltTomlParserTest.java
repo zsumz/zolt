@@ -519,6 +519,13 @@ final class ZoltTomlParserTest {
                         .constraints()
                         .get("org.apache.tomcat.embed:tomcat-embed-core")
                         .version());
+        assertEquals(
+                "tomcat",
+                config.dependencyPolicy()
+                        .constraints()
+                        .get("org.apache.tomcat.embed:tomcat-embed-core")
+                        .versionRef()
+                        .orElseThrow());
     }
 
     @Test

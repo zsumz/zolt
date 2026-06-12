@@ -37,8 +37,9 @@ public final class DependencyPolicyReportFormatter {
                     .append(" ")
                     .append(constraint.kind())
                     .append(" ")
-                    .append(constraint.requestedVersion())
-                    .append(" status=")
+                    .append(constraint.requestedVersion());
+            constraint.versionRef().ifPresent(versionRef -> output.append(" versionRef=").append(versionRef));
+            output.append(" status=")
                     .append(constraint.status());
             constraint.selectedVersion().ifPresent(version -> output.append(" selected=").append(version));
             constraint.source().ifPresent(source -> output.append(" source=").append(source));
@@ -155,6 +156,7 @@ public final class DependencyPolicyReportFormatter {
                 stringField(json, 3, "coordinate", constraint.coordinate(), true);
                 stringField(json, 3, "kind", constraint.kind(), true);
                 stringField(json, 3, "requestedVersion", constraint.requestedVersion(), true);
+                optionalStringField(json, 3, "versionRef", constraint.versionRef(), true);
                 optionalStringField(json, 3, "selectedVersion", constraint.selectedVersion(), true);
                 stringField(json, 3, "status", constraint.status(), true);
                 optionalStringField(json, 3, "source", constraint.source(), true);
