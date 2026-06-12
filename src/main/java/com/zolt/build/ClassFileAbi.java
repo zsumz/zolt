@@ -7,6 +7,7 @@ import java.util.Optional;
 public record ClassFileAbi(
         String binaryName,
         Path classFile,
+        Optional<String> sourceFileName,
         int accessFlags,
         Optional<String> superName,
         List<String> interfaces,
@@ -21,6 +22,7 @@ public record ClassFileAbi(
             throw new BuildException("Class file ABI path is required.");
         }
         classFile = classFile.toAbsolutePath().normalize();
+        sourceFileName = sourceFileName == null ? Optional.empty() : sourceFileName;
         superName = superName == null ? Optional.empty() : superName;
         interfaces = interfaces == null ? List.of() : interfaces.stream().sorted().toList();
         referencedClasses = referencedClasses == null ? List.of() : referencedClasses.stream().sorted().distinct().toList();

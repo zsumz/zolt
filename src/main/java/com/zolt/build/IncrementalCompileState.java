@@ -15,6 +15,7 @@ public record IncrementalCompileState(
         Path generatedSourcesDirectory,
         String compilerSettingsHash,
         String buildFingerprintSha256,
+        List<String> fallbackReasons,
         List<String> sourceRoots,
         List<String> generatedSourceRoots,
         List<ClasspathEntry> compileClasspath,
@@ -38,6 +39,7 @@ public record IncrementalCompileState(
         buildFingerprintSha256 = requireText(
                 buildFingerprintSha256,
                 "Incremental compile state build fingerprint hash is required.");
+        fallbackReasons = sortedStrings(fallbackReasons);
         sourceRoots = sortedStrings(sourceRoots);
         generatedSourceRoots = sortedStrings(generatedSourceRoots);
         compileClasspath = sortedEntries(compileClasspath);

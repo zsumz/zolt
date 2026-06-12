@@ -21,6 +21,7 @@ public final class TestCompileService {
     private final JavacRunner javacRunner;
     private final GroovyCompilerRunner groovyCompilerRunner;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
+    private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
 
     public TestCompileService() {
         this(new JdkDetector());
@@ -35,7 +36,8 @@ public final class TestCompileService {
                 jdkDetector,
                 new JavacRunner(),
                 new GroovyCompilerRunner(),
-                new OpenApiGeneratedSourceService(jdkDetector));
+                new OpenApiGeneratedSourceService(jdkDetector),
+                new IncrementalCompileStateRecorder());
     }
 
     TestCompileService(
@@ -47,6 +49,28 @@ public final class TestCompileService {
             JavacRunner javacRunner,
             GroovyCompilerRunner groovyCompilerRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService) {
+        this(
+                buildService,
+                sourceDiscoverer,
+                resourceCopier,
+                buildFingerprintService,
+                jdkDetector,
+                javacRunner,
+                groovyCompilerRunner,
+                openApiGeneratedSourceService,
+                new IncrementalCompileStateRecorder());
+    }
+
+    TestCompileService(
+            BuildService buildService,
+            SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
+            BuildFingerprintService buildFingerprintService,
+            JdkChecker jdkDetector,
+            JavacRunner javacRunner,
+            GroovyCompilerRunner groovyCompilerRunner,
+            OpenApiGeneratedSourceService openApiGeneratedSourceService,
+            IncrementalCompileStateRecorder incrementalCompileStateRecorder) {
         this.buildService = buildService;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
@@ -55,6 +79,7 @@ public final class TestCompileService {
         this.javacRunner = javacRunner;
         this.groovyCompilerRunner = groovyCompilerRunner;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
+        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
     }
 
     TestCompileService(
@@ -146,6 +171,9 @@ public final class TestCompileService {
                 outputDirectory,
                 generatedSourcesDirectory);
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
+        if (!compileSkipped) {
+            incrementalCompileStateRecorder.deleteTestState(outputDirectory);
+        }
         JavacResult javacResult = compileSkipped
                 ? new JavacResult(sources.testSources().size(), outputDirectory, "")
                 : javacRunner.compile(
@@ -177,6 +205,14 @@ public final class TestCompileService {
                     outputDirectory,
                     generatedSourcesDirectory);
             fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+            incrementalCompileStateRecorder.recordTest(
+                    projectDirectory,
+                    config,
+                    sources,
+                    testCompileClasspath,
+                    classpaths.testProcessor(),
+                    outputDirectory,
+                    generatedSourcesDirectory);
         }
         return new TestCompileResult(
                 buildResult,

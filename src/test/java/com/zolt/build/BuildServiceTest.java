@@ -72,6 +72,10 @@ final class BuildServiceTest {
                 "target/generated/sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
+        IncrementalCompileState state = new IncrementalCompileStateCodec()
+                .read(projectDir.resolve("target/classes/.zolt-incremental-main.state"))
+                .orElseThrow();
+        assertTrue(state.fallbackReasons().contains("processor-classpath"));
     }
 
     @Test
@@ -160,6 +164,84 @@ final class BuildServiceTest {
         assertEquals(0L, second.mainFingerprintWriteNanos());
         assertTrue(Files.exists(projectDir.resolve("target/classes/.zolt-build-main.fingerprint.state")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void fullMainCompileWritesIncrementalOwnershipState() throws IOException {
+        writeLockfile("version = 1\n");
+        Path mainSource = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return Helper.message();
+                    }
+
+                    static final class Nested {
+                    }
+                }
+                """);
+        source("src/main/java/com/example/Helper.java", """
+                package com.example;
+
+                public final class Helper {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        IncrementalCompileState state = new IncrementalCompileStateCodec()
+                .read(projectDir.resolve("target/classes/.zolt-incremental-main.state"))
+                .orElseThrow();
+        IncrementalCompileState.SourceRecord mainRecord = state.sources().stream()
+                .filter(source -> source.path().equals(mainSource.toAbsolutePath().normalize()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("main", state.scope());
+        assertTrue(state.fallbackReasons().isEmpty());
+        assertTrue(mainRecord.declaredTypes().contains("com.example.Main"));
+        assertTrue(mainRecord.classOutputs().contains(projectDir
+                .resolve("target/classes/com/example/Main.class")
+                .toAbsolutePath()
+                .normalize()));
+        assertTrue(mainRecord.classOutputs().contains(projectDir
+                .resolve("target/classes/com/example/Main$Nested.class")
+                .toAbsolutePath()
+                .normalize()));
+        assertTrue(state.classes().stream().anyMatch(classRecord -> classRecord.binaryName().equals("com.example.Main")));
+        assertTrue(state.reverseDependencies().containsKey("com.example.Helper"));
+    }
+
+    @Test
+    void failedMainCompileDeletesIncrementalOwnershipState() throws IOException {
+        writeLockfile("version = 1\n");
+        Path mainSource = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/.zolt-incremental-main.state")));
+        Files.writeString(mainSource, """
+                package com.example;
+
+                public final class Main {
+                    broken
+                }
+                """);
+
+        assertThrows(
+                JavacException.class,
+                () -> buildService.build(projectDir, config(), projectDir.resolve("cache")));
+
+        assertFalse(Files.exists(projectDir.resolve("target/classes/.zolt-incremental-main.state")));
     }
 
     @Test

@@ -30,6 +30,7 @@ public final class BuildService {
     private final JdkChecker jdkDetector;
     private final JavacRunner javacRunner;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
+    private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
 
     public BuildService() {
         this(new JdkDetector());
@@ -46,7 +47,8 @@ public final class BuildService {
                 new BuildFingerprintService(),
                 jdkDetector,
                 new JavacRunner(),
-                new OpenApiGeneratedSourceService(jdkDetector));
+                new OpenApiGeneratedSourceService(jdkDetector),
+                new IncrementalCompileStateRecorder());
     }
 
     BuildService(
@@ -60,6 +62,32 @@ public final class BuildService {
             JdkChecker jdkDetector,
             JavacRunner javacRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService) {
+        this(
+                resolveService,
+                lockfileReader,
+                classpathBuilder,
+                sourceDiscoverer,
+                resourceCopier,
+                buildMetadataGenerator,
+                buildFingerprintService,
+                jdkDetector,
+                javacRunner,
+                openApiGeneratedSourceService,
+                new IncrementalCompileStateRecorder());
+    }
+
+    BuildService(
+            ResolveService resolveService,
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder,
+            SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
+            BuildMetadataGenerator buildMetadataGenerator,
+            BuildFingerprintService buildFingerprintService,
+            JdkChecker jdkDetector,
+            JavacRunner javacRunner,
+            OpenApiGeneratedSourceService openApiGeneratedSourceService,
+            IncrementalCompileStateRecorder incrementalCompileStateRecorder) {
         this.resolveService = resolveService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
@@ -70,6 +98,7 @@ public final class BuildService {
         this.jdkDetector = jdkDetector;
         this.javacRunner = javacRunner;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
+        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -164,6 +193,9 @@ public final class BuildService {
                 outputDirectory,
                 generatedSourcesDirectory);
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
+        if (!compileSkipped) {
+            incrementalCompileStateRecorder.deleteMainState(outputDirectory);
+        }
         JavacResult javacResult = compileSkipped
                 ? new JavacResult(sources.mainSources().size(), outputDirectory, "")
                 : javacRunner.compile(
@@ -188,6 +220,13 @@ public final class BuildService {
                     outputDirectory,
                     generatedSourcesDirectory);
             fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
+            incrementalCompileStateRecorder.recordMain(
+                    projectDirectory,
+                    config,
+                    sources,
+                    classpaths,
+                    outputDirectory,
+                    generatedSourcesDirectory);
         }
         return new BuildResult(
                 resolveResult,

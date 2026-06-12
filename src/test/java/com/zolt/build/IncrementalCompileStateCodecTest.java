@@ -22,6 +22,7 @@ final class IncrementalCompileStateCodecTest {
                 project.resolve("target/generated/sources/annotations"),
                 "compiler-hash",
                 "fingerprint-hash",
+                List.of("processor-classpath"),
                 List.of("src/main/java"),
                 List.of("target/generated/sources/openapi"),
                 List.of(new IncrementalCompileState.ClasspathEntry(project.resolve("lib/b.jar"), "hash-b")),

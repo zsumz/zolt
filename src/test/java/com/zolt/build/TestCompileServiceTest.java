@@ -206,6 +206,46 @@ final class TestCompileServiceTest {
     }
 
     @Test
+    void fullTestCompileWritesIncrementalOwnershipState() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path testSource = source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return new Helper().toString();
+                    }
+
+                    static final class Nested {
+                    }
+                }
+                """);
+        source("src/test/java/com/example/Helper.java", "package com.example; final class Helper {}\n");
+
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        IncrementalCompileState state = new IncrementalCompileStateCodec()
+                .read(projectDir.resolve("target/test-classes/.zolt-incremental-test.state"))
+                .orElseThrow();
+        IncrementalCompileState.SourceRecord testRecord = state.sources().stream()
+                .filter(source -> source.path().equals(testSource.toAbsolutePath().normalize()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("test", state.scope());
+        assertTrue(state.fallbackReasons().isEmpty());
+        assertTrue(testRecord.classOutputs().contains(projectDir
+                .resolve("target/test-classes/com/example/MainTest.class")
+                .toAbsolutePath()
+                .normalize()));
+        assertTrue(testRecord.classOutputs().contains(projectDir
+                .resolve("target/test-classes/com/example/MainTest$Nested.class")
+                .toAbsolutePath()
+                .normalize()));
+        assertTrue(state.reverseDependencies().containsKey("com.example.Helper"));
+    }
+
+    @Test
     void testSourceChangeInvalidatesTestCompileFingerprint() throws IOException {
         writeLockfile("version = 1\n");
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
@@ -387,6 +427,11 @@ final class TestCompileServiceTest {
         assertEquals(1, first.sourceCount());
         assertTrue(first.compilerOutput().contains("fake groovy compiler"));
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainSpec.class")));
+        IncrementalCompileState state = new IncrementalCompileStateCodec()
+                .read(projectDir.resolve("target/test-classes/.zolt-incremental-test.state"))
+                .orElseThrow();
+        assertTrue(state.fallbackReasons().contains("groovy-test-sources"));
+        assertTrue(state.fallbackReasons().contains("unreadable-class-output"));
         assertTrue(second.testCompilationSkipped());
     }
 

@@ -53,6 +53,7 @@ final class ClassFileAbiReaderTest {
         ClassFileAbi abi = reader.read(output.resolve("com/example/Api.class"));
 
         assertEquals("com.example.Api", abi.binaryName());
+        assertEquals("Api.java", abi.sourceFileName().orElseThrow());
         assertEquals("com.example.Base", abi.superName().orElseThrow());
         assertEquals(List.of("java.io.Serializable"), abi.interfaces());
         assertTrue(abi.referencedClasses().contains("java.io.IOException"));

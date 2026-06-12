@@ -51,6 +51,7 @@ final class IncrementalCompileStateCodec {
         encodedLine(content, "generatedSourcesDirectory", state.generatedSourcesDirectory().toString());
         line(content, "compilerSettingsHash", state.compilerSettingsHash());
         line(content, "buildFingerprintSha256", state.buildFingerprintSha256());
+        state.fallbackReasons().forEach(reason -> encodedRecord(content, "fallbackReason", reason));
         state.sourceRoots().forEach(root -> encodedRecord(content, "sourceRoot", root));
         state.generatedSourceRoots().forEach(root -> encodedRecord(content, "generatedSourceRoot", root));
         state.compileClasspath().forEach(entry -> encodedRecord(
@@ -114,6 +115,7 @@ final class IncrementalCompileStateCodec {
         ScalarFields fields = new ScalarFields();
         List<String> sourceRoots = new ArrayList<>();
         List<String> generatedSourceRoots = new ArrayList<>();
+        List<String> fallbackReasons = new ArrayList<>();
         List<IncrementalCompileState.ClasspathEntry> compileClasspath = new ArrayList<>();
         List<IncrementalCompileState.ClasspathEntry> processorClasspath = new ArrayList<>();
         Map<Path, SourceBuilder> sources = new LinkedHashMap<>();
@@ -143,6 +145,7 @@ final class IncrementalCompileStateCodec {
                     return Optional.empty();
                 }
                 switch (parts[0]) {
+                    case "fallbackReason" -> fallbackReasons.add(decodedPart(parts, 1, 2));
                     case "sourceRoot" -> sourceRoots.add(decodedPart(parts, 1, 2));
                     case "generatedSourceRoot" -> generatedSourceRoots.add(decodedPart(parts, 1, 2));
                     case "compileClasspath" -> compileClasspath.add(new IncrementalCompileState.ClasspathEntry(
@@ -192,6 +195,7 @@ final class IncrementalCompileStateCodec {
                 fields.generatedSourcesDirectory,
                 fields.compilerSettingsHash,
                 fields.buildFingerprintSha256,
+                fallbackReasons,
                 sourceRoots,
                 generatedSourceRoots,
                 compileClasspath,

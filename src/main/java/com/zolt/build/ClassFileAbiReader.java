@@ -43,6 +43,7 @@ public final class ClassFileAbiReader {
             return new ClassFileAbi(
                     parsed.binaryName(),
                     normalized,
+                    parsed.sourceFileName(),
                     parsed.accessFlags(),
                     parsed.superName(),
                     parsed.interfaces(),
@@ -76,7 +77,7 @@ public final class ClassFileAbiReader {
             List<String> interfaces = readInterfaces(input, constantPool);
             List<MemberAbi> fields = readMembers(input, constantPool, "field");
             List<MemberAbi> methods = readMembers(input, constantPool, "method");
-            List<String> classAttributes = readCompileRelevantAttributes(input, constantPool);
+            ClassAttributes classAttributes = readClassAttributes(input, constantPool);
 
             Set<String> referencedClasses = new LinkedHashSet<>(constantPool.referencedClasses());
             fields.forEach(field -> field.addReferences(referencedClasses));
@@ -86,7 +87,7 @@ public final class ClassFileAbiReader {
             List<String> classLines = new ArrayList<>();
             classLines.add("class|" + accessFlags + "|" + binaryName + "|"
                     + superName.orElse("") + "|" + String.join(",", interfaces));
-            classAttributes.forEach(attribute -> classLines.add("classAttribute|" + attribute));
+            classAttributes.compileRelevant().forEach(attribute -> classLines.add("classAttribute|" + attribute));
 
             List<String> publicAbi = new ArrayList<>();
             List<String> packagePrivateAbi = new ArrayList<>();
@@ -118,6 +119,7 @@ public final class ClassFileAbiReader {
 
             return new ParsedClass(
                     binaryName,
+                    classAttributes.sourceFileName(),
                     accessFlags,
                     superName,
                     interfaces,
@@ -150,6 +152,28 @@ public final class ClassFileAbiReader {
             members.add(new MemberAbi(kind, accessFlags, name, descriptor, attributes));
         }
         return members;
+    }
+
+    private static ClassAttributes readClassAttributes(
+            DataInputStream input,
+            ConstantPool constantPool) throws IOException {
+        int count = input.readUnsignedShort();
+        List<String> attributes = new ArrayList<>();
+        Optional<String> sourceFileName = Optional.empty();
+        for (int index = 0; index < count; index++) {
+            String name = constantPool.utf8(input.readUnsignedShort());
+            byte[] bytes = input.readNBytes(input.readInt());
+            if ("SourceFile".equals(name) && bytes.length == 2) {
+                try (DataInputStream attributeInput = new DataInputStream(new ByteArrayInputStream(bytes))) {
+                    sourceFileName = Optional.of(constantPool.utf8(attributeInput.readUnsignedShort()));
+                }
+            } else if (COMPILE_RELEVANT_ATTRIBUTES.contains(name)) {
+                attributes.add(name + "=" + sha256(bytes));
+            }
+        }
+        return new ClassAttributes(
+                sourceFileName,
+                attributes.stream().sorted().toList());
     }
 
     private static List<String> readCompileRelevantAttributes(
@@ -190,12 +214,18 @@ public final class ClassFileAbiReader {
 
     private record ParsedClass(
             String binaryName,
+            Optional<String> sourceFileName,
             int accessFlags,
             Optional<String> superName,
             List<String> interfaces,
             List<String> publicAbiLines,
             List<String> packagePrivateAbiLines,
             List<String> referencedClasses) {
+    }
+
+    private record ClassAttributes(
+            Optional<String> sourceFileName,
+            List<String> compileRelevant) {
     }
 
     private record MemberAbi(
