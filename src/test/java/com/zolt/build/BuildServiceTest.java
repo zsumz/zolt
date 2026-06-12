@@ -351,7 +351,7 @@ final class BuildServiceTest {
     }
 
     @Test
-    void abiChangingSourceChangeFallsBackToFullMainCompilation() throws IOException {
+    void abiChangingSourceWithoutDependentsStaysIncrementalMainCompilation() throws IOException {
         writeLockfile("version = 1\n");
         Path source = source("src/main/java/com/example/Main.java", """
                 package com.example;
@@ -360,12 +360,6 @@ final class BuildServiceTest {
                     public static String message() {
                         return "one";
                     }
-                }
-                """);
-        source("src/main/java/com/example/Helper.java", """
-                package com.example;
-
-                public final class Helper {
                 }
                 """);
         buildService.build(projectDir, config(), projectDir.resolve("cache"));
@@ -381,8 +375,141 @@ final class BuildServiceTest {
 
         BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
-        assertEquals("full", result.mainCompilationMode());
-        assertEquals("abi-changed", result.mainIncrementalFallbackReason());
+        assertEquals("incremental", result.mainCompilationMode());
+        assertEquals("", result.mainIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void publicAbiChangeRecompilesMainSourcesThatReferenceChangedClass() throws IOException {
+        writeLockfile("version = 1\n");
+        Path apiSource = source("src/main/java/com/example/api/Api.java", """
+                package com.example.api;
+
+                public final class Api {
+                    public static String message() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/main/java/com/example/app/UseApi.java", """
+                package com.example.app;
+
+                import com.example.api.Api;
+
+                public final class UseApi {
+                    public String message() {
+                        return Api.message();
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                public final class Api {
+                    public static String message() {
+                        return "two";
+                    }
+
+                    public static String extra() {
+                        return "extra";
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.mainCompilationMode());
+        assertEquals("", result.mainIncrementalFallbackReason());
+        assertEquals(2, result.sourceCount());
+    }
+
+    @Test
+    void privateOnlySourceChangeDoesNotRecompileMainDependents() throws IOException {
+        writeLockfile("version = 1\n");
+        Path apiSource = source("src/main/java/com/example/api/Api.java", """
+                package com.example.api;
+
+                public final class Api {
+                    public static String message() {
+                        return hidden();
+                    }
+
+                    private static String hidden() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/main/java/com/example/app/UseApi.java", """
+                package com.example.app;
+
+                import com.example.api.Api;
+
+                public final class UseApi {
+                    public String message() {
+                        return Api.message();
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                public final class Api {
+                    public static String message() {
+                        return hidden();
+                    }
+
+                    private static String hidden() {
+                        return "two";
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.mainCompilationMode());
+        assertEquals("", result.mainIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void packagePrivateAbiChangeRecompilesSamePackageMainSources() throws IOException {
+        writeLockfile("version = 1\n");
+        Path apiSource = source("src/main/java/com/example/Api.java", """
+                package com.example;
+
+                public final class Api {
+                    static String packageMessage() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/main/java/com/example/Neighbor.java", """
+                package com.example;
+
+                public final class Neighbor {
+                    public String message() {
+                        return "neighbor";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example;
+
+                public final class Api {
+                    static int packageMessage() {
+                        return 2;
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.mainCompilationMode());
+        assertEquals("", result.mainIncrementalFallbackReason());
         assertEquals(2, result.sourceCount());
     }
 

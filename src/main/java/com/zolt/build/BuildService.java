@@ -270,6 +270,7 @@ public final class BuildService {
                 generatedSourcesDirectory);
         if (plan.incremental()) {
             JavacResult result;
+            IncrementalCompilePlanner.IncrementalValidation validation;
             try {
                 result = javacRunner.compile(
                         jdkStatus.javac().orElseThrow(),
@@ -279,6 +280,21 @@ public final class BuildService {
                         classpaths.processor(),
                         generatedSourcesDirectory,
                         options);
+                validation = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
+                if (!validation.hasFallback() && !validation.additionalSources().isEmpty()) {
+                    JavacResult dependentResult = javacRunner.compile(
+                            jdkStatus.javac().orElseThrow(),
+                            validation.additionalSources(),
+                            incrementalClasspath(classpaths.compile(), outputDirectory),
+                            outputDirectory,
+                            classpaths.processor(),
+                            generatedSourcesDirectory,
+                            options);
+                    result = new JavacResult(
+                            result.sourceCount() + dependentResult.sourceCount(),
+                            outputDirectory,
+                            combinedOutput(result.output(), dependentResult.output()));
+                }
             } catch (JavacException exception) {
                 incrementalCompileStateRecorder.deleteMainState(outputDirectory);
                 return new CompileAttempt(
@@ -293,8 +309,7 @@ public final class BuildService {
                         "full",
                         "incremental-javac-failed");
             }
-            Optional<String> validationFallback = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
-            if (validationFallback.isEmpty()) {
+            if (!validation.hasFallback()) {
                 return new CompileAttempt(result, "incremental", "");
             }
             incrementalCompileStateRecorder.deleteMainState(outputDirectory);
@@ -309,7 +324,7 @@ public final class BuildService {
                             generatedSourcesDirectory,
                             options),
                     "full",
-                    validationFallback.orElseThrow());
+                    validation.fallbackReason());
         }
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
         deleteOwnedOutputs(plan);
@@ -328,6 +343,19 @@ public final class BuildService {
 
     private static long elapsedSince(long started) {
         return Math.max(0L, System.nanoTime() - started);
+    }
+
+    private static String combinedOutput(String first, String second) {
+        if (first == null || first.isEmpty()) {
+            return second == null ? "" : second;
+        }
+        if (second == null || second.isEmpty()) {
+            return first;
+        }
+        if (first.endsWith("\n")) {
+            return first + second;
+        }
+        return first + "\n" + second;
     }
 
     private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {

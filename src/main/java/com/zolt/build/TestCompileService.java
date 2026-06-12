@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 public final class TestCompileService {
     private final BuildService buildService;
@@ -255,6 +254,7 @@ public final class TestCompileService {
                 generatedSourcesDirectory);
         if (plan.incremental()) {
             JavacResult javacResult;
+            IncrementalCompilePlanner.IncrementalValidation validation;
             try {
                 javacResult = javacRunner.compile(
                         jdkStatus.javac().orElseThrow(),
@@ -264,6 +264,21 @@ public final class TestCompileService {
                         classpaths.testProcessor(),
                         generatedSourcesDirectory,
                         options);
+                validation = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
+                if (!validation.hasFallback() && !validation.additionalSources().isEmpty()) {
+                    JavacResult dependentResult = javacRunner.compile(
+                            jdkStatus.javac().orElseThrow(),
+                            validation.additionalSources(),
+                            incrementalClasspath(testCompileClasspath, outputDirectory),
+                            outputDirectory,
+                            classpaths.testProcessor(),
+                            generatedSourcesDirectory,
+                            options);
+                    javacResult = new JavacResult(
+                            javacResult.sourceCount() + dependentResult.sourceCount(),
+                            outputDirectory,
+                            combinedOutput(javacResult.output(), dependentResult.output()));
+                }
             } catch (JavacException exception) {
                 incrementalCompileStateRecorder.deleteTestState(outputDirectory);
                 return fullTestCompile(
@@ -277,8 +292,7 @@ public final class TestCompileService {
                         options,
                         "incremental-javac-failed");
             }
-            Optional<String> validationFallback = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
-            if (validationFallback.isEmpty()) {
+            if (!validation.hasFallback()) {
                 return new TestCompileAttempt(
                         javacResult,
                         new JavacResult(0, outputDirectory, ""),
@@ -296,7 +310,7 @@ public final class TestCompileService {
                     generatedSourcesDirectory,
                     classpaths,
                     options,
-                    validationFallback.orElseThrow());
+                    validation.fallbackReason());
         }
         incrementalCompileStateRecorder.deleteTestState(outputDirectory);
         deleteOwnedOutputs(plan);

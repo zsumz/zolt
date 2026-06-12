@@ -300,7 +300,7 @@ final class TestCompileServiceTest {
     }
 
     @Test
-    void abiChangingTestSourceChangeFallsBackToFullTestCompilation() throws IOException {
+    void abiChangingTestSourceWithoutDependentsStaysIncrementalTestCompilation() throws IOException {
         writeLockfile("version = 1\n");
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         Path testSource = source("src/test/java/com/example/MainTest.java", """
@@ -312,7 +312,6 @@ final class TestCompileServiceTest {
                     }
                 }
                 """);
-        source("src/test/java/com/example/Helper.java", "package com.example; final class Helper {}\n");
         testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
         Files.writeString(testSource, """
                 package com.example;
@@ -326,8 +325,144 @@ final class TestCompileServiceTest {
 
         TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
 
-        assertEquals("full", result.testCompilationMode());
-        assertEquals("abi-changed", result.testIncrementalFallbackReason());
+        assertEquals("incremental", result.testCompilationMode());
+        assertEquals("", result.testIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void publicAbiChangeRecompilesTestSourcesThatReferenceChangedClass() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path apiSource = source("src/test/java/com/example/testapi/TestApi.java", """
+                package com.example.testapi;
+
+                public final class TestApi {
+                    public static String message() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/test/java/com/example/app/UseTestApi.java", """
+                package com.example.app;
+
+                import com.example.testapi.TestApi;
+
+                public final class UseTestApi {
+                    public String message() {
+                        return TestApi.message();
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example.testapi;
+
+                public final class TestApi {
+                    public static String message() {
+                        return "two";
+                    }
+
+                    public static String extra() {
+                        return "extra";
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.testCompilationMode());
+        assertEquals("", result.testIncrementalFallbackReason());
+        assertEquals(2, result.sourceCount());
+    }
+
+    @Test
+    void privateOnlyTestSourceChangeDoesNotRecompileDependents() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path apiSource = source("src/test/java/com/example/testapi/TestApi.java", """
+                package com.example.testapi;
+
+                public final class TestApi {
+                    public static String message() {
+                        return hidden();
+                    }
+
+                    private static String hidden() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/test/java/com/example/app/UseTestApi.java", """
+                package com.example.app;
+
+                import com.example.testapi.TestApi;
+
+                public final class UseTestApi {
+                    public String message() {
+                        return TestApi.message();
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example.testapi;
+
+                public final class TestApi {
+                    public static String message() {
+                        return hidden();
+                    }
+
+                    private static String hidden() {
+                        return "two";
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.testCompilationMode());
+        assertEquals("", result.testIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void packagePrivateAbiChangeRecompilesSamePackageTestSources() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path apiSource = source("src/test/java/com/example/TestApi.java", """
+                package com.example;
+
+                public final class TestApi {
+                    static String packageMessage() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/test/java/com/example/NeighborTest.java", """
+                package com.example;
+
+                public final class NeighborTest {
+                    public String message() {
+                        return "neighbor";
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(apiSource, """
+                package com.example;
+
+                public final class TestApi {
+                    static int packageMessage() {
+                        return 2;
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("incremental", result.testCompilationMode());
+        assertEquals("", result.testIncrementalFallbackReason());
         assertEquals(2, result.sourceCount());
     }
 
