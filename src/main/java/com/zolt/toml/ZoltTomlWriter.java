@@ -7,9 +7,6 @@ import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.DependencySection;
-import com.zolt.project.GeneratedSourceKind;
-import com.zolt.project.GeneratedSourceStep;
-import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.VersionPolicy;
@@ -109,7 +106,7 @@ public final class ZoltTomlWriter {
         BuildSectionCodec.writeBuild(toml, config.build());
         BuildSectionCodec.writeBuildMetadata(toml, config.build().metadata());
         BuildSectionCodec.writeResources(toml, config.build());
-        writeGeneratedSources(toml, config.build());
+        GeneratedSectionCodec.write(toml, config.build());
         CompilerSectionCodec.write(toml, config.compilerSettings());
         PackageSectionCodec.write(toml, config.packageSettings());
         FrameworkSectionCodec.write(toml, config.frameworkSettings());
@@ -1007,114 +1004,6 @@ public final class ZoltTomlWriter {
         };
     }
 
-    private static void writeGeneratedSources(StringBuilder toml, BuildSettings build) {
-        writeOpenApiTool(toml, build);
-        writeGeneratedSourceScope(toml, "generated.main", build.generatedMainSources());
-        writeGeneratedSourceScope(toml, "generated.test", build.generatedTestSources());
-    }
-
-    private static void writeOpenApiTool(StringBuilder toml, BuildSettings build) {
-        Optional<OpenApiGenerationSettings> settings = java.util.stream.Stream
-                .concat(build.generatedMainSources().stream(), build.generatedTestSources().stream())
-                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
-                .map(GeneratedSourceStep::openApi)
-                .filter(openApi -> openApi.toolCoordinate().isPresent()
-                        || openApi.toolVersion().isPresent()
-                        || openApi.toolVersionRef().isPresent())
-                .findFirst();
-        if (settings.isEmpty()) {
-            return;
-        }
-        toml.append("\n[generated.openapiTool]\n");
-        settings.orElseThrow().toolCoordinate().ifPresent(coordinate -> writeAssignment(toml, "coordinate", coordinate));
-        if (settings.orElseThrow().toolVersionRef().isPresent()) {
-            writeAssignment(toml, "versionRef", settings.orElseThrow().toolVersionRef().orElseThrow());
-        } else {
-            settings.orElseThrow().toolVersion().ifPresent(version -> writeAssignment(toml, "version", version));
-        }
-    }
-
-    private static void writeGeneratedSourceScope(
-            StringBuilder toml,
-            String section,
-            List<GeneratedSourceStep> steps) {
-        if (steps.isEmpty()) {
-            return;
-        }
-        for (GeneratedSourceStep step : steps.stream()
-                .sorted(java.util.Comparator.comparing(GeneratedSourceStep::id))
-                .toList()) {
-            toml.append("\n[").append(section).append('.').append(step.id()).append("]\n");
-            writeAssignment(toml, "kind", step.kind().configValue());
-            writeAssignment(toml, "language", step.language());
-            writeAssignment(toml, "output", step.output());
-            if (step.kind() == GeneratedSourceKind.OPENAPI) {
-                writeAssignment(toml, "input", step.inputs().getFirst());
-                writeOpenApiSettings(toml, step.openApi());
-            } else {
-                writeStringArray(toml, "inputs", step.inputs());
-            }
-            if (!step.required()) {
-                writeAssignment(toml, "required", false);
-            }
-            if (step.kind() == GeneratedSourceKind.OPENAPI && !step.clean()) {
-                writeAssignment(toml, "clean", false);
-            } else if (step.kind() != GeneratedSourceKind.OPENAPI && step.clean()) {
-                writeAssignment(toml, "clean", true);
-            }
-        }
-    }
-
-    private static void writeOpenApiSettings(StringBuilder toml, OpenApiGenerationSettings settings) {
-        settings.generator().ifPresent(value -> writeAssignment(toml, "generator", value));
-        settings.library().ifPresent(value -> writeAssignment(toml, "library", value));
-        settings.apiPackage().ifPresent(value -> writeAssignment(toml, "apiPackage", value));
-        settings.modelPackage().ifPresent(value -> writeAssignment(toml, "modelPackage", value));
-        settings.invokerPackage().ifPresent(value -> writeAssignment(toml, "invokerPackage", value));
-        settings.config().ifPresent(value -> writeAssignment(toml, "config", value));
-        settings.templateDir().ifPresent(value -> writeAssignment(toml, "templateDir", value));
-        settings.validateSpec().ifPresent(value -> writeAssignment(toml, "validateSpec", value));
-        if (!settings.options().isEmpty()) {
-            writeInlineStringMap(toml, "options", settings.options());
-        }
-        if (!settings.additionalProperties().isEmpty()) {
-            writeInlineStringMap(toml, "additionalProperties", settings.additionalProperties());
-        }
-        if (!settings.configOptions().isEmpty()) {
-            writeInlineStringMap(toml, "configOptions", settings.configOptions());
-        }
-        if (!settings.globalProperties().isEmpty()) {
-            writeInlineStringMap(toml, "globalProperties", settings.globalProperties());
-        }
-        if (!settings.typeMappings().isEmpty()) {
-            writeInlineStringMap(toml, "typeMappings", settings.typeMappings());
-        }
-        if (!settings.importMappings().isEmpty()) {
-            writeInlineStringMap(toml, "importMappings", settings.importMappings());
-        }
-    }
-
-    private static void writeStringMap(StringBuilder toml, String section, Map<String, String> values) {
-        toml.append('[').append(section).append("]\n");
-        for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
-            toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue())).append('\n');
-        }
-        toml.append('\n');
-    }
-
-    private static void writeInlineStringMap(StringBuilder toml, String key, Map<String, String> values) {
-        toml.append(key).append(" = { ");
-        int index = 0;
-        for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
-            if (index > 0) {
-                toml.append(", ");
-            }
-            toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue()));
-            index++;
-        }
-        toml.append(" }\n");
-    }
-
     private static void writeDependencyPolicy(StringBuilder toml, DependencyPolicySettings policy) {
         if (policy == null || policy.equals(DependencyPolicySettings.defaults())) {
             return;
@@ -1273,17 +1162,6 @@ public final class ZoltTomlWriter {
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {
         toml.append(key).append(" = ").append(value).append('\n');
-    }
-
-    private static void writeStringArray(StringBuilder toml, String key, List<String> values) {
-        toml.append(key).append(" = [");
-        for (int index = 0; index < values.size(); index++) {
-            if (index > 0) {
-                toml.append(", ");
-            }
-            toml.append(quote(values.get(index)));
-        }
-        toml.append("]\n");
     }
 
     private static Map<String, String> put(Map<String, String> source, String coordinate, String version) {
