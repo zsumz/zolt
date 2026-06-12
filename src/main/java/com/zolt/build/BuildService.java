@@ -154,6 +154,7 @@ public final class BuildService {
         Path outputDirectory = projectDirectory.resolve(config.build().output());
         Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources());
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        long fingerprintCheckStarted = System.nanoTime();
         boolean compileSkipped = buildFingerprintService.isMainCompileCurrent(
                 projectDirectory,
                 config,
@@ -162,6 +163,7 @@ public final class BuildService {
                 classpaths,
                 outputDirectory,
                 generatedSourcesDirectory);
+        long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
         JavacResult javacResult = compileSkipped
                 ? new JavacResult(sources.mainSources().size(), outputDirectory, "")
                 : javacRunner.compile(
@@ -174,6 +176,7 @@ public final class BuildService {
                         javacOptions(config));
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
+        long fingerprintWriteStarted = System.nanoTime();
         buildFingerprintService.writeMainCompileFingerprint(
                 projectDirectory,
                 config,
@@ -182,13 +185,20 @@ public final class BuildService {
                 classpaths,
                 outputDirectory,
                 generatedSourcesDirectory);
+        long fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
         return new BuildResult(
                 resolveResult,
                 javacResult.sourceCount(),
                 resourceResult.resourceCount() + metadataResult.generatedCount(),
                 javacResult.outputDirectory(),
                 javacResult.output(),
-                compileSkipped);
+                compileSkipped,
+                fingerprintCheckNanos,
+                fingerprintWriteNanos);
+    }
+
+    private static long elapsedSince(long started) {
+        return Math.max(0L, System.nanoTime() - started);
     }
 
     private static Path generatedSourcesDirectory(Path projectDirectory, String configuredPath) {

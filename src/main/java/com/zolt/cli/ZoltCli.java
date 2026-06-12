@@ -2746,11 +2746,13 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> buildAttributes(BuildResult result) {
-        return Map.of(
-                "sourceFiles", Integer.toString(result.sourceCount()),
-                "resourceFiles", Integer.toString(result.resourceCount()),
-                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()),
-                "mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("sourceFiles", Integer.toString(result.sourceCount()));
+        attributes.put("resourceFiles", Integer.toString(result.resourceCount()));
+        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        attributes.put("mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
+        addMainFingerprintAttributes(attributes, result);
+        return attributes;
     }
 
     private static void requireFreshLockfile(
@@ -2793,12 +2795,17 @@ public final class ZoltCli implements Runnable {
     }
 
     private static Map<String, String> workspaceBuildAttributes(WorkspaceBuildResult result) {
-        return Map.of(
-                "members", Integer.toString(result.members().size()),
-                "sourceFiles", Integer.toString(result.sourceCount()),
-                "mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()),
-                "mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()),
-                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("members", Integer.toString(result.members().size()));
+        attributes.put("sourceFiles", Integer.toString(result.sourceCount()));
+        attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
+        attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
+        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        addMainFingerprintAttributes(
+                attributes,
+                result.mainFingerprintCheckNanos(),
+                result.mainFingerprintWriteNanos());
+        return attributes;
     }
 
     private static Map<String, String> workspaceBuildPlanAttributes(WorkspaceBuildPlan plan) {
@@ -2821,18 +2828,23 @@ public final class ZoltCli implements Runnable {
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
         attributes.put("testJvmArgs", Integer.toString(result.testJvmArguments().values().size()));
+        addMainFingerprintAttributes(attributes, result.compileResult().buildResult());
+        addTestFingerprintAttributes(attributes, result.compileResult());
         addPlainJunitWorkerTimingAttributes(attributes, result);
         attributes.put("outputBytes", Integer.toString(result.output().length()));
         return attributes;
     }
 
     private static Map<String, String> testCompileAttributes(TestCompileResult result) {
-        return Map.of(
-                "mainSourceFiles", Integer.toString(result.buildResult().sourceCount()),
-                "testSourceFiles", Integer.toString(result.sourceCount()),
-                "testResourceFiles", Integer.toString(result.resourceCount()),
-                "mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()),
-                "testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
+        Map<String, String> attributes = new LinkedHashMap<>();
+        attributes.put("mainSourceFiles", Integer.toString(result.buildResult().sourceCount()));
+        attributes.put("testSourceFiles", Integer.toString(result.sourceCount()));
+        attributes.put("testResourceFiles", Integer.toString(result.resourceCount()));
+        attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put("testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
+        addMainFingerprintAttributes(attributes, result.buildResult());
+        addTestFingerprintAttributes(attributes, result);
+        return attributes;
     }
 
     private static Map<String, String> testExecutionAttributes(TestRunResult result) {
@@ -2859,6 +2871,30 @@ public final class ZoltCli implements Runnable {
         }
     }
 
+    private static void addMainFingerprintAttributes(Map<String, String> attributes, BuildResult result) {
+        addMainFingerprintAttributes(
+                attributes,
+                result.mainFingerprintCheckNanos(),
+                result.mainFingerprintWriteNanos());
+    }
+
+    private static void addMainFingerprintAttributes(
+            Map<String, String> attributes,
+            long checkNanos,
+            long writeNanos) {
+        attributes.put("mainFingerprintCheckMillis", Long.toString(checkNanos / 1_000_000L));
+        attributes.put("mainFingerprintCheckNanos", Long.toString(checkNanos));
+        attributes.put("mainFingerprintWriteMillis", Long.toString(writeNanos / 1_000_000L));
+        attributes.put("mainFingerprintWriteNanos", Long.toString(writeNanos));
+    }
+
+    private static void addTestFingerprintAttributes(Map<String, String> attributes, TestCompileResult result) {
+        attributes.put("testFingerprintCheckMillis", Long.toString(result.testFingerprintCheckMillis()));
+        attributes.put("testFingerprintCheckNanos", Long.toString(result.testFingerprintCheckNanos()));
+        attributes.put("testFingerprintWriteMillis", Long.toString(result.testFingerprintWriteMillis()));
+        attributes.put("testFingerprintWriteNanos", Long.toString(result.testFingerprintWriteNanos()));
+    }
+
     private static void addTestSelectionAttributes(Map<String, String> attributes, TestSelection selection) {
         attributes.put("testClassSelectors", Integer.toString(selection.classSelectors().size()));
         attributes.put("testMethodSelectors", Integer.toString(selection.methodSelectors().size()));
@@ -2879,6 +2915,14 @@ public final class ZoltCli implements Runnable {
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntryCount()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntryCount()));
         attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRootCount()));
+        addMainFingerprintAttributes(
+                attributes,
+                result.mainFingerprintCheckNanos(),
+                result.mainFingerprintWriteNanos());
+        attributes.put("testFingerprintCheckMillis", Long.toString(result.testFingerprintCheckMillis()));
+        attributes.put("testFingerprintCheckNanos", Long.toString(result.testFingerprintCheckNanos()));
+        attributes.put("testFingerprintWriteMillis", Long.toString(result.testFingerprintWriteMillis()));
+        attributes.put("testFingerprintWriteNanos", Long.toString(result.testFingerprintWriteNanos()));
         attributes.put("testClassSelectors", Integer.toString(result.testClassSelectorCount()));
         attributes.put("testMethodSelectors", Integer.toString(result.testMethodSelectorCount()));
         attributes.put("testPatterns", Integer.toString(result.testPatternCount()));

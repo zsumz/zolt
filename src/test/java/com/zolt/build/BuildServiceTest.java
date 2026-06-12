@@ -155,6 +155,8 @@ final class BuildServiceTest {
         assertFalse(first.mainCompilationSkipped());
         assertTrue(second.mainCompilationSkipped());
         assertEquals(1, second.sourceCount());
+        assertTrue(second.mainFingerprintCheckNanos() > 0);
+        assertTrue(second.mainFingerprintWriteNanos() > 0);
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }
 

@@ -135,6 +135,7 @@ public final class TestCompileService {
         Classpath groovyCompileClasspath = new Classpath(groovyCompileEntries);
         Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedTestSources());
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        long fingerprintCheckStarted = System.nanoTime();
         boolean compileSkipped = buildFingerprintService.isTestCompileCurrent(
                 projectDirectory,
                 config,
@@ -144,6 +145,7 @@ public final class TestCompileService {
                 classpaths.testProcessor(),
                 outputDirectory,
                 generatedSourcesDirectory);
+        long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
         JavacResult javacResult = compileSkipped
                 ? new JavacResult(sources.testSources().size(), outputDirectory, "")
                 : javacRunner.compile(
@@ -162,6 +164,7 @@ public final class TestCompileService {
                         groovyCompileClasspath,
                         outputDirectory);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config);
+        long fingerprintWriteStarted = System.nanoTime();
         buildFingerprintService.writeTestCompileFingerprint(
                 projectDirectory,
                 config,
@@ -171,13 +174,20 @@ public final class TestCompileService {
                 classpaths.testProcessor(),
                 outputDirectory,
                 generatedSourcesDirectory);
+        long fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
         return new TestCompileResult(
                 buildResult,
                 javacResult.sourceCount() + groovyResult.sourceCount(),
                 resourceResult.resourceCount(),
                 javacResult.outputDirectory(),
                 combinedOutput(javacResult.output(), groovyResult.output()),
-                compileSkipped);
+                compileSkipped,
+                fingerprintCheckNanos,
+                fingerprintWriteNanos);
+    }
+
+    private static long elapsedSince(long started) {
+        return Math.max(0L, System.nanoTime() - started);
     }
 
     private static String combinedOutput(String first, String second) {

@@ -57,6 +57,52 @@ public record WorkspaceTestResult(
         return members.size() - testCompilationSkippedCount();
     }
 
+    public long mainFingerprintCheckNanos() {
+        return builtMembers.stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::result)
+                .mapToLong(result -> result.mainFingerprintCheckNanos())
+                .sum();
+    }
+
+    public long mainFingerprintWriteNanos() {
+        return builtMembers.stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::result)
+                .mapToLong(result -> result.mainFingerprintWriteNanos())
+                .sum();
+    }
+
+    public long testFingerprintCheckNanos() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::compileResult)
+                .mapToLong(result -> result.testFingerprintCheckNanos())
+                .sum();
+    }
+
+    public long testFingerprintWriteNanos() {
+        return members.stream()
+                .map(MemberTestRunResult::result)
+                .map(TestRunResult::compileResult)
+                .mapToLong(result -> result.testFingerprintWriteNanos())
+                .sum();
+    }
+
+    public long mainFingerprintCheckMillis() {
+        return mainFingerprintCheckNanos() / 1_000_000L;
+    }
+
+    public long mainFingerprintWriteMillis() {
+        return mainFingerprintWriteNanos() / 1_000_000L;
+    }
+
+    public long testFingerprintCheckMillis() {
+        return testFingerprintCheckNanos() / 1_000_000L;
+    }
+
+    public long testFingerprintWriteMillis() {
+        return testFingerprintWriteNanos() / 1_000_000L;
+    }
+
     public int testRuntimeClasspathEntryCount() {
         return members.stream()
                 .map(MemberTestRunResult::result)

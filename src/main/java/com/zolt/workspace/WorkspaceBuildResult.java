@@ -36,6 +36,28 @@ public record WorkspaceBuildResult(
         return members.size() - mainCompilationSkippedCount();
     }
 
+    public long mainFingerprintCheckNanos() {
+        return members.stream()
+                .map(MemberBuildResult::result)
+                .mapToLong(BuildResult::mainFingerprintCheckNanos)
+                .sum();
+    }
+
+    public long mainFingerprintWriteNanos() {
+        return members.stream()
+                .map(MemberBuildResult::result)
+                .mapToLong(BuildResult::mainFingerprintWriteNanos)
+                .sum();
+    }
+
+    public long mainFingerprintCheckMillis() {
+        return mainFingerprintCheckNanos() / 1_000_000L;
+    }
+
+    public long mainFingerprintWriteMillis() {
+        return mainFingerprintWriteNanos() / 1_000_000L;
+    }
+
     public record MemberBuildResult(
             String member,
             BuildResult result,

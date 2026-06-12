@@ -194,6 +194,10 @@ final class TestCompileServiceTest {
         assertTrue(second.buildResult().mainCompilationSkipped());
         assertTrue(second.testCompilationSkipped());
         assertEquals(1, second.sourceCount());
+        assertTrue(second.buildResult().mainFingerprintCheckNanos() > 0);
+        assertTrue(second.buildResult().mainFingerprintWriteNanos() > 0);
+        assertTrue(second.testFingerprintCheckNanos() > 0);
+        assertTrue(second.testFingerprintWriteNanos() > 0);
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
     }
 
