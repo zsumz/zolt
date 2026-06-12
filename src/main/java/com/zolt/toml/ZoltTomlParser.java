@@ -163,7 +163,6 @@ public final class ZoltTomlParser {
             "issues");
     private static final Set<String> FRAMEWORK_KEYS = Set.of("quarkus");
     private static final Set<String> QUARKUS_KEYS = Set.of("enabled", "package");
-    private static final Set<String> NATIVE_KEYS = Set.of("imageName", "output", "args");
 
     public ProjectConfig parse(Path path) {
         try {
@@ -297,7 +296,7 @@ public final class ZoltTomlParser {
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = parseFramework(optionalTable(result, "framework"));
-        NativeSettings nativeSettings = parseNative(optionalTable(result, "native"), project.name());
+        NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name());
 
         return new ProjectConfig(
                 project,
@@ -853,19 +852,6 @@ public final class ZoltTomlParser {
                                 + "` in zolt.toml. Supported Quarkus package modes are: "
                                 + QuarkusPackageMode.supportedValues()
                                 + ".")));
-    }
-
-    private static NativeSettings parseNative(TomlTable nativeTable, String projectName) {
-        if (nativeTable == null) {
-            return NativeSettings.defaults();
-        }
-
-        NativeSettings defaults = NativeSettings.defaults().withDefaultImageName(projectName);
-        validateKeys("native", nativeTable, NATIVE_KEYS);
-        return new NativeSettings(
-                stringOrDefault(nativeTable, "native", "imageName", defaults.imageName()),
-                stringOrDefault(nativeTable, "native", "output", defaults.output()),
-                stringListOrDefault(nativeTable, "native", "args", defaults.args()));
     }
 
     private static String parseErrorMessage(TomlParseResult result) {

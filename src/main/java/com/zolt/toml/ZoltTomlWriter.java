@@ -12,7 +12,6 @@ import com.zolt.project.DependencySection;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
-import com.zolt.project.NativeSettings;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -124,7 +123,7 @@ public final class ZoltTomlWriter {
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
         writeFramework(toml, config.frameworkSettings());
-        writeNative(toml, config.nativeSettings());
+        NativeSectionCodec.write(toml, config.nativeSettings());
         return toml.toString();
     }
 
@@ -1295,22 +1294,6 @@ public final class ZoltTomlWriter {
             writeAssignment(toml, "enabled", quarkus.enabled());
             writeAssignment(toml, "package", quarkus.packageMode().configValue());
         }
-    }
-
-    private static void writeNative(StringBuilder toml, NativeSettings nativeSettings) {
-        NativeSettings defaults = NativeSettings.defaults();
-        if (nativeSettings == null
-                || ((nativeSettings.imageName() == null || nativeSettings.imageName().isBlank())
-                && nativeSettings.output().equals(defaults.output())
-                && nativeSettings.args().isEmpty())) {
-            return;
-        }
-        toml.append("\n[native]\n");
-        if (nativeSettings.imageName() != null && !nativeSettings.imageName().isBlank()) {
-            writeAssignment(toml, "imageName", nativeSettings.imageName());
-        }
-        writeAssignment(toml, "output", nativeSettings.output());
-        writeStringArray(toml, "args", nativeSettings.args());
     }
 
     private static void writeStringMap(StringBuilder toml, String section, Map<String, String> values) {
