@@ -197,7 +197,7 @@ public final class ZoltTomlParser {
                 RepositorySectionCodec.repositoryCredentials(optionalTable(result, "repositoryCredentials"));
         RepositorySectionCodec.validateRepositoryCredentialReferences(repositorySettings, repositoryCredentials);
 
-        Map<String, String> versionAliases = versionAliases(optionalTable(result, "versions"));
+        Map<String, String> versionAliases = VersionAliasSectionCodec.parse(optionalTable(result, "versions"));
         Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
         Map<String, String> platforms = versionDeclarations(
                 optionalTable(result, "platforms"),
@@ -981,27 +981,6 @@ public final class ZoltTomlParser {
                         "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
             }
             values.put(key, value);
-        }
-        return values;
-    }
-
-    private static Map<String, String> versionAliases(TomlTable table) {
-        if (table == null) {
-            return Map.of();
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String alias : table.keySet()) {
-            validateVersionAliasName(alias);
-            Object rawValue = table.get(List.of(alias));
-            if (!(rawValue instanceof String value)
-                    || VersionPolicy.violation(VersionPolicy.Context.VERSION_ALIAS, value).isPresent()) {
-                throw new ZoltConfigException(
-                        "Invalid [versions]."
-                                + alias
-                                + " in zolt.toml. Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs.");
-            }
-            values.put(alias, value);
         }
         return values;
     }

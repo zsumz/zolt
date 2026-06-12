@@ -61,9 +61,7 @@ public final class ZoltTomlWriter {
         ProjectSectionCodec.write(toml, config.project());
         RepositorySectionCodec.writeRepositories(toml, config.repositorySettings());
         RepositorySectionCodec.writeRepositoryCredentials(toml, config.repositoryCredentials());
-        if (!config.versionAliases().isEmpty()) {
-            writeStringMap(toml, "versions", config.versionAliases());
-        }
+        VersionAliasSectionCodec.write(toml, config.versionAliases());
         writePlatforms(toml, config.platforms(), config.dependencyMetadata());
         writeDependencyPolicy(toml, config.dependencyPolicy());
         writeOptionalDependencies(
