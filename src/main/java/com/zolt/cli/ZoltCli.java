@@ -147,10 +147,12 @@ import com.zolt.tree.DependencyJsonFormatter;
 import com.zolt.tree.DependencyTreeFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
+import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
@@ -1706,6 +1708,7 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
+                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
                     WorkspaceBuildService workspaceBuildService = new WorkspaceBuildService();
                     WorkspaceBuildResult result = timings.measure(
                             "build workspace",
@@ -1817,6 +1820,7 @@ public final class ZoltCli implements Runnable {
             TimingRecorder timings = timingRecorder(timingOptions);
             try {
                 if (workspace) {
+                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
                     WorkspaceRunService workspaceRunService = new WorkspaceRunService();
                     WorkspaceRunResult result = timings.measure(
                             "run workspace",
@@ -1967,6 +1971,7 @@ public final class ZoltCli implements Runnable {
                 List<String> requestedTestEvents = validatedTestEvents(testEvents);
                 TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
                 if (workspace) {
+                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
                     WorkspaceTestService workspaceTestService = new WorkspaceTestService();
                     WorkspaceTestResult result = timings.measure(
                             "test workspace",
@@ -2275,6 +2280,7 @@ public final class ZoltCli implements Runnable {
                     if (planOnly) {
                         throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
                     }
+                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
                     WorkspacePackageService workspacePackageService = new WorkspacePackageService();
                     WorkspacePackageResult result = timings.measure(
                             "package workspace",
@@ -2507,6 +2513,7 @@ public final class ZoltCli implements Runnable {
             try {
                 Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
                 if (workspace) {
+                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
                     WorkspaceRunPackageService workspaceRunPackageService = new WorkspaceRunPackageService();
                     WorkspaceRunPackageResult result = timings.measure(
                             "run workspace packages",
@@ -3046,6 +3053,18 @@ public final class ZoltCli implements Runnable {
             return;
         }
         new ResolveService().resolve(workingDirectory, config, cacheRoot, true, offline);
+    }
+
+    private static void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
+        Optional<Workspace> workspace = new WorkspaceDiscoveryService().discover(workingDirectory.toAbsolutePath().normalize());
+        if (workspace.isEmpty()) {
+            return;
+        }
+        Path lockfilePath = workspace.orElseThrow().root().resolve("zolt.lock");
+        if (!java.nio.file.Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
+            return;
+        }
+        new WorkspaceResolveService().resolve(workingDirectory, cacheRoot, true, offline);
     }
 
     private static boolean looksGeneratedLockfile(Path lockfilePath) {

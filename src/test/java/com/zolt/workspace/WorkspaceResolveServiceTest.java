@@ -100,6 +100,7 @@ final class WorkspaceResolveServiceTest {
         assertFalse(Files.exists(tempDir.resolve("modules/core/zolt.lock")));
 
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.projectResolutionFingerprint().orElseThrow().startsWith("sha256:"));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.acme", "core"))
                         && lockPackage.version().equals("0.1.0")
@@ -384,6 +385,41 @@ final class WorkspaceResolveServiceTest {
                 ResolveException.class,
                 () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
 
+        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
+        assertEquals(existing, Files.readString(first.lockfilePath()));
+    }
+
+    @Test
+    void lockedWorkspaceResolveFailsWhenRepositoryInputChangesWithoutGraphChange() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+                """);
+        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+        String existing = Files.readString(first.lockfilePath());
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s?changed=true"
+                """.formatted(baseUri));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
+
+        assertTrue(existing.contains("projectResolutionFingerprint = \"sha256:"));
         assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
         assertEquals(existing, Files.readString(first.lockfilePath()));
     }

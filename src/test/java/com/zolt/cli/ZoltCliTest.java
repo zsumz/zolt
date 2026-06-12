@@ -5681,7 +5681,8 @@ final class ZoltCliTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved 0 packages"));
         assertTrue(result.stdout().contains("Wrote " + workspaceDir.resolve("zolt.lock")));
-        assertEquals("version = 1\n\n", Files.readString(workspaceDir.resolve("zolt.lock")));
+        assertTrue(Files.readString(workspaceDir.resolve("zolt.lock"))
+                .contains("projectResolutionFingerprint = \"sha256:"));
         assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
         assertFalse(Files.exists(coreDir.resolve("zolt.lock")));
     }
@@ -5796,6 +5797,70 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Compiled 2 workspace main source files"));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
+    }
+
+    @Test
+    void buildWorkspaceRejectsStaleGeneratedRootLockfileBeforeCompiling() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path workspaceDir = tempDir.resolve("workspace");
+            Path apiDir = workspaceDir.resolve("apps/api");
+            Files.createDirectories(apiDir);
+            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                    [workspace]
+                    name = "workspace"
+                    members = ["apps/api"]
+
+                    [repositories]
+                    test = "%s"
+                    """.formatted(repository.baseUri()));
+            Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                    [dependencies]
+                    "com.example:app" = "1.0.0"
+                    """);
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--workspace",
+                    "--cwd", apiDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+            String existingLockfile = Files.readString(workspaceDir.resolve("zolt.lock"));
+            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                    [workspace]
+                    name = "workspace"
+                    members = ["apps/api"]
+
+                    [repositories]
+                    test = "%s?changed=true"
+                    """.formatted(repository.baseUri()));
+            Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+            Files.createDirectories(apiSource.getParent());
+            Files.writeString(apiSource, """
+                    package com.example.api;
+
+                    public final class Api {
+                    }
+                    """);
+
+            CommandResult result = execute(
+                    "build",
+                    "--workspace",
+                    "--cwd", apiDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(1, result.exitCode());
+            assertTrue(existingLockfile.contains("projectResolutionFingerprint = \"sha256:"));
+            assertTrue(result.stderr().contains("Workspace zolt.lock is out of date"));
+            assertEquals(existingLockfile, Files.readString(workspaceDir.resolve("zolt.lock")));
+            assertFalse(Files.exists(apiDir.resolve("target/classes/com/example/api/Api.class")));
+        }
     }
 
     @Test

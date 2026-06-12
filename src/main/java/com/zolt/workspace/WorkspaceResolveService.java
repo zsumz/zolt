@@ -245,6 +245,7 @@ public final class WorkspaceResolveService {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
                 workspaceAliasFingerprint(memberOutputs),
+                workspaceProjectResolutionFingerprint(memberOutputs),
                 List.copyOf(packages.values()),
                 List.copyOf(conflicts.values()),
                 List.copyOf(policyEffects.values()));
@@ -255,6 +256,18 @@ public final class WorkspaceResolveService {
                 .filter(output -> output.lockfile().aliasFingerprint().isPresent())
                 .sorted(Comparator.comparing(MemberResolveOutput::member))
                 .map(output -> output.member() + "\t" + output.lockfile().aliasFingerprint().orElseThrow())
+                .toList();
+        if (inputs.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of("sha256:" + sha256((String.join("\n", inputs) + "\n").getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static Optional<String> workspaceProjectResolutionFingerprint(List<MemberResolveOutput> memberOutputs) {
+        List<String> inputs = memberOutputs.stream()
+                .filter(output -> output.lockfile().projectResolutionFingerprint().isPresent())
+                .sorted(Comparator.comparing(MemberResolveOutput::member))
+                .map(output -> output.member() + "\t" + output.lockfile().projectResolutionFingerprint().orElseThrow())
                 .toList();
         if (inputs.isEmpty()) {
             return Optional.empty();
