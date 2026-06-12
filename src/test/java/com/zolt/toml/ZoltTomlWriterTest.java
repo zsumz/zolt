@@ -125,10 +125,51 @@ final class ZoltTomlWriterTest {
         ProjectConfig parsed = parser.parse(toml);
 
         assertTrue(toml.contains("[versions]\n\"boot\" = \"4.0.6\"\n\"slf4j\" = \"2.0.17\""));
+        assertTrue(toml.contains("\"org.springframework.boot:spring-boot-dependencies\" = { versionRef = \"boot\" }"));
         assertTrue(toml.contains("\"org.slf4j:slf4j-api\" = { versionRef = \"slf4j\" }"));
         assertEquals(Map.of("boot", "4.0.6", "slf4j", "2.0.17"), parsed.versionAliases());
         assertEquals("4.0.6", parsed.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertEquals(
+                "boot",
+                parsed.dependencyMetadata()
+                        .get(DependencyMetadata.key(
+                                "platforms",
+                                "org.springframework.boot:spring-boot-dependencies"))
+                        .versionRef());
         assertEquals("2.0.17", parsed.dependencies().get("org.slf4j:slf4j-api"));
+    }
+
+    @Test
+    void addsVersionRefPlatformWhileKeepingConcreteResolverInput() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "aliases"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                boot = "4.0.6"
+                """);
+
+        config = writer.addVersionRefPlatform(
+                config,
+                "org.springframework.boot:spring-boot-dependencies",
+                "boot",
+                "4.0.6");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"org.springframework.boot:spring-boot-dependencies\" = { versionRef = \"boot\" }"));
+        assertEquals("4.0.6", parsed.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertEquals(
+                "boot",
+                parsed.dependencyMetadata()
+                        .get(DependencyMetadata.key(
+                                "platforms",
+                                "org.springframework.boot:spring-boot-dependencies"))
+                        .versionRef());
     }
 
     @Test

@@ -66,7 +66,7 @@ public final class ZoltTomlWriter {
         if (!config.versionAliases().isEmpty()) {
             writeStringMap(toml, "versions", config.versionAliases());
         }
-        writeStringMap(toml, "platforms", config.platforms());
+        writePlatforms(toml, config.platforms(), config.dependencyMetadata());
         writeDependencyPolicy(toml, config.dependencyPolicy());
         writeOptionalDependencies(
                 toml,
@@ -705,7 +705,7 @@ public final class ZoltTomlWriter {
     }
 
     public ProjectConfig addPlatform(ProjectConfig config, String coordinate, String version) {
-        return copy(
+        ProjectConfig updated = copy(
                 config,
                 put(config.platforms(), coordinate, version),
                 config.apiDependencies(),
@@ -727,10 +727,54 @@ public final class ZoltTomlWriter {
                 config.managedAnnotationProcessors(),
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors());
+        return updated.withDependencyMetadata(removePlatformMetadata(updated.dependencyMetadata(), coordinate));
+    }
+
+    public ProjectConfig addVersionRefPlatform(
+            ProjectConfig config,
+            String coordinate,
+            String versionRef,
+            String version) {
+        ProjectConfig updated = copy(
+                config,
+                put(config.platforms(), coordinate, version),
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies(),
+                config.dependencies(),
+                config.managedDependencies(),
+                config.workspaceDependencies(),
+                config.runtimeDependencies(),
+                config.managedRuntimeDependencies(),
+                config.providedDependencies(),
+                config.managedProvidedDependencies(),
+                config.devDependencies(),
+                config.managedDevDependencies(),
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.workspaceTestDependencies(),
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors(),
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors());
+        Map<String, DependencyMetadata> metadata = new LinkedHashMap<>(updated.dependencyMetadata());
+        metadata.put(
+                DependencyMetadata.key("platforms", coordinate),
+                new DependencyMetadata(
+                        "platforms",
+                        coordinate,
+                        version,
+                        versionRef,
+                        false,
+                        null,
+                        false,
+                        false,
+                        List.of()));
+        return updated.withDependencyMetadata(metadata);
     }
 
     public ProjectConfig removePlatform(ProjectConfig config, String coordinate) {
-        return copy(
+        ProjectConfig updated = copy(
                 config,
                 remove(config.platforms(), coordinate),
                 config.apiDependencies(),
@@ -752,6 +796,18 @@ public final class ZoltTomlWriter {
                 config.managedAnnotationProcessors(),
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors());
+        return updated.withDependencyMetadata(removePlatformMetadata(updated.dependencyMetadata(), coordinate));
+    }
+
+    private static Map<String, DependencyMetadata> removePlatformMetadata(
+            Map<String, DependencyMetadata> dependencyMetadata,
+            String coordinate) {
+        if (!dependencyMetadata.containsKey(DependencyMetadata.key("platforms", coordinate))) {
+            return dependencyMetadata;
+        }
+        Map<String, DependencyMetadata> metadata = new LinkedHashMap<>(dependencyMetadata);
+        metadata.remove(DependencyMetadata.key("platforms", coordinate));
+        return metadata;
     }
 
     private static ProjectConfig copy(
@@ -810,6 +866,7 @@ public final class ZoltTomlWriter {
                 config.frameworkSettings(),
                 retainedDependencyMetadata(
                         config.dependencyMetadata(),
+                        platforms,
                         apiDependencies,
                         managedApiDependencies,
                         workspaceApiDependencies,
@@ -833,6 +890,7 @@ public final class ZoltTomlWriter {
 
     private static Map<String, DependencyMetadata> retainedDependencyMetadata(
             Map<String, DependencyMetadata> metadata,
+            Map<String, String> platforms,
             Map<String, String> apiDependencies,
             Set<String> managedApiDependencies,
             Map<String, String> workspaceApiDependencies,
@@ -857,6 +915,7 @@ public final class ZoltTomlWriter {
             if (value.publishOnly() || containsDependency(
                     value.section(),
                     value.coordinate(),
+                    platforms,
                     apiDependencies,
                     managedApiDependencies,
                     workspaceApiDependencies,
@@ -885,6 +944,7 @@ public final class ZoltTomlWriter {
     private static boolean containsDependency(
             String section,
             String coordinate,
+            Map<String, String> platforms,
             Map<String, String> apiDependencies,
             Set<String> managedApiDependencies,
             Map<String, String> workspaceApiDependencies,
@@ -905,6 +965,7 @@ public final class ZoltTomlWriter {
             Map<String, String> testAnnotationProcessors,
             Set<String> managedTestAnnotationProcessors) {
         return switch (section) {
+            case "platforms" -> platforms.containsKey(coordinate);
             case "api.dependencies" -> contains(apiDependencies, managedApiDependencies, workspaceApiDependencies, coordinate);
             case "dependencies" -> contains(dependencies, managedDependencies, workspaceDependencies, coordinate);
             case "runtime.dependencies" -> contains(runtimeDependencies, managedRuntimeDependencies, Map.of(), coordinate);
@@ -1243,6 +1304,25 @@ public final class ZoltTomlWriter {
         toml.append('[').append(section).append("]\n");
         for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
             toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue())).append('\n');
+        }
+        toml.append('\n');
+    }
+
+    private static void writePlatforms(
+            StringBuilder toml,
+            Map<String, String> platforms,
+            Map<String, DependencyMetadata> dependencyMetadata) {
+        toml.append("[platforms]\n");
+        for (Map.Entry<String, String> entry : sorted(platforms).entrySet()) {
+            toml.append(quote(entry.getKey())).append(" = ");
+            DependencyMetadata metadata =
+                    dependencyMetadata.get(DependencyMetadata.key("platforms", entry.getKey()));
+            if (metadata != null && metadata.versionRef() != null) {
+                toml.append("{ versionRef = ").append(quote(metadata.versionRef())).append(" }");
+            } else {
+                toml.append(quote(entry.getValue()));
+            }
+            toml.append('\n');
         }
         toml.append('\n');
     }

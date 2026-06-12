@@ -501,6 +501,13 @@ final class ZoltTomlParserTest {
                 """);
 
         assertEquals("4.0.6", config.platforms().get("org.springframework.boot:spring-boot-dependencies"));
+        assertEquals(
+                "boot",
+                config.dependencyMetadata()
+                        .get(DependencyMetadata.key(
+                                "platforms",
+                                "org.springframework.boot:spring-boot-dependencies"))
+                        .versionRef());
         assertEquals("4.0.6", config.versionAliases().get("boot"));
         assertEquals("2.0.17", config.dependencies().get("org.slf4j:slf4j-api"));
         assertEquals("1.18.38", config.annotationProcessors().get("org.projectlombok:lombok"));

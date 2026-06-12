@@ -206,15 +206,16 @@ public final class ZoltTomlParser {
         validateRepositoryCredentialReferences(repositorySettings, repositoryCredentials);
 
         Map<String, String> versionAliases = versionAliases(optionalTable(result, "versions"));
+        Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
         Map<String, String> platforms = versionDeclarations(
                 optionalTable(result, "platforms"),
                 "platforms",
-                versionAliases);
+                versionAliases,
+                dependencyMetadata);
         DependencyPolicySettings dependencyPolicy = dependencyPolicy(
                 optionalTable(result, "dependencyPolicy"),
                 optionalTable(result, "dependencyConstraints"),
                 versionAliases);
-        Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
 
         TomlTable apiTable = optionalTable(result, "api");
         DependencyDeclarations apiDependencies = DependencyDeclarations.empty();
@@ -1017,6 +1018,14 @@ public final class ZoltTomlParser {
             TomlTable table,
             String section,
             Map<String, String> versionAliases) {
+        return versionDeclarations(table, section, versionAliases, null);
+    }
+
+    private static Map<String, String> versionDeclarations(
+            TomlTable table,
+            String section,
+            Map<String, String> versionAliases,
+            Map<String, DependencyMetadata> dependencyMetadata) {
         if (table == null) {
             return Map.of();
         }
@@ -1034,7 +1043,22 @@ public final class ZoltTomlParser {
             }
             if (rawValue instanceof TomlTable valueTable) {
                 validateKeys(section + "." + key, valueTable, Set.of("versionRef"));
-                values.put(key, requiredVersionRef(valueTable, section + "." + key, versionAliases));
+                String version = requiredVersionRef(valueTable, section + "." + key, versionAliases);
+                values.put(key, version);
+                if (dependencyMetadata != null && valueTable.get(List.of("versionRef")) instanceof String alias) {
+                    dependencyMetadata.put(
+                            DependencyMetadata.key(section, key),
+                            new DependencyMetadata(
+                                    section,
+                                    key,
+                                    version,
+                                    alias,
+                                    false,
+                                    null,
+                                    false,
+                                    false,
+                                    List.of()));
+                }
                 continue;
             }
             throw new ZoltConfigException(

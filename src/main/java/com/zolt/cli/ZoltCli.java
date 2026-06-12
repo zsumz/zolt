@@ -607,8 +607,11 @@ public final class ZoltCli implements Runnable {
                 mixinStandardHelpOptions = true,
                 description = "Add a platform BOM import to zolt.toml and refresh zolt.lock.")
         public static final class AddCommand implements Runnable {
-            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT:VERSION", description = "Platform BOM coordinate.")
+            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT[:VERSION]", description = "Platform BOM coordinate.")
             private String coordinate;
+
+            @Option(names = "--version-ref", description = "Use a version alias declared in [versions].")
+            private String versionRef;
 
             @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
             private boolean noResolve;
@@ -631,14 +634,19 @@ public final class ZoltCli implements Runnable {
             public void run() {
                 try {
                     Coordinate parsed = coordinateParser.parse(coordinate);
-                    String version = parsed.version().orElseThrow(() -> new PlatformCommandException(
-                            "Platform coordinate must include a version. Use `group:artifact:version`."));
                     String platform = parsed.groupId() + ":" + parsed.artifactId();
                     Path configPath = workingDirectory.resolve("zolt.toml");
                     ProjectConfig config = tomlParser.parse(configPath);
-                    ProjectConfig updated = tomlWriter.addPlatform(config, platform, version);
+                    PlatformAddRequest request = addRequest(config, parsed, platform);
+                    ProjectConfig updated = request.versionRef() == null
+                            ? tomlWriter.addPlatform(config, platform, request.version())
+                            : tomlWriter.addVersionRefPlatform(
+                                    config,
+                                    platform,
+                                    request.versionRef(),
+                                    request.version());
                     tomlWriter.write(configPath, updated);
-                    printAddSummary(config, platform, version);
+                    printAddSummary(config, platform, request);
                     if (noResolve) {
                         spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                         return;
@@ -654,9 +662,62 @@ public final class ZoltCli implements Runnable {
                 }
             }
 
-            private void printAddSummary(ProjectConfig original, String platform, String version) {
+            private PlatformAddRequest addRequest(ProjectConfig config, Coordinate parsed, String platform) {
+                if (versionRef != null && versionRef.isBlank()) {
+                    throw new PlatformCommandException(
+                            "Version alias for --version-ref must be non-empty. Use `--version-ref <alias>`.");
+                }
+                if (versionRef != null && parsed.version().isPresent()) {
+                    throw new PlatformCommandException(
+                            "Version-ref platform coordinate must not include a version. Use `--version-ref "
+                                    + versionRef
+                                    + " "
+                                    + platform
+                                    + "`.");
+                }
+                if (versionRef == null) {
+                    String version = parsed.version().orElseThrow(() -> new PlatformCommandException(
+                            "Platform coordinate must include a version. Use `group:artifact:version` or `--version-ref <alias> group:artifact`."));
+                    return new PlatformAddRequest(version, null);
+                }
+                String version = config.versionAliases().get(versionRef);
+                if (version == null) {
+                    throw new PlatformCommandException(
+                            "Unknown versionRef `"
+                                    + versionRef
+                                    + "`. Add [versions]."
+                                    + versionRef
+                                    + " or use an explicit version.");
+                }
+                return new PlatformAddRequest(version, versionRef);
+            }
+
+            private void printAddSummary(ProjectConfig original, String platform, PlatformAddRequest request) {
+                String version = request.version();
                 String existing = original.platforms().get(platform);
-                if (version.equals(existing)) {
+                String existingVersionRef = platformVersionRef(original, platform);
+                if (request.versionRef() != null) {
+                    String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
+                    if (request.versionRef().equals(existingVersionRef)) {
+                        spec.commandLine().getOut().println("Platform " + platform + " already uses "
+                                + versionRefDescription + " in [platforms]");
+                    } else if (existingVersionRef != null) {
+                        spec.commandLine().getOut().println("Updated platform " + platform
+                                + " from versionRef `" + existingVersionRef + "` to "
+                                + versionRefDescription + " in [platforms]");
+                    } else if (existing != null) {
+                        spec.commandLine().getOut().println("Updated platform " + platform
+                                + " from " + existing + " to " + versionRefDescription + " in [platforms]");
+                    } else {
+                        spec.commandLine().getOut().println("Added platform " + platform
+                                + " with " + versionRefDescription + " to [platforms]");
+                    }
+                    return;
+                }
+                if (existingVersionRef != null) {
+                    spec.commandLine().getOut().println("Updated platform " + platform
+                            + " from versionRef `" + existingVersionRef + "` to " + version + " in [platforms]");
+                } else if (version.equals(existing)) {
                     spec.commandLine().getOut().println("Platform " + platform + ":" + version
                             + " already exists in [platforms]");
                 } else if (existing != null) {
@@ -667,6 +728,14 @@ public final class ZoltCli implements Runnable {
                             + " to [platforms]");
                 }
             }
+
+            private static String platformVersionRef(ProjectConfig config, String platform) {
+                DependencyMetadata metadata =
+                        config.dependencyMetadata().get(DependencyMetadata.key("platforms", platform));
+                return metadata == null ? null : metadata.versionRef();
+            }
+
+            private record PlatformAddRequest(String version, String versionRef) {}
         }
 
         @Command(

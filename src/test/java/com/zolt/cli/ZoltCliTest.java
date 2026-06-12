@@ -3754,6 +3754,71 @@ final class ZoltCliTest {
     }
 
     @Test
+    void platformAddWritesVersionRefPlatformWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [repositories]
+                "central" = "https://repo.maven.apache.org/maven2"
+
+                [versions]
+                enterprise = "2026.1.0"
+                """.formatted(currentJavaMajorVersion()));
+
+        CommandResult result = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "--version-ref",
+                "enterprise",
+                "com.example:enterprise-platform");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Added platform com.example:enterprise-platform with versionRef `enterprise` = 2026.1.0 to [platforms]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("[versions]\n\"enterprise\" = \"2026.1.0\""));
+        assertTrue(config.contains("\"com.example:enterprise-platform\" = { versionRef = \"enterprise\" }"));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void platformAddRejectsUnknownVersionRefOrExplicitVersionWithVersionRef() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult unknown = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--version-ref",
+                "enterprise",
+                "com.example:enterprise-platform");
+        CommandResult explicit = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--version-ref",
+                "enterprise",
+                "com.example:enterprise-platform:2026.1.0");
+
+        assertEquals(1, unknown.exitCode());
+        assertTrue(unknown.stderr().contains(
+                "Unknown versionRef `enterprise`. Add [versions].enterprise or use an explicit version."));
+        assertEquals(1, explicit.exitCode());
+        assertTrue(explicit.stderr().contains(
+                "Version-ref platform coordinate must not include a version. Use `--version-ref enterprise com.example:enterprise-platform`."));
+    }
+
+    @Test
     void platformAddRefreshesLockfileByDefault() throws IOException {
         try (TestRepository repository = TestRepository.start()) {
             repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """
