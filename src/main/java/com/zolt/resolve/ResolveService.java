@@ -40,6 +40,7 @@ import com.zolt.quarkus.QuarkusExtensionMetadataReader;
 import com.zolt.quarkus.QuarkusMetadataException;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -693,12 +694,54 @@ public final class ResolveService {
                     .toList();
             return new ZoltLockfile(
                     ZoltLockfile.CURRENT_VERSION,
+                    aliasFingerprint(context.config),
                     packages,
                     conflicts,
                     lockPolicyEffects(graph.policyEffects()));
         } finally {
             context.addLockfileAssemblyNanos(elapsedSince(started));
         }
+    }
+
+    private static Optional<String> aliasFingerprint(ProjectConfig config) {
+        List<String> inputs = new ArrayList<>();
+        config.versionAliases().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> "alias\t" + entry.getKey() + "\t" + entry.getValue())
+                .forEach(inputs::add);
+        config.dependencyMetadata().values().stream()
+                .filter(metadata -> metadata.versionRef() != null)
+                .sorted(Comparator
+                        .comparing(DependencyMetadata::section)
+                        .thenComparing(DependencyMetadata::coordinate))
+                .map(metadata -> "versionRef\t"
+                        + metadata.section()
+                        + "\t"
+                        + metadata.coordinate()
+                        + "\t"
+                        + metadata.versionRef()
+                        + "\t"
+                        + nullToEmpty(metadata.version()))
+                .forEach(inputs::add);
+        config.dependencyPolicy().constraints().values().stream()
+                .filter(constraint -> constraint.versionRef().isPresent())
+                .sorted(Comparator.comparing(DependencyConstraint::coordinate))
+                .map(constraint -> "constraintVersionRef\t"
+                        + constraint.coordinate()
+                        + "\t"
+                        + constraint.versionRef().orElseThrow()
+                        + "\t"
+                        + constraint.version())
+                .forEach(inputs::add);
+        if (inputs.isEmpty()) {
+            return Optional.empty();
+        }
+        String input = String.join("\n", inputs) + "\n";
+        return Optional.of("sha256:" + sha256(input.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private List<DependencyRequest> quarkusDeploymentRequests(

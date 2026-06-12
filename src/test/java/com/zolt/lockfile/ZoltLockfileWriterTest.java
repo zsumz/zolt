@@ -32,6 +32,22 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
+    void writesAliasFingerprintWhenPresent() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                Optional.of("sha256:alias-inputs"),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertEquals("""
+                version = 1
+                aliasFingerprint = "sha256:alias-inputs"
+
+                """, writer.write(lockfile));
+    }
+
+    @Test
     void packagesAreSortedDeterministically() {
         String output = writer.write(unsortedLockfile());
 

@@ -17,8 +17,11 @@ import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import com.zolt.resolve.VersionComparator;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -241,9 +244,36 @@ public final class WorkspaceResolveService {
 
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
+                workspaceAliasFingerprint(memberOutputs),
                 List.copyOf(packages.values()),
                 List.copyOf(conflicts.values()),
                 List.copyOf(policyEffects.values()));
+    }
+
+    private static Optional<String> workspaceAliasFingerprint(List<MemberResolveOutput> memberOutputs) {
+        List<String> inputs = memberOutputs.stream()
+                .filter(output -> output.lockfile().aliasFingerprint().isPresent())
+                .sorted(Comparator.comparing(MemberResolveOutput::member))
+                .map(output -> output.member() + "\t" + output.lockfile().aliasFingerprint().orElseThrow())
+                .toList();
+        if (inputs.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of("sha256:" + sha256((String.join("\n", inputs) + "\n").getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(bytes);
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte value : hash) {
+                hex.append(String.format("%02x", value));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ResolveException("Could not compute workspace alias fingerprint because SHA-256 is unavailable.", exception);
+        }
     }
 
     private static GlobalExternalSelection selectGlobalExternalPackages(List<LockPackage> candidates) {

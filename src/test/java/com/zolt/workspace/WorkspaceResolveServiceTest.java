@@ -389,6 +389,47 @@ final class WorkspaceResolveServiceTest {
     }
 
     @Test
+    void lockedWorkspaceResolveFailsWhenMemberPlatformVersionRefEdgeChangesWithoutConcreteVersionChange()
+            throws IOException {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        platformVersionRefMember("platform-one");
+        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+        String existing = Files.readString(first.lockfilePath());
+        platformVersionRefMember("platform-two");
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
+
+        assertTrue(existing.contains("aliasFingerprint = \"sha256:"));
+        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
+        assertEquals(existing, Files.readString(first.lockfilePath()));
+    }
+
+    @Test
     void selectsGlobalExternalVersionsAcrossWorkspaceMembers() throws IOException {
         addArtifact("com.example", "other", "1.0.0", """
                 <project>
@@ -522,6 +563,20 @@ final class WorkspaceResolveServiceTest {
                 group = "com.acme"
                 java = "21"
                 %s""".formatted(name, extraToml));
+    }
+
+    private void platformVersionRefMember(String alias) throws IOException {
+        member("apps/api", "api", """
+
+                [versions]
+                "%s" = "1.0.0"
+
+                [platforms]
+                "com.example:platform" = { versionRef = "%s" }
+
+                [dependencies]
+                "com.example:app" = {}
+                """.formatted(alias, alias));
     }
 
     private void addArtifact(String groupId, String artifactId, String version, String pom) {

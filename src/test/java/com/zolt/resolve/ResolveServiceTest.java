@@ -1166,6 +1166,39 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void lockedResolveFailsWhenPlatformVersionRefEdgeChangesWithoutConcreteVersionChange() throws IOException {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>app</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project-platform-alias-lock");
+        Path cacheRoot = tempDir.resolve("cache-platform-alias-lock");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, platformVersionRefConfig("platform-one"), cacheRoot);
+        String existingLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, platformVersionRefConfig("platform-two"), cacheRoot, true));
+
+        assertTrue(existingLockfile.contains("aliasFingerprint = \"sha256:"));
+        assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void laterProjectPlatformManagedVersionRecordsSelectedPlatformSource() {
         addPom("com.example", "platform-a", "1.0.0", """
                 <project>
@@ -2361,6 +2394,28 @@ final class ResolveServiceTest {
                 Set.of(),
                 BuildSettings.defaults(),
                 null);
+    }
+
+    private ProjectConfig platformVersionRefConfig(String alias) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                test = "%s"
+
+                [versions]
+                "%s" = "1.0.0"
+
+                [platforms]
+                "com.example:platform" = { versionRef = "%s" }
+
+                [dependencies]
+                "com.example:app" = {}
+                """.formatted(baseUri, alias, alias));
     }
 
     private ProjectConfig testPlatformConfig() {

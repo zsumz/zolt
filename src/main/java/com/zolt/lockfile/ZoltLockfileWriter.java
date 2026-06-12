@@ -23,7 +23,9 @@ public final class ZoltLockfileWriter {
 
     public String write(ZoltLockfile lockfile) {
         StringBuilder output = new StringBuilder();
-        output.append("version = ").append(lockfile.version()).append("\n\n");
+        output.append("version = ").append(lockfile.version()).append('\n');
+        lockfile.aliasFingerprint().ifPresent(value -> assignment(output, "aliasFingerprint", value));
+        output.append('\n');
         for (LockPackage lockPackage : sortedPackages(lockfile.packages())) {
             writePackage(output, lockPackage);
         }
