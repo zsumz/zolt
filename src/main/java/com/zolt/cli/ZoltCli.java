@@ -1464,6 +1464,11 @@ public final class ZoltCli implements Runnable {
         public void run() {
             try {
                 ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
+                Path configPath = workingDirectory.resolve("zolt.toml");
+                if (java.nio.file.Files.isRegularFile(configPath)) {
+                    ProjectConfig config = new ZoltTomlParser().parse(configPath);
+                    requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                }
                 ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
                 Kind parsedKind = Kind.parse(kind);
                 if (parsedKind == Kind.AUDIT) {
@@ -1490,7 +1495,11 @@ public final class ZoltCli implements Runnable {
                     case AUDIT -> throw new ClasspathCommandException("Classpath audit should be handled before formatting.");
                 });
                 printAndFlush(spec, output);
-            } catch (ClasspathCommandException | LockfileReadException exception) {
+            } catch (ArtifactCacheException
+                    | ClasspathCommandException
+                    | LockfileReadException
+                    | ResolveException
+                    | ZoltConfigException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
@@ -1731,6 +1740,7 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = timings.measure(
                         "config read",
                         () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
                 BuildResult result = timings.measure(
                         "compile main",
                         () -> new BuildService().build(workingDirectory, config, cacheRoot, offline),
@@ -1853,6 +1863,7 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = timings.measure(
                         "config read",
                         () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
                 RunResult result = timings.measure(
                         "run application",
                         () -> new RunService().run(
@@ -2008,6 +2019,7 @@ public final class ZoltCli implements Runnable {
                 ProjectConfig config = timings.measure(
                         "config read",
                         () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
                 TestRunService testRunService = new TestRunService();
                 TestRunResult result = timings.measure(
                         "run tests",
@@ -2320,6 +2332,7 @@ public final class ZoltCli implements Runnable {
                                 "config read",
                                 () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
                         packageModeOverride);
+                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
                 if (planOnly) {
                     PackagePlan packagePlan = timings.measure(
                             "plan package contents",
@@ -2548,6 +2561,7 @@ public final class ZoltCli implements Runnable {
                                 "config read",
                                 () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
                         packageModeOverride);
+                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
                 RunPackageResult result = timings.measure(
                         "run packaged application",
                         () -> new RunPackageService().runPackage(
@@ -3020,6 +3034,31 @@ public final class ZoltCli implements Runnable {
                 "resourceFiles", Integer.toString(result.resourceCount()),
                 "resolvedLockfile", Boolean.toString(result.resolvedLockfile()),
                 "mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
+    }
+
+    private static void requireFreshLockfile(
+            Path workingDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            boolean offline) {
+        Path lockfilePath = workingDirectory.resolve("zolt.lock");
+        if (!java.nio.file.Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
+            return;
+        }
+        new ResolveService().resolve(workingDirectory, config, cacheRoot, true, offline);
+    }
+
+    private static boolean looksGeneratedLockfile(Path lockfilePath) {
+        try {
+            String content = java.nio.file.Files.readString(lockfilePath);
+            return content.contains("Sha256 = ") || content.contains("aliasFingerprint = ");
+        } catch (java.io.IOException exception) {
+            throw new LockfileReadException(
+                    "Could not read zolt.lock at "
+                            + lockfilePath
+                            + " while checking lockfile freshness. Check that the file exists and is readable.",
+                    exception);
+        }
     }
 
     private static Map<String, String> workspaceBuildAttributes(WorkspaceBuildResult result) {
