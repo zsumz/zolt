@@ -324,7 +324,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$SelfParityCommand",
+    "name": "com.zolt.cli.command.SelfParityCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

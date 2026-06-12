@@ -46,6 +46,7 @@ import com.zolt.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.cli.command.CleanCommand;
 import com.zolt.cli.command.DoctorCommand;
+import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.explain.GradleExplainFormatter;
 import com.zolt.explain.GradleInspectionResult;
@@ -133,9 +134,6 @@ import com.zolt.selfhost.NativeSmokeResult;
 import com.zolt.selfhost.NativeSmokeService;
 import com.zolt.selfhost.SelfCheckResult;
 import com.zolt.selfhost.SelfCheckService;
-import com.zolt.selfhost.SelfHostingParityException;
-import com.zolt.selfhost.SelfHostingParityResult;
-import com.zolt.selfhost.SelfHostingParityService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
@@ -213,7 +211,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.ReleaseArchiveCommand.class,
                 ZoltCli.ReleaseVerifyCommand.class,
                 ZoltCli.SelfCheckCommand.class,
-                ZoltCli.SelfParityCommand.class,
+                SelfParityCommand.class,
                 CleanCommand.class,
                 DoctorCommand.class
         })
@@ -2821,68 +2819,6 @@ public final class ZoltCli implements Runnable {
             } finally {
                 printTimings(spec, "self-check", workingDirectory, timingOptions, timings);
             }
-        }
-    }
-
-    @Command(name = "self-parity", description = "Compare bootstrap and Zolt-built jar entries.")
-    public static final class SelfParityCommand implements Runnable {
-        @Option(names = "--bootstrap-jar", required = true, description = "Bootstrap-built jar to compare against.")
-        private Path bootstrapJar;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                SelfHostingParityResult result = new SelfHostingParityService()
-                        .compare(workingDirectory, cacheRoot, bootstrapJar);
-                if (!result.ok()) {
-                    spec.commandLine().getErr().println("error: Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.");
-                    spec.commandLine().getErr().println("Missing from Zolt-built jar:");
-                    spec.commandLine().getErr().print(formatEntries(result.missingFromZolt()));
-                    spec.commandLine().getErr().println("Extra in Zolt-built jar:");
-                    spec.commandLine().getErr().print(formatEntries(result.extraInZolt()));
-                    throw new CommandLine.ExecutionException(spec.commandLine(), "Self-hosting parity failed.");
-                }
-                spec.commandLine().getOut().println("Self-hosting parity status: ok");
-                spec.commandLine().getOut().println("Bootstrap jar: " + result.bootstrapJar());
-                spec.commandLine().getOut().println("Zolt-built jar: " + result.zoltJar());
-                spec.commandLine().getOut().println("Jar entries match");
-            } catch (BuildException
-                    | JavacException
-                    | GroovyCompileException
-                    | ManifestGenerationException
-                    | PackageException
-                    | ResourceCopyException
-                    | SelfHostingParityException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-
-        private static String formatEntries(Set<String> entries) {
-            if (entries.isEmpty()) {
-                return "  <none>\n";
-            }
-            StringBuilder output = new StringBuilder();
-            entries.stream()
-                    .limit(50)
-                    .forEach(entry -> output.append("  - ").append(entry).append('\n'));
-            if (entries.size() > 50) {
-                output.append("  ... ").append(entries.size() - 50).append(" more\n");
-            }
-            return output.toString();
         }
     }
 
