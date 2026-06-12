@@ -9,6 +9,7 @@ import com.zolt.doctor.JdkDetector;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -71,7 +72,10 @@ public final class WorkspaceTestService {
     }
 
     public WorkspaceBuildResult buildTestInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
-        return workspaceBuildService.build(plan, cacheRoot);
+        return workspaceBuildService.build(
+                plan,
+                cacheRoot,
+                new LinkedHashSet<>(plan.selection().selectedMembers()));
     }
 
     public WorkspaceTestResult runTests(

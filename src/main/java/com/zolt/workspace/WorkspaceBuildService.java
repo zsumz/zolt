@@ -13,9 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class WorkspaceBuildService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
@@ -86,6 +88,16 @@ public final class WorkspaceBuildService {
     }
 
     public WorkspaceBuildResult build(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return build(
+                plan,
+                cacheRoot,
+                new LinkedHashSet<>(plan.selection().includedMembers()));
+    }
+
+    WorkspaceBuildResult build(
+            WorkspaceBuildPlan plan,
+            Path cacheRoot,
+            Set<String> fullClasspathMembers) {
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         ZoltLockfile lockfile = plan.lockfile();
@@ -94,7 +106,8 @@ public final class WorkspaceBuildService {
                 workspace,
                 lockfile,
                 cacheRoot,
-                selection.includedMembers());
+                selection.includedMembers(),
+                fullClasspathMembers);
         List<WorkspaceBuildResult.MemberBuildResult> results = new ArrayList<>();
         for (String memberPath : selection.includedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);

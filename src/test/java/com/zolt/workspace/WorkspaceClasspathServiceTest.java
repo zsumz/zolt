@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -112,10 +113,21 @@ final class WorkspaceClasspathServiceTest {
                 lockfile,
                 tempDir.resolve("cache"),
                 List.of("apps/api", "apps/worker"));
+        Map<String, ClasspathSet> selectedTestClasspathsByMember = service.classpathsForMembers(
+                workspace,
+                lockfile,
+                tempDir.resolve("cache"),
+                List.of("modules/core", "apps/api"),
+                Set.of("apps/api"));
 
         assertEquals(List.of("apps/api", "apps/worker"), List.copyOf(classpathsByMember.keySet()));
         assertEquals(apiClasspaths, classpathsByMember.get("apps/api"));
         assertEquals(workerClasspaths, classpathsByMember.get("apps/worker"));
+        assertTrue(selectedTestClasspathsByMember.get("modules/core").compile().entries().contains(coreHelperJar));
+        assertTrue(selectedTestClasspathsByMember.get("modules/core").compile().entries().contains(coreApiJar));
+        assertTrue(selectedTestClasspathsByMember.get("modules/core").runtime().entries().isEmpty());
+        assertTrue(selectedTestClasspathsByMember.get("modules/core").test().entries().isEmpty());
+        assertEquals(apiClasspaths, selectedTestClasspathsByMember.get("apps/api"));
         assertTrue(apiClasspaths.compile().entries().contains(coreOutput));
         assertFalse(apiClasspaths.compile().entries().contains(extraOutput));
         assertFalse(apiClasspaths.compile().entries().contains(coreHelperJar));

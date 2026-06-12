@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.Set;
 
 public final class WorkspaceClasspathService {
+    private static final Classpath EMPTY_CLASSPATH = new Classpath(List.of());
+
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
 
@@ -47,19 +50,63 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             List<String> memberPaths) {
+        return classpathsForMembers(
+                workspace,
+                lockfile,
+                cacheRoot,
+                memberPaths,
+                new LinkedHashSet<>(memberPaths));
+    }
+
+    public Map<String, ClasspathSet> classpathsForMembers(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            List<String> memberPaths,
+            Set<String> fullClasspathMembers) {
         Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
         Map<String, ClasspathSet> classpathsByMember = new LinkedHashMap<>();
         for (String memberPath : memberPaths) {
-            classpathsByMember.put(
-                    memberPath,
-                    classpathsFor(
+            ClasspathSet classpaths = fullClasspathMembers.contains(memberPath)
+                    ? classpathsFor(
                             workspace,
                             lockfile,
                             cacheRoot,
                             memberPath,
-                            dependenciesByMember));
+                            dependenciesByMember)
+                    : mainBuildClasspathsFor(
+                            workspace,
+                            lockfile,
+                            cacheRoot,
+                            memberPath,
+                            dependenciesByMember);
+            classpathsByMember.put(memberPath, classpaths);
         }
         return Collections.unmodifiableMap(classpathsByMember);
+    }
+
+    private ClasspathSet mainBuildClasspathsFor(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            String memberPath,
+            Map<String, List<String>> dependenciesByMember) {
+        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
+        ZoltLockfile compileLockfile = new ZoltLockfile(
+                lockfile.version(),
+                compileClasspathPackagesFor(lockfile.packages(), memberPath, dependencyClosure),
+                List.of());
+        ClasspathSet compileClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+                compileLockfile,
+                cacheRoot,
+                workspace.root()));
+        return new ClasspathSet(
+                compileClasspaths.compile(),
+                EMPTY_CLASSPATH,
+                EMPTY_CLASSPATH,
+                compileClasspaths.processor(),
+                EMPTY_CLASSPATH,
+                EMPTY_CLASSPATH);
     }
 
     private ClasspathSet classpathsFor(
