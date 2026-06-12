@@ -228,7 +228,7 @@ public final class WorkspaceIdeModelService {
                     "LOCKFILE_CHECK_UNAVAILABLE",
                     exception.getMessage(),
                     lockfilePath,
-                    "Run zolt resolve --workspace without --offline to seed the cache, then retry zolt ide model --workspace --check-lock --offline."));
+                    "Run zolt resolve --workspace without --offline to seed the cache, then retry zolt ide model --workspace --offline."));
         }
     }
 

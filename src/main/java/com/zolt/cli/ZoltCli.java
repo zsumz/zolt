@@ -1564,7 +1564,7 @@ public final class ZoltCli implements Runnable {
                                 () -> new WorkspaceIdeModelService().export(
                                         workingDirectory,
                                         cacheRoot,
-                                        checkLock,
+                                        true,
                                         offline,
                                         timings),
                                 ZoltCli::workspaceIdeModelAttributes);

@@ -5656,6 +5656,65 @@ final class ZoltCliTest {
     }
 
     @Test
+    void ideModelWorkspaceReportsStaleRootLockfileByDefault() throws IOException {
+        try (TestRepository repository = TestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path workspaceDir = tempDir.resolve("workspace");
+            Path apiDir = workspaceDir.resolve("apps/api");
+            Files.createDirectories(apiDir);
+            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                    [workspace]
+                    name = "workspace"
+                    members = ["apps/api"]
+
+                    [repositories]
+                    test = "%s"
+                    """.formatted(repository.baseUri()));
+            Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                    [dependencies]
+                    "com.example:app" = "1.0.0"
+                    """);
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--workspace",
+                    "--cwd", apiDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+            String existingLockfile = Files.readString(workspaceDir.resolve("zolt.lock"));
+            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                    [workspace]
+                    name = "workspace"
+                    members = ["apps/api"]
+
+                    [repositories]
+                    test = "%s?changed=true"
+                    """.formatted(repository.baseUri()));
+
+            CommandResult result = execute(
+                    "ide",
+                    "model",
+                    "--workspace",
+                    "--cwd", apiDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString(),
+                    "--format", "json");
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(0, result.exitCode());
+            assertEquals("", result.stderr());
+            assertTrue(result.stdout().contains("\"code\": \"LOCKFILE_STALE\""));
+            assertTrue(result.stdout().contains("Workspace zolt.lock is out of date"));
+            assertTrue(result.stdout().contains("\"nextStep\": \"Run zolt resolve --workspace.\""));
+            assertEquals(existingLockfile, Files.readString(workspaceDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
     void resolveWorkspaceWritesRootLockfile() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");
