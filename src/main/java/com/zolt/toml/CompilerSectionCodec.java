@@ -1,10 +1,8 @@
 package com.zolt.toml;
 
 import com.zolt.project.CompilerSettings;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class CompilerSectionCodec {
@@ -44,15 +42,23 @@ final class CompilerSectionCodec {
         }
 
         TomlValidation.validateKeys("compiler", table, COMPILER_KEYS);
-        List<String> args = stringListOrDefault(table, "compiler", "args", defaults.args());
-        List<String> testArgs = stringListOrDefault(table, "compiler", "testArgs", defaults.testArgs());
+        List<String> args = TomlScalars.stringListOrDefault(table, "compiler", "args", defaults.args());
+        List<String> testArgs = TomlScalars.stringListOrDefault(table, "compiler", "testArgs", defaults.testArgs());
         validateCompilerArgs("args", args);
         validateCompilerArgs("testArgs", testArgs);
         return new CompilerSettings(
-                stringOrDefault(table, "compiler", "generatedSources", defaults.generatedSources()),
-                stringOrDefault(table, "compiler", "generatedTestSources", defaults.generatedTestSources()),
-                stringOrDefault(table, "compiler", "release", defaults.release()),
-                stringOrDefault(table, "compiler", "encoding", defaults.encoding()),
+                TomlScalars.nonBlankStringOrDefault(
+                        table,
+                        "compiler",
+                        "generatedSources",
+                        defaults.generatedSources()),
+                TomlScalars.nonBlankStringOrDefault(
+                        table,
+                        "compiler",
+                        "generatedTestSources",
+                        defaults.generatedTestSources()),
+                TomlScalars.nonBlankStringOrDefault(table, "compiler", "release", defaults.release()),
+                TomlScalars.nonBlankStringOrDefault(table, "compiler", "encoding", defaults.encoding()),
                 args,
                 testArgs);
     }
@@ -91,43 +97,6 @@ final class CompilerSectionCodec {
                                 + "`; use [compiler].release, [compiler].encoding, source roots, dependencies, or annotation processor settings instead.");
             }
         }
-    }
-
-    private static String stringOrDefault(TomlTable table, String section, String key, String defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof String value) || value.isBlank()) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-        }
-        return value;
-    }
-
-    private static List<String> stringListOrDefault(
-            TomlTable table,
-            String section,
-            String key,
-            List<String> defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof TomlArray array)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
-        }
-        List<String> values = new ArrayList<>();
-        for (int index = 0; index < array.size(); index++) {
-            Object element = array.get(index);
-            if (!(element instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
-            }
-            values.add(value);
-        }
-        return List.copyOf(values);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {

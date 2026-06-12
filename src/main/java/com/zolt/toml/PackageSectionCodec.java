@@ -3,13 +3,10 @@ package com.zolt.toml;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.PublicationMetadata;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class PackageSectionCodec {
@@ -34,7 +31,8 @@ final class PackageSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("package", table, PACKAGE_KEYS);
         PackageSettings defaults = PackageSettings.defaults();
         PublicationMetadata metadata = parsePublicationMetadata(table.getTable(List.of("metadata")));
-        Map<String, String> manifestAttributes = stringMap(table.getTable(List.of("manifest")), "package.manifest");
+        Map<String, String> manifestAttributes =
+                TomlScalars.stringMap(table.getTable(List.of("manifest")), "package.manifest");
         Object rawMode = table.get(List.of("mode"));
         PackageMode mode = defaults.mode();
         if (rawMode != null) {
@@ -53,9 +51,9 @@ final class PackageSectionCodec {
         }
         return new PackageSettings(
                 mode,
-                booleanOrDefault(table, "package", "sources", defaults.sources()),
-                booleanOrDefault(table, "package", "javadoc", defaults.javadoc()),
-                booleanOrDefault(table, "package", "tests", defaults.tests()),
+                TomlScalars.booleanOrDefault(table, "package", "sources", defaults.sources()),
+                TomlScalars.booleanOrDefault(table, "package", "javadoc", defaults.javadoc()),
+                TomlScalars.booleanOrDefault(table, "package", "tests", defaults.tests()),
                 metadata,
                 manifestAttributes);
     }
@@ -88,13 +86,13 @@ final class PackageSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("package.metadata", table, PACKAGE_METADATA_KEYS);
         PublicationMetadata defaults = PublicationMetadata.empty();
         return new PublicationMetadata(
-                stringOrDefault(table, "package.metadata", "name", defaults.name()),
-                stringOrDefault(table, "package.metadata", "description", defaults.description()),
-                stringOrDefault(table, "package.metadata", "url", defaults.url()),
-                stringOrDefault(table, "package.metadata", "license", defaults.license()),
-                stringListOrDefault(table, "package.metadata", "developers", defaults.developers()),
-                stringOrDefault(table, "package.metadata", "scm", defaults.scm()),
-                stringOrDefault(table, "package.metadata", "issues", defaults.issues()));
+                TomlScalars.stringOrDefault(table, "package.metadata", "name", defaults.name()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "description", defaults.description()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "url", defaults.url()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "license", defaults.license()),
+                TomlScalars.stringListOrDefault(table, "package.metadata", "developers", defaults.developers()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "scm", defaults.scm()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "issues", defaults.issues()));
     }
 
     private static void writePublicationMetadata(StringBuilder toml, PublicationMetadata metadata) {
@@ -133,75 +131,6 @@ final class PackageSectionCodec {
             toml.append('\n');
         }
         writeStringMap(toml, "package.manifest", attributes);
-    }
-
-    private static Map<String, String> stringMap(TomlTable table, String section) {
-        if (table == null) {
-            return Map.of();
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String key : table.keySet()) {
-            Object rawValue = table.get(List.of(key));
-            if (!(rawValue instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-            }
-            values.put(key, value);
-        }
-        return values;
-    }
-
-    private static String stringOrDefault(TomlTable table, String section, String key, String defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof String value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-        }
-        if (value.isBlank()) {
-            return defaultValue;
-        }
-        return value;
-    }
-
-    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return value;
-    }
-
-    private static List<String> stringListOrDefault(
-            TomlTable table,
-            String section,
-            String key,
-            List<String> defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof TomlArray array)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
-        }
-        List<String> values = new ArrayList<>();
-        for (int index = 0; index < array.size(); index++) {
-            Object element = array.get(index);
-            if (!(element instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
-            }
-            values.add(value);
-        }
-        return List.copyOf(values);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {

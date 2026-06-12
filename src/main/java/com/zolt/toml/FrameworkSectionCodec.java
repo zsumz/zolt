@@ -42,7 +42,11 @@ final class FrameworkSectionCodec {
         }
 
         TomlValidation.validateKeys("framework.quarkus", table, QUARKUS_KEYS);
-        boolean enabled = booleanOrDefault(table, "framework.quarkus", "enabled", defaults.enabled());
+        boolean enabled = TomlScalars.booleanOrDefault(
+                table,
+                "framework.quarkus",
+                "enabled",
+                defaults.enabled());
         Object rawPackage = table.get(List.of("package"));
         if (rawPackage == null) {
             return new QuarkusSettings(enabled, defaults.packageMode());
@@ -61,18 +65,6 @@ final class FrameworkSectionCodec {
                                 + "` in zolt.toml. Supported Quarkus package modes are: "
                                 + QuarkusPackageMode.supportedValues()
                                 + ".")));
-    }
-
-    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return value;
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {

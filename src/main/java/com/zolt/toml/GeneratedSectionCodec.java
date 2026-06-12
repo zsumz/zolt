@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class GeneratedSectionCodec {
@@ -104,7 +103,7 @@ final class GeneratedSectionCodec {
                         "Invalid value for [" + section + "]." + id + " in zolt.toml. Use a table with kind, language, output, and inputs.");
             }
             String stepSection = section + "." + id;
-            String kindValue = requiredString(stepTable, stepSection, "kind");
+            String kindValue = TomlScalars.requiredString(stepTable, stepSection, "kind");
             GeneratedSourceKind kind = GeneratedSourceKind.fromConfigValue(kindValue)
                     .orElseThrow(() -> new ZoltConfigException(
                             "Unsupported generated source kind `"
@@ -112,7 +111,7 @@ final class GeneratedSectionCodec {
                                     + "` in zolt.toml. Supported generated source kinds are: "
                                     + GeneratedSourceKind.supportedValues()
                                     + "."));
-            String language = requiredString(stepTable, stepSection, "language");
+            String language = TomlScalars.requiredString(stepTable, stepSection, "language");
             if (!"java".equals(language)) {
                 throw new ZoltConfigException(
                         "Unsupported generated source language `"
@@ -124,7 +123,7 @@ final class GeneratedSectionCodec {
                 steps.add(parseOpenApiGeneratedSourceStep(id, stepTable, stepSection, tool, presets));
             } else {
                 TomlValidation.validateKeysWithVersionRefHint(stepSection, stepTable, GENERATED_DECLARED_SOURCE_KEYS);
-                List<String> inputs = stringListOrDefault(stepTable, stepSection, "inputs", List.of());
+                List<String> inputs = TomlScalars.stringListOrDefault(stepTable, stepSection, "inputs", List.of());
                 if (inputs.isEmpty()) {
                     throw new ZoltConfigException(
                             "Missing required field ["
@@ -135,10 +134,10 @@ final class GeneratedSectionCodec {
                         id,
                         kind,
                         language,
-                        requiredString(stepTable, stepSection, "output"),
+                        TomlScalars.requiredString(stepTable, stepSection, "output"),
                         inputs,
-                        booleanOrDefault(stepTable, stepSection, "required", true),
-                        booleanOrDefault(stepTable, stepSection, "clean", false)));
+                        TomlScalars.booleanOrDefault(stepTable, stepSection, "required", true),
+                        TomlScalars.booleanOrDefault(stepTable, stepSection, "clean", false)));
             }
         }
         return List.copyOf(steps);
@@ -150,7 +149,7 @@ final class GeneratedSectionCodec {
             String stepSection,
             OpenApiTool tool,
             Map<String, OpenApiGenerationSettings> presets) {
-        Optional<String> presetId = optionalString(stepTable, stepSection, "preset");
+        Optional<String> presetId = TomlScalars.optionalString(stepTable, stepSection, "preset");
         OpenApiGenerationSettings preset = OpenApiGenerationSettings.empty();
         if (presetId.isPresent()) {
             preset = presets.get(presetId.orElseThrow());
@@ -171,10 +170,10 @@ final class GeneratedSectionCodec {
                 id,
                 GeneratedSourceKind.OPENAPI,
                 "java",
-                requiredString(stepTable, stepSection, "output"),
-                List.of(requiredString(stepTable, stepSection, "input")),
-                booleanOrDefault(stepTable, stepSection, "required", true),
-                booleanOrDefault(stepTable, stepSection, "clean", true),
+                TomlScalars.requiredString(stepTable, stepSection, "output"),
+                List.of(TomlScalars.requiredString(stepTable, stepSection, "input")),
+                TomlScalars.booleanOrDefault(stepTable, stepSection, "required", true),
+                TomlScalars.booleanOrDefault(stepTable, stepSection, "clean", true),
                 merged);
     }
 
@@ -186,7 +185,7 @@ final class GeneratedSectionCodec {
         }
         TomlValidation.validateKeysWithVersionRefHint("generated.openapiTool", table, GENERATED_OPENAPI_TOOL_KEYS);
         return new OpenApiTool(
-                optionalString(table, "generated.openapiTool", "coordinate"),
+                TomlScalars.optionalString(table, "generated.openapiTool", "coordinate"),
                 TomlVersions.optionalVersionOrRef(
                         table,
                         "generated.openapiTool",
@@ -216,15 +215,17 @@ final class GeneratedSectionCodec {
     }
 
     private static OpenApiGenerationSettings parseOpenApiGenerationSettings(TomlTable table, String section) {
-        Map<String, String> options = stringMap(optionalTable(table, "options"), section + ".options");
+        Map<String, String> options = TomlScalars.stringMap(optionalTable(table, "options"), section + ".options");
         Map<String, String> additionalProperties =
-                stringMap(optionalTable(table, "additionalProperties"), section + ".additionalProperties");
-        Map<String, String> configOptions = stringMap(optionalTable(table, "configOptions"), section + ".configOptions");
+                TomlScalars.stringMap(optionalTable(table, "additionalProperties"), section + ".additionalProperties");
+        Map<String, String> configOptions =
+                TomlScalars.stringMap(optionalTable(table, "configOptions"), section + ".configOptions");
         Map<String, String> globalProperties =
-                stringMap(optionalTable(table, "globalProperties"), section + ".globalProperties");
-        Map<String, String> typeMappings = stringMap(optionalTable(table, "typeMappings"), section + ".typeMappings");
+                TomlScalars.stringMap(optionalTable(table, "globalProperties"), section + ".globalProperties");
+        Map<String, String> typeMappings =
+                TomlScalars.stringMap(optionalTable(table, "typeMappings"), section + ".typeMappings");
         Map<String, String> importMappings =
-                stringMap(optionalTable(table, "importMappings"), section + ".importMappings");
+                TomlScalars.stringMap(optionalTable(table, "importMappings"), section + ".importMappings");
         validateOpenApiOptionKeys(section + ".options", options);
         validateOpenApiOptionKeys(section + ".additionalProperties", additionalProperties);
         validateOpenApiOptionKeys(section + ".configOptions", configOptions);
@@ -233,15 +234,15 @@ final class GeneratedSectionCodec {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                optionalString(table, section, "preset"),
-                optionalString(table, section, "generator"),
-                optionalString(table, section, "library"),
-                optionalString(table, section, "apiPackage"),
-                optionalString(table, section, "modelPackage"),
-                optionalString(table, section, "invokerPackage"),
-                optionalString(table, section, "config"),
-                optionalString(table, section, "templateDir"),
-                optionalBoolean(table, section, "validateSpec"),
+                TomlScalars.optionalString(table, section, "preset"),
+                TomlScalars.optionalString(table, section, "generator"),
+                TomlScalars.optionalString(table, section, "library"),
+                TomlScalars.optionalString(table, section, "apiPackage"),
+                TomlScalars.optionalString(table, section, "modelPackage"),
+                TomlScalars.optionalString(table, section, "invokerPackage"),
+                TomlScalars.optionalString(table, section, "config"),
+                TomlScalars.optionalString(table, section, "templateDir"),
+                TomlScalars.optionalBoolean(table, section, "validateSpec"),
                 options,
                 additionalProperties,
                 configOptions,
@@ -380,89 +381,6 @@ final class GeneratedSectionCodec {
 
     private static TomlTable optionalTable(TomlTable table, String key) {
         return table.getTable(List.of(key));
-    }
-
-    private static String requiredString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            throw new ZoltConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt.toml. Add a non-empty string value.");
-        }
-        return value;
-    }
-
-    private static Optional<String> optionalString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(value);
-    }
-
-    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return value;
-    }
-
-    private static Optional<Boolean> optionalBoolean(TomlTable table, String section, String key) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return Optional.empty();
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return Optional.of(value);
-    }
-
-    private static Map<String, String> stringMap(TomlTable table, String section) {
-        if (table == null) {
-            return Map.of();
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String key : table.keySet()) {
-            Object rawValue = table.get(List.of(key));
-            if (!(rawValue instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-            }
-            values.put(key, value);
-        }
-        return values;
-    }
-
-    private static List<String> stringListOrDefault(
-            TomlTable table,
-            String section,
-            String key,
-            List<String> defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof TomlArray array)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
-        }
-        ArrayList<String> values = new ArrayList<>();
-        for (int index = 0; index < array.size(); index++) {
-            String value = array.getString(index);
-            if (value == null || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
-            }
-            values.add(value);
-        }
-        return List.copyOf(values);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {

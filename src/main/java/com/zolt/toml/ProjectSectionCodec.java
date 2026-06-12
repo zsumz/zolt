@@ -21,14 +21,14 @@ final class ProjectSectionCodec {
         TomlTable projectTable = requiredTable(result, "project");
         TomlValidation.validateKeys("project", projectTable, PROJECT_KEYS);
 
-        String projectVersion = requiredString(projectTable, "project", "version");
+        String projectVersion = TomlScalars.requiredString(projectTable, "project", "version");
         validateVersion(VersionPolicy.Context.PROJECT_VERSION, "project.version", projectVersion);
         return new ProjectMetadata(
-                requiredString(projectTable, "project", "name"),
+                TomlScalars.requiredString(projectTable, "project", "name"),
                 projectVersion,
-                requiredString(projectTable, "project", "group"),
-                requiredString(projectTable, "project", "java"),
-                optionalString(projectTable, "project", "main"));
+                TomlScalars.requiredString(projectTable, "project", "group"),
+                TomlScalars.requiredString(projectTable, "project", "java"),
+                TomlScalars.optionalString(projectTable, "project", "main"));
     }
 
     static void write(StringBuilder toml, ProjectMetadata project) {
@@ -47,23 +47,6 @@ final class ProjectSectionCodec {
             throw new ZoltConfigException("Missing required section [" + section + "] in zolt.toml.");
         }
         return table;
-    }
-
-    private static String requiredString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            throw new ZoltConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt.toml. Add a non-empty string value.");
-        }
-        return value;
-    }
-
-    private static Optional<String> optionalString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(value);
     }
 
     private static void validateVersion(

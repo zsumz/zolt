@@ -206,8 +206,10 @@ final class DependencySectionCodec {
                 Object rawVersion = dependencyTable.get(List.of("version"));
                 Object rawVersionRef = dependencyTable.get(List.of("versionRef"));
                 Object rawWorkspace = dependencyTable.get(List.of("workspace"));
-                boolean optional = booleanOrDefault(dependencyTable, section + "." + key, "optional", false);
-                boolean publishOnly = booleanOrDefault(dependencyTable, section + "." + key, "publishOnly", false);
+                boolean optional =
+                        TomlScalars.booleanOrDefault(dependencyTable, section + "." + key, "optional", false);
+                boolean publishOnly =
+                        TomlScalars.booleanOrDefault(dependencyTable, section + "." + key, "publishOnly", false);
                 List<DependencyExclusionSpec> exclusions = dependencyExclusions(dependencyTable, section + "." + key);
                 if ((rawVersion != null || rawVersionRef != null) && rawWorkspace != null) {
                     throw new ZoltConfigException(
@@ -344,8 +346,8 @@ final class DependencySectionCodec {
                     exclusion,
                     Set.of("group", "artifact"));
             exclusions.add(new DependencyExclusionSpec(
-                    requiredString(exclusion, section + ".exclusions[" + index + "]", "group"),
-                    requiredString(exclusion, section + ".exclusions[" + index + "]", "artifact")));
+                    TomlScalars.requiredString(exclusion, section + ".exclusions[" + index + "]", "group"),
+                    TomlScalars.requiredString(exclusion, section + ".exclusions[" + index + "]", "artifact")));
         }
         return List.copyOf(exclusions);
     }
@@ -486,27 +488,6 @@ final class DependencySectionCodec {
 
     private static TomlTable optionalTable(TomlTable table, String key) {
         return table.getTable(List.of(key));
-    }
-
-    private static String requiredString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            throw new ZoltConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt.toml. Add a non-empty string value.");
-        }
-        return value;
-    }
-
-    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return value;
     }
 
     private static String quote(String value) {

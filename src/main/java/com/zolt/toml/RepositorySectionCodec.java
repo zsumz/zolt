@@ -34,8 +34,9 @@ final class RepositorySectionCodec {
             }
             if (rawValue instanceof TomlTable repositoryTable) {
                 TomlValidation.validateKeys("repositories." + key, repositoryTable, REPOSITORY_KEYS);
-                String url = requiredString(repositoryTable, "repositories." + key, "url");
-                Optional<String> credentials = optionalString(repositoryTable, "repositories." + key, "credentials");
+                String url = TomlScalars.requiredString(repositoryTable, "repositories." + key, "url");
+                Optional<String> credentials =
+                        TomlScalars.optionalString(repositoryTable, "repositories." + key, "credentials");
                 values.put(key, new RepositorySettings(key, url, credentials));
                 continue;
             }
@@ -67,8 +68,8 @@ final class RepositorySectionCodec {
             TomlValidation.validateKeys("repositoryCredentials." + key, credentialTable, REPOSITORY_CREDENTIAL_KEYS);
             values.put(key, new RepositoryCredentialSettings(
                     key,
-                    requiredString(credentialTable, "repositoryCredentials." + key, "usernameEnv"),
-                    requiredString(credentialTable, "repositoryCredentials." + key, "passwordEnv")));
+                    TomlScalars.requiredString(credentialTable, "repositoryCredentials." + key, "usernameEnv"),
+                    TomlScalars.requiredString(credentialTable, "repositoryCredentials." + key, "passwordEnv")));
         }
         return values;
     }
@@ -125,23 +126,6 @@ final class RepositorySectionCodec {
     private static ZoltConfigException invalidRepositoryValue(String key) {
         return new ZoltConfigException(
                 "Invalid value for [repositories]." + key + " in zolt.toml. Use a non-empty URL string or { url = \"...\", credentials = \"...\" }.");
-    }
-
-    private static String requiredString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            throw new ZoltConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt.toml. Add a non-empty string value.");
-        }
-        return value;
-    }
-
-    private static Optional<String> optionalString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(value);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {

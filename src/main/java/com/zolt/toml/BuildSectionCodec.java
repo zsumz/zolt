@@ -6,14 +6,12 @@ import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
 import com.zolt.project.TestRuntimeSettings;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class BuildSectionCodec {
@@ -38,10 +36,10 @@ final class BuildSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("build", table, BUILD_KEYS);
         BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(table, "metadata"));
         return new BuildSettings(
-                stringOrDefault(table, "build", "source", defaults.source()),
-                stringOrDefault(table, "build", "test", defaults.test()),
-                stringOrDefault(table, "build", "output", defaults.output()),
-                stringOrDefault(table, "build", "testOutput", defaults.testOutput()),
+                TomlScalars.stringOrDefault(table, "build", "source", defaults.source()),
+                TomlScalars.stringOrDefault(table, "build", "test", defaults.test()),
+                TomlScalars.stringOrDefault(table, "build", "output", defaults.output()),
+                TomlScalars.stringOrDefault(table, "build", "testOutput", defaults.testOutput()),
                 defaults.testSources(),
                 defaults.groovyTestSources(),
                 defaults.resourceRoots(),
@@ -63,8 +61,8 @@ final class BuildSectionCodec {
                 build.test(),
                 build.output(),
                 build.testOutput(),
-                stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
-                stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
+                TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
+                TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
                 build.resourceRoots(),
                 build.testResourceRoots(),
                 build.metadata());
@@ -81,10 +79,10 @@ final class BuildSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("test.runtime", runtimeTable, TEST_RUNTIME_KEYS);
         try {
             return build.withTestRuntime(new TestRuntimeSettings(
-                    stringListOrDefault(runtimeTable, "test.runtime", "jvmArgs", List.of()),
-                    stringMap(optionalTable(runtimeTable, "systemProperties"), "test.runtime.systemProperties"),
-                    stringMap(optionalTable(runtimeTable, "environment"), "test.runtime.environment"),
-                    stringListOrDefault(runtimeTable, "test.runtime", "events", List.of())));
+                    TomlScalars.stringListOrDefault(runtimeTable, "test.runtime", "jvmArgs", List.of()),
+                    TomlScalars.stringMap(optionalTable(runtimeTable, "systemProperties"), "test.runtime.systemProperties"),
+                    TomlScalars.stringMap(optionalTable(runtimeTable, "environment"), "test.runtime.environment"),
+                    TomlScalars.stringListOrDefault(runtimeTable, "test.runtime", "events", List.of())));
         } catch (IllegalArgumentException exception) {
             throw new ZoltConfigException(exception.getMessage());
         }
@@ -102,8 +100,8 @@ final class BuildSectionCodec {
                 build.testOutput(),
                 build.testSources(),
                 build.groovyTestSources(),
-                stringListOrDefault(table, "resources", "main", build.resourceRoots()),
-                stringListOrDefault(table, "resources", "test", build.testResourceRoots()),
+                TomlScalars.stringListOrDefault(table, "resources", "main", build.resourceRoots()),
+                TomlScalars.stringListOrDefault(table, "resources", "test", build.testResourceRoots()),
                 parseResourceFiltering(
                         optionalTable(table, "filtering"),
                         optionalTable(table, "tokens")),
@@ -181,9 +179,9 @@ final class BuildSectionCodec {
         }
         TomlValidation.validateKeysWithVersionRefHint("build.metadata", table, BUILD_METADATA_KEYS);
         return new BuildMetadataSettings(
-                booleanOrDefault(table, "build.metadata", "buildInfo", defaults.buildInfo()),
-                booleanOrDefault(table, "build.metadata", "git", defaults.git()),
-                booleanOrDefault(table, "build.metadata", "reproducible", defaults.reproducible()));
+                TomlScalars.booleanOrDefault(table, "build.metadata", "buildInfo", defaults.buildInfo()),
+                TomlScalars.booleanOrDefault(table, "build.metadata", "git", defaults.git()),
+                TomlScalars.booleanOrDefault(table, "build.metadata", "reproducible", defaults.reproducible()));
     }
 
     private static ResourceFilteringSettings parseResourceFiltering(
@@ -202,7 +200,7 @@ final class BuildSectionCodec {
                             tokens);
         }
         TomlValidation.validateKeysWithVersionRefHint("resources.filtering", filteringTable, RESOURCE_FILTERING_KEYS);
-        String rawMissing = stringOrDefault(
+        String rawMissing = TomlScalars.stringOrDefault(
                 filteringTable,
                 "resources.filtering",
                 "missing",
@@ -215,9 +213,13 @@ final class BuildSectionCodec {
                                 + ResourceMissingTokenPolicy.supportedValues()
                                 + "."));
         return new ResourceFilteringSettings(
-                booleanOrDefault(filteringTable, "resources.filtering", "enabled", defaults.enabled()),
-                booleanOrDefault(filteringTable, "resources.filtering", "test", defaults.testEnabled()),
-                stringListOrDefault(filteringTable, "resources.filtering", "includes", defaults.includes()),
+                TomlScalars.booleanOrDefault(filteringTable, "resources.filtering", "enabled", defaults.enabled()),
+                TomlScalars.booleanOrDefault(filteringTable, "resources.filtering", "test", defaults.testEnabled()),
+                TomlScalars.stringListOrDefault(
+                        filteringTable,
+                        "resources.filtering",
+                        "includes",
+                        defaults.includes()),
                 missing,
                 tokens);
     }
@@ -240,9 +242,9 @@ final class BuildSectionCodec {
                                 + " in zolt.toml. Use exactly one of { value = \"...\" }, { env = \"...\" }, or { project = \"...\" }.");
             }
             TomlValidation.validateKeysWithVersionRefHint("resources.tokens." + key, tokenTable, RESOURCE_TOKEN_KEYS);
-            Optional<String> value = optionalString(tokenTable, "resources.tokens." + key, "value");
-            Optional<String> env = optionalString(tokenTable, "resources.tokens." + key, "env");
-            Optional<String> project = optionalString(tokenTable, "resources.tokens." + key, "project");
+            Optional<String> value = TomlScalars.optionalString(tokenTable, "resources.tokens." + key, "value");
+            Optional<String> env = TomlScalars.optionalString(tokenTable, "resources.tokens." + key, "env");
+            Optional<String> project = TomlScalars.optionalString(tokenTable, "resources.tokens." + key, "project");
             int sourceCount = (value.isPresent() ? 1 : 0) + (env.isPresent() ? 1 : 0) + (project.isPresent() ? 1 : 0);
             if (sourceCount != 1) {
                 throw new ZoltConfigException(
@@ -302,83 +304,6 @@ final class BuildSectionCodec {
 
     private static TomlTable optionalTable(TomlTable table, String key) {
         return table.getTable(List.of(key));
-    }
-
-    private static Optional<String> optionalString(TomlTable table, String section, String key) {
-        String value = table.getString(key);
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(value);
-    }
-
-    private static String stringOrDefault(TomlTable table, String section, String key, String defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof String value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-        }
-        if (value.isBlank()) {
-            return defaultValue;
-        }
-        return value;
-    }
-
-    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof Boolean value)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
-        }
-        return value;
-    }
-
-    private static Map<String, String> stringMap(TomlTable table, String section) {
-        if (table == null) {
-            return Map.of();
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String key : table.keySet()) {
-            Object rawValue = table.get(List.of(key));
-            if (!(rawValue instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
-            }
-            values.put(key, value);
-        }
-        return values;
-    }
-
-    private static List<String> stringListOrDefault(
-            TomlTable table,
-            String section,
-            String key,
-            List<String> defaultValue) {
-        Object rawValue = table.get(List.of(key));
-        if (rawValue == null) {
-            return defaultValue;
-        }
-        if (!(rawValue instanceof TomlArray array)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
-        }
-        List<String> values = new ArrayList<>();
-        for (int index = 0; index < array.size(); index++) {
-            Object element = array.get(index);
-            if (!(element instanceof String value) || value.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
-            }
-            values.add(value);
-        }
-        return List.copyOf(values);
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {
