@@ -9,7 +9,6 @@ import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.DependencySection;
-import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
@@ -17,7 +16,6 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
-import com.zolt.project.QuarkusSettings;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
@@ -122,7 +120,7 @@ public final class ZoltTomlWriter {
         writeGeneratedSources(toml, config.build());
         writeCompiler(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
-        writeFramework(toml, config.frameworkSettings());
+        FrameworkSectionCodec.write(toml, config.frameworkSettings());
         NativeSectionCodec.write(toml, config.nativeSettings());
         return toml.toString();
     }
@@ -1282,18 +1280,6 @@ public final class ZoltTomlWriter {
             toml.append('\n');
         }
         writeStringMap(toml, "package.manifest", attributes);
-    }
-
-    private static void writeFramework(StringBuilder toml, FrameworkSettings frameworkSettings) {
-        if (frameworkSettings == null || frameworkSettings.equals(FrameworkSettings.defaults())) {
-            return;
-        }
-        QuarkusSettings quarkus = frameworkSettings.quarkus();
-        if (!quarkus.equals(QuarkusSettings.defaults())) {
-            toml.append("\n[framework.quarkus]\n");
-            writeAssignment(toml, "enabled", quarkus.enabled());
-            writeAssignment(toml, "package", quarkus.packageMode().configValue());
-        }
     }
 
     private static void writeStringMap(StringBuilder toml, String section, Map<String, String> values) {
