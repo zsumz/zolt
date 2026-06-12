@@ -204,6 +204,7 @@ public final class IdeModelJsonWriter {
 
     private static void dependencies(StringBuilder json, IdeModel.DependencyInfo dependencies) {
         indent(json, 1).append("\"dependencies\": {\n");
+        stringMap(json, 2, "versionAliases", dependencies.versionAliases(), true);
         dependencyArrayField(json, 2, "api", dependencies.api(), true);
         dependencyArrayField(json, 2, "implementation", dependencies.implementation(), true);
         dependencyArrayField(json, 2, "runtime", dependencies.runtime(), true);
@@ -402,6 +403,7 @@ public final class IdeModelJsonWriter {
                 indent(json, level + 1).append("{\n");
                 stringField(json, level + 2, "coordinate", dependency.coordinate(), true);
                 stringField(json, level + 2, "version", dependency.version(), true);
+                stringField(json, level + 2, "versionRef", dependency.versionRef(), true);
                 field(json, level + 2, "managed", dependency.managed(), true);
                 stringField(json, level + 2, "workspace", dependency.workspace(), true);
                 field(json, level + 2, "optional", dependency.optional(), true);

@@ -556,6 +556,7 @@ final class IdeModelServiceTest {
 
         String json = new IdeModelJsonWriter().write(model);
         assertTrue(json.contains("\"dependencies\": {"));
+        assertTrue(json.contains("\"versionAliases\": {}"));
         assertTrue(json.contains("\"api\": ["));
         assertTrue(json.contains("\"implementation\": ["));
         assertTrue(json.contains("\"runtime\": ["));
@@ -565,7 +566,64 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"publishOnly\": true"));
         assertTrue(json.contains("\"exclusions\": ["));
         assertTrue(json.contains("\"workspace\": \"modules/api\""));
+        assertTrue(json.contains("\"versionRef\": null"));
         assertTrue(json.contains("\"managed\": true"));
+    }
+
+    @Test
+    void exportsVersionAliasesAndDependencyVersionRefs() throws IOException {
+        Path projectDir = tempDir.resolve("alias-dependencies");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "alias-dependencies"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                guava = "33.4.8-jre"
+                junit = "5.12.1"
+
+                [dependencies]
+                "com.google.guava:guava" = { versionRef = "guava", optional = true }
+
+                [test.dependencies]
+                "org.junit.jupiter:junit-jupiter" = { versionRef = "junit" }
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        assertEquals(Map.of("guava", "33.4.8-jre", "junit", "5.12.1"), model.dependencies().versionAliases());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration(
+                        "com.google.guava:guava",
+                        "33.4.8-jre",
+                        "guava",
+                        false,
+                        null,
+                        true,
+                        false,
+                        List.of())),
+                model.dependencies().implementation());
+        assertEquals(
+                List.of(new IdeModel.DependencyDeclaration(
+                        "org.junit.jupiter:junit-jupiter",
+                        "5.12.1",
+                        "junit",
+                        false,
+                        null,
+                        false,
+                        false,
+                        List.of())),
+                model.dependencies().test());
+
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"versionAliases\": {"));
+        assertTrue(json.contains("\"guava\": \"33.4.8-jre\""));
+        assertTrue(json.contains("\"versionRef\": \"guava\""));
+        assertTrue(json.contains("\"versionRef\": \"junit\""));
     }
 
     @Test

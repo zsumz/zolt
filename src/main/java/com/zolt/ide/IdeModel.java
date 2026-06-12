@@ -146,6 +146,7 @@ public record IdeModel(
     }
 
     public record DependencyInfo(
+            Map<String, String> versionAliases,
             List<DependencyDeclaration> api,
             List<DependencyDeclaration> implementation,
             List<DependencyDeclaration> runtime,
@@ -155,6 +156,7 @@ public record IdeModel(
             List<DependencyDeclaration> annotationProcessors,
             List<DependencyDeclaration> testAnnotationProcessors) {
         public DependencyInfo {
+            versionAliases = versionAliases == null ? Map.of() : Map.copyOf(versionAliases);
             api = List.copyOf(api);
             implementation = List.copyOf(implementation);
             runtime = List.copyOf(runtime);
@@ -164,11 +166,33 @@ public record IdeModel(
             annotationProcessors = List.copyOf(annotationProcessors);
             testAnnotationProcessors = List.copyOf(testAnnotationProcessors);
         }
+
+        public DependencyInfo(
+                List<DependencyDeclaration> api,
+                List<DependencyDeclaration> implementation,
+                List<DependencyDeclaration> runtime,
+                List<DependencyDeclaration> provided,
+                List<DependencyDeclaration> dev,
+                List<DependencyDeclaration> test,
+                List<DependencyDeclaration> annotationProcessors,
+                List<DependencyDeclaration> testAnnotationProcessors) {
+            this(
+                    Map.of(),
+                    api,
+                    implementation,
+                    runtime,
+                    provided,
+                    dev,
+                    test,
+                    annotationProcessors,
+                    testAnnotationProcessors);
+        }
     }
 
     public record DependencyDeclaration(
             String coordinate,
             String version,
+            String versionRef,
             boolean managed,
             String workspace,
             boolean optional,
@@ -183,7 +207,18 @@ public record IdeModel(
                 String version,
                 boolean managed,
                 String workspace) {
-            this(coordinate, version, managed, workspace, false, false, List.of());
+            this(coordinate, version, null, managed, workspace, false, false, List.of());
+        }
+
+        public DependencyDeclaration(
+                String coordinate,
+                String version,
+                boolean managed,
+                String workspace,
+                boolean optional,
+                boolean publishOnly,
+                List<String> exclusions) {
+            this(coordinate, version, null, managed, workspace, optional, publishOnly, exclusions);
         }
     }
 

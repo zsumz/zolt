@@ -463,6 +463,7 @@ public final class IdeModelService {
             return new IdeModel.DependencyInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
         return new IdeModel.DependencyInfo(
+                config.versionAliases(),
                 dependencyDeclarations(
                         config,
                         "api.dependencies",
@@ -558,11 +559,12 @@ public final class IdeModelService {
             String workspace) {
         DependencyMetadata metadata = config.dependencyMetadata().get(DependencyMetadata.key(section, coordinate));
         if (metadata == null) {
-            return new IdeModel.DependencyDeclaration(coordinate, version, managed, workspace, false, false, List.of());
+            return new IdeModel.DependencyDeclaration(coordinate, version, null, managed, workspace, false, false, List.of());
         }
         return new IdeModel.DependencyDeclaration(
                 coordinate,
                 version == null ? metadata.version() : version,
+                metadata.versionRef(),
                 managed || metadata.managed(),
                 workspace == null ? metadata.workspace() : workspace,
                 metadata.optional(),

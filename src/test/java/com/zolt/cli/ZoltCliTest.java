@@ -4909,6 +4909,7 @@ final class ZoltCliTest {
                     "package": "%s"
                   },
                   "dependencies": {
+                    "versionAliases": {},
                     "api": [],
                     "implementation": [],
                     "runtime": [],
