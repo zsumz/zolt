@@ -126,10 +126,50 @@ public record IdeModel(
             boolean outputExists,
             boolean inputsPresent,
             String toolArtifact,
+            String toolVersionRef,
             String toolFingerprint,
             String optionsFingerprint) {
         public GeneratedSourceInfo {
             inputs = List.copyOf(inputs);
+        }
+
+        public GeneratedSourceInfo(
+                String id,
+                String sourceRootId,
+                String scope,
+                String kind,
+                String language,
+                Path output,
+                List<Path> inputs,
+                boolean required,
+                boolean clean,
+                String ownership,
+                String compileLane,
+                String freshness,
+                boolean outputExists,
+                boolean inputsPresent,
+                String toolArtifact,
+                String toolFingerprint,
+                String optionsFingerprint) {
+            this(
+                    id,
+                    sourceRootId,
+                    scope,
+                    kind,
+                    language,
+                    output,
+                    inputs,
+                    required,
+                    clean,
+                    ownership,
+                    compileLane,
+                    freshness,
+                    outputExists,
+                    inputsPresent,
+                    toolArtifact,
+                    null,
+                    toolFingerprint,
+                    optionsFingerprint);
         }
     }
 

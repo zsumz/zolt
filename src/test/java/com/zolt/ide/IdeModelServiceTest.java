@@ -412,6 +412,53 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void exportsOpenApiToolVersionRefForGeneratedSourceEvidence() throws IOException {
+        Path projectDir = tempDir.resolve("openapi-tool-version-ref");
+        Path input = projectDir.resolve("src/main/openapi/public-api.yaml");
+        Path output = projectDir.resolve("target/generated/sources/openapi/public-api/com/example/PublicApi.java");
+        Files.createDirectories(input.getParent());
+        Files.createDirectories(output.getParent());
+        Files.writeString(input, "openapi: 3.1.0\n");
+        Files.writeString(output, "package com.example; public final class PublicApi {}\n");
+        Files.setLastModifiedTime(input, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(output, FileTime.fromMillis(2_000));
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "openapi-tool-version-ref"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                openapi = "7.11.0"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "openapi"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        IdeModel.GeneratedSourceInfo generatedSource = model.generatedSources().getFirst();
+        assertEquals("generated-main-public-api", generatedSource.id());
+        assertEquals("zolt-owned-openapi", generatedSource.ownership());
+        assertEquals("org.openapitools:openapi-generator-cli:7.11.0", generatedSource.toolArtifact());
+        assertEquals("openapi", generatedSource.toolVersionRef());
+
+        String json = new IdeModelJsonWriter().write(model);
+        assertTrue(json.contains("\"toolArtifact\": \"org.openapitools:openapi-generator-cli:7.11.0\""));
+        assertTrue(json.contains("\"toolVersionRef\": \"openapi\""));
+    }
+
+    @Test
     void exportsPackageArtifactSettingsAndPublicationMetadataForEditors() throws IOException {
         Path projectDir = tempDir.resolve("library-package");
         Files.createDirectories(projectDir);

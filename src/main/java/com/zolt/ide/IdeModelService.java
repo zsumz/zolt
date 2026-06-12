@@ -419,6 +419,7 @@ public final class IdeModelService {
                 evidence.outputExists(),
                 evidence.inputsPresent(),
                 evidence.toolArtifact(),
+                evidence.step().openApi().toolVersionRef().orElse(null),
                 evidence.toolFingerprint(),
                 evidence.optionsFingerprint());
     }
