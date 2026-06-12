@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
@@ -110,6 +111,46 @@ final class PackageServiceTest {
             assertEquals("com.example.demo", attributes.getValue("Bundle-SymbolicName"));
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
         }
+    }
+
+    @Test
+    void failsBeforeWritingPackageWhenCachedRuntimeJarDoesNotMatchLockfileHash() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Files.createDirectories(runtimeJar.getParent());
+        Files.writeString(runtimeJar, "corrupted runtime jar bytes");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> packageService.packageJar(
+                        projectDir,
+                        config(Optional.of("com.example.Main")),
+                        cacheRoot));
+
+        assertTrue(exception.getMessage().contains(
+                "Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
     @Test

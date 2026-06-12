@@ -614,6 +614,42 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkCacheIntegrityReportsCorruptedLockedArtifact() throws IOException {
+        Path projectDir = tempDir.resolve("check-cache-integrity");
+        Path cacheRoot = tempDir.resolve("cache-integrity-cache");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-cache-integrity"));
+        Path jar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "corrupted runtime jar bytes");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--check", "cache-integrity",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "error cache-integrity zolt.lock Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
+        assertTrue(result.stdout().contains("next: Remove the cache entry or run `zolt resolve`."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiRunsBuiltInReproducibilityChecks() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci");
         Files.createDirectories(projectDir);

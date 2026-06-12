@@ -158,6 +158,44 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void reportsCacheIntegrityFailureInsteadOfExportingPoisonedClasspaths() throws IOException {
+        Path projectDir = tempDir.resolve("corrupted-cache-model");
+        Path cacheRoot = tempDir.resolve("cache-corrupted");
+        Files.createDirectories(projectDir);
+        Path jar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "corrupted runtime jar bytes");
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "corrupted-cache-model"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+
+        IdeModel model = service.export(projectDir, cacheRoot);
+
+        assertEquals(List.of(), model.classpaths().runtime());
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_INTEGRITY_FAILED", diagnostic.code());
+        assertTrue(diagnostic.message().contains(
+                "Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
+    }
+
+    @Test
     void exportsMultipleJavaTestRootsDeterministically() throws IOException {
         Path projectDir = tempDir.resolve("multi-root-tests");
         Files.createDirectories(projectDir);

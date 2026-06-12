@@ -608,12 +608,18 @@ public final class IdeModelService {
         } catch (LockfileReadException exception) {
             diagnostics.add(new IdeModel.Diagnostic(
                     "error",
-                    "LOCKFILE_UNREADABLE",
+                    lockfileReadDiagnosticCode(exception),
                     exception.getMessage(),
                     lockfilePath,
                     "Run zolt resolve."));
             return emptyClasspaths();
         }
+    }
+
+    private static String lockfileReadDiagnosticCode(LockfileReadException exception) {
+        return exception.getMessage().contains("integrity check failed")
+                ? "LOCKFILE_INTEGRITY_FAILED"
+                : "LOCKFILE_UNREADABLE";
     }
 
     private static IdeModel.ClasspathInfo emptyClasspaths() {

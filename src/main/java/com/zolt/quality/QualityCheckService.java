@@ -66,6 +66,7 @@ import java.util.stream.Stream;
 
 public final class QualityCheckService {
     public static final String COMMAND_SURFACE = "command-surface";
+    public static final String CACHE_INTEGRITY = "cache-integrity";
     public static final String LOCKFILE = "lockfile";
     public static final String PROJECT_MODEL = "project-model";
     public static final String DEPENDENCY_METADATA = "dependency-metadata";
@@ -77,6 +78,7 @@ public final class QualityCheckService {
 
     private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
             COMMAND_SURFACE,
+            CACHE_INTEGRITY,
             EXECUTION_CONTEXT,
             LOCKFILE,
             PROJECT_MODEL,
@@ -239,6 +241,7 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceProjectResult(config));
+                case CACHE_INTEGRITY -> results.add(checkProjectCacheIntegrity(request));
                 case EXECUTION_CONTEXT -> results.addAll(checkExecutionContext(
                         Optional.empty(),
                         request.projectRoot(),
@@ -286,6 +289,7 @@ public final class QualityCheckService {
         for (String requestedCheck : requestedChecks) {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceWorkspaceResult(workspace, selection));
+                case CACHE_INTEGRITY -> results.add(checkWorkspaceCacheIntegrity(request, workspace));
                 case EXECUTION_CONTEXT -> {
                     results.addAll(checkExecutionContext(
                             Optional.empty(),
@@ -431,6 +435,44 @@ public final class QualityCheckService {
                     requireOfflineReady
                             ? "Run `zolt resolve` to seed the cache, then retry `zolt check --context ci --require-offline-ready`."
                             : "Run `zolt resolve` without --offline to seed the cache, then retry `zolt check --check lockfile --offline`.");
+        }
+    }
+
+    private QualityCheckResult checkProjectCacheIntegrity(QualityCheckRequest request) {
+        return checkCacheIntegrity(Optional.empty(), request.projectRoot().resolve("zolt.lock"), request.cacheRoot());
+    }
+
+    private QualityCheckResult checkWorkspaceCacheIntegrity(QualityCheckRequest request, Workspace workspace) {
+        return checkCacheIntegrity(Optional.empty(), workspace.root().resolve("zolt.lock"), request.cacheRoot());
+    }
+
+    private QualityCheckResult checkCacheIntegrity(
+            Optional<String> member,
+            Path lockfilePath,
+            Path cacheRoot) {
+        if (!Files.isRegularFile(lockfilePath)) {
+            return QualityCheckResult.failed(
+                    CACHE_INTEGRITY,
+                    member,
+                    "zolt.lock",
+                    "zolt.lock is missing.",
+                    "Run `zolt resolve`.");
+        }
+        try {
+            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+            lockfileReader.classpathPackages(lockfile, cacheRoot);
+            return QualityCheckResult.passed(
+                    CACHE_INTEGRITY,
+                    member,
+                    "zolt.lock",
+                    "All cached artifacts with lockfile checksums match local bytes.");
+        } catch (LockfileReadException exception) {
+            return QualityCheckResult.failed(
+                    CACHE_INTEGRITY,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    "Remove the cache entry or run `zolt resolve`.");
         }
     }
 

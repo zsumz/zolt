@@ -9,6 +9,7 @@ import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.junit.JunitWorkerClient;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
@@ -130,6 +131,40 @@ final class TestRunServiceTest {
         assertTrue(exception.getMessage().contains("test failure"));
         assertTrue(exception.getMessage().contains("Test reports: "
                 + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
+    }
+
+    @Test
+    void failsBeforeLaunchingTestsWhenCachedTestJarDoesNotMatchLockfileHash() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path jar = cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "corrupted console jar bytes");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = false
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        TestRunService service = service((command, outputConsumer) -> {
+            throw new AssertionError("test JVM should not be launched with a corrupted cached jar");
+        });
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> service.runTests(projectDir, config(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains(
+                "Cached jar integrity check failed for org.junit.platform:junit-platform-console-standalone:1.11.4"));
     }
 
     @Test

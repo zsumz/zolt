@@ -2,8 +2,10 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
@@ -70,6 +72,44 @@ final class BuildServiceTest {
                 "target/generated/sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
+    }
+
+    @Test
+    void failsBeforeCompilationWhenCachedCompileJarDoesNotMatchLockfileHash() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path jar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "corrupted jar bytes");
+        writeLockfile("""
+                version = 1
+
+                [[package]]
+                id = "com.example:compile-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "hello";
+                    }
+                }
+                """);
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> buildService.build(projectDir, config(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains(
+                "Cached jar integrity check failed for com.example:compile-lib:1.0.0"));
+        assertFalse(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }
 
     @Test

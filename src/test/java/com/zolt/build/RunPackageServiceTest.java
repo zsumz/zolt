@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -68,6 +69,49 @@ final class RunPackageServiceTest {
                 "com.example.Main",
                 "one",
                 "two"), commands.getFirst());
+    }
+
+    @Test
+    void failsBeforeLaunchingPackageWhenCachedRuntimeJarDoesNotMatchLockfileHash() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache-corrupted");
+        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
+        Files.createDirectories(runtimeJar.getParent());
+        Files.writeString(runtimeJar, "corrupted runtime jar bytes");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        RunPackageService service = service((command, outputConsumer) -> {
+            throw new AssertionError("packaged application JVM should not be launched with a corrupted cached jar");
+        });
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> service.runPackage(
+                        projectDir,
+                        config(Optional.of("com.example.Main")),
+                        cacheRoot,
+                        List.of()));
+
+        assertTrue(exception.getMessage().contains(
+                "Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
     }
 
     @Test
