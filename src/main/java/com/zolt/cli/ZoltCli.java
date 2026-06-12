@@ -49,6 +49,8 @@ import com.zolt.cli.command.ConflictsCommand;
 import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.SelfParityCommand;
+import com.zolt.cli.command.TreeCommand;
+import com.zolt.cli.command.WhyCommand;
 import com.zolt.explain.GradleExplainFormatter;
 import com.zolt.explain.GradleInspectionResult;
 import com.zolt.explain.GradleStaticProjectInspector;
@@ -114,7 +116,6 @@ import com.zolt.quarkus.QuarkusPlanService;
 import com.zolt.quarkus.QuarkusTestPlan;
 import com.zolt.quarkus.QuarkusTestPlanFormatter;
 import com.zolt.quarkus.QuarkusTestPlanService;
-import com.zolt.resolve.PackageId;
 import com.zolt.resolve.RepositoryOverlay;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveOptions;
@@ -135,10 +136,6 @@ import com.zolt.selfhost.SelfCheckService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
-import com.zolt.tree.DependencyJsonFormatter;
-import com.zolt.tree.DependencyTreeFormatter;
-import com.zolt.tree.DependencyWhyException;
-import com.zolt.tree.DependencyWhyFormatter;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildPlan;
@@ -188,8 +185,8 @@ import picocli.CommandLine.Spec;
                 ZoltCli.RemoveCommand.class,
                 ZoltCli.PlatformCommand.class,
                 ZoltCli.ResolveCommand.class,
-                ZoltCli.TreeCommand.class,
-                ZoltCli.WhyCommand.class,
+                TreeCommand.class,
+                WhyCommand.class,
                 ZoltCli.PolicyCommand.class,
                 ConflictsCommand.class,
                 ZoltCli.ExplainCommand.class,
@@ -1047,77 +1044,6 @@ public final class ZoltCli implements Runnable {
                                 + value
                                 + "`. Supported overlays: maven-local.");
             };
-        }
-    }
-
-    @Command(name = "tree", description = "Display the resolved dependency graph.")
-    public static final class TreeCommand implements Runnable {
-        enum Format {
-            TEXT,
-            JSON
-        }
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--format", description = "Output format: text or json.")
-        private Format format = Format.TEXT;
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
-                String output = format == Format.JSON
-                        ? new DependencyJsonFormatter().tree(config, lockfile)
-                        : new DependencyTreeFormatter().format(config, lockfile);
-                printAndFlush(spec, output);
-            } catch (LockfileReadException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-    }
-
-    @Command(name = "why", description = "Explain why a package is present.")
-    public static final class WhyCommand implements Runnable {
-        enum Format {
-            TEXT,
-            JSON
-        }
-
-        @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Package id to explain.")
-        private String packageId;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--format", description = "Output format: text or json.")
-        private Format format = Format.TEXT;
-
-        @Spec
-        private CommandSpec spec;
-
-        private final CoordinateParser coordinateParser = new CoordinateParser();
-
-        @Override
-        public void run() {
-            try {
-                Coordinate coordinate = coordinateParser.parse(packageId);
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
-                PackageId target = new PackageId(coordinate.groupId(), coordinate.artifactId());
-                String output = format == Format.JSON
-                        ? new DependencyJsonFormatter().why(config, lockfile, target)
-                        : new DependencyWhyFormatter().format(config, lockfile, target);
-                printAndFlush(spec, output);
-            } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
         }
     }
 
