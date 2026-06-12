@@ -185,17 +185,7 @@ public final class ZoltTomlParser {
 
         validateTopLevelSections(result);
 
-        TomlTable projectTable = requiredTable(result, "project");
-        validateKeys("project", projectTable, PROJECT_KEYS);
-
-        String projectVersion = requiredString(projectTable, "project", "version");
-        validateVersion(VersionPolicy.Context.PROJECT_VERSION, "project.version", projectVersion);
-        ProjectMetadata project = new ProjectMetadata(
-                requiredString(projectTable, "project", "name"),
-                projectVersion,
-                requiredString(projectTable, "project", "group"),
-                requiredString(projectTable, "project", "java"),
-                optionalString(projectTable, "project", "main"));
+        ProjectMetadata project = ProjectSectionCodec.parse(result);
 
         Map<String, RepositorySettings> repositorySettings =
                 RepositorySectionCodec.repositorySettings(optionalTable(result, "repositories"));
@@ -912,14 +902,6 @@ public final class ZoltTomlParser {
                         "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
             }
         }
-    }
-
-    private static TomlTable requiredTable(TomlParseResult result, String section) {
-        TomlTable table = result.getTable(section);
-        if (table == null) {
-            throw new ZoltConfigException("Missing required section [" + section + "] in zolt.toml.");
-        }
-        return table;
     }
 
     private static TomlTable optionalTable(TomlParseResult result, String section) {

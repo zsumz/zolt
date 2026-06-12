@@ -17,7 +17,6 @@ import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectMetadata;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.ResourceFilteringSettings;
@@ -41,7 +40,7 @@ import java.util.stream.Collectors;
 public final class ZoltTomlWriter {
     public ProjectConfig defaultApplicationConfig(String name, String group, String mainClass) {
         return new ProjectConfig(
-                new ProjectMetadata(name, "0.1.0", group, "21", Optional.ofNullable(blankToNull(mainClass))),
+                ProjectSectionCodec.defaultApplicationProject(name, group, mainClass),
                 ProjectConfig.defaultRepositories(),
                 Map.of(),
                 Map.of(),
@@ -59,7 +58,7 @@ public final class ZoltTomlWriter {
 
     public String write(ProjectConfig config) {
         StringBuilder toml = new StringBuilder();
-        writeProject(toml, config.project());
+        ProjectSectionCodec.write(toml, config.project());
         RepositorySectionCodec.writeRepositories(toml, config.repositorySettings());
         RepositorySectionCodec.writeRepositoryCredentials(toml, config.repositoryCredentials());
         if (!config.versionAliases().isEmpty()) {
@@ -1021,16 +1020,6 @@ public final class ZoltTomlWriter {
         };
     }
 
-    private static void writeProject(StringBuilder toml, ProjectMetadata project) {
-        toml.append("[project]\n");
-        writeAssignment(toml, "name", project.name());
-        writeAssignment(toml, "version", project.version());
-        writeAssignment(toml, "group", project.group());
-        writeAssignment(toml, "java", project.java());
-        project.main().ifPresent(mainClass -> writeAssignment(toml, "main", mainClass));
-        toml.append('\n');
-    }
-
     private static void writeBuild(StringBuilder toml, BuildSettings build) {
         toml.append("[build]\n");
         writeAssignment(toml, "source", build.source());
@@ -1597,7 +1586,4 @@ public final class ZoltTomlWriter {
                 + "\"";
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
-    }
 }
