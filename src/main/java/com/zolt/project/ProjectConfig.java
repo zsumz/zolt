@@ -724,6 +724,42 @@ public record ProjectConfig(
                 dependencyMetadata);
     }
 
+    public ProjectConfig withVersionAliases(Map<String, String> versionAliases) {
+        return new ProjectConfig(
+                project,
+                repositories,
+                repositorySettings,
+                repositoryCredentials,
+                versionAliases,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                dependencyPolicy,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings,
+                frameworkSettings,
+                dependencyMetadata);
+    }
+
     public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
         return new ProjectConfig(
                 project,
