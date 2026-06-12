@@ -430,6 +430,28 @@ final class WorkspaceResolveServiceTest {
     }
 
     @Test
+    void lockedWorkspaceResolveFailsWhenMemberVersionAliasTableChangesWithoutGraphChange()
+            throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        unusedAliasMember("unused-one");
+        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+        String existing = Files.readString(first.lockfilePath());
+        unusedAliasMember("unused-two");
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
+
+        assertTrue(existing.contains("aliasFingerprint = \"sha256:"));
+        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
+        assertEquals(existing, Files.readString(first.lockfilePath()));
+    }
+
+    @Test
     void selectsGlobalExternalVersionsAcrossWorkspaceMembers() throws IOException {
         addArtifact("com.example", "other", "1.0.0", """
                 <project>
@@ -577,6 +599,14 @@ final class WorkspaceResolveServiceTest {
                 [dependencies]
                 "com.example:app" = {}
                 """.formatted(alias, alias));
+    }
+
+    private void unusedAliasMember(String alias) throws IOException {
+        member("apps/api", "api", """
+
+                [versions]
+                "%s" = "1.0.0"
+                """.formatted(alias));
     }
 
     private void addArtifact(String groupId, String artifactId, String version, String pom) {

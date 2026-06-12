@@ -135,7 +135,7 @@ public final class WorkspaceResolveService {
                 repositories,
                 repositorySettings(repositories),
                 Map.of(),
-                Map.of(),
+                config.versionAliases(),
                 mergedPolicy(
                         "platform",
                         workspace,
