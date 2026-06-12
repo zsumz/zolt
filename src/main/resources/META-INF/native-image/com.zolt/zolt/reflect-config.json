@@ -150,7 +150,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ConflictsCommand",
+    "name": "com.zolt.cli.command.ConflictsCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

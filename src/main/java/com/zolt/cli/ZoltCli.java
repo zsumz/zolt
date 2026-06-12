@@ -45,10 +45,10 @@ import com.zolt.classpath.ClasspathFormatter;
 import com.zolt.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.cli.command.CleanCommand;
+import com.zolt.cli.command.ConflictsCommand;
 import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.SelfParityCommand;
-import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.explain.GradleExplainFormatter;
 import com.zolt.explain.GradleInspectionResult;
 import com.zolt.explain.GradleStaticProjectInspector;
@@ -191,7 +191,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.TreeCommand.class,
                 ZoltCli.WhyCommand.class,
                 ZoltCli.PolicyCommand.class,
-                ZoltCli.ConflictsCommand.class,
+                ConflictsCommand.class,
                 ZoltCli.ExplainCommand.class,
                 ZoltCli.PlanCommand.class,
                 ZoltCli.ClasspathCommand.class,
@@ -1149,27 +1149,6 @@ public final class ZoltCli implements Runnable {
                 DependencyPolicyReportFormatter formatter = new DependencyPolicyReportFormatter();
                 printAndFlush(spec, format == Format.JSON ? formatter.json(report) : formatter.text(report));
             } catch (DependencyPolicyReportException | LockfileReadException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-    }
-
-    @Command(name = "conflicts", description = "Show version conflicts and selected versions.")
-    public static final class ConflictsCommand implements Runnable {
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                String output = new DependencyConflictFormatter().format(
-                        new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
-                printAndFlush(spec, output);
-            } catch (LockfileReadException exception) {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
