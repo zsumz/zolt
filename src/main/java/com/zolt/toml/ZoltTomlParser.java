@@ -2,11 +2,8 @@ package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
-import com.zolt.project.DependencyConstraint;
-import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
-import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.NativeSettings;
@@ -57,9 +54,6 @@ public final class ZoltTomlParser {
             "framework",
             "native");
     private static final Set<String> TEST_KEYS = Set.of("dependencies", "sources", "annotationProcessors", "runtime");
-    private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude");
-    private static final Set<String> DEPENDENCY_POLICY_EXCLUSION_KEYS = Set.of("group", "artifact", "reason");
-    private static final Set<String> DEPENDENCY_CONSTRAINT_KEYS = Set.of("version", "versionRef", "kind", "reason");
 
     public ProjectConfig parse(Path path) {
         try {
@@ -97,7 +91,7 @@ public final class ZoltTomlParser {
         Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
         Map<String, String> platforms =
                 PlatformSectionCodec.parse(optionalTable(result, "platforms"), versionAliases, dependencyMetadata);
-        DependencyPolicySettings dependencyPolicy = dependencyPolicy(
+        DependencyPolicySettings dependencyPolicy = DependencyPolicySectionCodec.parse(
                 optionalTable(result, "dependencyPolicy"),
                 optionalTable(result, "dependencyConstraints"),
                 versionAliases);
@@ -398,127 +392,6 @@ public final class ZoltTomlParser {
                     "Invalid [versions] alias `"
                             + alias
                             + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
-        }
-    }
-
-    private static DependencyPolicySettings dependencyPolicy(
-            TomlTable policyTable,
-            TomlTable constraintsTable,
-            Map<String, String> versionAliases) {
-        List<DependencyPolicyExclusion> exclusions = dependencyPolicyExclusions(policyTable);
-        Map<String, DependencyConstraint> constraints = dependencyConstraints(constraintsTable, versionAliases);
-        if (exclusions.isEmpty() && constraints.isEmpty()) {
-            return DependencyPolicySettings.defaults();
-        }
-        return new DependencyPolicySettings(exclusions, constraints);
-    }
-
-    private static List<DependencyPolicyExclusion> dependencyPolicyExclusions(TomlTable policyTable) {
-        if (policyTable == null) {
-            return List.of();
-        }
-        validateKeys("dependencyPolicy", policyTable, DEPENDENCY_POLICY_KEYS);
-        Object rawExclusions = policyTable.get(List.of("exclude"));
-        if (rawExclusions == null) {
-            return List.of();
-        }
-        if (!(rawExclusions instanceof TomlArray array)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [dependencyPolicy].exclude in zolt.toml. Use an array of { group, artifact, reason } tables.");
-        }
-        List<DependencyPolicyExclusion> exclusions = new ArrayList<>();
-        for (int index = 0; index < array.size(); index++) {
-            TomlTable exclusion = array.getTable(index);
-            if (exclusion == null) {
-                throw new ZoltConfigException(
-                        "Invalid value for [dependencyPolicy].exclude[" + index + "] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.");
-            }
-            String section = "dependencyPolicy.exclude[" + index + "]";
-            validateKeys(section, exclusion, DEPENDENCY_POLICY_EXCLUSION_KEYS);
-            exclusions.add(new DependencyPolicyExclusion(
-                    requiredString(exclusion, section, "group"),
-                    requiredString(exclusion, section, "artifact"),
-                    optionalString(exclusion, section, "reason")));
-        }
-        return List.copyOf(exclusions);
-    }
-
-    private static Map<String, DependencyConstraint> dependencyConstraints(
-            TomlTable constraintsTable,
-            Map<String, String> versionAliases) {
-        if (constraintsTable == null) {
-            return Map.of();
-        }
-        Map<String, DependencyConstraint> constraints = new LinkedHashMap<>();
-        for (String coordinate : constraintsTable.keySet()) {
-            validatePackageCoordinate("dependencyConstraints", coordinate);
-            TomlTable constraintTable = constraintsTable.getTable(List.of(coordinate));
-            if (constraintTable == null) {
-                throw new ZoltConfigException(
-                        "Invalid value for [dependencyConstraints]."
-                                + coordinate
-                                + " in zolt.toml. Use { version = \"...\", kind = \"strict\" }.");
-            }
-            validateKeys("dependencyConstraints." + coordinate, constraintTable, DEPENDENCY_CONSTRAINT_KEYS);
-            Optional<String> version = optionalVersionOrRef(
-                    constraintTable,
-                    "dependencyConstraints." + coordinate,
-                    VersionPolicy.Context.CONSTRAINT,
-                    versionAliases);
-            Optional<String> versionRef = optionalVersionRef(
-                    constraintTable,
-                    "dependencyConstraints." + coordinate,
-                    versionAliases);
-            String kindValue = stringOrDefault(
-                    constraintTable,
-                    "dependencyConstraints." + coordinate,
-                    "kind",
-                    DependencyConstraintKind.STRICT.configValue());
-            DependencyConstraintKind kind = DependencyConstraintKind.fromConfigValue(kindValue)
-                    .orElseThrow(() -> new ZoltConfigException(
-                            "Unsupported dependency constraint kind `"
-                                    + kindValue
-                                    + "` in zolt.toml. Supported dependency constraint kinds are: "
-                                    + DependencyConstraintKind.supportedValues()
-                                    + "."));
-            constraints.put(coordinate, new DependencyConstraint(
-                    coordinate,
-                    version.orElseThrow(() -> new ZoltConfigException(
-                            "Missing required field [dependencyConstraints."
-                                    + coordinate
-                                    + "].version in zolt.toml. Add version or versionRef.")),
-                    versionRef,
-                    kind,
-                    optionalString(constraintTable, "dependencyConstraints." + coordinate, "reason")));
-        }
-        return constraints;
-    }
-
-    private static void validatePackageCoordinate(String section, String coordinate) {
-        if (coordinate == null || coordinate.isBlank() || !coordinate.equals(coordinate.trim())) {
-            throw new ZoltConfigException(
-                    "Invalid coordinate in ["
-                            + section
-                            + "]. Use `group:artifact` without leading or trailing whitespace.");
-        }
-        for (int index = 0; index < coordinate.length(); index++) {
-            if (Character.isWhitespace(coordinate.charAt(index))) {
-                throw new ZoltConfigException(
-                        "Invalid coordinate `"
-                                + coordinate
-                                + "` in ["
-                                + section
-                                + "]. Use `group:artifact` without whitespace.");
-            }
-        }
-        String[] parts = coordinate.split(":", -1);
-        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
-            throw new ZoltConfigException(
-                    "Invalid coordinate `"
-                            + coordinate
-                            + "` in ["
-                            + section
-                            + "]. Use `group:artifact`.");
         }
     }
 

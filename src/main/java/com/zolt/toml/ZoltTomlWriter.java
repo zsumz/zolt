@@ -1,11 +1,8 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
-import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
-import com.zolt.project.DependencyPolicyExclusion;
-import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -49,7 +46,7 @@ public final class ZoltTomlWriter {
         RepositorySectionCodec.writeRepositoryCredentials(toml, config.repositoryCredentials());
         VersionAliasSectionCodec.write(toml, config.versionAliases());
         PlatformSectionCodec.write(toml, config.platforms(), config.dependencyMetadata());
-        writeDependencyPolicy(toml, config.dependencyPolicy());
+        DependencyPolicySectionCodec.write(toml, config.dependencyPolicy());
         writeOptionalDependencies(
                 toml,
                 "api.dependencies",
@@ -1004,45 +1001,6 @@ public final class ZoltTomlWriter {
         };
     }
 
-    private static void writeDependencyPolicy(StringBuilder toml, DependencyPolicySettings policy) {
-        if (policy == null || policy.equals(DependencyPolicySettings.defaults())) {
-            return;
-        }
-        if (!policy.exclusions().isEmpty()) {
-            toml.append("[dependencyPolicy]\n");
-            toml.append("exclude = [");
-            for (int index = 0; index < policy.exclusions().size(); index++) {
-                if (index > 0) {
-                    toml.append(", ");
-                }
-                toml.append(policyExclusion(policy.exclusions().get(index)));
-            }
-            toml.append("]\n\n");
-        }
-        if (!policy.constraints().isEmpty()) {
-            toml.append("[dependencyConstraints]\n");
-            for (DependencyConstraint constraint : sortedDependencyConstraints(policy.constraints()).values()) {
-                toml.append(quote(constraint.coordinate())).append(" = { ");
-                constraint.versionRef()
-                        .ifPresentOrElse(
-                                versionRef -> toml.append("versionRef = ").append(quote(versionRef)),
-                                () -> toml.append("version = ").append(quote(constraint.version())));
-                toml.append(", kind = ").append(quote(constraint.kind().configValue()));
-                constraint.reason().ifPresent(reason -> toml.append(", reason = ").append(quote(reason)));
-                toml.append(" }\n");
-            }
-            toml.append('\n');
-        }
-    }
-
-    private static String policyExclusion(DependencyPolicyExclusion exclusion) {
-        List<String> parts = new ArrayList<>();
-        parts.add("group = " + quote(exclusion.group()));
-        parts.add("artifact = " + quote(exclusion.artifact()));
-        exclusion.reason().ifPresent(reason -> parts.add("reason = " + quote(reason)));
-        return "{ " + String.join(", ", parts) + " }";
-    }
-
     private static void writeDependencies(
             StringBuilder toml,
             String section,
@@ -1189,11 +1147,6 @@ public final class ZoltTomlWriter {
     }
 
     private static Map<String, String> sorted(Map<String, String> values) {
-        return new TreeMap<>(values);
-    }
-
-    private static Map<String, DependencyConstraint> sortedDependencyConstraints(
-            Map<String, DependencyConstraint> values) {
         return new TreeMap<>(values);
     }
 
