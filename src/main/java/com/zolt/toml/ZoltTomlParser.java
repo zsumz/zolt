@@ -125,31 +125,6 @@ public final class ZoltTomlParser {
             "postprocessfile",
             "apifilepostprocessfile",
             "modelfilepostprocessfile");
-    private static final Set<String> COMPILER_KEYS = Set.of(
-            "generatedSources",
-            "generatedTestSources",
-            "release",
-            "encoding",
-            "args",
-            "testArgs");
-    private static final Set<String> ZOLT_OWNED_JAVAC_ARGS = Set.of(
-            "--release",
-            "-source",
-            "--source",
-            "-target",
-            "--target",
-            "-encoding",
-            "-d",
-            "-classpath",
-            "--class-path",
-            "-cp",
-            "-processorpath",
-            "-processorpath:",
-            "--processor-path",
-            "-processor",
-            "-s",
-            "-sourcepath",
-            "--source-path");
     private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata", "manifest");
     private static final Set<String> PACKAGE_METADATA_KEYS = Set.of(
             "name",
@@ -289,7 +264,7 @@ public final class ZoltTomlParser {
         build = parseTestRuntime(testTable, build);
         build = parseResourceRoots(optionalTable(result, "resources"), build);
         build = parseGeneratedSources(optionalTable(result, "generated"), build, versionAliases);
-        CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
+        CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
         NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name());
@@ -723,44 +698,6 @@ public final class ZoltTomlParser {
         merged.putAll(preset);
         merged.putAll(step);
         return merged;
-    }
-
-    private static CompilerSettings parseCompiler(TomlTable compilerTable) {
-        CompilerSettings defaults = CompilerSettings.defaults();
-        if (compilerTable == null) {
-            return defaults;
-        }
-
-        validateKeys("compiler", compilerTable, COMPILER_KEYS);
-        List<String> args = stringListOrDefault(compilerTable, "compiler", "args", defaults.args());
-        List<String> testArgs = stringListOrDefault(compilerTable, "compiler", "testArgs", defaults.testArgs());
-        validateCompilerArgs("args", args);
-        validateCompilerArgs("testArgs", testArgs);
-        return new CompilerSettings(
-                stringOrDefault(compilerTable, "compiler", "generatedSources", defaults.generatedSources()),
-                stringOrDefault(
-                        compilerTable,
-                        "compiler",
-                        "generatedTestSources",
-                        defaults.generatedTestSources()),
-                stringOrDefault(compilerTable, "compiler", "release", defaults.release()),
-                stringOrDefault(compilerTable, "compiler", "encoding", defaults.encoding()),
-                args,
-                testArgs);
-    }
-
-    private static void validateCompilerArgs(String field, List<String> args) {
-        for (String arg : args) {
-            String flag = arg.contains("=") ? arg.substring(0, arg.indexOf('=')) : arg;
-            if (ZOLT_OWNED_JAVAC_ARGS.contains(flag)) {
-                throw new ZoltConfigException(
-                        "Invalid value for [compiler]."
-                                + field
-                                + " in zolt.toml. Zolt owns `"
-                                + flag
-                                + "`; use [compiler].release, [compiler].encoding, source roots, dependencies, or annotation processor settings instead.");
-            }
-        }
     }
 
     private static PackageSettings parsePackage(TomlTable packageTable) {

@@ -2,7 +2,6 @@ package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.BuildMetadataSettings;
-import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
@@ -118,7 +117,7 @@ public final class ZoltTomlWriter {
         writeBuildMetadata(toml, config.build().metadata());
         writeResources(toml, config.build());
         writeGeneratedSources(toml, config.build());
-        writeCompiler(toml, config.compilerSettings());
+        CompilerSectionCodec.write(toml, config.compilerSettings());
         writePackage(toml, config.packageSettings());
         FrameworkSectionCodec.write(toml, config.frameworkSettings());
         NativeSectionCodec.write(toml, config.nativeSettings());
@@ -1198,28 +1197,6 @@ public final class ZoltTomlWriter {
         }
         if (!settings.importMappings().isEmpty()) {
             writeInlineStringMap(toml, "importMappings", settings.importMappings());
-        }
-    }
-
-    private static void writeCompiler(StringBuilder toml, CompilerSettings compilerSettings) {
-        CompilerSettings defaults = CompilerSettings.defaults();
-        if (compilerSettings == null || compilerSettings.equals(defaults)) {
-            return;
-        }
-        toml.append("\n[compiler]\n");
-        writeAssignment(toml, "generatedSources", compilerSettings.generatedSources());
-        writeAssignment(toml, "generatedTestSources", compilerSettings.generatedTestSources());
-        if (!compilerSettings.release().isBlank()) {
-            writeAssignment(toml, "release", compilerSettings.release());
-        }
-        if (!compilerSettings.encoding().isBlank()) {
-            writeAssignment(toml, "encoding", compilerSettings.encoding());
-        }
-        if (!compilerSettings.args().isEmpty()) {
-            writeStringArray(toml, "args", compilerSettings.args());
-        }
-        if (!compilerSettings.testArgs().isEmpty()) {
-            writeStringArray(toml, "testArgs", compilerSettings.testArgs());
         }
     }
 
