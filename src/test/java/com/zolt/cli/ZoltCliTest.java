@@ -6597,18 +6597,24 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"phase\":\"build test inputs\""));
         assertTrue(lines[1].contains("\"depth\":2"));
         assertTrue(lines[1].contains("\"mainCompilationSkipped\""));
+        assertTrue(lines[1].contains("\"mainCompilationMode\""));
+        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\""));
         assertTrue(lines[1].contains("\"mainFingerprintCheckNanos\""));
         assertTrue(lines[1].contains("\"mainFingerprintWriteNanos\""));
         assertTrue(lines[2].contains("\"phase\":\"compile test sources\""));
         assertTrue(lines[2].contains("\"depth\":2"));
         assertTrue(lines[2].contains("\"testSourceFiles\":\"1\""));
         assertTrue(lines[2].contains("\"testCompilationSkipped\":\"false\""));
+        assertTrue(lines[2].contains("\"testCompilationMode\""));
+        assertTrue(lines[2].contains("\"testIncrementalFallbackReason\""));
         assertTrue(lines[2].contains("\"testFingerprintCheckNanos\""));
         assertTrue(lines[2].contains("\"testFingerprintWriteNanos\""));
         assertTrue(lines[3].contains("\"phase\":\"compile tests\""));
         assertTrue(lines[3].contains("\"depth\":1"));
         assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
         assertTrue(lines[3].contains("\"testCompilationSkipped\":\"false\""));
+        assertTrue(lines[3].contains("\"testCompilationMode\""));
+        assertTrue(lines[3].contains("\"testIncrementalFallbackReason\""));
         assertTrue(lines[3].contains("\"testFingerprintCheckNanos\""));
         assertTrue(lines[3].contains("\"testFingerprintWriteNanos\""));
         assertTrue(lines[4].contains("\"phase\":\"execute tests\""));
@@ -7037,6 +7043,8 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"mainClass\":\"com.example.Main\""));
         assertTrue(lines[1].contains("\"mainSourceFiles\":\"1\""));
         assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
+        assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
+        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
         assertTrue(lines[1].contains("\"outputBytes\""));
     }
 
@@ -7259,6 +7267,8 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"depth\":1"));
         assertTrue(lines[1].contains("\"sourceFiles\":\"1\""));
         assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
+        assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
+        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
         assertTrue(lines[2].contains("\"phase\":\"assemble package\""));
         assertTrue(lines[2].contains("\"depth\":1"));
         assertTrue(lines[2].contains("\"mode\":\"thin\""));

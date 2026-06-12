@@ -2751,6 +2751,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("resourceFiles", Integer.toString(result.resourceCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         attributes.put("mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
+        attributes.put("mainCompilationMode", result.mainCompilationMode());
+        attributes.put("mainIncrementalFallbackReason", result.mainIncrementalFallbackReason());
         addMainFingerprintAttributes(attributes, result);
         return attributes;
     }
@@ -2821,7 +2823,11 @@ public final class ZoltCli implements Runnable {
         attributes.put("testSourceFiles", Integer.toString(result.compileResult().sourceCount()));
         attributes.put("testResourceFiles", Integer.toString(result.compileResult().resourceCount()));
         attributes.put("mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()));
+        attributes.put("mainCompilationMode", result.compileResult().buildResult().mainCompilationMode());
+        attributes.put("mainIncrementalFallbackReason", result.compileResult().buildResult().mainIncrementalFallbackReason());
         attributes.put("testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()));
+        attributes.put("testCompilationMode", result.compileResult().testCompilationMode());
+        attributes.put("testIncrementalFallbackReason", result.compileResult().testIncrementalFallbackReason());
         attributes.put("testRunner", result.testRunner());
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
@@ -2841,7 +2847,11 @@ public final class ZoltCli implements Runnable {
         attributes.put("testSourceFiles", Integer.toString(result.sourceCount()));
         attributes.put("testResourceFiles", Integer.toString(result.resourceCount()));
         attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put("mainCompilationMode", result.buildResult().mainCompilationMode());
+        attributes.put("mainIncrementalFallbackReason", result.buildResult().mainIncrementalFallbackReason());
         attributes.put("testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
+        attributes.put("testCompilationMode", result.testCompilationMode());
+        attributes.put("testIncrementalFallbackReason", result.testIncrementalFallbackReason());
         addMainFingerprintAttributes(attributes, result.buildResult());
         addTestFingerprintAttributes(attributes, result);
         return attributes;
@@ -2938,6 +2948,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("mainSourceFiles", Integer.toString(result.buildResult().sourceCount()));
         attributes.put("resourceFiles", Integer.toString(result.buildResult().resourceCount()));
         attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put("mainCompilationMode", result.buildResult().mainCompilationMode());
+        attributes.put("mainIncrementalFallbackReason", result.buildResult().mainIncrementalFallbackReason());
         attributes.put("resolvedLockfile", Boolean.toString(result.buildResult().resolvedLockfile()));
         attributes.put("outputBytes", Integer.toString(result.javaRunResult().output().length()));
         return attributes;
@@ -2975,6 +2987,11 @@ public final class ZoltCli implements Runnable {
         attributes.put("entries", Integer.toString(result.packageResult().entryCount()));
         attributes.put("hasMainClass", Boolean.toString(result.packageResult().hasMainClass()));
         attributes.put("mainClass", result.javaRunResult().mainClass());
+        attributes.put("mainCompilationSkipped", Boolean.toString(result.packageResult().buildResult().mainCompilationSkipped()));
+        attributes.put("mainCompilationMode", result.packageResult().buildResult().mainCompilationMode());
+        attributes.put(
+                "mainIncrementalFallbackReason",
+                result.packageResult().buildResult().mainIncrementalFallbackReason());
         attributes.put("resolvedLockfile", Boolean.toString(result.packageResult().buildResult().resolvedLockfile()));
         attributes.put("outputBytes", Integer.toString(result.javaRunResult().output().length()));
         return attributes;

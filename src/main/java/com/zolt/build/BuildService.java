@@ -11,9 +11,11 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.Classpath;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,6 +33,7 @@ public final class BuildService {
     private final JavacRunner javacRunner;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
+    private final IncrementalCompilePlanner incrementalCompilePlanner;
 
     public BuildService() {
         this(new JdkDetector());
@@ -48,7 +51,8 @@ public final class BuildService {
                 jdkDetector,
                 new JavacRunner(),
                 new OpenApiGeneratedSourceService(jdkDetector),
-                new IncrementalCompileStateRecorder());
+                new IncrementalCompileStateRecorder(),
+                new IncrementalCompilePlanner());
     }
 
     BuildService(
@@ -73,7 +77,8 @@ public final class BuildService {
                 jdkDetector,
                 javacRunner,
                 openApiGeneratedSourceService,
-                new IncrementalCompileStateRecorder());
+                new IncrementalCompileStateRecorder(),
+                new IncrementalCompilePlanner());
     }
 
     BuildService(
@@ -87,7 +92,8 @@ public final class BuildService {
             JdkChecker jdkDetector,
             JavacRunner javacRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            IncrementalCompileStateRecorder incrementalCompileStateRecorder) {
+            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
+            IncrementalCompilePlanner incrementalCompilePlanner) {
         this.resolveService = resolveService;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
@@ -99,6 +105,7 @@ public final class BuildService {
         this.javacRunner = javacRunner;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
+        this.incrementalCompilePlanner = incrementalCompilePlanner;
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -193,19 +200,15 @@ public final class BuildService {
                 outputDirectory,
                 generatedSourcesDirectory);
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
-        if (!compileSkipped) {
-            incrementalCompileStateRecorder.deleteMainState(outputDirectory);
-        }
-        JavacResult javacResult = compileSkipped
-                ? new JavacResult(sources.mainSources().size(), outputDirectory, "")
-                : javacRunner.compile(
-                        jdkStatus.javac().orElseThrow(),
-                        sources.mainSources(),
-                        classpaths.compile(),
-                        outputDirectory,
-                        classpaths.processor(),
-                        generatedSourcesDirectory,
-                        javacOptions(config));
+        CompileAttempt javacResult = compileMain(
+                compileSkipped,
+                projectDirectory,
+                config,
+                sources,
+                classpaths,
+                outputDirectory,
+                generatedSourcesDirectory,
+                jdkStatus);
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
         long fingerprintWriteNanos = 0L;
@@ -235,8 +238,92 @@ public final class BuildService {
                 javacResult.outputDirectory(),
                 javacResult.output(),
                 compileSkipped,
+                compileSkipped ? "skipped" : javacResult.mode(),
+                compileSkipped ? "" : javacResult.fallbackReason(),
                 fingerprintCheckNanos,
                 fingerprintWriteNanos);
+    }
+
+    private CompileAttempt compileMain(
+            boolean compileSkipped,
+            Path projectDirectory,
+            ProjectConfig config,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            JdkStatus jdkStatus) {
+        if (compileSkipped) {
+            return new CompileAttempt(
+                    new JavacResult(sources.mainSources().size(), outputDirectory, ""),
+                    "skipped",
+                    "");
+        }
+        JavacOptions options = javacOptions(config);
+        IncrementalCompilePlanner.Plan plan = incrementalCompilePlanner.planMain(
+                projectDirectory,
+                config,
+                sources.mainSources(),
+                classpaths.compile(),
+                classpaths.processor(),
+                outputDirectory,
+                generatedSourcesDirectory);
+        if (plan.incremental()) {
+            JavacResult result;
+            try {
+                result = javacRunner.compile(
+                        jdkStatus.javac().orElseThrow(),
+                        plan.sourcesToCompile(),
+                        incrementalClasspath(classpaths.compile(), outputDirectory),
+                        outputDirectory,
+                        classpaths.processor(),
+                        generatedSourcesDirectory,
+                        options);
+            } catch (JavacException exception) {
+                incrementalCompileStateRecorder.deleteMainState(outputDirectory);
+                return new CompileAttempt(
+                        javacRunner.compile(
+                                jdkStatus.javac().orElseThrow(),
+                                sources.mainSources(),
+                                classpaths.compile(),
+                                outputDirectory,
+                                classpaths.processor(),
+                                generatedSourcesDirectory,
+                                options),
+                        "full",
+                        "incremental-javac-failed");
+            }
+            Optional<String> validationFallback = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
+            if (validationFallback.isEmpty()) {
+                return new CompileAttempt(result, "incremental", "");
+            }
+            incrementalCompileStateRecorder.deleteMainState(outputDirectory);
+            deleteOwnedOutputs(plan);
+            return new CompileAttempt(
+                    javacRunner.compile(
+                            jdkStatus.javac().orElseThrow(),
+                            sources.mainSources(),
+                            classpaths.compile(),
+                            outputDirectory,
+                            classpaths.processor(),
+                            generatedSourcesDirectory,
+                            options),
+                    "full",
+                    validationFallback.orElseThrow());
+        }
+        incrementalCompileStateRecorder.deleteMainState(outputDirectory);
+        deleteOwnedOutputs(plan);
+        return new CompileAttempt(
+                javacRunner.compile(
+                        jdkStatus.javac().orElseThrow(),
+                        sources.mainSources(),
+                        classpaths.compile(),
+                        outputDirectory,
+                        classpaths.processor(),
+                        generatedSourcesDirectory,
+                        options),
+                "full",
+                plan.fallbackReason());
     }
 
     private static long elapsedSince(long started) {
@@ -267,5 +354,43 @@ public final class BuildService {
     private static String effectiveRelease(ProjectConfig config) {
         String compilerRelease = config.compilerSettings().release();
         return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
+    }
+
+    private static Classpath incrementalClasspath(Classpath classpath, Path outputDirectory) {
+        List<Path> entries = new java.util.ArrayList<>();
+        entries.add(outputDirectory);
+        entries.addAll(classpath.entries());
+        return new Classpath(entries);
+    }
+
+    private static void deleteOwnedOutputs(IncrementalCompilePlanner.Plan plan) {
+        for (Path output : plan.outputsToDelete()) {
+            try {
+                Files.deleteIfExists(output);
+            } catch (IOException exception) {
+                throw new BuildException(
+                        "Could not delete stale compiled class "
+                                + output
+                                + ". Check that the build output directory is writable.",
+                        exception);
+            }
+        }
+    }
+
+    private record CompileAttempt(
+            JavacResult result,
+            String mode,
+            String fallbackReason) {
+        int sourceCount() {
+            return result.sourceCount();
+        }
+
+        Path outputDirectory() {
+            return result.outputDirectory();
+        }
+
+        String output() {
+            return result.output();
+        }
     }
 }

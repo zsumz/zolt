@@ -191,6 +191,8 @@ final class TestCompileServiceTest {
 
         assertFalse(first.testCompilationSkipped());
         assertFalse(first.buildResult().mainCompilationSkipped());
+        assertEquals("full", first.testCompilationMode());
+        assertEquals("missing-state", first.testIncrementalFallbackReason());
         assertTrue(second.buildResult().mainCompilationSkipped());
         assertTrue(second.testCompilationSkipped());
         assertEquals(1, second.sourceCount());
@@ -261,6 +263,141 @@ final class TestCompileServiceTest {
 
         assertTrue(result.buildResult().mainCompilationSkipped());
         assertFalse(result.testCompilationSkipped());
+    }
+
+    @Test
+    void bodyOnlyTestSourceChangeUsesIncrementalTestCompilation() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path testSource = source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return new Helper().toString() + " one";
+                    }
+                }
+                """);
+        source("src/test/java/com/example/Helper.java", "package com.example; final class Helper {}\n");
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(testSource, """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return new Helper().toString() + " two";
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertTrue(result.buildResult().mainCompilationSkipped());
+        assertFalse(result.testCompilationSkipped());
+        assertEquals("incremental", result.testCompilationMode());
+        assertEquals("", result.testIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void abiChangingTestSourceChangeFallsBackToFullTestCompilation() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path testSource = source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/test/java/com/example/Helper.java", "package com.example; final class Helper {}\n");
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(testSource, """
+                package com.example;
+
+                public final class MainTest {
+                    public int message() {
+                        return 2;
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.testCompilationMode());
+        assertEquals("abi-changed", result.testIncrementalFallbackReason());
+        assertEquals(2, result.sourceCount());
+    }
+
+    @Test
+    void deletedSourceFallsBackToFullTestCompilationAndDeletesOwnedClass() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                }
+                """);
+        Path deletedSource = source("src/test/java/com/example/DeletedTest.java", """
+                package com.example;
+
+                public final class DeletedTest {
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.delete(deletedSource);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.testCompilationMode());
+        assertEquals("source-deleted", result.testIncrementalFallbackReason());
+        assertFalse(Files.exists(projectDir.resolve("target/test-classes/com/example/DeletedTest.class")));
+    }
+
+    @Test
+    void failedIncrementalTestCompileInvalidatesStateForNextRun() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        Path testSource = source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return "one";
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(testSource, """
+                package com.example;
+
+                public final class MainTest {
+                    broken
+                }
+                """);
+
+        assertThrows(
+                JavacException.class,
+                () -> testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache")));
+
+        assertFalse(Files.exists(projectDir.resolve("target/test-classes/.zolt-incremental-test.state")));
+        Files.writeString(testSource, """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return "fixed";
+                    }
+                }
+                """);
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.testCompilationMode());
+        assertEquals("missing-state", result.testIncrementalFallbackReason());
     }
 
     @Test
@@ -425,6 +562,8 @@ final class TestCompileServiceTest {
         TestCompileResult second = testCompileService.compileTests(projectDir, config, cacheRoot);
 
         assertEquals(1, first.sourceCount());
+        assertEquals("full", first.testCompilationMode());
+        assertEquals("groovy-test-sources", first.testIncrementalFallbackReason());
         assertTrue(first.compilerOutput().contains("fake groovy compiler"));
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainSpec.class")));
         IncrementalCompileState state = new IncrementalCompileStateCodec()

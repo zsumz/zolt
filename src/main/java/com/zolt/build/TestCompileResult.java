@@ -9,6 +9,8 @@ public record TestCompileResult(
         Path outputDirectory,
         String compilerOutput,
         boolean testCompilationSkipped,
+        String testCompilationMode,
+        String testIncrementalFallbackReason,
         long testFingerprintCheckNanos,
         long testFingerprintWriteNanos) {
     public TestCompileResult(
@@ -17,7 +19,7 @@ public record TestCompileResult(
             int resourceCount,
             Path outputDirectory,
             String compilerOutput) {
-        this(buildResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false, 0L, 0L);
+        this(buildResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false, "full", "", 0L, 0L);
     }
 
     public TestCompileResult(
@@ -27,10 +29,44 @@ public record TestCompileResult(
             Path outputDirectory,
             String compilerOutput,
             boolean testCompilationSkipped) {
-        this(buildResult, sourceCount, resourceCount, outputDirectory, compilerOutput, testCompilationSkipped, 0L, 0L);
+        this(
+                buildResult,
+                sourceCount,
+                resourceCount,
+                outputDirectory,
+                compilerOutput,
+                testCompilationSkipped,
+                testCompilationSkipped ? "skipped" : "full",
+                "",
+                0L,
+                0L);
+    }
+
+    public TestCompileResult(
+            BuildResult buildResult,
+            int sourceCount,
+            int resourceCount,
+            Path outputDirectory,
+            String compilerOutput,
+            boolean testCompilationSkipped,
+            long testFingerprintCheckNanos,
+            long testFingerprintWriteNanos) {
+        this(
+                buildResult,
+                sourceCount,
+                resourceCount,
+                outputDirectory,
+                compilerOutput,
+                testCompilationSkipped,
+                testCompilationSkipped ? "skipped" : "full",
+                "",
+                testFingerprintCheckNanos,
+                testFingerprintWriteNanos);
     }
 
     public TestCompileResult {
+        testCompilationMode = normalizeMode(testCompilationMode, testCompilationSkipped);
+        testIncrementalFallbackReason = testIncrementalFallbackReason == null ? "" : testIncrementalFallbackReason;
         testFingerprintCheckNanos = Math.max(0L, testFingerprintCheckNanos);
         testFingerprintWriteNanos = Math.max(0L, testFingerprintWriteNanos);
     }
@@ -41,5 +77,15 @@ public record TestCompileResult(
 
     public long testFingerprintWriteMillis() {
         return testFingerprintWriteNanos / 1_000_000L;
+    }
+
+    private static String normalizeMode(String mode, boolean skipped) {
+        if (skipped) {
+            return "skipped";
+        }
+        if (mode == null || mode.isBlank()) {
+            return "full";
+        }
+        return mode;
     }
 }

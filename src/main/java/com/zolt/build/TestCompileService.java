@@ -8,9 +8,12 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class TestCompileService {
     private final BuildService buildService;
@@ -22,6 +25,7 @@ public final class TestCompileService {
     private final GroovyCompilerRunner groovyCompilerRunner;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
+    private final IncrementalCompilePlanner incrementalCompilePlanner;
 
     public TestCompileService() {
         this(new JdkDetector());
@@ -37,7 +41,8 @@ public final class TestCompileService {
                 new JavacRunner(),
                 new GroovyCompilerRunner(),
                 new OpenApiGeneratedSourceService(jdkDetector),
-                new IncrementalCompileStateRecorder());
+                new IncrementalCompileStateRecorder(),
+                new IncrementalCompilePlanner());
     }
 
     TestCompileService(
@@ -58,7 +63,8 @@ public final class TestCompileService {
                 javacRunner,
                 groovyCompilerRunner,
                 openApiGeneratedSourceService,
-                new IncrementalCompileStateRecorder());
+                new IncrementalCompileStateRecorder(),
+                new IncrementalCompilePlanner());
     }
 
     TestCompileService(
@@ -70,7 +76,8 @@ public final class TestCompileService {
             JavacRunner javacRunner,
             GroovyCompilerRunner groovyCompilerRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            IncrementalCompileStateRecorder incrementalCompileStateRecorder) {
+            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
+            IncrementalCompilePlanner incrementalCompilePlanner) {
         this.buildService = buildService;
         this.sourceDiscoverer = sourceDiscoverer;
         this.resourceCopier = resourceCopier;
@@ -80,6 +87,7 @@ public final class TestCompileService {
         this.groovyCompilerRunner = groovyCompilerRunner;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
+        this.incrementalCompilePlanner = incrementalCompilePlanner;
     }
 
     TestCompileService(
@@ -171,26 +179,17 @@ public final class TestCompileService {
                 outputDirectory,
                 generatedSourcesDirectory);
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
-        if (!compileSkipped) {
-            incrementalCompileStateRecorder.deleteTestState(outputDirectory);
-        }
-        JavacResult javacResult = compileSkipped
-                ? new JavacResult(sources.testSources().size(), outputDirectory, "")
-                : javacRunner.compile(
-                        jdkStatus.javac().orElseThrow(),
-                        sources.testSources(),
-                        testCompileClasspath,
-                        outputDirectory,
-                        classpaths.testProcessor(),
-                        generatedSourcesDirectory,
-                        javacOptions(config));
-        JavacResult groovyResult = compileSkipped
-                ? new JavacResult(sources.groovyTestSources().size(), outputDirectory, "")
-                : groovyCompilerRunner.compile(
-                        jdkStatus.java().orElseThrow(),
-                        sources.groovyTestSources(),
-                        groovyCompileClasspath,
-                        outputDirectory);
+        TestCompileAttempt compileAttempt = compileTestSources(
+                compileSkipped,
+                projectDirectory,
+                config,
+                sources,
+                classpaths,
+                testCompileClasspath,
+                groovyCompileClasspath,
+                outputDirectory,
+                generatedSourcesDirectory,
+                jdkStatus);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config);
         long fingerprintWriteNanos = 0L;
         if (!compileSkipped) {
@@ -216,13 +215,127 @@ public final class TestCompileService {
         }
         return new TestCompileResult(
                 buildResult,
-                javacResult.sourceCount() + groovyResult.sourceCount(),
+                compileAttempt.sourceCount(),
                 resourceResult.resourceCount(),
-                javacResult.outputDirectory(),
-                combinedOutput(javacResult.output(), groovyResult.output()),
+                compileAttempt.outputDirectory(),
+                compileAttempt.output(),
                 compileSkipped,
+                compileSkipped ? "skipped" : compileAttempt.mode(),
+                compileSkipped ? "" : compileAttempt.fallbackReason(),
                 fingerprintCheckNanos,
                 fingerprintWriteNanos);
+    }
+
+    private TestCompileAttempt compileTestSources(
+            boolean compileSkipped,
+            Path projectDirectory,
+            ProjectConfig config,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Classpath testCompileClasspath,
+            Classpath groovyCompileClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            JdkStatus jdkStatus) {
+        if (compileSkipped) {
+            return new TestCompileAttempt(
+                    new JavacResult(sources.testSources().size(), outputDirectory, ""),
+                    new JavacResult(sources.groovyTestSources().size(), outputDirectory, ""),
+                    "skipped",
+                    "");
+        }
+        JavacOptions options = javacOptions(config);
+        IncrementalCompilePlanner.Plan plan = incrementalCompilePlanner.planTest(
+                projectDirectory,
+                config,
+                sources,
+                testCompileClasspath,
+                classpaths.testProcessor(),
+                outputDirectory,
+                generatedSourcesDirectory);
+        if (plan.incremental()) {
+            JavacResult javacResult;
+            try {
+                javacResult = javacRunner.compile(
+                        jdkStatus.javac().orElseThrow(),
+                        plan.sourcesToCompile(),
+                        incrementalClasspath(testCompileClasspath, outputDirectory),
+                        outputDirectory,
+                        classpaths.testProcessor(),
+                        generatedSourcesDirectory,
+                        options);
+            } catch (JavacException exception) {
+                incrementalCompileStateRecorder.deleteTestState(outputDirectory);
+                return fullTestCompile(
+                        jdkStatus,
+                        sources,
+                        testCompileClasspath,
+                        groovyCompileClasspath,
+                        outputDirectory,
+                        generatedSourcesDirectory,
+                        classpaths,
+                        options,
+                        "incremental-javac-failed");
+            }
+            Optional<String> validationFallback = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
+            if (validationFallback.isEmpty()) {
+                return new TestCompileAttempt(
+                        javacResult,
+                        new JavacResult(0, outputDirectory, ""),
+                        "incremental",
+                        "");
+            }
+            incrementalCompileStateRecorder.deleteTestState(outputDirectory);
+            deleteOwnedOutputs(plan);
+            return fullTestCompile(
+                    jdkStatus,
+                    sources,
+                    testCompileClasspath,
+                    groovyCompileClasspath,
+                    outputDirectory,
+                    generatedSourcesDirectory,
+                    classpaths,
+                    options,
+                    validationFallback.orElseThrow());
+        }
+        incrementalCompileStateRecorder.deleteTestState(outputDirectory);
+        deleteOwnedOutputs(plan);
+        return fullTestCompile(
+                jdkStatus,
+                sources,
+                testCompileClasspath,
+                groovyCompileClasspath,
+                outputDirectory,
+                generatedSourcesDirectory,
+                classpaths,
+                options,
+                plan.fallbackReason());
+    }
+
+    private TestCompileAttempt fullTestCompile(
+            JdkStatus jdkStatus,
+            SourceDiscoveryResult sources,
+            Classpath testCompileClasspath,
+            Classpath groovyCompileClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            ClasspathSet classpaths,
+            JavacOptions options,
+            String fallbackReason) {
+        JavacResult javacResult = javacRunner.compile(
+                jdkStatus.javac().orElseThrow(),
+                sources.testSources(),
+                testCompileClasspath,
+                outputDirectory,
+                classpaths.testProcessor(),
+                generatedSourcesDirectory,
+                options);
+        JavacResult groovyResult = groovyCompilerRunner.compile(
+                jdkStatus.java().orElseThrow(),
+                sources.groovyTestSources(),
+                groovyCompileClasspath,
+                outputDirectory);
+        return new TestCompileAttempt(javacResult, groovyResult, "full", fallbackReason);
     }
 
     private static long elapsedSince(long started) {
@@ -266,5 +379,44 @@ public final class TestCompileService {
     private static String effectiveRelease(ProjectConfig config) {
         String compilerRelease = config.compilerSettings().release();
         return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
+    }
+
+    private static Classpath incrementalClasspath(Classpath classpath, Path outputDirectory) {
+        List<Path> entries = new ArrayList<>();
+        entries.add(outputDirectory);
+        entries.addAll(classpath.entries());
+        return new Classpath(entries);
+    }
+
+    private static void deleteOwnedOutputs(IncrementalCompilePlanner.Plan plan) {
+        for (Path output : plan.outputsToDelete()) {
+            try {
+                Files.deleteIfExists(output);
+            } catch (IOException exception) {
+                throw new BuildException(
+                        "Could not delete stale compiled test class "
+                                + output
+                                + ". Check that the test output directory is writable.",
+                        exception);
+            }
+        }
+    }
+
+    private record TestCompileAttempt(
+            JavacResult javacResult,
+            JavacResult groovyResult,
+            String mode,
+            String fallbackReason) {
+        int sourceCount() {
+            return javacResult.sourceCount() + groovyResult.sourceCount();
+        }
+
+        Path outputDirectory() {
+            return javacResult.outputDirectory();
+        }
+
+        String output() {
+            return combinedOutput(javacResult.output(), groovyResult.output());
+        }
     }
 }

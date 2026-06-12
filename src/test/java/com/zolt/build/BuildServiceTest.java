@@ -68,6 +68,8 @@ final class BuildServiceTest {
         BuildResult result = buildService.build(projectDir, config(), cacheRoot);
 
         assertEquals(1, result.sourceCount());
+        assertEquals("full", result.mainCompilationMode());
+        assertEquals("processor-classpath", result.mainIncrementalFallbackReason());
         assertTrue(Files.exists(projectDir.resolve(
                 "target/generated/sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
@@ -157,6 +159,8 @@ final class BuildServiceTest {
         BuildResult second = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(first.mainCompilationSkipped());
+        assertEquals("full", first.mainCompilationMode());
+        assertEquals("missing-state", first.mainIncrementalFallbackReason());
         assertTrue(second.mainCompilationSkipped());
         assertEquals(1, second.sourceCount());
         assertTrue(second.mainFingerprintCheckNanos() > 0);
@@ -242,6 +246,20 @@ final class BuildServiceTest {
                 () -> buildService.build(projectDir, config(), projectDir.resolve("cache")));
 
         assertFalse(Files.exists(projectDir.resolve("target/classes/.zolt-incremental-main.state")));
+        Files.writeString(mainSource, """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "fixed";
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.mainCompilationMode());
+        assertEquals("missing-state", result.mainIncrementalFallbackReason());
     }
 
     @Test
@@ -290,6 +308,107 @@ final class BuildServiceTest {
         BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(result.mainCompilationSkipped());
+    }
+
+    @Test
+    void bodyOnlySourceChangeUsesIncrementalMainCompilation() throws IOException {
+        writeLockfile("version = 1\n");
+        Path source = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return Helper.message() + " one";
+                    }
+                }
+                """);
+        source("src/main/java/com/example/Helper.java", """
+                package com.example;
+
+                public final class Helper {
+                    public static String message() {
+                        return "helper";
+                    }
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(source, """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return Helper.message() + " two";
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.mainCompilationSkipped());
+        assertEquals("incremental", result.mainCompilationMode());
+        assertEquals("", result.mainIncrementalFallbackReason());
+        assertEquals(1, result.sourceCount());
+    }
+
+    @Test
+    void abiChangingSourceChangeFallsBackToFullMainCompilation() throws IOException {
+        writeLockfile("version = 1\n");
+        Path source = source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return "one";
+                    }
+                }
+                """);
+        source("src/main/java/com/example/Helper.java", """
+                package com.example;
+
+                public final class Helper {
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(source, """
+                package com.example;
+
+                public final class Main {
+                    public static int message() {
+                        return 2;
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.mainCompilationMode());
+        assertEquals("abi-changed", result.mainIncrementalFallbackReason());
+        assertEquals(2, result.sourceCount());
+    }
+
+    @Test
+    void deletedSourceFallsBackToFullMainCompilationAndDeletesOwnedClass() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+        Path deletedSource = source("src/main/java/com/example/Deleted.java", """
+                package com.example;
+
+                public final class Deleted {
+                }
+                """);
+        buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        Files.delete(deletedSource);
+
+        BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertEquals("full", result.mainCompilationMode());
+        assertEquals("source-deleted", result.mainIncrementalFallbackReason());
+        assertFalse(Files.exists(projectDir.resolve("target/classes/com/example/Deleted.class")));
     }
 
     @Test
