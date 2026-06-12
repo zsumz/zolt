@@ -5399,7 +5399,15 @@ final class ZoltCliTest {
                       "deploymentClasspath": []
                     }
                   },
-                  "diagnostics": []
+                  "diagnostics": [
+                    {
+                      "severity": "error",
+                      "code": "LOCKFILE_STALE",
+                      "message": "zolt.lock is out of date. Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.",
+                      "path": "%s",
+                      "nextStep": "Run zolt resolve."
+                    }
+                  ]
                 }
                 """.formatted(
                 currentJavaMajorVersion(),
@@ -5425,7 +5433,8 @@ final class ZoltCliTest {
                 jsonPath(root.resolve("target/classes")),
                 jsonPath(root.resolve("target/test-classes")),
                 jsonPath(appJar),
-                jsonPath(testJar)), result.stdout());
+                jsonPath(testJar),
+                jsonPath(root.resolve("zolt.lock"))), result.stdout());
     }
 
     @Test
@@ -5509,7 +5518,7 @@ final class ZoltCliTest {
     }
 
     @Test
-    void ideModelCheckLockReportsStaleLockfileWithoutRewritingIt() throws IOException {
+    void ideModelReportsStaleLockfileWithoutRewritingItByDefault() throws IOException {
         try (TestRepository repository = TestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
@@ -5544,7 +5553,6 @@ final class ZoltCliTest {
             CommandResult result = execute(
                     "ide",
                     "model",
-                    "--check-lock",
                     "--cwd", projectDir.toString(),
                     "--cache-root", cacheRoot.toString(),
                     "--format", "json");
@@ -5603,7 +5611,7 @@ final class ZoltCliTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("\"code\": \"LOCKFILE_CHECK_UNAVAILABLE\""));
         assertTrue(result.stdout().contains("Offline mode requires cached POM"));
-        assertTrue(result.stdout().contains("retry zolt ide model --check-lock --offline"));
+        assertTrue(result.stdout().contains("retry zolt ide model --offline"));
         assertEquals("version = 1\n", Files.readString(projectDir.resolve("zolt.lock")));
     }
 

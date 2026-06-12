@@ -199,7 +199,7 @@ public final class IdeModelService {
                     "LOCKFILE_CHECK_UNAVAILABLE",
                     exception.getMessage(),
                     lockfilePath,
-                    "Run zolt resolve without --offline to seed the cache, then retry zolt ide model --check-lock --offline."));
+                    "Run zolt resolve without --offline to seed the cache, then retry zolt ide model --offline."));
         }
     }
 
