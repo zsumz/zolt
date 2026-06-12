@@ -75,7 +75,7 @@ final class GeneratedSectionCodec {
         if (table == null) {
             return build;
         }
-        validateKeys("generated", table, GENERATED_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("generated", table, GENERATED_KEYS);
         OpenApiTool tool = parseOpenApiTool(optionalTable(table, "openapiTool"), versionAliases);
         Map<String, OpenApiGenerationSettings> presets = parseOpenApiPresets(optionalTable(table, "openapiPresets"));
         return build.withGeneratedSources(
@@ -121,10 +121,10 @@ final class GeneratedSectionCodec {
                                 + "` in zolt.toml. Supported generated source languages are: java.");
             }
             if (kind == GeneratedSourceKind.OPENAPI) {
-                validateKeys(stepSection, stepTable, GENERATED_OPENAPI_SOURCE_KEYS);
+                TomlValidation.validateKeysWithVersionRefHint(stepSection, stepTable, GENERATED_OPENAPI_SOURCE_KEYS);
                 steps.add(parseOpenApiGeneratedSourceStep(id, stepTable, stepSection, tool, presets));
             } else {
-                validateKeys(stepSection, stepTable, GENERATED_DECLARED_SOURCE_KEYS);
+                TomlValidation.validateKeysWithVersionRefHint(stepSection, stepTable, GENERATED_DECLARED_SOURCE_KEYS);
                 List<String> inputs = stringListOrDefault(stepTable, stepSection, "inputs", List.of());
                 if (inputs.isEmpty()) {
                     throw new ZoltConfigException(
@@ -185,7 +185,7 @@ final class GeneratedSectionCodec {
         if (table == null) {
             return new OpenApiTool(Optional.empty(), Optional.empty(), Optional.empty());
         }
-        validateKeys("generated.openapiTool", table, GENERATED_OPENAPI_TOOL_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("generated.openapiTool", table, GENERATED_OPENAPI_TOOL_KEYS);
         return new OpenApiTool(
                 optionalString(table, "generated.openapiTool", "coordinate"),
                 optionalVersionOrRef(
@@ -210,7 +210,7 @@ final class GeneratedSectionCodec {
                                 + " in zolt.toml. Use a table with OpenAPI generator settings.");
             }
             String section = "generated.openapiPresets." + id;
-            validateKeys(section, presetTable, GENERATED_OPENAPI_PRESET_KEYS);
+            TomlValidation.validateKeysWithVersionRefHint(section, presetTable, GENERATED_OPENAPI_PRESET_KEYS);
             presets.put(id, parseOpenApiGenerationSettings(presetTable, section));
         }
         return java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(presets));
@@ -376,21 +376,6 @@ final class GeneratedSectionCodec {
         }
         if (!settings.importMappings().isEmpty()) {
             writeInlineStringMap(toml, "importMappings", settings.importMappings());
-        }
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                if ("versionRef".equals(key)) {
-                    throw new ZoltConfigException(
-                            "Invalid value for ["
-                                    + section
-                                    + "].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.");
-                }
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
         }
     }
 

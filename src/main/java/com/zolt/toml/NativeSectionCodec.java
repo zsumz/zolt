@@ -19,7 +19,7 @@ final class NativeSectionCodec {
         }
 
         NativeSettings defaults = NativeSettings.defaults().withDefaultImageName(projectName);
-        validateKeys("native", table, NATIVE_KEYS);
+        TomlValidation.validateKeys("native", table, NATIVE_KEYS);
         return new NativeSettings(
                 stringOrDefault(table, "native", "imageName", defaults.imageName()),
                 stringOrDefault(table, "native", "output", defaults.output()),
@@ -40,15 +40,6 @@ final class NativeSectionCodec {
         }
         writeAssignment(toml, "output", nativeSettings.output());
         writeStringArray(toml, "args", nativeSettings.args());
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static String stringOrDefault(TomlTable table, String section, String key, String defaultValue) {

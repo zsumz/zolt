@@ -71,7 +71,7 @@ final class DependencyPolicySectionCodec {
         if (table == null) {
             return List.of();
         }
-        validateKeys("dependencyPolicy", table, DEPENDENCY_POLICY_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("dependencyPolicy", table, DEPENDENCY_POLICY_KEYS);
         Object rawExclusions = table.get(List.of("exclude"));
         if (rawExclusions == null) {
             return List.of();
@@ -88,7 +88,7 @@ final class DependencyPolicySectionCodec {
                         "Invalid value for [dependencyPolicy].exclude[" + index + "] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.");
             }
             String section = "dependencyPolicy.exclude[" + index + "]";
-            validateKeys(section, exclusion, DEPENDENCY_POLICY_EXCLUSION_KEYS);
+            TomlValidation.validateKeysWithVersionRefHint(section, exclusion, DEPENDENCY_POLICY_EXCLUSION_KEYS);
             exclusions.add(new DependencyPolicyExclusion(
                     requiredString(exclusion, section, "group"),
                     requiredString(exclusion, section, "artifact"),
@@ -113,7 +113,10 @@ final class DependencyPolicySectionCodec {
                                 + coordinate
                                 + " in zolt.toml. Use { version = \"...\", kind = \"strict\" }.");
             }
-            validateKeys("dependencyConstraints." + coordinate, constraintTable, DEPENDENCY_CONSTRAINT_KEYS);
+            TomlValidation.validateKeysWithVersionRefHint(
+                    "dependencyConstraints." + coordinate,
+                    constraintTable,
+                    DEPENDENCY_CONSTRAINT_KEYS);
             Optional<String> version = optionalVersionOrRef(
                     constraintTable,
                     "dependencyConstraints." + coordinate,
@@ -181,21 +184,6 @@ final class DependencyPolicySectionCodec {
                             + "` in ["
                             + section
                             + "]. Use `group:artifact`.");
-        }
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                if ("versionRef".equals(key)) {
-                    throw new ZoltConfigException(
-                            "Invalid value for ["
-                                    + section
-                                    + "].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.");
-                }
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
         }
     }
 

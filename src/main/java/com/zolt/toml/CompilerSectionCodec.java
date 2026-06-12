@@ -43,7 +43,7 @@ final class CompilerSectionCodec {
             return defaults;
         }
 
-        validateKeys("compiler", table, COMPILER_KEYS);
+        TomlValidation.validateKeys("compiler", table, COMPILER_KEYS);
         List<String> args = stringListOrDefault(table, "compiler", "args", defaults.args());
         List<String> testArgs = stringListOrDefault(table, "compiler", "testArgs", defaults.testArgs());
         validateCompilerArgs("args", args);
@@ -89,15 +89,6 @@ final class CompilerSectionCodec {
                                 + " in zolt.toml. Zolt owns `"
                                 + flag
                                 + "`; use [compiler].release, [compiler].encoding, source roots, dependencies, or annotation processor settings instead.");
-            }
-        }
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
             }
         }
     }

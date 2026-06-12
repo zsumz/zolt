@@ -31,7 +31,7 @@ final class DependencySectionCodec {
         TomlTable apiTable = optionalTable(result, "api");
         DependencyDeclarations apiDependencies = DependencyDeclarations.empty();
         if (apiTable != null) {
-            validateKeys("api", apiTable, Set.of("dependencies"));
+            TomlValidation.validateKeysWithVersionRefHint("api", apiTable, Set.of("dependencies"));
             apiDependencies = dependencyDeclarations(
                     optionalTable(apiTable, "dependencies"),
                     "api.dependencies",
@@ -49,7 +49,7 @@ final class DependencySectionCodec {
         TomlTable runtimeTable = optionalTable(result, "runtime");
         DependencyDeclarations runtimeDependencies = DependencyDeclarations.empty();
         if (runtimeTable != null) {
-            validateKeys("runtime", runtimeTable, Set.of("dependencies"));
+            TomlValidation.validateKeysWithVersionRefHint("runtime", runtimeTable, Set.of("dependencies"));
             runtimeDependencies = dependencyDeclarations(
                     optionalTable(runtimeTable, "dependencies"),
                     "runtime.dependencies",
@@ -60,7 +60,7 @@ final class DependencySectionCodec {
         TomlTable providedTable = optionalTable(result, "provided");
         DependencyDeclarations providedDependencies = DependencyDeclarations.empty();
         if (providedTable != null) {
-            validateKeys("provided", providedTable, Set.of("dependencies"));
+            TomlValidation.validateKeysWithVersionRefHint("provided", providedTable, Set.of("dependencies"));
             providedDependencies = dependencyDeclarations(
                     optionalTable(providedTable, "dependencies"),
                     "provided.dependencies",
@@ -71,7 +71,7 @@ final class DependencySectionCodec {
         TomlTable devTable = optionalTable(result, "dev");
         DependencyDeclarations devDependencies = DependencyDeclarations.empty();
         if (devTable != null) {
-            validateKeys("dev", devTable, Set.of("dependencies"));
+            TomlValidation.validateKeysWithVersionRefHint("dev", devTable, Set.of("dependencies"));
             devDependencies = dependencyDeclarations(
                     optionalTable(devTable, "dependencies"),
                     "dev.dependencies",
@@ -96,7 +96,7 @@ final class DependencySectionCodec {
         DependencyDeclarations testDependencies = DependencyDeclarations.empty();
         DependencyDeclarations testAnnotationProcessors = DependencyDeclarations.empty();
         if (testTable != null) {
-            validateKeys("test", testTable, TEST_KEYS);
+            TomlValidation.validateKeysWithVersionRefHint("test", testTable, TEST_KEYS);
             testDependencies = dependencyDeclarations(
                     optionalTable(testTable, "dependencies"),
                     "test.dependencies",
@@ -202,7 +202,7 @@ final class DependencySectionCodec {
                 continue;
             }
             if (rawValue instanceof TomlTable dependencyTable) {
-                validateKeys(section + "." + key, dependencyTable, allowWorkspace
+                TomlValidation.validateKeysWithVersionRefHint(section + "." + key, dependencyTable, allowWorkspace
                         ? Set.of("version", "versionRef", "workspace", "optional", "publishOnly", "exclusions")
                         : Set.of("version", "versionRef", "optional", "publishOnly", "exclusions"));
                 Object rawVersion = dependencyTable.get(List.of("version"));
@@ -341,7 +341,10 @@ final class DependencySectionCodec {
                 throw new ZoltConfigException(
                         "Invalid value for [" + section + "].exclusions[" + index + "] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.");
             }
-            validateKeys(section + ".exclusions[" + index + "]", exclusion, Set.of("group", "artifact"));
+            TomlValidation.validateKeysWithVersionRefHint(
+                    section + ".exclusions[" + index + "]",
+                    exclusion,
+                    Set.of("group", "artifact"));
             exclusions.add(new DependencyExclusionSpec(
                     requiredString(exclusion, section + ".exclusions[" + index + "]", "group"),
                     requiredString(exclusion, section + ".exclusions[" + index + "]", "artifact")));
@@ -477,21 +480,6 @@ final class DependencySectionCodec {
                 .map(DependencyMetadata::coordinate)
                 .forEach(coordinates::add);
         return coordinates;
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                if ("versionRef".equals(key)) {
-                    throw new ZoltConfigException(
-                            "Invalid value for ["
-                                    + section
-                                    + "].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.");
-                }
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static TomlTable optionalTable(TomlParseResult result, String section) {

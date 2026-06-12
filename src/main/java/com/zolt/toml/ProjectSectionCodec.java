@@ -19,7 +19,7 @@ final class ProjectSectionCodec {
 
     static ProjectMetadata parse(TomlParseResult result) {
         TomlTable projectTable = requiredTable(result, "project");
-        validateKeys("project", projectTable, PROJECT_KEYS);
+        TomlValidation.validateKeys("project", projectTable, PROJECT_KEYS);
 
         String projectVersion = requiredString(projectTable, "project", "version");
         validateVersion(VersionPolicy.Context.PROJECT_VERSION, "project.version", projectVersion);
@@ -47,15 +47,6 @@ final class ProjectSectionCodec {
             throw new ZoltConfigException("Missing required section [" + section + "] in zolt.toml.");
         }
         return table;
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static String requiredString(TomlTable table, String section, String key) {

@@ -31,7 +31,7 @@ final class PackageSectionCodec {
             return PackageSettings.defaults();
         }
 
-        validateKeys("package", table, PACKAGE_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("package", table, PACKAGE_KEYS);
         PackageSettings defaults = PackageSettings.defaults();
         PublicationMetadata metadata = parsePublicationMetadata(table.getTable(List.of("metadata")));
         Map<String, String> manifestAttributes = stringMap(table.getTable(List.of("manifest")), "package.manifest");
@@ -85,7 +85,7 @@ final class PackageSectionCodec {
         if (table == null) {
             return PublicationMetadata.empty();
         }
-        validateKeys("package.metadata", table, PACKAGE_METADATA_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("package.metadata", table, PACKAGE_METADATA_KEYS);
         PublicationMetadata defaults = PublicationMetadata.empty();
         return new PublicationMetadata(
                 stringOrDefault(table, "package.metadata", "name", defaults.name()),
@@ -133,21 +133,6 @@ final class PackageSectionCodec {
             toml.append('\n');
         }
         writeStringMap(toml, "package.manifest", attributes);
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                if ("versionRef".equals(key)) {
-                    throw new ZoltConfigException(
-                            "Invalid value for ["
-                                    + section
-                                    + "].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.");
-                }
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static Map<String, String> stringMap(TomlTable table, String section) {

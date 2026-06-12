@@ -19,7 +19,7 @@ final class FrameworkSectionCodec {
             return FrameworkSettings.defaults();
         }
 
-        validateKeys("framework", table, FRAMEWORK_KEYS);
+        TomlValidation.validateKeys("framework", table, FRAMEWORK_KEYS);
         return new FrameworkSettings(parseQuarkus(table.getTable(List.of("quarkus"))));
     }
 
@@ -41,7 +41,7 @@ final class FrameworkSectionCodec {
             return defaults;
         }
 
-        validateKeys("framework.quarkus", table, QUARKUS_KEYS);
+        TomlValidation.validateKeys("framework.quarkus", table, QUARKUS_KEYS);
         boolean enabled = booleanOrDefault(table, "framework.quarkus", "enabled", defaults.enabled());
         Object rawPackage = table.get(List.of("package"));
         if (rawPackage == null) {
@@ -61,15 +61,6 @@ final class FrameworkSectionCodec {
                                 + "` in zolt.toml. Supported Quarkus package modes are: "
                                 + QuarkusPackageMode.supportedValues()
                                 + ".")));
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {

@@ -36,7 +36,7 @@ final class PlatformSectionCodec {
                 continue;
             }
             if (rawValue instanceof TomlTable valueTable) {
-                validateKeys(SECTION + "." + key, valueTable, Set.of("versionRef"));
+                TomlValidation.validateKeys(SECTION + "." + key, valueTable, Set.of("versionRef"));
                 String version = requiredVersionRef(valueTable, SECTION + "." + key, versionAliases);
                 values.put(key, version);
                 if (valueTable.get(List.of("versionRef")) instanceof String alias) {
@@ -82,15 +82,6 @@ final class PlatformSectionCodec {
     private static ZoltConfigException invalidPlatformValue(String key) {
         return new ZoltConfigException(
                 "Invalid value for [platforms]." + key + " in zolt.toml. Use a non-empty version string or { versionRef = \"alias\" }.");
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static void validateVersion(String subject, String version) {

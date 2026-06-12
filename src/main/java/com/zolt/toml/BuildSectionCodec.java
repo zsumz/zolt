@@ -35,7 +35,7 @@ final class BuildSectionCodec {
             return defaults;
         }
 
-        validateKeys("build", table, BUILD_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("build", table, BUILD_KEYS);
         BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(table, "metadata"));
         return new BuildSettings(
                 stringOrDefault(table, "build", "source", defaults.source()),
@@ -57,7 +57,7 @@ final class BuildSectionCodec {
         if (sourcesTable == null) {
             return build;
         }
-        validateKeys("test.sources", sourcesTable, Set.of("java", "groovy"));
+        TomlValidation.validateKeysWithVersionRefHint("test.sources", sourcesTable, Set.of("java", "groovy"));
         return new BuildSettings(
                 build.source(),
                 build.test(),
@@ -78,7 +78,7 @@ final class BuildSectionCodec {
         if (runtimeTable == null) {
             return build;
         }
-        validateKeys("test.runtime", runtimeTable, TEST_RUNTIME_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("test.runtime", runtimeTable, TEST_RUNTIME_KEYS);
         try {
             return build.withTestRuntime(new TestRuntimeSettings(
                     stringListOrDefault(runtimeTable, "test.runtime", "jvmArgs", List.of()),
@@ -94,7 +94,7 @@ final class BuildSectionCodec {
         if (table == null) {
             return build;
         }
-        validateKeys("resources", table, RESOURCES_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("resources", table, RESOURCES_KEYS);
         return new BuildSettings(
                 build.source(),
                 build.test(),
@@ -179,7 +179,7 @@ final class BuildSectionCodec {
         if (table == null) {
             return defaults;
         }
-        validateKeys("build.metadata", table, BUILD_METADATA_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("build.metadata", table, BUILD_METADATA_KEYS);
         return new BuildMetadataSettings(
                 booleanOrDefault(table, "build.metadata", "buildInfo", defaults.buildInfo()),
                 booleanOrDefault(table, "build.metadata", "git", defaults.git()),
@@ -201,7 +201,7 @@ final class BuildSectionCodec {
                             defaults.missing(),
                             tokens);
         }
-        validateKeys("resources.filtering", filteringTable, RESOURCE_FILTERING_KEYS);
+        TomlValidation.validateKeysWithVersionRefHint("resources.filtering", filteringTable, RESOURCE_FILTERING_KEYS);
         String rawMissing = stringOrDefault(
                 filteringTable,
                 "resources.filtering",
@@ -239,7 +239,7 @@ final class BuildSectionCodec {
                                 + key
                                 + " in zolt.toml. Use exactly one of { value = \"...\" }, { env = \"...\" }, or { project = \"...\" }.");
             }
-            validateKeys("resources.tokens." + key, tokenTable, RESOURCE_TOKEN_KEYS);
+            TomlValidation.validateKeysWithVersionRefHint("resources.tokens." + key, tokenTable, RESOURCE_TOKEN_KEYS);
             Optional<String> value = optionalString(tokenTable, "resources.tokens." + key, "value");
             Optional<String> env = optionalString(tokenTable, "resources.tokens." + key, "env");
             Optional<String> project = optionalString(tokenTable, "resources.tokens." + key, "project");
@@ -298,21 +298,6 @@ final class BuildSectionCodec {
                         () -> toml.append("{ project = ")
                                 .append(quote(token.project().orElseThrow()))
                                 .append(" }")));
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                if ("versionRef".equals(key)) {
-                    throw new ZoltConfigException(
-                            "Invalid value for ["
-                                    + section
-                                    + "].versionRef in zolt.toml. versionRef is only supported for dependency, platform, constraint, and tool artifact versions.");
-                }
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static TomlTable optionalTable(TomlTable table, String key) {

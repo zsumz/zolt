@@ -33,7 +33,7 @@ final class RepositorySectionCodec {
                 continue;
             }
             if (rawValue instanceof TomlTable repositoryTable) {
-                validateKeys("repositories." + key, repositoryTable, REPOSITORY_KEYS);
+                TomlValidation.validateKeys("repositories." + key, repositoryTable, REPOSITORY_KEYS);
                 String url = requiredString(repositoryTable, "repositories." + key, "url");
                 Optional<String> credentials = optionalString(repositoryTable, "repositories." + key, "credentials");
                 values.put(key, new RepositorySettings(key, url, credentials));
@@ -64,7 +64,7 @@ final class RepositorySectionCodec {
                 throw new ZoltConfigException(
                         "Invalid value for [repositoryCredentials]." + key + " in zolt.toml. Use a table with usernameEnv and passwordEnv.");
             }
-            validateKeys("repositoryCredentials." + key, credentialTable, REPOSITORY_CREDENTIAL_KEYS);
+            TomlValidation.validateKeys("repositoryCredentials." + key, credentialTable, REPOSITORY_CREDENTIAL_KEYS);
             values.put(key, new RepositoryCredentialSettings(
                     key,
                     requiredString(credentialTable, "repositoryCredentials." + key, "usernameEnv"),
@@ -125,15 +125,6 @@ final class RepositorySectionCodec {
     private static ZoltConfigException invalidRepositoryValue(String key) {
         return new ZoltConfigException(
                 "Invalid value for [repositories]." + key + " in zolt.toml. Use a non-empty URL string or { url = \"...\", credentials = \"...\" }.");
-    }
-
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
-        for (String key : table.keySet()) {
-            if (!allowedKeys.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
     }
 
     private static String requiredString(TomlTable table, String section, String key) {
