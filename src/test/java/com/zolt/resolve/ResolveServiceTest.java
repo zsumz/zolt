@@ -337,6 +337,41 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void directVersionRefDependencyRecordsLockfilePolicy() {
+        Path projectDir = tempDir.resolve("project-version-ref");
+        Path cacheRoot = tempDir.resolve("cache-version-ref");
+        createDirectory(projectDir);
+        ProjectConfig config = new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                test = "%s"
+
+                [versions]
+                app = "1.0.0"
+
+                [dependencies]
+                "com.example:app" = { versionRef = "app" }
+                """.formatted(baseUri));
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        LockPackage app = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "app")))
+                .filter(LockPackage::direct)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("1.0.0", app.version());
+        assertTrue(app.policies().contains(
+                "version-ref: com.example:app -> 1.0.0 from [versions].app"));
+    }
+
+    @Test
     void dependencyPolicyExcludesMatchingTransitives() {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");

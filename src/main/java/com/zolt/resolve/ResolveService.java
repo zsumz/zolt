@@ -681,6 +681,7 @@ public final class ResolveService {
                             artifacts.get(plan.artifactDescriptor()),
                             managedDirectScopes,
                             managedVersionDetails,
+                            context.config.dependencyMetadata(),
                             graph.policyEffects()))
                     .toList();
             List<LockConflict> conflicts = selection.conflicts().stream()
@@ -863,6 +864,7 @@ public final class ResolveService {
             CachedArtifact artifact,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
             Map<PackageId, ManagedVersion> managedVersionDetails,
+            Map<String, DependencyMetadata> dependencyMetadata,
             List<DependencyPolicyEffect> policyEffects) {
         PackageNode node = plan.node();
         SelectedScope selectedScope = plan.selectedScope();
@@ -889,6 +891,7 @@ public final class ResolveService {
                         context.config.dependencyPolicy().constraints(),
                         managedDirectScopes,
                         managedVersionDetails,
+                        dependencyMetadata,
                         policyEffects));
     }
 
@@ -906,8 +909,12 @@ public final class ResolveService {
             Map<String, DependencyConstraint> constraints,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
             Map<PackageId, ManagedVersion> managedVersions,
+            Map<String, DependencyMetadata> dependencyMetadata,
             List<DependencyPolicyEffect> policyEffects) {
         List<String> policies = new ArrayList<>();
+        if (selectedScope.direct()) {
+            policies.addAll(versionRefPolicies(node, selectedScope, dependencyMetadata));
+        }
         if (selectedScope.direct()
                 && managedDirectScopes.getOrDefault(node.packageId(), List.of()).contains(selectedScope.scope())) {
             ManagedVersion managedVersion = managedVersions.get(node.packageId());
@@ -943,6 +950,39 @@ public final class ResolveService {
             policies.addAll(strictPolicies);
         }
         return List.copyOf(policies);
+    }
+
+    private static List<String> versionRefPolicies(
+            PackageNode node,
+            SelectedScope selectedScope,
+            Map<String, DependencyMetadata> dependencyMetadata) {
+        return dependencyMetadata.values().stream()
+                .filter(metadata -> metadata.versionRef() != null)
+                .filter(metadata -> metadata.coordinate().equals(node.packageId().toString()))
+                .filter(metadata -> node.selectedVersion().equals(metadata.version()))
+                .filter(metadata -> metadataScope(metadata.section()) == selectedScope.scope())
+                .map(metadata -> "version-ref: "
+                        + node.packageId()
+                        + " -> "
+                        + node.selectedVersion()
+                        + " from [versions]."
+                        + metadata.versionRef())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private static DependencyScope metadataScope(String section) {
+        return switch (section) {
+            case "api.dependencies", "dependencies" -> DependencyScope.COMPILE;
+            case "runtime.dependencies" -> DependencyScope.RUNTIME;
+            case "provided.dependencies" -> DependencyScope.PROVIDED;
+            case "dev.dependencies" -> DependencyScope.DEV;
+            case "test.dependencies" -> DependencyScope.TEST;
+            case "annotationProcessors" -> DependencyScope.PROCESSOR;
+            case "test.annotationProcessors" -> DependencyScope.TEST_PROCESSOR;
+            default -> null;
+        };
     }
 
     private static List<LockPolicyEffect> lockPolicyEffects(List<DependencyPolicyEffect> policyEffects) {

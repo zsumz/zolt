@@ -72,8 +72,9 @@ public final class DependencyPolicyReportFormatter {
                     .append(' ')
                     .append(direct.coordinate())
                     .append(':')
-                    .append(direct.version())
-                    .append(" status=")
+                    .append(direct.version());
+            direct.versionRef().ifPresent(versionRef -> output.append(" versionRef=").append(versionRef));
+            output.append(" status=")
                     .append(direct.status())
                     .append('\n');
         }
@@ -207,6 +208,7 @@ public final class DependencyPolicyReportFormatter {
                 stringField(json, 3, "section", direct.section(), true);
                 stringField(json, 3, "coordinate", direct.coordinate(), true);
                 stringField(json, 3, "version", direct.version(), true);
+                optionalStringField(json, 3, "versionRef", direct.versionRef(), true);
                 stringField(json, 3, "status", direct.status(), false);
                 indent(json, 2).append("}");
                 if (index + 1 < directVersions.size()) {

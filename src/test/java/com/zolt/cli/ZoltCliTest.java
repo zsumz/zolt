@@ -4013,7 +4013,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("com.example:direct-lib status=direct-conflict reason=Direct dependency conflict fixture"));
         assertTrue(result.stdout().contains("commons-logging:commons-logging status=matched reason=Use jcl-over-slf4j"));
         assertTrue(result.stdout().contains("log4j:log4j status=unmatched reason=Legacy logging baseline"));
-        assertTrue(result.stdout().contains("dependencies com.example:direct-lib:1.2.3 status=selected"));
+        assertTrue(result.stdout().contains("dependencies com.example:direct-lib:1.2.3 versionRef=direct-lib status=selected"));
         assertEquals("", result.stderr());
     }
 
@@ -4037,6 +4037,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"status\": \"direct-conflict\""));
         assertTrue(result.stdout().contains("\"directVersions\": ["));
         assertTrue(result.stdout().contains("\"section\": \"dependencies\""));
+        assertTrue(result.stdout().contains("\"versionRef\": \"direct-lib\""));
         assertEquals(result.stdout(), execute("policy", "--format", "json", "--cwd", projectDir.toString()).stdout());
         assertEquals("", result.stderr());
     }
@@ -6997,8 +6998,11 @@ final class ZoltCliTest {
                 [platforms]
                 "org.springframework.boot:spring-boot-dependencies" = "4.0.6"
 
+                [versions]
+                "direct-lib" = "1.2.3"
+
                 [dependencies]
-                "com.example:direct-lib" = "1.2.3"
+                "com.example:direct-lib" = { versionRef = "direct-lib" }
                 "org.springframework.boot:spring-boot-starter-web" = {}
 
                 [dependencyPolicy]
@@ -7030,6 +7034,7 @@ final class ZoltCliTest {
                 source = "maven-central"
                 scope = "compile"
                 direct = true
+                policies = ["version-ref: com.example:direct-lib -> 1.2.3 from [versions].direct-lib"]
                 dependencies = []
 
                 [[package]]

@@ -65,5 +65,10 @@ public record DependencyPolicyReport(
             String section,
             String coordinate,
             String version,
-            String status) {}
+            Optional<String> versionRef,
+            String status) {
+        public DirectVersionDiagnostic {
+            versionRef = versionRef == null ? Optional.empty() : versionRef;
+        }
+    }
 }
