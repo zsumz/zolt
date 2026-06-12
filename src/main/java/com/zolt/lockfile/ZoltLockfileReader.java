@@ -18,6 +18,16 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class ZoltLockfileReader {
+    private final ArtifactIntegrityVerifier artifactIntegrityVerifier;
+
+    public ZoltLockfileReader() {
+        this(new ArtifactIntegrityVerifier());
+    }
+
+    ZoltLockfileReader(ArtifactIntegrityVerifier artifactIntegrityVerifier) {
+        this.artifactIntegrityVerifier = artifactIntegrityVerifier;
+    }
+
     public ZoltLockfile read(Path path) {
         try {
             return read(Toml.parse(path));
@@ -33,10 +43,15 @@ public final class ZoltLockfileReader {
     }
 
     public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile) {
-        return classpathPackages(lockfile, Path.of(""));
+        return toClasspathPackages(lockfile, Path.of(""));
     }
 
     public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile, Path cacheRoot) {
+        artifactIntegrityVerifier.verify(lockfile, cacheRoot);
+        return toClasspathPackages(lockfile, cacheRoot);
+    }
+
+    private static List<ResolvedClasspathPackage> toClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
         return lockfile.packages().stream()
                 .filter(lockPackage -> lockPackage.jar().isPresent())
                 .map(lockPackage -> new ResolvedClasspathPackage(
@@ -54,6 +69,7 @@ public final class ZoltLockfileReader {
             ZoltLockfile lockfile,
             Path cacheRoot,
             Path workspaceRoot) {
+        artifactIntegrityVerifier.verify(lockfile, cacheRoot);
         return lockfile.packages().stream()
                 .filter(lockPackage -> lockPackage.jar().isPresent()
                         || (lockPackage.workspace().isPresent() && lockPackage.workspaceOutput().isPresent()))

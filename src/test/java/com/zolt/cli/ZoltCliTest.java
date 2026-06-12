@@ -4666,6 +4666,42 @@ final class ZoltCliTest {
     }
 
     @Test
+    void classpathFailsWhenCachedJarDoesNotMatchLockfileHash() throws IOException {
+        Path projectDir = tempDir.resolve("demo-corrupted-cache");
+        Path cacheRoot = tempDir.resolve("cache-corrupted");
+        Files.createDirectories(projectDir);
+        Path jar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "corrupted jar bytes");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:compile-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "compile");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Cached jar integrity check failed for com.example:compile-lib:1.0.0"));
+        assertTrue(result.stderr().contains(
+                "Expected 0000000000000000000000000000000000000000000000000000000000000000"));
+        assertTrue(result.stderr().contains("Remove the cache entry or run `zolt resolve`"));
+    }
+
+    @Test
     void classpathRejectsUnknownKindWithSupportedKinds() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);

@@ -295,8 +295,20 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
-    void reconstructsClasspathInputsUnderCacheRoot() throws IOException {
-        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read(golden()), java.nio.file.Path.of("cache"));
+    void reconstructsClasspathInputsUnderCacheRoot() {
+        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.google.guava:guava"
+                version = "33.4.0-jre"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"
+                pom = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom"
+                dependencies = []
+                """), java.nio.file.Path.of("cache"));
 
         ResolvedClasspathPackage guava = packages.stream()
                 .filter(candidate -> candidate.resolvedPackage().packageId().equals(new PackageId("com.google.guava", "guava")))
