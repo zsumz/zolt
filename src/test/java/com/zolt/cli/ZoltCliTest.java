@@ -245,6 +245,53 @@ final class ZoltCliTest {
     }
 
     @Test
+    void versionRemoveRejectsAliasReferencedByPlatformConstraintAndOpenApiTool() throws IOException {
+        Path projectDir = tempDir.resolve("version-alias-remove-reference-categories");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "version-alias-remove-reference-categories"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                shared = "1.0.0"
+
+                [platforms]
+                "com.example:platform" = { versionRef = "shared" }
+
+                [dependencyConstraints]
+                "com.example:core" = { versionRef = "shared", kind = "strict" }
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "shared"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
+                """);
+
+        CommandResult result = execute(
+                "version",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "shared");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("[platforms].com.example:platform"));
+        assertTrue(result.stderr().contains("[dependencyConstraints].com.example:core"));
+        assertTrue(result.stderr().contains("[generated.openapiTool].versionRef"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("shared = \"1.0.0\""));
+    }
+
+    @Test
     void updateExplainsFutureSelfUpdatePath() {
         CommandResult result = execute("update");
 
