@@ -14,11 +14,9 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.OpenApiGenerationSettings;
-import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
-import com.zolt.project.PublicationMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
 import com.zolt.project.ResourceFilteringSettings;
@@ -125,15 +123,6 @@ public final class ZoltTomlParser {
             "postprocessfile",
             "apifilepostprocessfile",
             "modelfilepostprocessfile");
-    private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata", "manifest");
-    private static final Set<String> PACKAGE_METADATA_KEYS = Set.of(
-            "name",
-            "description",
-            "url",
-            "license",
-            "developers",
-            "scm",
-            "issues");
 
     public ProjectConfig parse(Path path) {
         try {
@@ -265,7 +254,7 @@ public final class ZoltTomlParser {
         build = parseResourceRoots(optionalTable(result, "resources"), build);
         build = parseGeneratedSources(optionalTable(result, "generated"), build, versionAliases);
         CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"));
-        PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
+        PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
         NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name());
 
@@ -698,56 +687,6 @@ public final class ZoltTomlParser {
         merged.putAll(preset);
         merged.putAll(step);
         return merged;
-    }
-
-    private static PackageSettings parsePackage(TomlTable packageTable) {
-        if (packageTable == null) {
-            return PackageSettings.defaults();
-        }
-
-        validateKeys("package", packageTable, PACKAGE_KEYS);
-        PackageSettings defaults = PackageSettings.defaults();
-        PublicationMetadata metadata = parsePublicationMetadata(optionalTable(packageTable, "metadata"));
-        Map<String, String> manifestAttributes = stringMap(optionalTable(packageTable, "manifest"), "package.manifest");
-        Object rawMode = packageTable.get(List.of("mode"));
-        PackageMode mode = defaults.mode();
-        if (rawMode != null) {
-            if (!(rawMode instanceof String modeValue) || modeValue.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid value for [package].mode in zolt.toml. Use one of: "
-                                + PackageMode.supportedValues()
-                                + ".");
-            }
-            mode = PackageMode.fromConfigValue(modeValue).orElseThrow(() -> new ZoltConfigException(
-                    "Unsupported package mode `"
-                            + modeValue
-                            + "` in zolt.toml. Supported package modes are: "
-                            + PackageMode.supportedValues()
-                            + "."));
-        }
-        return new PackageSettings(
-                mode,
-                booleanOrDefault(packageTable, "package", "sources", defaults.sources()),
-                booleanOrDefault(packageTable, "package", "javadoc", defaults.javadoc()),
-                booleanOrDefault(packageTable, "package", "tests", defaults.tests()),
-                metadata,
-                manifestAttributes);
-    }
-
-    private static PublicationMetadata parsePublicationMetadata(TomlTable metadataTable) {
-        if (metadataTable == null) {
-            return PublicationMetadata.empty();
-        }
-        validateKeys("package.metadata", metadataTable, PACKAGE_METADATA_KEYS);
-        PublicationMetadata defaults = PublicationMetadata.empty();
-        return new PublicationMetadata(
-                stringOrDefault(metadataTable, "package.metadata", "name", defaults.name()),
-                stringOrDefault(metadataTable, "package.metadata", "description", defaults.description()),
-                stringOrDefault(metadataTable, "package.metadata", "url", defaults.url()),
-                stringOrDefault(metadataTable, "package.metadata", "license", defaults.license()),
-                stringListOrDefault(metadataTable, "package.metadata", "developers", defaults.developers()),
-                stringOrDefault(metadataTable, "package.metadata", "scm", defaults.scm()),
-                stringOrDefault(metadataTable, "package.metadata", "issues", defaults.issues()));
     }
 
     private static String parseErrorMessage(TomlParseResult result) {
