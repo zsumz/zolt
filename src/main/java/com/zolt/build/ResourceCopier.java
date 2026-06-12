@@ -3,6 +3,8 @@ package com.zolt.build;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
@@ -44,10 +46,11 @@ public final class ResourceCopier {
             Optional<ProjectMetadata> project) {
         return copyResources(
                 settings.resourceRoots(),
-                projectDirectory.toAbsolutePath().normalize().resolve(settings.output()).normalize(),
+                outputDirectory(projectDirectory, "[build].output", settings.output()),
                 projectDirectory,
                 settings,
                 project,
+                "[resources].main",
                 false);
     }
 
@@ -65,10 +68,11 @@ public final class ResourceCopier {
             Optional<ProjectMetadata> project) {
         return copyResources(
                 settings.testResourceRoots(),
-                projectDirectory.toAbsolutePath().normalize().resolve(settings.testOutput()).normalize(),
+                outputDirectory(projectDirectory, "[build].testOutput", settings.testOutput()),
                 projectDirectory,
                 settings,
                 project,
+                "[resources].test",
                 true);
     }
 
@@ -78,10 +82,11 @@ public final class ResourceCopier {
             Path projectDirectory,
             BuildSettings settings,
             Optional<ProjectMetadata> project,
+            String resourceRootKey,
             boolean testResources) {
-        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        Path mainOutput = projectRoot.resolve(settings.output()).normalize();
-        Path testOutput = projectRoot.resolve(settings.testOutput()).normalize();
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        Path mainOutput = outputPath(projectRoot, "[build].output", settings.output());
+        Path testOutput = outputPath(projectRoot, "[build].testOutput", settings.testOutput());
         ResourceFilteringSettings filtering = settings.resourceFiltering();
         boolean filteringEnabled = filtering.enabled() && (!testResources || filtering.testEnabled());
         Map<String, String> tokenValues = filteringEnabled
@@ -91,14 +96,14 @@ public final class ResourceCopier {
         List<Path> skippedResources = new ArrayList<>();
         Set<Path> targetRelativePaths = new HashSet<>();
         for (String configuredRoot : configuredRoots) {
-            Path resourceRoot = resourceRoot(projectDirectory, configuredRoot);
+            Path resourceRoot = resourceRoot(projectRoot, resourceRootKey, configuredRoot);
             if (!Files.isDirectory(resourceRoot)) {
                 continue;
             }
 
             try (Stream<Path> paths = Files.walk(resourceRoot)) {
                 List<Path> resources = paths
-                        .filter(Files::isRegularFile)
+                        .filter(path -> ProjectPaths.isRegularFileInsideProject(projectRoot, resourceRootKey, path))
                         .map(Path::normalize)
                         .filter(path -> !path.getFileName().toString().endsWith(".java"))
                         .filter(path -> !path.startsWith(mainOutput))
@@ -137,7 +142,9 @@ public final class ResourceCopier {
                                 + " to "
                                 + outputDirectory
                                 + ". Check that the project directories are readable and writable.",
-                        exception);
+                    exception);
+            } catch (ProjectPathException exception) {
+                throw new ResourceCopyException(exception.getMessage(), exception);
             }
         }
         return new ResourceCopyResult(copiedResources, skippedResources);
@@ -290,17 +297,24 @@ public final class ResourceCopier {
         };
     }
 
-    private static Path resourceRoot(Path projectDirectory, String configuredRoot) {
-        Path configured = Path.of(configuredRoot);
-        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        Path path = projectRoot.resolve(configured).normalize();
-        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
-            throw new ResourceCopyException(
-                    "Invalid resource root `"
-                            + configuredRoot
-                            + "`. Use a project-relative path under the project directory.");
+    private static Path outputDirectory(Path projectDirectory, String key, String configuredPath) {
+        return outputPath(ProjectPaths.root(projectDirectory), key, configuredPath);
+    }
+
+    private static Path outputPath(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new ResourceCopyException(exception.getMessage(), exception);
         }
-        return path;
+    }
+
+    private static Path resourceRoot(Path projectRoot, String key, String configuredRoot) {
+        try {
+            return ProjectPaths.existingRoot(projectRoot, key, configuredRoot);
+        } catch (ProjectPathException exception) {
+            throw new ResourceCopyException(exception.getMessage(), exception);
+        }
     }
 
     private static boolean startsWithOutputDirectorySegment(Path relativePath) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
@@ -137,7 +138,49 @@ final class CleanServiceTest {
                         projectDir,
                         new BuildSettings("src/main/java", "src/test/java", "../outside", "target/test-classes")));
 
-        assertTrue(exception.getMessage().contains("Refusing to clean output path"));
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("../outside"));
+    }
+
+    @Test
+    void refusesWindowsStyleOutputPath() {
+        CleanException exception = assertThrows(
+                CleanException.class,
+                () -> cleanService.clean(
+                        projectDir,
+                        new BuildSettings("src/main/java", "src/test/java", "C:\\outside\\classes", "target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("C:\\outside\\classes"));
+    }
+
+    @Test
+    void refusesOutputSymlinkThatEscapesProject() throws IOException {
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-clean-");
+        createSymlink(projectDir.resolve("target/classes"), outside);
+
+        CleanException exception = assertThrows(
+                CleanException.class,
+                () -> cleanService.clean(projectDir, BuildSettings.defaults()));
+
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertTrue(Files.exists(outside));
+    }
+
+    @Test
+    void refusesOutputWithSymlinkedParentEvenWhenOutputIsMissing() throws IOException {
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-clean-parent-");
+        createSymlink(projectDir.resolve("target"), outside);
+
+        CleanException exception = assertThrows(
+                CleanException.class,
+                () -> cleanService.clean(projectDir, BuildSettings.defaults()));
+
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("target/classes"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertTrue(Files.exists(outside));
     }
 
     @Test
@@ -187,6 +230,15 @@ final class CleanServiceTest {
         Path file = projectDir.resolve(path);
         Files.createDirectories(file.getParent());
         Files.writeString(file, "x");
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 
     private static ProjectConfig config(BuildSettings buildSettings, boolean quarkusEnabled) {

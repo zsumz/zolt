@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
@@ -120,8 +121,66 @@ final class ResourceCopierTest {
                 ResourceCopyException.class,
                 () -> copier.copyMainResources(projectDir, settings));
 
-        assertTrue(exception.getMessage().contains("Invalid resource root `"));
-        assertTrue(exception.getMessage().contains("Use a project-relative path under the project directory."));
+        assertTrue(exception.getMessage().contains("[resources].main"));
+        assertTrue(exception.getMessage().contains(projectDir.resolve("outside").toString()));
+    }
+
+    @Test
+    void parentEscapingConfiguredResourceRootsFailClearly() {
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of("../outside-resources"),
+                List.of("src/test/resources"));
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, settings));
+
+        assertTrue(exception.getMessage().contains("[resources].main"));
+        assertTrue(exception.getMessage().contains("../outside-resources"));
+    }
+
+    @Test
+    void windowsStyleConfiguredResourceRootsFailClearly() {
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of("C:\\outside\\resources"),
+                List.of("src/test/resources"));
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, settings));
+
+        assertTrue(exception.getMessage().contains("[resources].main"));
+        assertTrue(exception.getMessage().contains("C:\\outside\\resources"));
+    }
+
+    @Test
+    void rejectsResourceSymlinkThatEscapesProject() throws IOException {
+        Path outside = Files.createTempFile(projectDir.getParent(), "secret-", ".txt");
+        Files.writeString(outside, "secret\n");
+        createSymlink(projectDir.resolve("src/main/resources/secret.txt"), outside);
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, BuildSettings.defaults()));
+
+        assertTrue(exception.getMessage().contains("[resources].main"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+    }
+
+    @Test
+    void rejectsOutputWithSymlinkedParentBeforeCreatingDirectories() throws IOException {
+        resource("src/main/resources/application.properties", "name=demo\n");
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-resource-output-");
+        createSymlink(projectDir.resolve("target"), outside);
+
+        ResourceCopyException exception = assertThrows(
+                ResourceCopyException.class,
+                () -> copier.copyMainResources(projectDir, BuildSettings.defaults()));
+
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("target/classes"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertFalse(Files.exists(outside.resolve("classes")));
     }
 
     @Test
@@ -323,5 +382,14 @@ final class ResourceCopierTest {
                 resourceRoots,
                 testResourceRoots,
                 BuildMetadataSettings.defaults());
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 }

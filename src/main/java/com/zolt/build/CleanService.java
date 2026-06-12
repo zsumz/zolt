@@ -3,6 +3,8 @@ package com.zolt.build;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusOutputLayout;
 import java.io.IOException;
@@ -51,10 +53,16 @@ public final class CleanService {
     }
 
     private static Set<Path> cleanTargets(Path projectRoot, BuildSettings settings, CompilerSettings compilerSettings) {
-        Path output = safeProjectPath(projectRoot, settings.output());
-        Path testOutput = safeProjectPath(projectRoot, settings.testOutput());
-        Path generatedSources = safeProjectPath(projectRoot, compilerSettings.generatedSources());
-        Path generatedTestSources = safeProjectPath(projectRoot, compilerSettings.generatedTestSources());
+        Path output = safeProjectPath(projectRoot, "[build].output", settings.output());
+        Path testOutput = safeProjectPath(projectRoot, "[build].testOutput", settings.testOutput());
+        Path generatedSources = safeProjectPath(
+                projectRoot,
+                "[compiler].generatedSources",
+                compilerSettings.generatedSources());
+        Path generatedTestSources = safeProjectPath(
+                projectRoot,
+                "[compiler].generatedTestSources",
+                compilerSettings.generatedTestSources());
         Path sharedParent = sharedOutputParent(output, testOutput).orElse(null);
         Set<Path> targets = new LinkedHashSet<>();
         Set<Path> protectedGeneratedRoots = protectedGeneratedRoots(projectRoot, settings);
@@ -69,11 +77,11 @@ public final class CleanService {
         targets.add(generatedTestSources);
         settings.generatedMainSources().stream()
                 .filter(GeneratedSourceStep::clean)
-                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .map(step -> safeProjectPath(projectRoot, "[generated.main." + step.id() + "].output", step.output()))
                 .forEach(targets::add);
         settings.generatedTestSources().stream()
                 .filter(GeneratedSourceStep::clean)
-                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .map(step -> safeProjectPath(projectRoot, "[generated.test." + step.id() + "].output", step.output()))
                 .forEach(targets::add);
         return targets;
     }
@@ -82,11 +90,11 @@ public final class CleanService {
         Set<Path> roots = new LinkedHashSet<>();
         settings.generatedMainSources().stream()
                 .filter(step -> !step.clean())
-                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .map(step -> safeProjectPath(projectRoot, "[generated.main." + step.id() + "].output", step.output()))
                 .forEach(roots::add);
         settings.generatedTestSources().stream()
                 .filter(step -> !step.clean())
-                .map(step -> safeProjectPath(projectRoot, step.output()))
+                .map(step -> safeProjectPath(projectRoot, "[generated.test." + step.id() + "].output", step.output()))
                 .forEach(roots::add);
         return roots;
     }
@@ -105,16 +113,12 @@ public final class CleanService {
         return name != null && ("target".equals(name.toString()) || "build".equals(name.toString()));
     }
 
-    private static Path safeProjectPath(Path projectRoot, String configuredPath) {
-        Path configured = Path.of(configuredPath);
-        Path path = projectRoot.resolve(configured).normalize();
-        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
-            throw new CleanException(
-                    "Refusing to clean output path "
-                            + configuredPath
-                            + " because it is outside the project or points at the project root.");
+    private static Path safeProjectPath(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new CleanException(exception.getMessage(), exception);
         }
-        return path;
     }
 
     private static void deleteRecursively(Path target) {

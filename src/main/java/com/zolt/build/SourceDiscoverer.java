@@ -3,6 +3,8 @@ package com.zolt.build;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,29 +17,29 @@ public final class SourceDiscoverer {
     private static final Set<String> OUTPUT_DIRECTORY_NAMES = Set.of("target", "build");
 
     public SourceDiscoveryResult discover(Path projectDirectory, BuildSettings settings) {
-        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        Path output = projectDirectory.resolve(settings.output()).normalize();
-        Path testOutput = projectDirectory.resolve(settings.testOutput()).normalize();
-        List<Path> mainRoots = new ArrayList<>();
-        mainRoots.add(projectDirectory.resolve(settings.source()).normalize());
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        Path output = outputPath(projectRoot, "[build].output", settings.output());
+        Path testOutput = outputPath(projectRoot, "[build].testOutput", settings.testOutput());
+        List<SourceRoot> mainRoots = new ArrayList<>();
+        mainRoots.add(inputRoot(projectRoot, "[build].source", settings.source()));
         mainRoots.addAll(generatedRoots(projectRoot, settings.generatedMainSources(), "main"));
-        List<Path> testRoots = new ArrayList<>(settings.testSources().stream()
-                .map(root -> projectDirectory.resolve(root).normalize())
+        List<SourceRoot> testRoots = new ArrayList<>(settings.testSources().stream()
+                .map(root -> inputRoot(projectRoot, "[build].testSources", root))
                 .toList());
         testRoots.addAll(generatedRoots(projectRoot, settings.generatedTestSources(), "test"));
         return new SourceDiscoveryResult(
-                discoverSources(mainRoots, output, testOutput, ".java"),
-                discoverSources(testRoots, output, testOutput, ".java"),
-                discoverSources(settings.groovyTestSources().stream()
-                        .map(root -> projectDirectory.resolve(root).normalize())
+                discoverSources(projectRoot, mainRoots, output, testOutput, ".java"),
+                discoverSources(projectRoot, testRoots, output, testOutput, ".java"),
+                discoverSources(projectRoot, settings.groovyTestSources().stream()
+                        .map(root -> inputRoot(projectRoot, "[build].groovyTestSources", root))
                         .toList(), output, testOutput, ".groovy"));
     }
 
-    private static List<Path> generatedRoots(
+    private static List<SourceRoot> generatedRoots(
             Path projectRoot,
             List<GeneratedSourceStep> steps,
             String scope) {
-        List<Path> roots = new ArrayList<>();
+        List<SourceRoot> roots = new ArrayList<>();
         for (GeneratedSourceStep step : steps) {
             if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
                 throw new SourceDiscoveryException(
@@ -60,7 +62,8 @@ public final class SourceDiscoverer {
                                 + "]. Supported generated source language is java.");
             }
             validateInputs(projectRoot, step, scope);
-            Path output = safeProjectPath(projectRoot, step.output(), scope, step.id(), "output");
+            String key = "[generated." + scope + "." + step.id() + "].output";
+            Path output = outputPath(projectRoot, key, step.output(), scope, step.id(), "output");
             if (!Files.isDirectory(output)) {
                 if (step.required()) {
                     throw new SourceDiscoveryException(
@@ -74,61 +77,121 @@ public final class SourceDiscoverer {
                 }
                 continue;
             }
-            roots.add(output);
+            roots.add(new SourceRoot(output, key));
         }
         return roots;
     }
 
     private static void validateInputs(Path projectRoot, GeneratedSourceStep step, String scope) {
         for (String input : step.inputs()) {
-            safeProjectPath(projectRoot, input, scope, step.id(), "inputs");
+            inputPath(projectRoot, "[generated." + scope + "." + step.id() + "].inputs", input, scope, step.id(), "inputs");
         }
     }
 
-    private static Path safeProjectPath(Path projectRoot, String configuredPath, String scope, String id, String field) {
-        Path configured = Path.of(configuredPath);
-        Path path = projectRoot.resolve(configured).normalize();
-        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
+    private static SourceRoot inputRoot(Path projectRoot, String key, String configuredPath) {
+        try {
+            return new SourceRoot(ProjectPaths.existingRoot(projectRoot, key, configuredPath), key);
+        } catch (ProjectPathException exception) {
             throw new SourceDiscoveryException(
-                    "Invalid generated source "
-                            + field
-                            + " path `"
-                            + configuredPath
-                            + "` for [generated."
-                            + scope
-                            + "."
-                            + id
-                            + "]. Use a project-relative path under the project directory.");
+                    exception.getMessage(),
+                    exception);
         }
-        return path;
     }
 
-    private static List<Path> discoverSources(List<Path> roots, Path output, Path testOutput, String extension) {
+    private static Path outputPath(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new SourceDiscoveryException(exception.getMessage(), exception);
+        }
+    }
+
+    private static Path outputPath(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            String scope,
+            String id,
+            String field) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw generatedSourcePathException(configuredPath, scope, id, field, exception);
+        }
+    }
+
+    private static Path inputPath(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            String scope,
+            String id,
+            String field) {
+        try {
+            return ProjectPaths.input(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw generatedSourcePathException(configuredPath, scope, id, field, exception);
+        }
+    }
+
+    private static SourceDiscoveryException generatedSourcePathException(
+            String configuredPath,
+            String scope,
+            String id,
+            String field,
+            ProjectPathException exception) {
+        return new SourceDiscoveryException(
+                "Invalid generated source "
+                        + field
+                        + " path `"
+                        + configuredPath
+                        + "` for [generated."
+                        + scope
+                        + "."
+                        + id
+                        + "]. "
+                        + exception.getMessage(),
+                exception);
+    }
+
+    private static List<Path> discoverSources(
+            Path projectRoot,
+            List<SourceRoot> roots,
+            Path output,
+            Path testOutput,
+            String extension) {
         return roots.stream()
-                .flatMap(root -> discoverSourcesFromRoot(root, output, testOutput, extension).stream())
+                .flatMap(root -> discoverSourcesFromRoot(projectRoot, root, output, testOutput, extension).stream())
                 .distinct()
                 .sorted()
                 .toList();
     }
 
-    private static List<Path> discoverSourcesFromRoot(Path root, Path output, Path testOutput, String extension) {
-        if (!Files.isDirectory(root)) {
+    private static List<Path> discoverSourcesFromRoot(
+            Path projectRoot,
+            SourceRoot root,
+            Path output,
+            Path testOutput,
+            String extension) {
+        if (!Files.isDirectory(root.path())) {
             return List.of();
         }
-        try (Stream<Path> paths = Files.walk(root)) {
+        try (Stream<Path> paths = Files.walk(root.path())) {
             return paths
-                    .filter(Files::isRegularFile)
+                    .filter(path -> ProjectPaths.isRegularFileInsideProject(projectRoot, root.key(), path))
                     .filter(path -> path.getFileName().toString().endsWith(extension))
                     .map(Path::normalize)
                     .filter(path -> !path.startsWith(output))
                     .filter(path -> !path.startsWith(testOutput))
-                    .filter(path -> !startsWithOutputDirectorySegment(root.relativize(path)))
+                    .filter(path -> !startsWithOutputDirectorySegment(root.path().relativize(path)))
                     .sorted()
                     .toList();
+        } catch (ProjectPathException exception) {
+            throw new SourceDiscoveryException(exception.getMessage(), exception);
         } catch (IOException exception) {
             throw new SourceDiscoveryException(
                     "Could not discover sources under "
-                            + root
+                            + root.path()
                             + ". Check that the directory is readable.",
                     exception);
         }
@@ -139,5 +202,8 @@ public final class SourceDiscoverer {
             return false;
         }
         return OUTPUT_DIRECTORY_NAMES.contains(relativePath.getName(0).toString());
+    }
+
+    private record SourceRoot(Path path, String key) {
     }
 }
