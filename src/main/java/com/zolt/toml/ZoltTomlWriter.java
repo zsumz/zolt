@@ -20,8 +20,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusSettings;
-import com.zolt.project.RepositoryCredentialSettings;
-import com.zolt.project.RepositorySettings;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
@@ -62,8 +60,8 @@ public final class ZoltTomlWriter {
     public String write(ProjectConfig config) {
         StringBuilder toml = new StringBuilder();
         writeProject(toml, config.project());
-        writeRepositories(toml, config.repositorySettings());
-        writeRepositoryCredentials(toml, config.repositoryCredentials());
+        RepositorySectionCodec.writeRepositories(toml, config.repositorySettings());
+        RepositorySectionCodec.writeRepositoryCredentials(toml, config.repositoryCredentials());
         if (!config.versionAliases().isEmpty()) {
             writeStringMap(toml, "versions", config.versionAliases());
         }
@@ -1368,37 +1366,6 @@ public final class ZoltTomlWriter {
         toml.append(" }\n");
     }
 
-    private static void writeRepositories(StringBuilder toml, Map<String, RepositorySettings> repositories) {
-        toml.append("[repositories]\n");
-        for (Map.Entry<String, RepositorySettings> entry : sortedRepositorySettings(repositories).entrySet()) {
-            RepositorySettings repository = entry.getValue();
-            toml.append(quote(entry.getKey())).append(" = ");
-            if (repository.credentials().isEmpty()) {
-                toml.append(quote(repository.url())).append('\n');
-                continue;
-            }
-            toml.append("{ url = ")
-                    .append(quote(repository.url()))
-                    .append(", credentials = ")
-                    .append(quote(repository.credentials().orElseThrow()))
-                    .append(" }\n");
-        }
-        toml.append('\n');
-    }
-
-    private static void writeRepositoryCredentials(
-            StringBuilder toml,
-            Map<String, RepositoryCredentialSettings> credentials) {
-        for (RepositoryCredentialSettings credential : sortedRepositoryCredentials(credentials).values()) {
-            toml.append("[repositoryCredentials.")
-                    .append(quote(credential.id()))
-                    .append("]\n");
-            writeAssignment(toml, "usernameEnv", credential.usernameEnv());
-            writeAssignment(toml, "passwordEnv", credential.passwordEnv());
-            toml.append('\n');
-        }
-    }
-
     private static void writeDependencyPolicy(StringBuilder toml, DependencyPolicySettings policy) {
         if (policy == null || policy.equals(DependencyPolicySettings.defaults())) {
             return;
@@ -1595,15 +1562,6 @@ public final class ZoltTomlWriter {
     }
 
     private static Map<String, String> sorted(Map<String, String> values) {
-        return new TreeMap<>(values);
-    }
-
-    private static Map<String, RepositorySettings> sortedRepositorySettings(Map<String, RepositorySettings> values) {
-        return new TreeMap<>(values);
-    }
-
-    private static Map<String, RepositoryCredentialSettings> sortedRepositoryCredentials(
-            Map<String, RepositoryCredentialSettings> values) {
         return new TreeMap<>(values);
     }
 
