@@ -4,7 +4,6 @@ import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
-import com.zolt.project.VersionAliasRules;
 import com.zolt.project.VersionPolicy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -117,12 +116,12 @@ final class DependencyPolicySectionCodec {
                     "dependencyConstraints." + coordinate,
                     constraintTable,
                     DEPENDENCY_CONSTRAINT_KEYS);
-            Optional<String> version = optionalVersionOrRef(
+            Optional<String> version = TomlVersions.optionalVersionOrRef(
                     constraintTable,
                     "dependencyConstraints." + coordinate,
                     VersionPolicy.Context.CONSTRAINT,
                     versionAliases);
-            Optional<String> versionRef = optionalVersionRef(
+            Optional<String> versionRef = TomlVersions.optionalVersionRef(
                     constraintTable,
                     "dependencyConstraints." + coordinate,
                     versionAliases);
@@ -217,93 +216,6 @@ final class DependencyPolicySectionCodec {
             return defaultValue;
         }
         return value;
-    }
-
-    private static Optional<String> optionalVersionOrRef(
-            TomlTable table,
-            String section,
-            VersionPolicy.Context versionContext,
-            Map<String, String> versionAliases) {
-        Object rawVersion = table.get(List.of("version"));
-        Object rawVersionRef = table.get(List.of("versionRef"));
-        if (rawVersion != null && rawVersionRef != null) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "] in zolt.toml. Use either version or versionRef, not both.");
-        }
-        if (rawVersion == null && rawVersionRef == null) {
-            return Optional.empty();
-        }
-        if (rawVersion instanceof String version && !version.isBlank()) {
-            validateVersion(versionContext, section, version);
-            return Optional.of(version);
-        }
-        if (rawVersion != null) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "].version in zolt.toml. Use a non-empty string version.");
-        }
-        return Optional.of(requiredVersionRef(table, section, versionAliases));
-    }
-
-    private static Optional<String> optionalVersionRef(
-            TomlTable table,
-            String section,
-            Map<String, String> versionAliases) {
-        Object rawVersionRef = table.get(List.of("versionRef"));
-        if (rawVersionRef == null) {
-            return Optional.empty();
-        }
-        requiredVersionRef(table, section, versionAliases);
-        return Optional.of((String) rawVersionRef);
-    }
-
-    private static void validateVersion(
-            VersionPolicy.Context context,
-            String subject,
-            String version) {
-        VersionPolicy.violation(context, version).ifPresent(violation -> {
-            throw new ZoltConfigException(
-                    "Invalid "
-                            + context.description()
-                            + " `"
-                            + version
-                            + "` for ["
-                            + subject
-                            + "] in zolt.toml. "
-                            + violation.guidance());
-        });
-    }
-
-    private static String requiredVersionRef(
-            TomlTable table,
-            String section,
-            Map<String, String> versionAliases) {
-        Object rawValue = table.get(List.of("versionRef"));
-        if (!(rawValue instanceof String alias) || alias.isBlank()) {
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "].versionRef in zolt.toml. Use a non-empty alias from [versions].");
-        }
-        validateVersionAliasName(alias);
-        String version = versionAliases.get(alias);
-        if (version == null) {
-            throw new ZoltConfigException(
-                    "Unknown versionRef `"
-                            + alias
-                            + "` in ["
-                            + section
-                            + "]. Add [versions]."
-                            + alias
-                            + " or use an explicit version.");
-        }
-        return version;
-    }
-
-    private static void validateVersionAliasName(String alias) {
-        if (!VersionAliasRules.isValidName(alias)) {
-            throw new ZoltConfigException(
-                    "Invalid [versions] alias `"
-                            + alias
-                            + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
-        }
     }
 
     private static String quote(String value) {
