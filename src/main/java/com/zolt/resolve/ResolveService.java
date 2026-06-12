@@ -695,6 +695,7 @@ public final class ResolveService {
             return new ZoltLockfile(
                     ZoltLockfile.CURRENT_VERSION,
                     aliasFingerprint(context.config),
+                    Optional.of(ProjectResolutionFingerprint.fingerprint(context.config)),
                     packages,
                     conflicts,
                     lockPolicyEffects(graph.policyEffects()));

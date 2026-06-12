@@ -1,4 +1,5 @@
 version = 1
+projectResolutionFingerprint = "sha256:afa930f7cde384033cc90d4b15c87e7b44a83ef6e9fb3412d4d4555efae362b3"
 
 [[package]]
 id = "info.picocli:picocli"

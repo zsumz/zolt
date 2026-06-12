@@ -112,6 +112,7 @@ public final class ZoltLockfileReader {
         return new ZoltLockfile(
                 version,
                 optionalString(result, "aliasFingerprint"),
+                optionalString(result, "projectResolutionFingerprint"),
                 packages(result.getArray("package")),
                 conflicts(result.getArray("conflict")),
                 policyEffects(result.getArray("policy")));

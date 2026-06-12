@@ -137,6 +137,7 @@ final class ResolveServiceTest {
         assertTrue(Files.exists(result.lockfilePath()));
 
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.projectResolutionFingerprint().orElseThrow().startsWith("sha256:"));
         assertEquals(2, lockfile.packages().size());
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "app")) && lockPackage.direct()));
@@ -1194,6 +1195,23 @@ final class ResolveServiceTest {
                 () -> resolveService.resolve(projectDir, platformVersionRefConfig("platform-two"), cacheRoot, true));
 
         assertTrue(existingLockfile.contains("aliasFingerprint = \"sha256:"));
+        assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void lockedResolveFailsWhenRepositoryInputChangesWithoutGraphChange() throws IOException {
+        Path projectDir = tempDir.resolve("project-repository-lock");
+        Path cacheRoot = tempDir.resolve("cache-repository-lock");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, config(), cacheRoot);
+        String existingLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, configWithRepository(baseUri + "?changed=true"), cacheRoot, true));
+
+        assertTrue(existingLockfile.contains("projectResolutionFingerprint = \"sha256:"));
         assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
         assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
     }
@@ -2365,9 +2383,17 @@ final class ResolveServiceTest {
     }
 
     private ProjectConfig configWithDependencies(Map<String, String> dependencies) {
+        return configWithRepositoryAndDependencies(baseUri.toString(), dependencies);
+    }
+
+    private ProjectConfig configWithRepository(String repositoryUrl) {
+        return configWithRepositoryAndDependencies(repositoryUrl, Map.of("com.example:app", "1.0.0"));
+    }
+
+    private ProjectConfig configWithRepositoryAndDependencies(String repositoryUrl, Map<String, String> dependencies) {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
-                Map.of("test", baseUri.toString()),
+                Map.of("test", repositoryUrl),
                 dependencies,
                 Map.of(),
                 BuildSettings.defaults());

@@ -3051,7 +3051,9 @@ public final class ZoltCli implements Runnable {
     private static boolean looksGeneratedLockfile(Path lockfilePath) {
         try {
             String content = java.nio.file.Files.readString(lockfilePath);
-            return content.contains("Sha256 = ") || content.contains("aliasFingerprint = ");
+            return content.contains("Sha256 = ")
+                    || content.contains("aliasFingerprint = ")
+                    || content.contains("projectResolutionFingerprint = ");
         } catch (java.io.IOException exception) {
             throw new LockfileReadException(
                     "Could not read zolt.lock at "

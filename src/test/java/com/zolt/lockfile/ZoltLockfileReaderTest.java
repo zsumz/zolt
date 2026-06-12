@@ -36,6 +36,16 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void readsProjectResolutionFingerprint() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+                projectResolutionFingerprint = "sha256:project-inputs"
+                """);
+
+        assertEquals("sha256:project-inputs", lockfile.projectResolutionFingerprint().orElseThrow());
+    }
+
+    @Test
     void readsPackageFields() throws IOException {
         ZoltLockfile lockfile = reader.read(golden());
         LockPackage guava = lockfile.packages().stream()

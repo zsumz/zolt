@@ -48,6 +48,23 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
+    void writesProjectResolutionFingerprintWhenPresent() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                Optional.empty(),
+                Optional.of("sha256:project-inputs"),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertEquals("""
+                version = 1
+                projectResolutionFingerprint = "sha256:project-inputs"
+
+                """, writer.write(lockfile));
+    }
+
+    @Test
     void packagesAreSortedDeterministically() {
         String output = writer.write(unsortedLockfile());
 
