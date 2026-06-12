@@ -4,6 +4,7 @@ import com.zolt.build.BuildException;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildResultWithClasspaths;
 import com.zolt.build.BuildService;
+import com.zolt.build.CompileDiagnostics;
 import com.zolt.build.CoverageException;
 import com.zolt.build.CoverageReportSettings;
 import com.zolt.build.CoverageResult;
@@ -2753,6 +2754,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
         attributes.put("mainCompilationMode", result.mainCompilationMode());
         attributes.put("mainIncrementalFallbackReason", result.mainIncrementalFallbackReason());
+        addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
         addMainFingerprintAttributes(attributes, result);
         return attributes;
     }
@@ -2802,6 +2804,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("sourceFiles", Integer.toString(result.sourceCount()));
         attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
         attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
+        addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
+        attributes.put("workspaceAbiInvalidations", Integer.toString(result.workspaceAbiInvalidationCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         addMainFingerprintAttributes(
                 attributes,
@@ -2828,6 +2832,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()));
         attributes.put("testCompilationMode", result.compileResult().testCompilationMode());
         attributes.put("testIncrementalFallbackReason", result.compileResult().testIncrementalFallbackReason());
+        addMainCompileDiagnostics(attributes, result.compileResult().buildResult().mainCompileDiagnostics());
+        addTestCompileDiagnostics(attributes, result.compileResult().testCompileDiagnostics());
         attributes.put("testRunner", result.testRunner());
         attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
         attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
@@ -2852,6 +2858,8 @@ public final class ZoltCli implements Runnable {
         attributes.put("testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
         attributes.put("testCompilationMode", result.testCompilationMode());
         attributes.put("testIncrementalFallbackReason", result.testIncrementalFallbackReason());
+        addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
+        addTestCompileDiagnostics(attributes, result.testCompileDiagnostics());
         addMainFingerprintAttributes(attributes, result.buildResult());
         addTestFingerprintAttributes(attributes, result);
         return attributes;
@@ -2879,6 +2887,31 @@ public final class ZoltCli implements Runnable {
             attributes.put("testRunnerRequestMillis", Long.toString(result.testRunnerRequestNanos() / 1_000_000L));
             attributes.put("testRunnerRequestNanos", Long.toString(result.testRunnerRequestNanos()));
         }
+    }
+
+    private static void addMainCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {
+        addCompileDiagnostics(attributes, "main", diagnostics);
+    }
+
+    private static void addTestCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {
+        addCompileDiagnostics(attributes, "test", diagnostics);
+    }
+
+    private static void addCompileDiagnostics(
+            Map<String, String> attributes,
+            String prefix,
+            CompileDiagnostics diagnostics) {
+        CompileDiagnostics values = diagnostics == null ? CompileDiagnostics.empty() : diagnostics;
+        attributes.put(prefix + "SourcesAdded", Integer.toString(values.sourcesAdded()));
+        attributes.put(prefix + "SourcesChanged", Integer.toString(values.sourcesChanged()));
+        attributes.put(prefix + "SourcesDeleted", Integer.toString(values.sourcesDeleted()));
+        attributes.put(prefix + "SourcesRecompiled", Integer.toString(values.sourcesRecompiled()));
+        attributes.put(prefix + "DependentSourcesRecompiled", Integer.toString(values.dependentSourcesRecompiled()));
+        attributes.put(prefix + "ClassesDeleted", Integer.toString(values.classesDeleted()));
+        attributes.put(prefix + "AbiChangedClasses", Integer.toString(values.abiChangedClasses()));
+        attributes.put(
+                prefix + "PackagePrivateAbiChangedClasses",
+                Integer.toString(values.packagePrivateAbiChangedClasses()));
     }
 
     private static void addMainFingerprintAttributes(Map<String, String> attributes, BuildResult result) {
@@ -2950,6 +2983,7 @@ public final class ZoltCli implements Runnable {
         attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
         attributes.put("mainCompilationMode", result.buildResult().mainCompilationMode());
         attributes.put("mainIncrementalFallbackReason", result.buildResult().mainIncrementalFallbackReason());
+        addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
         attributes.put("resolvedLockfile", Boolean.toString(result.buildResult().resolvedLockfile()));
         attributes.put("outputBytes", Integer.toString(result.javaRunResult().output().length()));
         return attributes;

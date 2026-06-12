@@ -142,15 +142,20 @@ final class IncrementalCompilePlanner {
         Set<Path> deletedSources = new LinkedHashSet<>(previousSources.keySet());
         deletedSources.removeAll(currentHashes.keySet());
         if (!deletedSources.isEmpty()) {
-            return Plan.full("source-deleted", outputsForDeletedSources(deletedSources, previousSources));
+            return Plan.full(
+                    "source-deleted",
+                    outputsForDeletedSources(deletedSources, previousSources),
+                    deletedSources.size());
         }
 
         List<Path> dirtySources = new ArrayList<>();
         List<IncrementalCompileState.SourceRecord> changedPreviousRecords = new ArrayList<>();
+        int addedSourceCount = 0;
         for (Map.Entry<Path, String> entry : currentHashes.entrySet()) {
             IncrementalCompileState.SourceRecord previous = previousSources.get(entry.getKey());
             if (previous == null) {
                 dirtySources.add(entry.getKey());
+                addedSourceCount++;
                 continue;
             }
             if (!previous.contentHash().equals(entry.getValue())) {
@@ -166,6 +171,7 @@ final class IncrementalCompilePlanner {
         }
         return Plan.incremental(
                 dirtySources,
+                addedSourceCount,
                 changedPreviousRecords,
                 state.sources(),
                 state.classes(),
@@ -211,6 +217,8 @@ final class IncrementalCompilePlanner {
         }
         Set<Path> scheduledSources = new LinkedHashSet<>(plan.sourcesToCompile());
         List<Path> additionalSources = new ArrayList<>();
+        int abiChangedClasses = 0;
+        int packagePrivateAbiChangedClasses = 0;
         for (IncrementalCompileState.SourceRecord previousSource : plan.changedPreviousRecords()) {
             Path output = previousSource.classOutputs().getFirst();
             ClassFileAbi currentAbi;
@@ -224,14 +232,19 @@ final class IncrementalCompilePlanner {
                 return IncrementalValidation.fallback("changed-class-state-missing");
             }
             IncrementalCompileState.ClassRecord classRecord = previousClass.orElseThrow();
-            if (!classRecord.abiHash().equals(currentAbi.abiHash())) {
+            boolean abiChanged = !classRecord.abiHash().equals(currentAbi.abiHash());
+            boolean packagePrivateAbiChanged = !classRecord.packagePrivateAbiHash().equals(currentAbi.packagePrivateAbiHash())
+                    && !abiChanged;
+            if (abiChanged) {
+                abiChangedClasses++;
                 addAffectedSources(
                         additionalSources,
                         scheduledSources,
                         plan.reverseDependencies().getOrDefault(classRecord.binaryName(), List.of()),
                         plan);
             }
-            if (!classRecord.packagePrivateAbiHash().equals(currentAbi.packagePrivateAbiHash())) {
+            if (packagePrivateAbiChanged) {
+                packagePrivateAbiChangedClasses++;
                 addSamePackageSources(
                         additionalSources,
                         scheduledSources,
@@ -239,7 +252,10 @@ final class IncrementalCompilePlanner {
                         plan);
             }
         }
-        return IncrementalValidation.success(additionalSources);
+        return IncrementalValidation.success(
+                additionalSources,
+                abiChangedClasses,
+                packagePrivateAbiChangedClasses);
     }
 
     private static void addAffectedSources(
@@ -375,6 +391,9 @@ final class IncrementalCompilePlanner {
             List<Path> sourcesToCompile,
             String fallbackReason,
             List<Path> outputsToDelete,
+            int sourcesAdded,
+            int sourcesChanged,
+            int sourcesDeleted,
             List<IncrementalCompileState.SourceRecord> changedPreviousRecords,
             Map<Path, IncrementalCompileState.SourceRecord> previousSources,
             Map<Path, IncrementalCompileState.ClassRecord> previousClasses,
@@ -384,11 +403,18 @@ final class IncrementalCompilePlanner {
         }
 
         static Plan full(String reason, List<Path> outputsToDelete) {
+            return full(reason, outputsToDelete, 0);
+        }
+
+        static Plan full(String reason, List<Path> outputsToDelete, int sourcesDeleted) {
             return new Plan(
                     false,
                     List.of(),
                     reason,
                     outputsToDelete.stream().map(path -> path.toAbsolutePath().normalize()).sorted().toList(),
+                    0,
+                    0,
+                    sourcesDeleted,
                     List.of(),
                     Map.of(),
                     Map.of(),
@@ -397,6 +423,7 @@ final class IncrementalCompilePlanner {
 
         static Plan incremental(
                 List<Path> sourcesToCompile,
+                int sourcesAdded,
                 List<IncrementalCompileState.SourceRecord> changedPreviousRecords,
                 List<IncrementalCompileState.SourceRecord> sourceRecords,
                 List<IncrementalCompileState.ClassRecord> classRecords,
@@ -414,6 +441,9 @@ final class IncrementalCompilePlanner {
                     sourcesToCompile.stream().map(path -> path.toAbsolutePath().normalize()).sorted().toList(),
                     "",
                     List.of(),
+                    sourcesAdded,
+                    changedPreviousRecords.size(),
+                    0,
                     List.copyOf(changedPreviousRecords),
                     previousSources,
                     previousClasses,
@@ -428,24 +458,63 @@ final class IncrementalCompilePlanner {
         boolean hasSource(Path source) {
             return previousSources.containsKey(source.toAbsolutePath().normalize());
         }
+
+        CompileDiagnostics diagnostics(int sourcesRecompiled, IncrementalValidation validation) {
+            return new CompileDiagnostics(
+                    sourcesAdded,
+                    sourcesChanged,
+                    sourcesDeleted,
+                    sourcesRecompiled,
+                    validation.additionalSources().size(),
+                    outputsToDelete.size(),
+                    validation.abiChangedClasses(),
+                    validation.packagePrivateAbiChangedClasses());
+        }
+
+        CompileDiagnostics fullDiagnostics(int sourcesRecompiled) {
+            return new CompileDiagnostics(
+                    sourcesAdded,
+                    sourcesChanged,
+                    sourcesDeleted,
+                    sourcesRecompiled,
+                    0,
+                    outputsToDelete.size(),
+                    0,
+                    0);
+        }
     }
 
     record IncrementalValidation(
             String fallbackReason,
-            List<Path> additionalSources) {
+            List<Path> additionalSources,
+            int abiChangedClasses,
+            int packagePrivateAbiChangedClasses) {
         IncrementalValidation {
             fallbackReason = fallbackReason == null ? "" : fallbackReason;
             additionalSources = additionalSources == null
                     ? List.of()
                     : additionalSources.stream().map(path -> path.toAbsolutePath().normalize()).sorted().toList();
+            abiChangedClasses = Math.max(0, abiChangedClasses);
+            packagePrivateAbiChangedClasses = Math.max(0, packagePrivateAbiChangedClasses);
         }
 
         static IncrementalValidation success(List<Path> additionalSources) {
-            return new IncrementalValidation("", additionalSources);
+            return success(additionalSources, 0, 0);
+        }
+
+        static IncrementalValidation success(
+                List<Path> additionalSources,
+                int abiChangedClasses,
+                int packagePrivateAbiChangedClasses) {
+            return new IncrementalValidation(
+                    "",
+                    additionalSources,
+                    abiChangedClasses,
+                    packagePrivateAbiChangedClasses);
         }
 
         static IncrementalValidation fallback(String reason) {
-            return new IncrementalValidation(reason, List.of());
+            return new IncrementalValidation(reason, List.of(), 0, 0);
         }
 
         boolean hasFallback() {

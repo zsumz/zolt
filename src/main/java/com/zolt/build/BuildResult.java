@@ -13,6 +13,7 @@ public record BuildResult(
         boolean mainCompilationSkipped,
         String mainCompilationMode,
         String mainIncrementalFallbackReason,
+        CompileDiagnostics mainCompileDiagnostics,
         long mainFingerprintCheckNanos,
         long mainFingerprintWriteNanos) {
     public BuildResult(
@@ -21,7 +22,18 @@ public record BuildResult(
             int resourceCount,
             Path outputDirectory,
             String compilerOutput) {
-        this(resolveResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false, "full", "", 0L, 0L);
+        this(
+                resolveResult,
+                sourceCount,
+                resourceCount,
+                outputDirectory,
+                compilerOutput,
+                false,
+                "full",
+                "",
+                CompileDiagnostics.legacy(sourceCount, false),
+                0L,
+                0L);
     }
 
     public BuildResult(
@@ -40,6 +52,7 @@ public record BuildResult(
                 mainCompilationSkipped,
                 mainCompilationSkipped ? "skipped" : "full",
                 "",
+                CompileDiagnostics.legacy(sourceCount, mainCompilationSkipped),
                 0L,
                 0L);
     }
@@ -62,6 +75,7 @@ public record BuildResult(
                 mainCompilationSkipped,
                 mainCompilationSkipped ? "skipped" : "full",
                 "",
+                CompileDiagnostics.legacy(sourceCount, mainCompilationSkipped),
                 mainFingerprintCheckNanos,
                 mainFingerprintWriteNanos);
     }
@@ -70,6 +84,7 @@ public record BuildResult(
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
         mainCompilationMode = normalizeMode(mainCompilationMode, mainCompilationSkipped);
         mainIncrementalFallbackReason = mainIncrementalFallbackReason == null ? "" : mainIncrementalFallbackReason;
+        mainCompileDiagnostics = mainCompileDiagnostics == null ? CompileDiagnostics.empty() : mainCompileDiagnostics;
         mainFingerprintCheckNanos = Math.max(0L, mainFingerprintCheckNanos);
         mainFingerprintWriteNanos = Math.max(0L, mainFingerprintWriteNanos);
     }

@@ -6032,12 +6032,17 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
         assertTrue(lines[1].contains("\"mainCompilationsSkipped\":\"0\""));
         assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\""));
+        assertTrue(lines[1].contains("\"workspaceAbiInvalidations\""));
         assertTrue(lines[2].contains("\"phase\":\"build workspace\""));
         assertTrue(lines[2].contains("\"depth\":0"));
         assertTrue(lines[2].contains("\"members\":\"2\""));
         assertTrue(lines[2].contains("\"sourceFiles\":\"2\""));
         assertTrue(lines[2].contains("\"mainCompilationsSkipped\":\"0\""));
         assertTrue(lines[2].contains("\"mainCompilationsExecuted\":\"2\""));
+        assertTrue(lines[2].contains("\"mainSourcesRecompiled\""));
+        assertTrue(lines[2].contains("\"workspaceAbiInvalidations\""));
     }
 
     @Test
@@ -6599,6 +6604,9 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"mainCompilationSkipped\""));
         assertTrue(lines[1].contains("\"mainCompilationMode\""));
         assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\""));
+        assertTrue(lines[1].contains("\"mainDependentSourcesRecompiled\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\""));
         assertTrue(lines[1].contains("\"mainFingerprintCheckNanos\""));
         assertTrue(lines[1].contains("\"mainFingerprintWriteNanos\""));
         assertTrue(lines[2].contains("\"phase\":\"compile test sources\""));
@@ -6607,6 +6615,9 @@ final class ZoltCliTest {
         assertTrue(lines[2].contains("\"testCompilationSkipped\":\"false\""));
         assertTrue(lines[2].contains("\"testCompilationMode\""));
         assertTrue(lines[2].contains("\"testIncrementalFallbackReason\""));
+        assertTrue(lines[2].contains("\"testSourcesRecompiled\""));
+        assertTrue(lines[2].contains("\"testDependentSourcesRecompiled\""));
+        assertTrue(lines[2].contains("\"testAbiChangedClasses\""));
         assertTrue(lines[2].contains("\"testFingerprintCheckNanos\""));
         assertTrue(lines[2].contains("\"testFingerprintWriteNanos\""));
         assertTrue(lines[3].contains("\"phase\":\"compile tests\""));
@@ -6615,6 +6626,9 @@ final class ZoltCliTest {
         assertTrue(lines[3].contains("\"testCompilationSkipped\":\"false\""));
         assertTrue(lines[3].contains("\"testCompilationMode\""));
         assertTrue(lines[3].contains("\"testIncrementalFallbackReason\""));
+        assertTrue(lines[3].contains("\"testSourcesRecompiled\""));
+        assertTrue(lines[3].contains("\"testDependentSourcesRecompiled\""));
+        assertTrue(lines[3].contains("\"testAbiChangedClasses\""));
         assertTrue(lines[3].contains("\"testFingerprintCheckNanos\""));
         assertTrue(lines[3].contains("\"testFingerprintWriteNanos\""));
         assertTrue(lines[4].contains("\"phase\":\"execute tests\""));
@@ -6961,6 +6975,41 @@ final class ZoltCliTest {
     }
 
     @Test
+    void buildCommandPrintsJsonTimingsWithIncrementalDiagnosticsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--timings",
+                "--timings-format", "json",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(3, lines.length);
+        assertTrue(lines[1].contains("\"phase\":\"compile main\""));
+        assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
+        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
+        assertTrue(lines[1].contains("\"mainSourcesAdded\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesChanged\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesDeleted\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\":\"1\""));
+        assertTrue(lines[1].contains("\"mainDependentSourcesRecompiled\":\"0\""));
+        assertTrue(lines[1].contains("\"mainClassesDeleted\":\"0\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\":\"0\""));
+        assertTrue(lines[1].contains("\"mainPackagePrivateAbiChangedClasses\":\"0\""));
+    }
+
+    @Test
     void buildReturnsNonZeroOnCompilationFailure() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -7045,6 +7094,8 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
         assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
         assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\":\"1\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\":\"0\""));
         assertTrue(lines[1].contains("\"outputBytes\""));
     }
 
@@ -7269,6 +7320,8 @@ final class ZoltCliTest {
         assertTrue(lines[1].contains("\"mainCompilationSkipped\":\"false\""));
         assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
         assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\":\"1\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\":\"0\""));
         assertTrue(lines[2].contains("\"phase\":\"assemble package\""));
         assertTrue(lines[2].contains("\"depth\":1"));
         assertTrue(lines[2].contains("\"mode\":\"thin\""));

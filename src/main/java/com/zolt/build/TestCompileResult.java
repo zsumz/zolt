@@ -11,6 +11,7 @@ public record TestCompileResult(
         boolean testCompilationSkipped,
         String testCompilationMode,
         String testIncrementalFallbackReason,
+        CompileDiagnostics testCompileDiagnostics,
         long testFingerprintCheckNanos,
         long testFingerprintWriteNanos) {
     public TestCompileResult(
@@ -19,7 +20,18 @@ public record TestCompileResult(
             int resourceCount,
             Path outputDirectory,
             String compilerOutput) {
-        this(buildResult, sourceCount, resourceCount, outputDirectory, compilerOutput, false, "full", "", 0L, 0L);
+        this(
+                buildResult,
+                sourceCount,
+                resourceCount,
+                outputDirectory,
+                compilerOutput,
+                false,
+                "full",
+                "",
+                CompileDiagnostics.legacy(sourceCount, false),
+                0L,
+                0L);
     }
 
     public TestCompileResult(
@@ -38,6 +50,7 @@ public record TestCompileResult(
                 testCompilationSkipped,
                 testCompilationSkipped ? "skipped" : "full",
                 "",
+                CompileDiagnostics.legacy(sourceCount, testCompilationSkipped),
                 0L,
                 0L);
     }
@@ -60,6 +73,7 @@ public record TestCompileResult(
                 testCompilationSkipped,
                 testCompilationSkipped ? "skipped" : "full",
                 "",
+                CompileDiagnostics.legacy(sourceCount, testCompilationSkipped),
                 testFingerprintCheckNanos,
                 testFingerprintWriteNanos);
     }
@@ -67,6 +81,7 @@ public record TestCompileResult(
     public TestCompileResult {
         testCompilationMode = normalizeMode(testCompilationMode, testCompilationSkipped);
         testIncrementalFallbackReason = testIncrementalFallbackReason == null ? "" : testIncrementalFallbackReason;
+        testCompileDiagnostics = testCompileDiagnostics == null ? CompileDiagnostics.empty() : testCompileDiagnostics;
         testFingerprintCheckNanos = Math.max(0L, testFingerprintCheckNanos);
         testFingerprintWriteNanos = Math.max(0L, testFingerprintWriteNanos);
     }

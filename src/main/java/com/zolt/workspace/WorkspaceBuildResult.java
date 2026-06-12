@@ -1,6 +1,7 @@
 package com.zolt.workspace;
 
 import com.zolt.build.BuildResult;
+import com.zolt.build.CompileDiagnostics;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.resolve.ResolveResult;
 import java.util.List;
@@ -56,6 +57,33 @@ public record WorkspaceBuildResult(
 
     public long mainFingerprintWriteMillis() {
         return mainFingerprintWriteNanos() / 1_000_000L;
+    }
+
+    public CompileDiagnostics mainCompileDiagnostics() {
+        return new CompileDiagnostics(
+                sumDiagnostics(CompileDiagnostics::sourcesAdded),
+                sumDiagnostics(CompileDiagnostics::sourcesChanged),
+                sumDiagnostics(CompileDiagnostics::sourcesDeleted),
+                sumDiagnostics(CompileDiagnostics::sourcesRecompiled),
+                sumDiagnostics(CompileDiagnostics::dependentSourcesRecompiled),
+                sumDiagnostics(CompileDiagnostics::classesDeleted),
+                sumDiagnostics(CompileDiagnostics::abiChangedClasses),
+                sumDiagnostics(CompileDiagnostics::packagePrivateAbiChangedClasses));
+    }
+
+    public int workspaceAbiInvalidationCount() {
+        return (int) members.stream()
+                .map(MemberBuildResult::result)
+                .filter(result -> "compile-classpath-changed".equals(result.mainIncrementalFallbackReason()))
+                .count();
+    }
+
+    private int sumDiagnostics(java.util.function.ToIntFunction<CompileDiagnostics> value) {
+        return members.stream()
+                .map(MemberBuildResult::result)
+                .map(BuildResult::mainCompileDiagnostics)
+                .mapToInt(value)
+                .sum();
     }
 
     public record MemberBuildResult(

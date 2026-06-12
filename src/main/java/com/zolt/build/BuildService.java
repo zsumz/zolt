@@ -240,6 +240,7 @@ public final class BuildService {
                 compileSkipped,
                 compileSkipped ? "skipped" : javacResult.mode(),
                 compileSkipped ? "" : javacResult.fallbackReason(),
+                javacResult.diagnostics(),
                 fingerprintCheckNanos,
                 fingerprintWriteNanos);
     }
@@ -257,7 +258,8 @@ public final class BuildService {
             return new CompileAttempt(
                     new JavacResult(sources.mainSources().size(), outputDirectory, ""),
                     "skipped",
-                    "");
+                    "",
+                    CompileDiagnostics.empty());
         }
         JavacOptions options = javacOptions(config);
         IncrementalCompilePlanner.Plan plan = incrementalCompilePlanner.planMain(
@@ -307,10 +309,11 @@ public final class BuildService {
                                 generatedSourcesDirectory,
                                 options),
                         "full",
-                        "incremental-javac-failed");
+                        "incremental-javac-failed",
+                        plan.fullDiagnostics(sources.mainSources().size()));
             }
             if (!validation.hasFallback()) {
-                return new CompileAttempt(result, "incremental", "");
+                return new CompileAttempt(result, "incremental", "", plan.diagnostics(result.sourceCount(), validation));
             }
             incrementalCompileStateRecorder.deleteMainState(outputDirectory);
             deleteOwnedOutputs(plan);
@@ -324,7 +327,8 @@ public final class BuildService {
                             generatedSourcesDirectory,
                             options),
                     "full",
-                    validation.fallbackReason());
+                    validation.fallbackReason(),
+                    plan.fullDiagnostics(sources.mainSources().size()));
         }
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
         deleteOwnedOutputs(plan);
@@ -338,7 +342,8 @@ public final class BuildService {
                         generatedSourcesDirectory,
                         options),
                 "full",
-                plan.fallbackReason());
+                plan.fallbackReason(),
+                plan.fullDiagnostics(sources.mainSources().size()));
     }
 
     private static long elapsedSince(long started) {
@@ -408,7 +413,8 @@ public final class BuildService {
     private record CompileAttempt(
             JavacResult result,
             String mode,
-            String fallbackReason) {
+            String fallbackReason,
+            CompileDiagnostics diagnostics) {
         int sourceCount() {
             return result.sourceCount();
         }
