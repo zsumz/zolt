@@ -21,8 +21,20 @@ final class ZoltLockfileReaderTest {
         ZoltLockfile lockfile = reader.read(golden());
 
         assertEquals(ZoltLockfile.CURRENT_VERSION, lockfile.version());
+        assertEquals("sha256:project-inputs", lockfile.projectResolutionFingerprint().orElseThrow());
+        assertEquals(
+                List.of("dependencies.compile=sha256:compile-inputs", "repositories=sha256:repo-inputs"),
+                lockfile.projectResolutionInputFingerprints());
         assertEquals(3, lockfile.packages().size());
         assertEquals(1, lockfile.conflicts().size());
+    }
+
+    @Test
+    void readsLegacyCurrentVersionWithoutResolutionMetadata() {
+        ZoltLockfile lockfile = reader.read("version = 1\n");
+
+        assertTrue(lockfile.projectResolutionFingerprint().isEmpty());
+        assertEquals(List.of(), lockfile.projectResolutionInputFingerprints());
     }
 
     @Test

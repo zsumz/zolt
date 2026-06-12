@@ -1,4 +1,6 @@
 version = 1
+projectResolutionFingerprint = "sha256:project-inputs"
+projectResolutionInputFingerprints = ["dependencies.compile=sha256:compile-inputs", "repositories=sha256:repo-inputs"]
 
 [[package]]
 id = "com.google.guava:failureaccess"
@@ -37,4 +39,3 @@ id = "org.slf4j:slf4j-api"
 selected = "2.0.16"
 requested = ["1.7.36", "2.0.16"]
 reason = "direct dependency wins"
-

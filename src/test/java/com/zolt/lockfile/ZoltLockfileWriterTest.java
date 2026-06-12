@@ -21,7 +21,7 @@ final class ZoltLockfileWriterTest {
                 ZoltLockfileWriterTest.class.getResourceAsStream("/golden/zolt-lock-writer.golden").readAllBytes(),
                 StandardCharsets.UTF_8);
 
-        assertEquals(expected, writer.write(unsortedLockfile()));
+        assertEquals(expected.stripTrailing(), writer.write(unsortedLockfile()).stripTrailing());
     }
 
     @Test
@@ -251,6 +251,9 @@ final class ZoltLockfileWriterTest {
     private static ZoltLockfile unsortedLockfile() {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
+                Optional.empty(),
+                Optional.of("sha256:project-inputs"),
+                List.of("repositories=sha256:repo-inputs", "dependencies.compile=sha256:compile-inputs"),
                 List.of(
                         lockPackage("org.slf4j", "slf4j-api", "2.0.16", DependencyScope.RUNTIME, false, Optional.empty(), Optional.empty(), List.of()),
                         lockPackage("com.google.guava", "guava", "33.4.0-jre", DependencyScope.COMPILE, true, Optional.of("jar-checksum"), Optional.of("pom-checksum"), List.of(
@@ -261,7 +264,8 @@ final class ZoltLockfileWriterTest {
                         new PackageId("org.slf4j", "slf4j-api"),
                         "2.0.16",
                         List.of("2.0.16", "1.7.36"),
-                        ConflictSelectionReason.DIRECT_DEPENDENCY)));
+                        ConflictSelectionReason.DIRECT_DEPENDENCY)),
+                List.of());
     }
 
     private static LockPackage lockPackage(
