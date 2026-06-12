@@ -278,6 +278,20 @@ public final class BuildPlanService {
         PlanNodeStatus status = blockers.isEmpty()
                 ? (step.required() || evidence.outputExists() ? PlanNodeStatus.READY : PlanNodeStatus.SKIPPED)
                 : PlanNodeStatus.BLOCKED;
+        List<String> details = new ArrayList<>(List.of(
+                "sourceRoot: " + evidence.sourceRootId(),
+                "scope: " + evidence.scope(),
+                "compileLane: " + evidence.compileLane(),
+                "kind: " + step.kind().configValue(),
+                "language: " + step.language(),
+                "ownership: " + evidence.ownership(),
+                "outputExists: " + evidence.outputExists(),
+                "inputsPresent: " + evidence.inputsPresent(),
+                "freshness: " + evidence.freshness(),
+                "toolArtifact: " + evidence.toolArtifact()));
+        step.openApi().toolVersionRef().ifPresent(versionRef -> details.add("toolVersionRef: " + versionRef));
+        details.add("toolFingerprint: " + evidence.toolFingerprint());
+        details.add("optionsFingerprint: " + evidence.optionsFingerprint());
         return new PlanNode(
                 id,
                 "generated-source",
@@ -287,19 +301,7 @@ public final class BuildPlanService {
                         : "Run typed generated-source step.",
                 step.inputs(),
                 List.of(step.output()),
-                List.of(
-                        "sourceRoot: " + evidence.sourceRootId(),
-                        "scope: " + evidence.scope(),
-                        "compileLane: " + evidence.compileLane(),
-                        "kind: " + step.kind().configValue(),
-                        "language: " + step.language(),
-                        "ownership: " + evidence.ownership(),
-                        "outputExists: " + evidence.outputExists(),
-                        "inputsPresent: " + evidence.inputsPresent(),
-                        "freshness: " + evidence.freshness(),
-                        "toolArtifact: " + evidence.toolArtifact(),
-                        "toolFingerprint: " + evidence.toolFingerprint(),
-                        "optionsFingerprint: " + evidence.optionsFingerprint()),
+                details,
                 blockers);
     }
 

@@ -223,9 +223,12 @@ final class ZoltCliTest {
         Files.writeString(projectDir.resolve("src/main/openapi/public-api.yaml"), "openapi: 3.1.0\n");
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-openapi-generated-source") + """
 
+                [versions]
+                openapi = "7.11.0"
+
                 [generated.openapiTool]
                 coordinate = "org.openapitools:openapi-generator-cli"
-                version = "7.11.0"
+                versionRef = "openapi"
 
                 [generated.openapiPresets.spring-api]
                 generator = "spring"
@@ -248,6 +251,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("kind: openapi"));
         assertTrue(result.stdout().contains("ownership: zolt-owned-openapi"));
         assertTrue(result.stdout().contains("toolArtifact: org.openapitools:openapi-generator-cli:7.11.0"));
+        assertTrue(result.stdout().contains("toolVersionRef: openapi"));
         assertTrue(result.stdout().contains("toolFingerprint: "));
         assertTrue(result.stdout().contains("optionsFingerprint: "));
         assertEquals("", result.stderr());
