@@ -247,7 +247,7 @@ public final class QualityCheckService {
                         request.reportsDir(),
                         request.requirePublishDryRun()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
-                case PROJECT_MODEL -> results.add(checkProjectModel(Optional.empty(), request.projectRoot(), config));
+                case PROJECT_MODEL -> results.addAll(checkProjectModel(Optional.empty(), request.projectRoot(), config));
                 case DEPENDENCY_METADATA -> results.addAll(checkProjectDependencyMetadata(
                         Optional.empty(),
                         request.projectRoot(),
@@ -327,7 +327,7 @@ public final class QualityCheckService {
                 case PROJECT_MODEL -> {
                     for (String memberPath : selection.includedMembers()) {
                         WorkspaceMember member = members.get(memberPath);
-                        results.add(checkProjectModel(
+                        results.addAll(checkProjectModel(
                                 Optional.of(member.path()),
                                 member.directory(),
                                 member.config()));
@@ -1026,25 +1026,60 @@ public final class QualityCheckService {
         }
     }
 
-    private static QualityCheckResult checkProjectModel(
+    private static List<QualityCheckResult> checkProjectModel(
             Optional<String> member,
             Path projectRoot,
             ProjectConfig config) {
         Optional<QualityCheckResult> invalidPath = firstInvalidPath(member, config);
         if (invalidPath.isPresent()) {
-            return invalidPath.orElseThrow();
+            return List.of(invalidPath.orElseThrow());
         }
 
         Optional<QualityCheckResult> invalidCompilerRelease = invalidCompilerRelease(member, config);
         if (invalidCompilerRelease.isPresent()) {
-            return invalidCompilerRelease.orElseThrow();
+            return List.of(invalidCompilerRelease.orElseThrow());
         }
 
-        return QualityCheckResult.passed(
+        List<QualityCheckResult> results = new ArrayList<>();
+        results.add(QualityCheckResult.passed(
                 PROJECT_MODEL,
                 member,
                 config.project().name(),
-                "Project model is valid for Zolt-owned checks at " + projectRoot.toAbsolutePath().normalize() + ".");
+                "Project model is valid for Zolt-owned checks at " + projectRoot.toAbsolutePath().normalize() + "."));
+        results.addAll(unusedVersionAliasDiagnostics(member, config));
+        return List.copyOf(results);
+    }
+
+    private static List<QualityCheckResult> unusedVersionAliasDiagnostics(
+            Optional<String> member,
+            ProjectConfig config) {
+        if (config.versionAliases().isEmpty()) {
+            return List.of();
+        }
+        Set<String> referencedAliases = referencedVersionAliases(config);
+        return config.versionAliases().keySet().stream()
+                .filter(alias -> !referencedAliases.contains(alias))
+                .sorted()
+                .map(alias -> QualityCheckResult.skipped(
+                        PROJECT_MODEL,
+                        member,
+                        "[versions]." + alias,
+                        "Version alias `" + alias + "` is declared but not referenced by any versionRef.",
+                        "Remove [versions]." + alias + " or update a dependency, platform, processor, or constraint to use versionRef = \"" + alias + "\"."))
+                .toList();
+    }
+
+    private static Set<String> referencedVersionAliases(ProjectConfig config) {
+        Set<String> aliases = new LinkedHashSet<>();
+        for (DependencyMetadata metadata : config.dependencyMetadata().values()) {
+            if (metadata.versionRef() != null) {
+                aliases.add(metadata.versionRef());
+            }
+        }
+        config.dependencyPolicy().constraints().values().stream()
+                .flatMap(constraint -> constraint.versionRef().stream())
+                .forEach(aliases::add);
+        return Set.copyOf(aliases);
     }
 
     private static Optional<QualityCheckResult> firstInvalidPath(

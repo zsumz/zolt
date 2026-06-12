@@ -2207,6 +2207,54 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkWorkspaceProjectModelReportsUnusedVersionAliasesByMember() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-unused-version-alias");
+        Path apiDir = workspaceDir.resolve("api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-unused-version-alias"
+                members = ["api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [versions]
+                boot = "4.0.6"
+                lombok = "1.18.36"
+                test-lombok = "1.18.36"
+                tomcat = "10.1.40"
+                used = "1.0.0"
+                unused = "2.0.0"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = { versionRef = "boot" }
+
+                [dependencies]
+                "org.example:lib" = { versionRef = "used" }
+
+                [annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "lombok" }
+
+                [test.annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "test-lombok" }
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict" }
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--cwd", workspaceDir.toString(),
+                "--check", "project-model");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("skip project-model api [versions].unused Version alias `unused` is declared but not referenced by any versionRef."));
+        assertFalse(result.stdout().contains("[versions].used"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkLockfileReportsMissingLockfile() throws IOException {
         Path projectDir = tempDir.resolve("check-missing-lock");
         Files.createDirectories(projectDir);
@@ -2351,6 +2399,55 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"id\":\"project-model\""));
         assertTrue(result.stdout().contains("\"subject\":\"[compiler].release\""));
         assertTrue(result.stdout().contains("Compiler release `99` is newer than [project].java"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkProjectModelJsonReportsUnusedVersionAliases() throws IOException {
+        Path projectDir = tempDir.resolve("check-unused-version-alias");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-unused-version-alias") + """
+
+                [versions]
+                boot = "4.0.6"
+                lombok = "1.18.36"
+                test-lombok = "1.18.36"
+                tomcat = "10.1.40"
+                used = "1.0.0"
+                unused = "2.0.0"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = { versionRef = "boot" }
+
+                [dependencies]
+                "org.example:lib" = { versionRef = "used" }
+
+                [annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "lombok" }
+
+                [test.annotationProcessors]
+                "org.projectlombok:lombok" = { versionRef = "test-lombok" }
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict" }
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--format", "json",
+                "--cwd", projectDir.toString(),
+                "--check", "project-model");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"status\":\"ok\""));
+        assertTrue(result.stdout().contains("\"subject\":\"[versions].unused\""));
+        assertTrue(result.stdout().contains("Version alias `unused` is declared but not referenced by any versionRef."));
+        assertTrue(result.stdout().contains("\"status\":\"skipped\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].boot\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].lombok\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].test-lombok\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].tomcat\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].used\""));
         assertEquals("", result.stderr());
     }
 
