@@ -27,6 +27,7 @@ import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.project.VersionAliasRules;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1005,17 +1006,11 @@ public final class ZoltTomlParser {
         for (String alias : table.keySet()) {
             validateVersionAliasName(alias);
             Object rawValue = table.get(List.of(alias));
-            if (!(rawValue instanceof String value) || value.isBlank()) {
+            if (!(rawValue instanceof String value) || !VersionAliasRules.isValidValue(value)) {
                 throw new ZoltConfigException(
                         "Invalid [versions]."
                                 + alias
-                                + " in zolt.toml. Use a non-empty literal version string; Zolt does not support interpolation or dynamic versions.");
-            }
-            if (!value.equals(value.trim())) {
-                throw new ZoltConfigException(
-                        "Invalid [versions]."
-                                + alias
-                                + " in zolt.toml. Version aliases must not contain leading or trailing whitespace.");
+                                + " in zolt.toml. Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs.");
             }
             values.put(alias, value);
         }
@@ -1135,23 +1130,11 @@ public final class ZoltTomlParser {
     }
 
     private static void validateVersionAliasName(String alias) {
-        if (alias == null || alias.isBlank() || !alias.equals(alias.trim())) {
+        if (!VersionAliasRules.isValidName(alias)) {
             throw new ZoltConfigException(
                     "Invalid [versions] alias `"
                             + alias
                             + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
-        }
-        for (int index = 0; index < alias.length(); index++) {
-            char character = alias.charAt(index);
-            if (!Character.isLetterOrDigit(character)
-                    && character != '.'
-                    && character != '_'
-                    && character != '-') {
-                throw new ZoltConfigException(
-                        "Invalid [versions] alias `"
-                                + alias
-                                + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
-            }
         }
     }
 

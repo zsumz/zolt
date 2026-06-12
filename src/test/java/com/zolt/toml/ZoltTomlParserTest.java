@@ -569,6 +569,28 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void rejectsMalformedVersionAliasValues() {
+        for (String version : List.of("${guava}", "@guava@", "[1.0,2.0)", "1.+", "1.0-SNAPSHOT")) {
+            ZoltConfigException exception = assertThrows(
+                    ZoltConfigException.class,
+                    () -> parser.parse("""
+                            [project]
+                            name = "aliases"
+                            version = "0.1.0"
+                            group = "com.example"
+                            java = "21"
+
+                            [versions]
+                            guava = "%s"
+                            """.formatted(version)));
+
+            assertEquals(
+                    "Invalid [versions].guava in zolt.toml. Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs.",
+                    exception.getMessage());
+        }
+    }
+
+    @Test
     void rejectsVersionAndVersionRefTogether() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

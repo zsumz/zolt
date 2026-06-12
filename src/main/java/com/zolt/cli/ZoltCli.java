@@ -93,6 +93,7 @@ import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.project.VersionAliasRules;
 import com.zolt.publish.PublishContext;
 import com.zolt.publish.PublishDryRunFormatter;
 import com.zolt.publish.PublishDryRunPlan;
@@ -3624,27 +3625,21 @@ public final class ZoltCli implements Runnable {
             throw new VersionAliasCommandException(
                     "Version alias must be non-empty and must not contain leading or trailing whitespace.");
         }
-        for (int index = 0; index < alias.length(); index++) {
-            char character = alias.charAt(index);
-            if (!Character.isLetterOrDigit(character)
-                    && character != '.'
-                    && character != '_'
-                    && character != '-') {
-                throw new VersionAliasCommandException(
-                        "Invalid version alias `"
-                                + alias
-                                + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
-            }
+        if (!VersionAliasRules.isValidName(alias)) {
+            throw new VersionAliasCommandException(
+                    "Invalid version alias `"
+                            + alias
+                            + "`. Alias names may contain only letters, digits, dot, underscore, and hyphen.");
         }
         return alias;
     }
 
     private static String validateVersionAliasValue(String alias, String version) {
-        if (version == null || version.isBlank() || !version.equals(version.trim())) {
+        if (!VersionAliasRules.isValidValue(version)) {
             throw new VersionAliasCommandException(
                     "Invalid version for [versions]."
                             + alias
-                            + ". Use a non-empty literal version string without leading or trailing whitespace.");
+                            + ". Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs.");
         }
         return version;
     }

@@ -127,6 +127,33 @@ final class ZoltCliTest {
     }
 
     @Test
+    void versionSetRejectsInvalidAliasValues() throws IOException {
+        Path projectDir = tempDir.resolve("version-alias-invalid-value");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "version-alias-invalid-value"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+
+        CommandResult result = execute(
+                "version",
+                "set",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "guava",
+                "1.0-SNAPSHOT");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Invalid version for [versions].guava. Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs."));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("[versions]"));
+    }
+
+    @Test
     void versionSetRefreshesLockfileByDefault() throws IOException {
         Path projectDir = tempDir.resolve("version-alias-resolve");
         Files.createDirectories(projectDir);
