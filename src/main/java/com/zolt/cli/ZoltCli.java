@@ -48,6 +48,7 @@ import com.zolt.cli.command.CleanCommand;
 import com.zolt.cli.command.ConflictsCommand;
 import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
+import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TreeCommand;
 import com.zolt.cli.command.WhyCommand;
@@ -79,10 +80,6 @@ import com.zolt.plan.BuildPlan;
 import com.zolt.plan.BuildPlanFormatter;
 import com.zolt.plan.BuildPlanService;
 import com.zolt.plan.PlanTarget;
-import com.zolt.policy.DependencyPolicyReport;
-import com.zolt.policy.DependencyPolicyReportException;
-import com.zolt.policy.DependencyPolicyReportFormatter;
-import com.zolt.policy.DependencyPolicyReportService;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.PackageMode;
@@ -187,7 +184,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.ResolveCommand.class,
                 TreeCommand.class,
                 WhyCommand.class,
-                ZoltCli.PolicyCommand.class,
+                PolicyCommand.class,
                 ConflictsCommand.class,
                 ZoltCli.ExplainCommand.class,
                 ZoltCli.PlanCommand.class,
@@ -1044,40 +1041,6 @@ public final class ZoltCli implements Runnable {
                                 + value
                                 + "`. Supported overlays: maven-local.");
             };
-        }
-    }
-
-    @Command(name = "policy", description = "Show dependency baseline and policy diagnostics.")
-    public static final class PolicyCommand implements Runnable {
-        enum Format {
-            TEXT,
-            JSON
-        }
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--format", description = "Output format: text or json.")
-        private Format format = Format.TEXT;
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
-                DependencyPolicyReport report = new DependencyPolicyReportService().report(
-                        workingDirectory,
-                        config,
-                        lockfile);
-                DependencyPolicyReportFormatter formatter = new DependencyPolicyReportFormatter();
-                printAndFlush(spec, format == Format.JSON ? formatter.json(report) : formatter.text(report));
-            } catch (DependencyPolicyReportException | LockfileReadException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
         }
     }
 

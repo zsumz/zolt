@@ -138,13 +138,13 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$PolicyCommand",
+    "name": "com.zolt.cli.command.PolicyCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$PolicyCommand$Format",
+    "name": "com.zolt.cli.command.PolicyCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
