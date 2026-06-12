@@ -2,8 +2,10 @@ package com.zolt.workspace;
 
 import com.zolt.build.TestRunResult;
 import com.zolt.resolve.ResolveResult;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public record WorkspaceTestResult(
         Optional<ResolveResult> resolveResult,
@@ -24,6 +26,24 @@ public record WorkspaceTestResult(
                 .map(WorkspaceBuildResult.MemberBuildResult::result)
                 .mapToInt(result -> result.sourceCount())
                 .sum();
+    }
+
+    public int includedMemberCount() {
+        return builtMembers.size();
+    }
+
+    public int selectedMemberCount() {
+        return members.size();
+    }
+
+    public int dependencyMemberCount() {
+        Set<String> selected = new LinkedHashSet<>(members.stream()
+                .map(MemberTestRunResult::member)
+                .toList());
+        return (int) builtMembers.stream()
+                .map(WorkspaceBuildResult.MemberBuildResult::member)
+                .filter(member -> !selected.contains(member))
+                .count();
     }
 
     public int testSourceCount() {

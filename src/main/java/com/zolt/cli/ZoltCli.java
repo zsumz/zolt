@@ -147,6 +147,7 @@ import com.zolt.workspace.WorkspaceRunResult;
 import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceRunPackageResult;
 import com.zolt.workspace.WorkspaceRunPackageService;
+import com.zolt.workspace.WorkspaceSelection;
 import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
@@ -1820,7 +1821,7 @@ public final class ZoltCli implements Runnable {
                                 WorkspaceBuildResult buildResult = timings.measure(
                                         "build workspace test inputs",
                                         () -> workspaceTestService.buildTestInputs(plan, cacheRoot),
-                                        ZoltCli::workspaceBuildAttributes);
+                                        build -> workspaceBuildAttributes(build, plan.selection()));
                                 return timings.measure(
                                         "run workspace test members",
                                         () -> workspaceTestService.runTests(
@@ -2814,6 +2815,14 @@ public final class ZoltCli implements Runnable {
         return attributes;
     }
 
+    private static Map<String, String> workspaceBuildAttributes(
+            WorkspaceBuildResult result,
+            WorkspaceSelection selection) {
+        Map<String, String> attributes = workspaceBuildAttributes(result);
+        addWorkspaceSelectionAttributes(attributes, selection);
+        return attributes;
+    }
+
     private static Map<String, String> workspaceBuildPlanAttributes(WorkspaceBuildPlan plan) {
         return Map.of(
                 "includedMembers", Integer.toString(plan.selection().includedMembers().size()),
@@ -2949,6 +2958,9 @@ public final class ZoltCli implements Runnable {
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
         attributes.put("members", Integer.toString(result.members().size()));
+        attributes.put("includedMembers", Integer.toString(result.includedMemberCount()));
+        attributes.put("selectedMembers", Integer.toString(result.selectedMemberCount()));
+        attributes.put("dependencyMembers", Integer.toString(result.dependencyMemberCount()));
         attributes.put("mainSourceFiles", Integer.toString(result.mainSourceCount()));
         attributes.put("testSourceFiles", Integer.toString(result.testSourceCount()));
         attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
@@ -2973,6 +2985,14 @@ public final class ZoltCli implements Runnable {
         attributes.put("testExcludedTags", Integer.toString(result.testExcludedTagCount()));
         attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
         return attributes;
+    }
+
+    private static void addWorkspaceSelectionAttributes(
+            Map<String, String> attributes,
+            WorkspaceSelection selection) {
+        attributes.put("includedMembers", Integer.toString(selection.includedMembers().size()));
+        attributes.put("selectedMembers", Integer.toString(selection.selectedMembers().size()));
+        attributes.put("dependencyMembers", Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
     }
 
     private static Map<String, String> runAttributes(RunResult result) {
