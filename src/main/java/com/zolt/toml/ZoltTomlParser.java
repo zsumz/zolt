@@ -199,12 +199,8 @@ public final class ZoltTomlParser {
 
         Map<String, String> versionAliases = VersionAliasSectionCodec.parse(optionalTable(result, "versions"));
         Map<String, DependencyMetadata> dependencyMetadata = new LinkedHashMap<>();
-        Map<String, String> platforms = versionDeclarations(
-                optionalTable(result, "platforms"),
-                "platforms",
-                VersionPolicy.Context.PLATFORM,
-                versionAliases,
-                dependencyMetadata);
+        Map<String, String> platforms =
+                PlatformSectionCodec.parse(optionalTable(result, "platforms"), versionAliases, dependencyMetadata);
         DependencyPolicySettings dependencyPolicy = dependencyPolicy(
                 optionalTable(result, "dependencyPolicy"),
                 optionalTable(result, "dependencyConstraints"),
@@ -981,62 +977,6 @@ public final class ZoltTomlParser {
                         "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty string value.");
             }
             values.put(key, value);
-        }
-        return values;
-    }
-
-    private static Map<String, String> versionDeclarations(
-            TomlTable table,
-            String section,
-            VersionPolicy.Context versionContext,
-            Map<String, String> versionAliases) {
-        return versionDeclarations(table, section, versionContext, versionAliases, null);
-    }
-
-    private static Map<String, String> versionDeclarations(
-            TomlTable table,
-            String section,
-            VersionPolicy.Context versionContext,
-            Map<String, String> versionAliases,
-            Map<String, DependencyMetadata> dependencyMetadata) {
-        if (table == null) {
-            return Map.of();
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String key : table.keySet()) {
-            Object rawValue = table.get(List.of(key));
-            if (rawValue instanceof String value) {
-                if (value.isBlank()) {
-                    throw new ZoltConfigException(
-                            "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty version string or { versionRef = \"alias\" }.");
-                }
-                validateVersion(versionContext, section + "." + key, value);
-                values.put(key, value);
-                continue;
-            }
-            if (rawValue instanceof TomlTable valueTable) {
-                validateKeys(section + "." + key, valueTable, Set.of("versionRef"));
-                String version = requiredVersionRef(valueTable, section + "." + key, versionAliases);
-                values.put(key, version);
-                if (dependencyMetadata != null && valueTable.get(List.of("versionRef")) instanceof String alias) {
-                    dependencyMetadata.put(
-                            DependencyMetadata.key(section, key),
-                            new DependencyMetadata(
-                                    section,
-                                    key,
-                                    version,
-                                    alias,
-                                    false,
-                                    null,
-                                    false,
-                                    false,
-                                    List.of()));
-                }
-                continue;
-            }
-            throw new ZoltConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a non-empty version string or { versionRef = \"alias\" }.");
         }
         return values;
     }

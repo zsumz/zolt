@@ -62,7 +62,7 @@ public final class ZoltTomlWriter {
         RepositorySectionCodec.writeRepositories(toml, config.repositorySettings());
         RepositorySectionCodec.writeRepositoryCredentials(toml, config.repositoryCredentials());
         VersionAliasSectionCodec.write(toml, config.versionAliases());
-        writePlatforms(toml, config.platforms(), config.dependencyMetadata());
+        PlatformSectionCodec.write(toml, config.platforms(), config.dependencyMetadata());
         writeDependencyPolicy(toml, config.dependencyPolicy());
         writeOptionalDependencies(
                 toml,
@@ -1317,25 +1317,6 @@ public final class ZoltTomlWriter {
         toml.append('[').append(section).append("]\n");
         for (Map.Entry<String, String> entry : sorted(values).entrySet()) {
             toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue())).append('\n');
-        }
-        toml.append('\n');
-    }
-
-    private static void writePlatforms(
-            StringBuilder toml,
-            Map<String, String> platforms,
-            Map<String, DependencyMetadata> dependencyMetadata) {
-        toml.append("[platforms]\n");
-        for (Map.Entry<String, String> entry : sorted(platforms).entrySet()) {
-            toml.append(quote(entry.getKey())).append(" = ");
-            DependencyMetadata metadata =
-                    dependencyMetadata.get(DependencyMetadata.key("platforms", entry.getKey()));
-            if (metadata != null && metadata.versionRef() != null) {
-                toml.append("{ versionRef = ").append(quote(metadata.versionRef())).append(" }");
-            } else {
-                toml.append(quote(entry.getValue()));
-            }
-            toml.append('\n');
         }
         toml.append('\n');
     }
