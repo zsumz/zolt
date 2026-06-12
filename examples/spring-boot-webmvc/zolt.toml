@@ -28,6 +28,9 @@ buildInfo = true
 git = true
 reproducible = true
 
+[package]
+mode = "spring-boot"
+
 [resources]
 main = ["src/main/resources", "target/generated/resources"]
 test = ["src/test/resources"]

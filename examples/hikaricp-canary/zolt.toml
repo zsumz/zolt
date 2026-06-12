@@ -45,3 +45,9 @@ issues = "https://github.com/brettwooldridge/HikariCP/issues"
 
 [package.manifest]
 "Automatic-Module-Name" = "com.zaxxer.hikari"
+
+[publish]
+releaseRepository = "local-releases"
+
+[publish.repositories.local-releases]
+url = "https://repo.example.test/releases"

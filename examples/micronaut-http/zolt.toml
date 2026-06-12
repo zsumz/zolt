@@ -23,6 +23,7 @@ central = "https://repo.maven.apache.org/maven2"
 "io.micronaut.serde:micronaut-serde-processor" = {}
 
 [test.dependencies]
+"org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
 [build]
 source = "src/main/java"
