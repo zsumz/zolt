@@ -47,11 +47,8 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathFormatter;
 import com.zolt.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.cli.command.DoctorCommand;
 import com.zolt.conflict.DependencyConflictFormatter;
-import com.zolt.doctor.JdkDetector;
-import com.zolt.doctor.JdkStatus;
-import com.zolt.doctor.SelfHostingCheckResult;
-import com.zolt.doctor.SelfHostingCheckService;
 import com.zolt.explain.GradleExplainFormatter;
 import com.zolt.explain.GradleInspectionResult;
 import com.zolt.explain.GradleStaticProjectInspector;
@@ -220,7 +217,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.SelfCheckCommand.class,
                 ZoltCli.SelfParityCommand.class,
                 ZoltCli.CleanCommand.class,
-                ZoltCli.DoctorCommand.class
+                DoctorCommand.class
         })
 public final class ZoltCli implements Runnable {
     public static final String VERSION = "0.1.0-SNAPSHOT";
@@ -2919,39 +2916,6 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    @Command(name = "doctor", description = "Inspect local Java/JDK/Zolt project health.")
-    public static final class DoctorCommand implements Runnable {
-        @Option(names = "--self-hosting", description = "Check whether the project is ready for Zolt-owned self-hosting flows.")
-        private boolean selfHosting;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                JdkStatus status = new JdkDetector().detect(config.project().java());
-                printJdkStatus(spec, status);
-                boolean ok = status.ok();
-                if (selfHosting) {
-                    SelfHostingCheckResult result = new SelfHostingCheckService().check(workingDirectory);
-                    printSelfHostingStatus(spec, result);
-                    ok = ok && result.ok();
-                }
-                if (!ok) {
-                    throw new CommandLine.ExecutionException(spec.commandLine(), "Project health check failed.");
-                }
-            } catch (ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-    }
-
     public abstract static class StubCommand implements Runnable {
         private final String name;
 
@@ -3457,26 +3421,6 @@ public final class ZoltCli implements Runnable {
         selectedMembers.addAll(members);
         selectedMembers.addAll(memberGroups);
         return new WorkspaceSelectionRequest(all, selectedMembers);
-    }
-
-    private static void printJdkStatus(CommandSpec spec, JdkStatus status) {
-        spec.commandLine().getOut().println("JDK status: " + (status.ok() ? "ok" : "error"));
-        spec.commandLine().getOut().println("JAVA_HOME: " + status.javaHome().map(Path::toString).orElse("not set"));
-        spec.commandLine().getOut().println("java: " + status.java().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("javac: " + status.javac().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("jar: " + status.jar().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("version: " + status.version().orElse("unknown"));
-        for (String problem : status.problems()) {
-            spec.commandLine().getErr().println("error: " + problem);
-        }
-    }
-
-    private static void printSelfHostingStatus(CommandSpec spec, SelfHostingCheckResult result) {
-        spec.commandLine().getOut().println("Self-hosting status: " + (result.ok() ? "ok" : "error"));
-        for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
-            String marker = check.ok() ? "ok" : "error";
-            spec.commandLine().getOut().println(marker + ": " + check.name() + " - " + check.message());
-        }
     }
 
     private static void printSelfCheckStatus(CommandSpec spec, SelfCheckResult result) {
