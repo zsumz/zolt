@@ -78,6 +78,7 @@ final class PackageServiceTest {
             assertNotNull(jar.getEntry("com/example/Main.class"));
             assertNull(jar.getEntry(".zolt-build-main.fingerprint"));
             assertNull(jar.getEntry(".zolt-build-main.fingerprint.state"));
+            assertNull(jar.getEntry(".zolt-incremental-main.state"));
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals("1.0", attributes.getValue(Attributes.Name.MANIFEST_VERSION));
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));

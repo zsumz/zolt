@@ -52,7 +52,9 @@ public final class PackageService {
             ".zolt-build-main.fingerprint",
             ".zolt-build-main.fingerprint.state",
             ".zolt-build-test.fingerprint",
-            ".zolt-build-test.fingerprint.state");
+            ".zolt-build-test.fingerprint.state",
+            ".zolt-incremental-main.state",
+            ".zolt-incremental-test.state");
     private static final PackageId SPRING_BOOT_PACKAGE = new PackageId("org.springframework.boot", "spring-boot");
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
             "org.springframework.boot",

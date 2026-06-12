@@ -1,0 +1,69 @@
+package com.zolt.build;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+final class IncrementalCompileStateCodecTest {
+    private final IncrementalCompileStateCodec codec = new IncrementalCompileStateCodec();
+
+    @Test
+    void stateRoundTripsDeterministically() {
+        Path project = Path.of("/workspace/demo");
+        IncrementalCompileState state = new IncrementalCompileState(
+                "main",
+                project,
+                project.resolve("target/classes"),
+                project.resolve("target/generated/sources/annotations"),
+                "compiler-hash",
+                "fingerprint-hash",
+                List.of("src/main/java"),
+                List.of("target/generated/sources/openapi"),
+                List.of(new IncrementalCompileState.ClasspathEntry(project.resolve("lib/b.jar"), "hash-b")),
+                List.of(new IncrementalCompileState.ClasspathEntry(project.resolve("processor/a.jar"), "hash-a")),
+                List.of(new IncrementalCompileState.SourceRecord(
+                        project.resolve("src/main/java/com/example/App.java"),
+                        project.resolve("src/main/java"),
+                        Optional.of("openapi"),
+                        "source-hash",
+                        "com.example",
+                        List.of("com.example.App"),
+                        List.of(project.resolve("target/classes/com/example/App.class")),
+                        List.of("com.example.Dependency"))),
+                List.of(new IncrementalCompileState.ClassRecord(
+                        "com.example.App",
+                        project.resolve("target/classes/com/example/App.class"),
+                        "class-hash",
+                        "abi-hash",
+                        "package-abi-hash",
+                        33,
+                        Optional.of("java.lang.Object"),
+                        List.of("java.io.Serializable"))),
+                Map.of(
+                        "com.example.Zeta",
+                        List.of(project.resolve("src/main/java/com/example/App.java")),
+                        "com.example.Alpha",
+                        List.of(project.resolve("src/main/java/com/example/App.java"))));
+
+        String formatted = codec.format(state);
+        IncrementalCompileState parsed = codec.parse(formatted).orElseThrow();
+
+        assertEquals(state, parsed);
+        assertEquals(formatted, codec.format(parsed));
+    }
+
+    @Test
+    void rejectsUnsupportedOrCorruptState() {
+        assertTrue(codec.parse("version=999\n").isEmpty());
+        assertTrue(codec.parse("""
+                version=1
+                scope=main
+                source\t%%%not-base64%%%
+                """).isEmpty());
+    }
+}
