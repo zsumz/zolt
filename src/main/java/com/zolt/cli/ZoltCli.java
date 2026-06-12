@@ -94,6 +94,7 @@ import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionAliasRules;
+import com.zolt.project.VersionPolicy;
 import com.zolt.publish.PublishContext;
 import com.zolt.publish.PublishDryRunFormatter;
 import com.zolt.publish.PublishDryRunPlan;
@@ -172,6 +173,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -610,6 +612,7 @@ public final class ZoltCli implements Runnable {
             }
             String version = coordinate.version().orElseThrow(() -> new AddCommandException(
                     "Dependency coordinate must include a version. Use `group:artifact:version` or add `--managed` when a declared platform should provide the version."));
+            validateCommandVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "dependency", version, AddCommandException::new);
             return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false, null);
         }
 
@@ -815,6 +818,7 @@ public final class ZoltCli implements Runnable {
                 if (versionRef == null) {
                     String version = parsed.version().orElseThrow(() -> new PlatformCommandException(
                             "Platform coordinate must include a version. Use `group:artifact:version` or `--version-ref <alias> group:artifact`."));
+                    validateCommandVersion(VersionPolicy.Context.PLATFORM, "platform", version, PlatformCommandException::new);
                     return new PlatformAddRequest(version, null);
                 }
                 String version = config.versionAliases().get(versionRef);
@@ -3695,13 +3699,30 @@ public final class ZoltCli implements Runnable {
     }
 
     private static String validateVersionAliasValue(String alias, String version) {
-        if (!VersionAliasRules.isValidValue(version)) {
-            throw new VersionAliasCommandException(
-                    "Invalid version for [versions]."
-                            + alias
-                            + ". Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs.");
-        }
+        validateCommandVersion(
+                VersionPolicy.Context.VERSION_ALIAS,
+                "[versions]." + alias,
+                version,
+                VersionAliasCommandException::new);
         return version;
+    }
+
+    private static <T extends RuntimeException> void validateCommandVersion(
+            VersionPolicy.Context context,
+            String subject,
+            String version,
+            Function<String, T> exceptionFactory) {
+        VersionPolicy.violation(context, version).ifPresent(violation -> {
+            throw exceptionFactory.apply(
+                    "Invalid "
+                            + context.description()
+                            + " `"
+                            + version
+                            + "` for "
+                            + subject
+                            + ". "
+                            + violation.guidance());
+        });
     }
 
     private static List<String> versionAliasReferences(ProjectConfig config, String alias) {

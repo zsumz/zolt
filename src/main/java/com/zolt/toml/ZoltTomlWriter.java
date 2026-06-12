@@ -26,6 +26,7 @@ import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.project.VersionPolicy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -137,6 +138,7 @@ public final class ZoltTomlWriter {
             DependencySection section,
             String coordinate,
             String version) {
+        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version);
         return switch (section) {
             case API -> copy(
                     config,
@@ -323,6 +325,7 @@ public final class ZoltTomlWriter {
             String coordinate,
             String versionRef,
             String version) {
+        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version);
         ProjectConfig updated = addDependency(config, section, coordinate, version);
         String sectionName = sectionName(section);
         DependencyMetadata existing = config.dependencyMetadata()
@@ -705,6 +708,7 @@ public final class ZoltTomlWriter {
     }
 
     public ProjectConfig addPlatform(ProjectConfig config, String coordinate, String version) {
+        validateVersion(VersionPolicy.Context.PLATFORM, coordinate, version);
         ProjectConfig updated = copy(
                 config,
                 put(config.platforms(), coordinate, version),
@@ -735,6 +739,7 @@ public final class ZoltTomlWriter {
             String coordinate,
             String versionRef,
             String version) {
+        validateVersion(VersionPolicy.Context.PLATFORM, coordinate, version);
         ProjectConfig updated = copy(
                 config,
                 put(config.platforms(), coordinate, version),
@@ -808,6 +813,23 @@ public final class ZoltTomlWriter {
         Map<String, DependencyMetadata> metadata = new LinkedHashMap<>(dependencyMetadata);
         metadata.remove(DependencyMetadata.key("platforms", coordinate));
         return metadata;
+    }
+
+    private static void validateVersion(
+            VersionPolicy.Context context,
+            String coordinate,
+            String version) {
+        VersionPolicy.violation(context, version).ifPresent(violation -> {
+            throw new IllegalArgumentException(
+                    "Invalid "
+                            + context.description()
+                            + " `"
+                            + version
+                            + "` for "
+                            + coordinate
+                            + ". "
+                            + violation.guidance());
+        });
     }
 
     private static ProjectConfig copy(

@@ -148,7 +148,7 @@ final class ZoltCliTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains(
-                "Invalid version for [versions].guava. Use a non-empty literal version string; Zolt does not support interpolation, dynamic versions, version ranges, or SNAPSHOTs."));
+                "Invalid version alias `1.0-SNAPSHOT` for [versions].guava. SNAPSHOT versions are not supported in this context"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertFalse(config.contains("[versions]"));
     }
@@ -3906,6 +3906,24 @@ final class ZoltCliTest {
     }
 
     @Test
+    void addRejectsUnsupportedLiteralDependencyVersion() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "com.example:legacy-api:1.0-SNAPSHOT");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Invalid external dependency version `1.0-SNAPSHOT` for dependency. SNAPSHOT versions are not supported in this context"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("legacy-api"));
+    }
+
+    @Test
     void addRejectsUnknownVersionRef() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -4323,6 +4341,25 @@ final class ZoltCliTest {
         assertEquals(1, explicit.exitCode());
         assertTrue(explicit.stderr().contains(
                 "Version-ref platform coordinate must not include a version. Use `--version-ref enterprise com.example:enterprise-platform`."));
+    }
+
+    @Test
+    void platformAddRejectsUnsupportedLiteralVersion() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "platform",
+                "add",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "com.example:enterprise-platform:LATEST");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "Invalid platform version `LATEST` for platform. Dynamic versions are not supported"));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("enterprise-platform"));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.zolt.toml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildMetadataSettings;
@@ -71,6 +72,25 @@ final class ZoltTomlWriterTest {
                 output = "target/classes"
                 testOutput = "target/test-classes"
                 """, toml);
+    }
+
+    @Test
+    void mutationHelpersRejectUnsupportedLiteralVersions() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
+
+        IllegalArgumentException dependency = assertThrows(
+                IllegalArgumentException.class,
+                () -> writer.addDependency(
+                        config,
+                        DependencySection.MAIN,
+                        "com.example:legacy-api",
+                        "1.0-SNAPSHOT"));
+        IllegalArgumentException platform = assertThrows(
+                IllegalArgumentException.class,
+                () -> writer.addPlatform(config, "com.example:platform", "LATEST"));
+
+        assertTrue(dependency.getMessage().contains("Invalid external dependency version `1.0-SNAPSHOT`"));
+        assertTrue(platform.getMessage().contains("Invalid platform version `LATEST`"));
     }
 
     @Test

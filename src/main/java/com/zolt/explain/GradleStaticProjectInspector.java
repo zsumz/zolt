@@ -1,5 +1,6 @@
 package com.zolt.explain;
 
+import com.zolt.project.VersionPolicy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -300,10 +301,17 @@ public final class GradleStaticProjectInspector {
         List<ExplainSignal> signals = new ArrayList<>();
         for (GradleDependencyInspection dependency : dependencies) {
             String version = coordinateVersion(dependency.resolvedCoordinate());
-            if (isDynamicVersion(version)) {
+            Optional<VersionPolicy.Violation> violation = unsupportedExternalVersion(version);
+            if (violation.isPresent()) {
                 signals.add(ExplainSignals.GRADLE_DEPENDENCY_DYNAMIC_VERSION.signal(
                         project,
-                        "Dependency `" + dependency.resolvedCoordinate() + "` uses dynamic version `" + version + "`."));
+                        "Dependency `"
+                                + dependency.resolvedCoordinate()
+                                + "` uses dynamic version `"
+                                + version
+                                + "` (version-policy rule: "
+                                + violation.orElseThrow().rule()
+                                + ")."));
             }
         }
         return signals;
@@ -592,12 +600,11 @@ public final class GradleStaticProjectInspector {
         return coordinate.substring(lastColon + 1);
     }
 
-    private static boolean isDynamicVersion(String version) {
-        if (version.isBlank()) {
-            return false;
+    private static Optional<VersionPolicy.Violation> unsupportedExternalVersion(String version) {
+        if (version == null || version.isBlank()) {
+            return Optional.empty();
         }
-        String lower = version.toLowerCase();
-        return lower.contains("+") || lower.startsWith("latest.") || lower.endsWith("-snapshot");
+        return VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version);
     }
 
     private static Path relativePath(Path root, Path projectDirectory) {

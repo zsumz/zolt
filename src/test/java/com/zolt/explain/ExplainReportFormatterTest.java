@@ -32,7 +32,7 @@ final class ExplainReportFormatterTest {
                                 "Packaging `war` needs an explicit Zolt packaging primitive."),
                         ExplainSignals.MAVEN_DEPENDENCY_DYNAMIC_VERSION.signal(
                                 ".",
-                                "Dependency `com.example:legacy-lib:[1.0,2.0)` uses dynamic version `[1.0,2.0)`."))));
+                                "Dependency `com.example:legacy-lib:[1.0,2.0)` uses dynamic version `[1.0,2.0)` (version-policy rule: version-range)."))));
 
         assertEquals("""
                 Zolt explain: Maven project
@@ -58,7 +58,7 @@ final class ExplainReportFormatterTest {
                   ok    no static cacheability issues found in this first inspection pass
 
                 Non-determinism
-                  block  Dependency `com.example:legacy-lib:[1.0,2.0)` uses dynamic version `[1.0,2.0)`.
+                  block  Dependency `com.example:legacy-lib:[1.0,2.0)` uses dynamic version `[1.0,2.0)` (version-policy rule: version-range).
 
                 Migration blockers
                   block  Packaging `war` needs an explicit Zolt packaging primitive.

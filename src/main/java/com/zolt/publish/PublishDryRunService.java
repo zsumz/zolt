@@ -16,6 +16,7 @@ import com.zolt.maven.MavenRepositoryPathBuilder;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
+import com.zolt.project.VersionPolicy;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.net.URI;
@@ -99,7 +100,7 @@ public final class PublishDryRunService {
             throw new PublishException("No [publish] configuration found. Add release/snapshot publish repositories before running `zolt publish --dry-run`.");
         }
         String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
-        String versionKind = config.project().version().endsWith("-SNAPSHOT") ? "snapshot" : "release";
+        String versionKind = VersionPolicy.classifyPublishVersion(config.project().version());
         String repositoryId = versionKind.equals("snapshot")
                 ? publish.snapshotRepository()
                 : publish.releaseRepository();

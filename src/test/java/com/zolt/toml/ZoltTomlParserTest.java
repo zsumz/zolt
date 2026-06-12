@@ -591,6 +591,75 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void projectVersionMayBeSnapshot() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "snapshot-app"
+                version = "0.1.0-SNAPSHOT"
+                group = "com.example"
+                java = "21"
+                """);
+
+        assertEquals("0.1.0-SNAPSHOT", config.project().version());
+    }
+
+    @Test
+    void rejectsUnsupportedLiteralDependencyVersions() {
+        for (String version : List.of("[1.0,2.0)", "1.+", "LATEST", "RELEASE", "1.0-SNAPSHOT", "1.0.")) {
+            ZoltConfigException exception = assertThrows(
+                    ZoltConfigException.class,
+                    () -> parser.parse("""
+                            [project]
+                            name = "versions"
+                            version = "0.1.0"
+                            group = "com.example"
+                            java = "21"
+
+                            [dependencies]
+                            "com.example:lib" = "%s"
+                            """.formatted(version)));
+
+            assertTrue(exception.getMessage().contains("Invalid external dependency version `" + version + "`"));
+            assertTrue(exception.getMessage().contains("[dependencies.com.example:lib]"));
+        }
+    }
+
+    @Test
+    void rejectsUnsupportedPlatformConstraintAndToolVersions() {
+        assertVersionPolicyFailure("""
+                [project]
+                name = "versions"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [platforms]
+                "com.example:platform" = "1.0-SNAPSHOT"
+                """, "Invalid platform version `1.0-SNAPSHOT`", "[platforms.com.example:platform]");
+        assertVersionPolicyFailure("""
+                [project]
+                name = "versions"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencyConstraints]
+                "com.example:lib" = { version = "latest.release", kind = "strict" }
+                """, "Invalid dependency constraint version `latest.release`", "[dependencyConstraints.com.example:lib]");
+        assertVersionPolicyFailure("""
+                [project]
+                name = "versions"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                version = "LATEST"
+                """, "Invalid tool dependency version `LATEST`", "[generated.openapiTool]");
+    }
+
+    @Test
     void rejectsVersionAndVersionRefTogether() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,
@@ -1861,5 +1930,14 @@ final class ZoltTomlParserTest {
         assertEquals(
                 "Invalid value for [native].output in zolt.toml. Use a non-empty string value.",
                 exception.getMessage());
+    }
+
+    private void assertVersionPolicyFailure(String toml, String versionMessage, String subject) {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse(toml));
+
+        assertTrue(exception.getMessage().contains(versionMessage));
+        assertTrue(exception.getMessage().contains(subject));
     }
 }

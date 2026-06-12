@@ -1,5 +1,6 @@
 package com.zolt.explain;
 
+import com.zolt.project.VersionPolicy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -136,10 +137,17 @@ public final class MavenStaticProjectInspector {
                     "Packaging `" + inspection.packaging() + "` needs an explicit Zolt packaging primitive."));
         }
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
-            if (isDynamicVersion(dependency.version())) {
+            Optional<VersionPolicy.Violation> violation = unsupportedExternalVersion(dependency.version());
+            if (violation.isPresent()) {
                 signals.add(ExplainSignals.MAVEN_DEPENDENCY_DYNAMIC_VERSION.signal(
                         project,
-                        "Dependency `" + dependency.coordinate() + "` uses dynamic version `" + dependency.version() + "`."));
+                        "Dependency `"
+                                + dependency.coordinate()
+                                + "` uses dynamic version `"
+                                + dependency.version()
+                                + "` (version-policy rule: "
+                                + violation.orElseThrow().rule()
+                                + ")."));
             }
         }
         for (MavenPluginInspection plugin : inspection.plugins()) {
@@ -427,12 +435,11 @@ public final class MavenStaticProjectInspector {
         return !Set.of("jar", "pom").contains(packaging);
     }
 
-    private static boolean isDynamicVersion(String version) {
-        return version.endsWith("-SNAPSHOT")
-                || version.contains("[")
-                || version.contains("(")
-                || version.contains(",")
-                || version.contains("]");
+    private static Optional<VersionPolicy.Violation> unsupportedExternalVersion(String version) {
+        if (version == null || version.isBlank()) {
+            return Optional.empty();
+        }
+        return VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version);
     }
 
     private static boolean knownPlugin(String coordinate) {

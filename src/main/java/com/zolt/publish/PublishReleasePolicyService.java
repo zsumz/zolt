@@ -3,6 +3,7 @@ package com.zolt.publish;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
+import com.zolt.project.VersionPolicy;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,7 +24,9 @@ public final class PublishReleasePolicyService {
     public PublishDryRunPlan apply(Path projectRoot, PublishDryRunPlan plan) {
         ProjectConfig config = projectParser.parse(projectRoot.toAbsolutePath().normalize().resolve("zolt.toml"));
         List<String> blockers = new ArrayList<>();
-        if (!"release".equals(plan.versionKind())) {
+        if (VersionPolicy.violation(
+                VersionPolicy.Context.PUBLISH_RELEASE,
+                config.project().version()).isPresent()) {
             blockers.add("release context rejects SNAPSHOT version `"
                     + config.project().version()
                     + "`. Use a non-SNAPSHOT version for release publishing.");
