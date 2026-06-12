@@ -47,6 +47,24 @@ final class NativeSmokeServiceTest {
                 }
                 return new NativeSmokeService.ProcessResult(0, "Created Zolt project at hello-native\n");
             }
+            if (command.contains("version") && command.contains("set")) {
+                Path cwd = Path.of(command.get(command.indexOf("--cwd") + 1));
+                try {
+                    Files.writeString(cwd.resolve("zolt.toml"), "[project]\n\n[versions]\nnative-smoke = \"0.0.1\"\n");
+                } catch (IOException exception) {
+                    throw new AssertionError(exception);
+                }
+                return new NativeSmokeService.ProcessResult(0, "Added version alias native-smoke = 0.0.1 to [versions]\n");
+            }
+            if (command.contains("version") && command.contains("remove")) {
+                Path cwd = Path.of(command.get(command.indexOf("--cwd") + 1));
+                try {
+                    Files.writeString(cwd.resolve("zolt.toml"), "[project]\n");
+                } catch (IOException exception) {
+                    throw new AssertionError(exception);
+                }
+                return new NativeSmokeService.ProcessResult(0, "Removed version alias native-smoke from [versions]\n");
+            }
             if (command.contains("--version")) {
                 return new NativeSmokeService.ProcessResult(0, "0.1.0\n");
             }
@@ -70,11 +88,28 @@ final class NativeSmokeServiceTest {
         assertEquals(List.of(binary.toString(), "help"), commands.get(1));
         assertEquals(List.of(
                 binary.toString(),
+                "version",
+                "set",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--no-resolve",
+                "native-smoke",
+                "0.0.1"), commands.get(5));
+        assertEquals(List.of(
+                binary.toString(),
+                "version",
+                "remove",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--no-resolve",
+                "native-smoke"), commands.get(6));
+        assertEquals(List.of(
+                binary.toString(),
                 "resolve",
                 "--cwd",
                 tempDir.resolve("target/native-smoke/hello-native").toString(),
                 "--cache-root",
-                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(5));
+                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(7));
     }
 
     @Test

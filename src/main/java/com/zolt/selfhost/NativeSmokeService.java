@@ -79,6 +79,26 @@ public final class NativeSmokeService {
             throw new NativeSmokeException("Native smoke failed: expected " + configFile + " to exist after init.");
         }
 
+        String alias = "native-smoke";
+        String aliasVersion = "0.0.1";
+        run("version alias set", workRoot, resolvedBinary, List.of(
+                "version",
+                "set",
+                "--cwd",
+                generatedProject.toString(),
+                "--no-resolve",
+                alias,
+                aliasVersion));
+        requireConfigContains(configFile, alias, "after version alias set");
+        run("version alias remove", workRoot, resolvedBinary, List.of(
+                "version",
+                "remove",
+                "--cwd",
+                generatedProject.toString(),
+                "--no-resolve",
+                alias));
+        requireConfigDoesNotContain(configFile, alias, "after version alias remove");
+
         Path cacheRoot = workRoot.resolve("cache");
         run("resolve", workRoot, resolvedBinary, List.of(
                 "resolve",
@@ -105,6 +125,48 @@ public final class NativeSmokeService {
         }
 
         return new NativeSmokeResult(resolvedBinary, workRoot, archive, generatedProject);
+    }
+
+    private static void requireConfigContains(Path configFile, String text, String step) {
+        String content = readConfig(configFile, step);
+        if (!content.contains(text)) {
+            throw new NativeSmokeException(
+                    "Native smoke failed: expected "
+                            + configFile
+                            + " to contain `"
+                            + text
+                            + "` "
+                            + step
+                            + ".");
+        }
+    }
+
+    private static void requireConfigDoesNotContain(Path configFile, String text, String step) {
+        String content = readConfig(configFile, step);
+        if (content.contains(text)) {
+            throw new NativeSmokeException(
+                    "Native smoke failed: expected "
+                            + configFile
+                            + " not to contain `"
+                            + text
+                            + "` "
+                            + step
+                            + ".");
+        }
+    }
+
+    private static String readConfig(Path configFile, String step) {
+        try {
+            return Files.readString(configFile);
+        } catch (IOException exception) {
+            throw new NativeSmokeException(
+                    "Could not inspect generated native smoke project config "
+                            + configFile
+                            + " "
+                            + step
+                            + ". Check filesystem permissions.",
+                    exception);
+        }
     }
 
     private ProcessResult run(String step, Path directory, Path binary, List<String> arguments) {
