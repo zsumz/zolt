@@ -13,6 +13,7 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -225,7 +226,83 @@ final class PackageServiceTest {
         assertTrue(firstEvidence.contains("\"id\": \"generated-main-openapi\""));
         assertTrue(firstEvidence.contains("\"path\": \"src/main/openapi/api.yaml\""));
         assertTrue(firstEvidence.contains("\"freshness\": \"fresh\""));
+        assertTrue(firstEvidence.contains("\"toolVersionRef\": null"));
         assertFalse(firstEvidence.contains("super-secret-value"));
+    }
+
+    @Test
+    void recordsOpenApiToolVersionRefInPackageEvidenceManifest() throws IOException {
+        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        Path output = projectDir.resolve("target/generated/sources/openapi/com/example/generated/GeneratedApi.java");
+        Files.createDirectories(output.getParent());
+        Files.writeString(output, "package com.example.generated; public interface GeneratedApi {}\n");
+        Path classes = projectDir.resolve("target/classes");
+        Files.createDirectories(classes);
+        Path archive = projectDir.resolve("target/demo-0.1.0.jar");
+        Files.writeString(archive, "archive", StandardCharsets.UTF_8);
+
+        BuildSettings build = BuildSettings.defaults().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "openapi",
+                        GeneratedSourceKind.OPENAPI,
+                        "java",
+                        "target/generated/sources/openapi",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        false,
+                        new OpenApiGenerationSettings(
+                                Optional.of("org.openapitools:openapi-generator-cli"),
+                                Optional.of("7.11.0"),
+                                Optional.of("openapi-generator"),
+                                Optional.empty(),
+                                Optional.of("spring"),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Map.of(),
+                                Map.of(),
+                                Map.of(),
+                                Map.of(),
+                                Map.of(),
+                                Map.of()))),
+                List.of());
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(build);
+        BuildResult buildResult = new BuildResult(Optional.empty(), 0, 0, classes, "");
+        PackagePlan plan = new PackagePlan(
+                projectDir,
+                PackageMode.THIN,
+                archive,
+                classes,
+                "classes-root",
+                Optional.empty(),
+                List.of(),
+                List.of());
+        PackageResult result = new PackageResult(
+                buildResult,
+                PackageMode.THIN,
+                archive,
+                Optional.empty(),
+                Optional.empty(),
+                1,
+                true,
+                List.of());
+
+        PackageEvidenceManifestWriter writer = new PackageEvidenceManifestWriter();
+        Path firstPath = writer.write(projectDir, config, plan, result, List.of());
+        String firstEvidence = Files.readString(firstPath);
+        Path secondPath = writer.write(projectDir, config, plan, result, List.of());
+        String secondEvidence = Files.readString(secondPath);
+
+        assertEquals(firstEvidence, secondEvidence);
+        assertTrue(firstEvidence.contains("\"toolArtifact\": \"org.openapitools:openapi-generator-cli:7.11.0\""));
+        assertTrue(firstEvidence.contains("\"toolVersionRef\": \"openapi-generator\""));
+        assertTrue(firstEvidence.contains("\"toolFingerprint\": \""));
+        assertTrue(firstEvidence.contains("\"optionsFingerprint\": \""));
     }
 
     @Test

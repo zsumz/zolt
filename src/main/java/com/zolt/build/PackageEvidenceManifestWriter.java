@@ -207,6 +207,7 @@ public final class PackageEvidenceManifestWriter {
                 stringField(json, 3, "compileLane", evidence.compileLane(), true);
                 stringField(json, 3, "freshness", evidence.freshness(), true);
                 stringField(json, 3, "toolArtifact", evidence.toolArtifact(), true);
+                nullableStringField(json, 3, "toolVersionRef", step.openApi().toolVersionRef(), true);
                 stringField(json, 3, "toolFingerprint", evidence.toolFingerprint(), true);
                 stringField(json, 3, "optionsFingerprint", evidence.optionsFingerprint(), true);
                 fingerprintedPaths(json, 3, "inputs", projectRoot, evidence.inputs(), false);
