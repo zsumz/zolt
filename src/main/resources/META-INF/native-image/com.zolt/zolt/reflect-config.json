@@ -48,6 +48,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$VersionCommand$RemoveCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$UpdateCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

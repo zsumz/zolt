@@ -163,6 +163,7 @@ import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -251,7 +252,8 @@ public final class ZoltCli implements Runnable {
             name = "version",
             description = "Print the Zolt version.",
             subcommands = {
-                    VersionCommand.SetCommand.class
+                    VersionCommand.SetCommand.class,
+                    VersionCommand.RemoveCommand.class
             })
     public static final class VersionCommand implements Runnable {
         @Spec
@@ -322,6 +324,69 @@ public final class ZoltCli implements Runnable {
                 } else {
                     spec.commandLine().getOut().println(
                             "Updated version alias " + alias + " from " + previous + " to " + version + " in [versions]");
+                }
+            }
+        }
+
+        @Command(name = "remove", description = "Remove an unused version alias from zolt.toml and refresh zolt.lock.")
+        public static final class RemoveCommand implements Runnable {
+            @Parameters(index = "0", paramLabel = "ALIAS", description = "Version alias name.")
+            private String alias;
+
+            @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
+            private boolean noResolve;
+
+            @Option(names = "--cwd", hidden = true)
+            private Path workingDirectory = Path.of(".");
+
+            @Option(names = "--cache-root", hidden = true)
+            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
+
+            @Spec
+            private CommandSpec spec;
+
+            private final ZoltTomlParser tomlParser = new ZoltTomlParser();
+            private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
+            private final ResolveService resolveService = new ResolveService();
+
+            @Override
+            public void run() {
+                try {
+                    String normalizedAlias = validateVersionAlias(alias);
+                    Path configPath = workingDirectory.resolve("zolt.toml");
+                    ProjectConfig config = tomlParser.parse(configPath);
+                    Map<String, String> aliases = new LinkedHashMap<>(config.versionAliases());
+                    if (!aliases.containsKey(normalizedAlias)) {
+                        throw new VersionAliasCommandException(
+                                "Version alias `" + normalizedAlias + "` is not declared in [versions].");
+                    }
+                    List<String> references = versionAliasReferences(config, normalizedAlias);
+                    if (!references.isEmpty()) {
+                        throw new VersionAliasCommandException(
+                                "Version alias `"
+                                        + normalizedAlias
+                                        + "` is still referenced by "
+                                        + String.join(", ", references)
+                                        + ". Remove or update those versionRef declarations before removing [versions]."
+                                        + normalizedAlias
+                                        + ".");
+                    }
+                    aliases.remove(normalizedAlias);
+                    ProjectConfig updated = config.withVersionAliases(aliases);
+                    tomlWriter.write(configPath, updated);
+                    spec.commandLine().getOut().println(
+                            "Removed version alias " + normalizedAlias + " from [versions]");
+                    if (noResolve) {
+                        spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                        return;
+                    }
+                    printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                } catch (ArtifactCacheException
+                        | ResolveException
+                        | VersionAliasCommandException
+                        | ZoltConfigException exception) {
+                    spec.commandLine().getErr().println("error: " + exception.getMessage());
+                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
                 }
             }
         }
@@ -3582,6 +3647,30 @@ public final class ZoltCli implements Runnable {
                             + ". Use a non-empty literal version string without leading or trailing whitespace.");
         }
         return version;
+    }
+
+    private static List<String> versionAliasReferences(ProjectConfig config, String alias) {
+        Set<String> references = new LinkedHashSet<>();
+        for (DependencyMetadata metadata : config.dependencyMetadata().values()) {
+            if (alias.equals(metadata.versionRef())) {
+                references.add("[" + metadata.section() + "]." + metadata.coordinate());
+            }
+        }
+        config.dependencyPolicy().constraints().values().stream()
+                .filter(constraint -> constraint.versionRef().filter(alias::equals).isPresent())
+                .map(constraint -> "[dependencyConstraints]." + constraint.coordinate())
+                .forEach(references::add);
+        config.build().generatedMainSources().stream()
+                .flatMap(step -> step.openApi().toolVersionRef().stream())
+                .filter(alias::equals)
+                .findAny()
+                .ifPresent(ignored -> references.add("[generated.openapiTool].versionRef"));
+        config.build().generatedTestSources().stream()
+                .flatMap(step -> step.openApi().toolVersionRef().stream())
+                .filter(alias::equals)
+                .findAny()
+                .ifPresent(ignored -> references.add("[generated.openapiTool].versionRef"));
+        return List.copyOf(references);
     }
 
     private static final class AddCommandException extends RuntimeException {

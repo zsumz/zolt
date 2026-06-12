@@ -152,6 +152,99 @@ final class ZoltCliTest {
     }
 
     @Test
+    void versionRemoveDeletesUnusedAliasWithoutResolveWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("version-alias-remove");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "version-alias-remove"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                guava = "33.4.8-jre"
+                junit = "5.12.1"
+                """);
+
+        CommandResult result = execute(
+                "version",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "guava");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Removed version alias guava from [versions]"));
+        assertTrue(result.stdout().contains("Skipped resolve"));
+        assertEquals("", result.stderr());
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertFalse(config.contains("\"guava\""));
+        assertTrue(config.contains("[versions]\n\"junit\" = \"5.12.1\""));
+        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void versionRemoveRefreshesLockfileByDefault() throws IOException {
+        Path projectDir = tempDir.resolve("version-alias-remove-resolve");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "version-alias-remove-resolve"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                guava = "33.4.8-jre"
+                """);
+
+        CommandResult result = execute(
+                "version",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "guava");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Removed version alias guava from [versions]"));
+        assertTrue(result.stdout().contains("Resolved 0 packages"));
+        assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        assertFalse(Files.readString(projectDir.resolve("zolt.toml")).contains("[versions]"));
+    }
+
+    @Test
+    void versionRemoveRejectsReferencedAlias() throws IOException {
+        Path projectDir = tempDir.resolve("version-alias-remove-referenced");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "version-alias-remove-referenced"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                guava = "33.4.8-jre"
+
+                [dependencies]
+                "com.google.guava:guava" = { versionRef = "guava" }
+                """);
+
+        CommandResult result = execute(
+                "version",
+                "remove",
+                "--cwd", projectDir.toString(),
+                "--no-resolve",
+                "guava");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Version alias `guava` is still referenced by [dependencies].com.google.guava:guava."));
+        String config = Files.readString(projectDir.resolve("zolt.toml"));
+        assertTrue(config.contains("guava = \"33.4.8-jre\""));
+        assertTrue(config.contains("\"com.google.guava:guava\" = { versionRef = \"guava\" }"));
+    }
+
+    @Test
     void updateExplainsFutureSelfUpdatePath() {
         CommandResult result = execute("update");
 
