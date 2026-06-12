@@ -1,7 +1,6 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
-import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyConstraintKind;
@@ -19,10 +18,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
-import com.zolt.project.ResourceFilteringSettings;
-import com.zolt.project.ResourceMissingTokenPolicy;
-import com.zolt.project.ResourceTokenSettings;
-import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionAliasRules;
 import com.zolt.project.VersionPolicy;
 import java.io.IOException;
@@ -65,15 +60,7 @@ public final class ZoltTomlParser {
             "publish",
             "framework",
             "native");
-    private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
-    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
     private static final Set<String> TEST_KEYS = Set.of("dependencies", "sources", "annotationProcessors", "runtime");
-    private static final Set<String> TEST_RUNTIME_KEYS =
-            Set.of("jvmArgs", "systemProperties", "environment", "events");
-    private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
-    private static final Set<String> RESOURCES_KEYS = Set.of("main", "test", "filtering", "tokens");
-    private static final Set<String> RESOURCE_FILTERING_KEYS = Set.of("enabled", "test", "includes", "missing");
-    private static final Set<String> RESOURCE_TOKEN_KEYS = Set.of("value", "env", "project");
     private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude");
     private static final Set<String> DEPENDENCY_POLICY_EXCLUSION_KEYS = Set.of("group", "artifact", "reason");
     private static final Set<String> DEPENDENCY_CONSTRAINT_KEYS = Set.of("version", "versionRef", "kind", "reason");
@@ -248,10 +235,10 @@ public final class ZoltTomlParser {
                     versionAliases);
         }
 
-        BuildSettings build = parseBuild(optionalTable(result, "build"));
-        build = parseTestSources(testTable, build);
-        build = parseTestRuntime(testTable, build);
-        build = parseResourceRoots(optionalTable(result, "resources"), build);
+        BuildSettings build = BuildSectionCodec.parseBuild(optionalTable(result, "build"));
+        build = BuildSectionCodec.parseTestSources(testTable, build);
+        build = BuildSectionCodec.parseTestRuntime(testTable, build);
+        build = BuildSectionCodec.parseResourceRoots(optionalTable(result, "resources"), build);
         build = parseGeneratedSources(optionalTable(result, "generated"), build, versionAliases);
         CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"));
         PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
@@ -291,178 +278,6 @@ public final class ZoltTomlParser {
                 packageSettings,
                 frameworkSettings,
                 dependencyMetadata);
-    }
-
-    private static BuildSettings parseBuild(TomlTable buildTable) {
-        BuildSettings defaults = BuildSettings.defaults();
-        if (buildTable == null) {
-            return defaults;
-        }
-
-        validateKeys("build", buildTable, BUILD_KEYS);
-        BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(buildTable, "metadata"));
-        return new BuildSettings(
-                stringOrDefault(buildTable, "build", "source", defaults.source()),
-                stringOrDefault(buildTable, "build", "test", defaults.test()),
-                stringOrDefault(buildTable, "build", "output", defaults.output()),
-                stringOrDefault(buildTable, "build", "testOutput", defaults.testOutput()),
-                defaults.testSources(),
-                defaults.groovyTestSources(),
-                defaults.resourceRoots(),
-                defaults.testResourceRoots(),
-                metadata);
-    }
-
-    private static BuildMetadataSettings parseBuildMetadata(TomlTable metadataTable) {
-        BuildMetadataSettings defaults = BuildMetadataSettings.defaults();
-        if (metadataTable == null) {
-            return defaults;
-        }
-        validateKeys("build.metadata", metadataTable, BUILD_METADATA_KEYS);
-        return new BuildMetadataSettings(
-                booleanOrDefault(metadataTable, "build.metadata", "buildInfo", defaults.buildInfo()),
-                booleanOrDefault(metadataTable, "build.metadata", "git", defaults.git()),
-                booleanOrDefault(metadataTable, "build.metadata", "reproducible", defaults.reproducible()));
-    }
-
-    private static BuildSettings parseTestSources(TomlTable testTable, BuildSettings build) {
-        if (testTable == null) {
-            return build;
-        }
-        TomlTable sourcesTable = optionalTable(testTable, "sources");
-        if (sourcesTable == null) {
-            return build;
-        }
-        validateKeys("test.sources", sourcesTable, Set.of("java", "groovy"));
-        return new BuildSettings(
-                build.source(),
-                build.test(),
-                build.output(),
-                build.testOutput(),
-                stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
-                stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
-                build.resourceRoots(),
-                build.testResourceRoots(),
-                build.metadata());
-    }
-
-    private static BuildSettings parseTestRuntime(TomlTable testTable, BuildSettings build) {
-        if (testTable == null) {
-            return build;
-        }
-        TomlTable runtimeTable = optionalTable(testTable, "runtime");
-        if (runtimeTable == null) {
-            return build;
-        }
-        validateKeys("test.runtime", runtimeTable, TEST_RUNTIME_KEYS);
-        try {
-            return build.withTestRuntime(new TestRuntimeSettings(
-                    stringListOrDefault(runtimeTable, "test.runtime", "jvmArgs", List.of()),
-                    stringMap(optionalTable(runtimeTable, "systemProperties"), "test.runtime.systemProperties"),
-                    stringMap(optionalTable(runtimeTable, "environment"), "test.runtime.environment"),
-                    stringListOrDefault(runtimeTable, "test.runtime", "events", List.of())));
-        } catch (IllegalArgumentException exception) {
-            throw new ZoltConfigException(exception.getMessage());
-        }
-    }
-
-    private static BuildSettings parseResourceRoots(TomlTable resourcesTable, BuildSettings build) {
-        if (resourcesTable == null) {
-            return build;
-        }
-        validateKeys("resources", resourcesTable, RESOURCES_KEYS);
-        return new BuildSettings(
-                build.source(),
-                build.test(),
-                build.output(),
-                build.testOutput(),
-                build.testSources(),
-                build.groovyTestSources(),
-                stringListOrDefault(resourcesTable, "resources", "main", build.resourceRoots()),
-                stringListOrDefault(resourcesTable, "resources", "test", build.testResourceRoots()),
-                parseResourceFiltering(
-                        optionalTable(resourcesTable, "filtering"),
-                        optionalTable(resourcesTable, "tokens")),
-                build.metadata());
-    }
-
-    private static ResourceFilteringSettings parseResourceFiltering(
-            TomlTable filteringTable,
-            TomlTable tokensTable) {
-        ResourceFilteringSettings defaults = ResourceFilteringSettings.defaults();
-        Map<String, ResourceTokenSettings> tokens = resourceTokens(tokensTable);
-        if (filteringTable == null) {
-            return tokens.isEmpty()
-                    ? defaults
-                    : new ResourceFilteringSettings(
-                            defaults.enabled(),
-                            defaults.testEnabled(),
-                            defaults.includes(),
-                            defaults.missing(),
-                            tokens);
-        }
-        validateKeys("resources.filtering", filteringTable, RESOURCE_FILTERING_KEYS);
-        String rawMissing = stringOrDefault(
-                filteringTable,
-                "resources.filtering",
-                "missing",
-                defaults.missing().configValue());
-        ResourceMissingTokenPolicy missing = ResourceMissingTokenPolicy.fromConfigValue(rawMissing)
-                .orElseThrow(() -> new ZoltConfigException(
-                        "Unsupported resource filtering missing-token policy `"
-                                + rawMissing
-                                + "` in zolt.toml. Supported values are: "
-                                + ResourceMissingTokenPolicy.supportedValues()
-                                + "."));
-        return new ResourceFilteringSettings(
-                booleanOrDefault(filteringTable, "resources.filtering", "enabled", defaults.enabled()),
-                booleanOrDefault(filteringTable, "resources.filtering", "test", defaults.testEnabled()),
-                stringListOrDefault(filteringTable, "resources.filtering", "includes", defaults.includes()),
-                missing,
-                tokens);
-    }
-
-    private static Map<String, ResourceTokenSettings> resourceTokens(TomlTable tokensTable) {
-        if (tokensTable == null) {
-            return Map.of();
-        }
-        Map<String, ResourceTokenSettings> tokens = new LinkedHashMap<>();
-        for (String key : tokensTable.keySet()) {
-            if (key.isBlank()) {
-                throw new ZoltConfigException(
-                        "Invalid resource token name in [resources.tokens]. Use a non-empty token name.");
-            }
-            TomlTable tokenTable = tokensTable.getTable(List.of(key));
-            if (tokenTable == null) {
-                throw new ZoltConfigException(
-                        "Invalid value for [resources.tokens]."
-                                + key
-                                + " in zolt.toml. Use exactly one of { value = \"...\" }, { env = \"...\" }, or { project = \"...\" }.");
-            }
-            validateKeys("resources.tokens." + key, tokenTable, RESOURCE_TOKEN_KEYS);
-            Optional<String> value = optionalString(tokenTable, "resources.tokens." + key, "value");
-            Optional<String> env = optionalString(tokenTable, "resources.tokens." + key, "env");
-            Optional<String> project = optionalString(tokenTable, "resources.tokens." + key, "project");
-            int sourceCount = (value.isPresent() ? 1 : 0) + (env.isPresent() ? 1 : 0) + (project.isPresent() ? 1 : 0);
-            if (sourceCount != 1) {
-                throw new ZoltConfigException(
-                        "Invalid value for [resources.tokens]."
-                                + key
-                                + " in zolt.toml. Declare exactly one of value, env, or project.");
-            }
-            project.ifPresent(projectField -> validateResourceTokenProjectField(key, projectField));
-            tokens.put(key, new ResourceTokenSettings(value, env, project));
-        }
-        return tokens;
-    }
-
-    private static void validateResourceTokenProjectField(String tokenName, String projectField) {
-        if (!PROJECT_KEYS.contains(projectField)) {
-            throw new ZoltConfigException(
-                    "Invalid value for [resources.tokens]."
-                            + tokenName
-                            + ".project in zolt.toml. Supported project fields are: name, version, group, java, main.");
-        }
     }
 
     private static BuildSettings parseGeneratedSources(

@@ -1,7 +1,6 @@
 package com.zolt.toml;
 
 import com.zolt.project.BuildSettings;
-import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
@@ -13,10 +12,6 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ResourceFilteringSettings;
-import com.zolt.project.ResourceMissingTokenPolicy;
-import com.zolt.project.ResourceTokenSettings;
-import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionPolicy;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -109,11 +104,11 @@ public final class ZoltTomlWriter {
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
                 config.dependencyMetadata());
-        writeTestSources(toml, config.build());
-        writeTestRuntime(toml, config.build().testRuntime());
-        writeBuild(toml, config.build());
-        writeBuildMetadata(toml, config.build().metadata());
-        writeResources(toml, config.build());
+        BuildSectionCodec.writeTestSources(toml, config.build());
+        BuildSectionCodec.writeTestRuntime(toml, config.build().testRuntime());
+        BuildSectionCodec.writeBuild(toml, config.build());
+        BuildSectionCodec.writeBuildMetadata(toml, config.build().metadata());
+        BuildSectionCodec.writeResources(toml, config.build());
         writeGeneratedSources(toml, config.build());
         CompilerSectionCodec.write(toml, config.compilerSettings());
         PackageSectionCodec.write(toml, config.packageSettings());
@@ -1010,105 +1005,6 @@ public final class ZoltTomlWriter {
             case PROCESSOR -> "annotationProcessors";
             case TEST_PROCESSOR -> "test.annotationProcessors";
         };
-    }
-
-    private static void writeBuild(StringBuilder toml, BuildSettings build) {
-        toml.append("[build]\n");
-        writeAssignment(toml, "source", build.source());
-        writeAssignment(toml, "test", build.test());
-        writeAssignment(toml, "output", build.output());
-        writeAssignment(toml, "testOutput", build.testOutput());
-    }
-
-    private static void writeBuildMetadata(StringBuilder toml, BuildMetadataSettings metadata) {
-        if (metadata == null || metadata.equals(BuildMetadataSettings.defaults())) {
-            return;
-        }
-        toml.append("\n[build.metadata]\n");
-        writeAssignment(toml, "buildInfo", metadata.buildInfo());
-        writeAssignment(toml, "git", metadata.git());
-        writeAssignment(toml, "reproducible", metadata.reproducible());
-    }
-
-    private static void writeTestSources(StringBuilder toml, BuildSettings build) {
-        if (build.testSources().equals(List.of(build.test())) && build.groovyTestSources().isEmpty()) {
-            return;
-        }
-        toml.append("[test.sources]\n");
-        if (!build.testSources().equals(List.of(build.test()))) {
-            writeStringArray(toml, "java", build.testSources());
-        }
-        if (!build.groovyTestSources().isEmpty()) {
-            writeStringArray(toml, "groovy", build.groovyTestSources());
-        }
-        toml.append('\n');
-    }
-
-    private static void writeTestRuntime(StringBuilder toml, TestRuntimeSettings runtime) {
-        if (runtime == null || runtime.defaultsOnly()) {
-            return;
-        }
-        toml.append("[test.runtime]\n");
-        if (!runtime.jvmArgs().isEmpty()) {
-            writeStringArray(toml, "jvmArgs", runtime.jvmArgs());
-        }
-        if (!runtime.systemProperties().isEmpty()) {
-            writeInlineStringMap(toml, "systemProperties", runtime.systemProperties());
-        }
-        if (!runtime.environment().isEmpty()) {
-            writeInlineStringMap(toml, "environment", runtime.environment());
-        }
-        if (!runtime.events().isEmpty()) {
-            writeStringArray(toml, "events", runtime.events());
-        }
-        toml.append('\n');
-    }
-
-    private static void writeResources(StringBuilder toml, BuildSettings build) {
-        BuildSettings defaults = BuildSettings.defaults();
-        boolean customRoots = !build.resourceRoots().equals(defaults.resourceRoots())
-                || !build.testResourceRoots().equals(defaults.testResourceRoots());
-        if (customRoots) {
-            toml.append("\n[resources]\n");
-            writeStringArray(toml, "main", build.resourceRoots());
-            writeStringArray(toml, "test", build.testResourceRoots());
-        }
-        writeResourceFiltering(toml, build.resourceFiltering());
-    }
-
-    private static void writeResourceFiltering(StringBuilder toml, ResourceFilteringSettings filtering) {
-        if (filtering == null || filtering.equals(ResourceFilteringSettings.defaults())) {
-            return;
-        }
-        toml.append("\n[resources.filtering]\n");
-        writeAssignment(toml, "enabled", filtering.enabled());
-        if (filtering.testEnabled()) {
-            writeAssignment(toml, "test", true);
-        }
-        if (!filtering.includes().isEmpty()) {
-            writeStringArray(toml, "includes", filtering.includes());
-        }
-        if (filtering.missing() != ResourceMissingTokenPolicy.FAIL) {
-            writeAssignment(toml, "missing", filtering.missing().configValue());
-        }
-        if (!filtering.tokens().isEmpty()) {
-            toml.append("\n[resources.tokens]\n");
-            for (Map.Entry<String, ResourceTokenSettings> entry : new TreeMap<>(filtering.tokens()).entrySet()) {
-                toml.append(quote(entry.getKey())).append(" = ");
-                writeResourceToken(toml, entry.getValue());
-                toml.append('\n');
-            }
-        }
-    }
-
-    private static void writeResourceToken(StringBuilder toml, ResourceTokenSettings token) {
-        token.value().ifPresentOrElse(
-                value -> toml.append("{ value = ").append(quote(value)).append(" }"),
-                () -> token.env().ifPresentOrElse(
-                        env -> toml.append("{ env = ").append(quote(env)).append(" }"),
-                        () -> toml.append("{ project = ")
-                                .append(quote(token.project().orElseThrow()))
-                                .append(" }")));
     }
 
     private static void writeGeneratedSources(StringBuilder toml, BuildSettings build) {
