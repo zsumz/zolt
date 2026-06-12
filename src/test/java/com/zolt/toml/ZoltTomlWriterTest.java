@@ -658,6 +658,41 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void writesOpenApiToolVersionRefWhenConfigured() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "openapi-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                openapi = "7.11.0"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "openapi"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[generated.openapiTool]\n"));
+        assertTrue(toml.contains("coordinate = \"org.openapitools:openapi-generator-cli\""));
+        assertTrue(toml.contains("versionRef = \"openapi\""));
+        assertFalse(toml.contains("version = \"7.11.0\""));
+        assertEquals(config.versionAliases(), parsed.versionAliases());
+        assertEquals(config.build().generatedMainSources(), parsed.build().generatedMainSources());
+    }
+
+    @Test
     void writesNativeSettingsWhenConfigured() {
         ProjectConfig original = configWithNativeSettings();
 

@@ -1065,7 +1065,7 @@ public final class QualityCheckService {
                         member,
                         "[versions]." + alias,
                         "Version alias `" + alias + "` is declared but not referenced by any versionRef.",
-                        "Remove [versions]." + alias + " or update a dependency, platform, processor, or constraint to use versionRef = \"" + alias + "\"."))
+                        "Remove [versions]." + alias + " or update a dependency, platform, processor, constraint, or OpenAPI tool to use versionRef = \"" + alias + "\"."))
                 .toList();
     }
 
@@ -1079,7 +1079,21 @@ public final class QualityCheckService {
         config.dependencyPolicy().constraints().values().stream()
                 .flatMap(constraint -> constraint.versionRef().stream())
                 .forEach(aliases::add);
+        openApiSteps(config).stream()
+                .flatMap(step -> step.openApi().toolVersionRef().stream())
+                .forEach(aliases::add);
         return Set.copyOf(aliases);
+    }
+
+    private static List<GeneratedSourceStep> openApiSteps(ProjectConfig config) {
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .forEach(steps::add);
+        config.build().generatedTestSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .forEach(steps::add);
+        return List.copyOf(steps);
     }
 
     private static Optional<QualityCheckResult> firstInvalidPath(

@@ -569,13 +569,13 @@ public final class ResolveService {
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new ResolveException(
                         "OpenAPI generation requires [generated.openapiTool].coordinate. "
-                                + "Add org.openapitools:openapi-generator-cli with a version, run `zolt resolve`, then retry."));
+                                + "Add org.openapitools:openapi-generator-cli with version or versionRef, run `zolt resolve`, then retry."));
         String version = settings.toolVersion()
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new ResolveException(
                         "OpenAPI generation requires [generated.openapiTool].version for "
                                 + coordinate
-                                + ". Add an explicit version, run `zolt resolve`, then retry."));
+                                + ". Add version or versionRef, run `zolt resolve`, then retry."));
         Coordinate parsed = coordinateParser.parse(coordinate + ":" + version);
         PackageId packageId = PackageId.from(parsed);
         boolean alreadyRequested = requests.stream()
@@ -732,6 +732,19 @@ public final class ResolveService {
                         + constraint.versionRef().orElseThrow()
                         + "\t"
                         + constraint.version())
+                .forEach(inputs::add);
+        openApiSteps(config).stream()
+                .map(GeneratedSourceStep::openApi)
+                .filter(settings -> settings.toolVersionRef().isPresent())
+                .sorted(Comparator
+                        .comparing((OpenApiGenerationSettings settings) -> settings.toolCoordinate().orElse(""))
+                        .thenComparing(settings -> settings.toolVersionRef().orElseThrow()))
+                .map(settings -> "openApiToolVersionRef\t"
+                        + settings.toolCoordinate().orElse("")
+                        + "\t"
+                        + settings.toolVersionRef().orElseThrow()
+                        + "\t"
+                        + settings.toolVersion().orElse(""))
                 .forEach(inputs::add);
         if (inputs.isEmpty()) {
             return Optional.empty();

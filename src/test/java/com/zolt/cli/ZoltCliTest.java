@@ -2221,6 +2221,7 @@ final class ZoltCliTest {
                 [versions]
                 boot = "4.0.6"
                 lombok = "1.18.36"
+                openapi = "7.11.0"
                 test-lombok = "1.18.36"
                 tomcat = "10.1.40"
                 used = "1.0.0"
@@ -2240,6 +2241,17 @@ final class ZoltCliTest {
 
                 [dependencyConstraints]
                 "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict" }
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "openapi"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
                 """);
 
         CommandResult result = execute(
@@ -2445,6 +2457,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"status\":\"skipped\""));
         assertFalse(result.stdout().contains("\"subject\":\"[versions].boot\""));
         assertFalse(result.stdout().contains("\"subject\":\"[versions].lombok\""));
+        assertFalse(result.stdout().contains("\"subject\":\"[versions].openapi\""));
         assertFalse(result.stdout().contains("\"subject\":\"[versions].test-lombok\""));
         assertFalse(result.stdout().contains("\"subject\":\"[versions].tomcat\""));
         assertFalse(result.stdout().contains("\"subject\":\"[versions].used\""));

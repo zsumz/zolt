@@ -1860,6 +1860,30 @@ final class ResolveServiceTest {
     }
 
     @Test
+    void lockedResolveFailsWhenOpenApiToolVersionRefEdgeChangesWithoutConcreteVersionChange() throws IOException {
+        addArtifact("org.openapitools", "openapi-generator-cli", "7.11.0", """
+                <project>
+                  <groupId>org.openapitools</groupId>
+                  <artifactId>openapi-generator-cli</artifactId>
+                  <version>7.11.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project-openapi-tool-alias-lock");
+        Path cacheRoot = tempDir.resolve("cache-openapi-tool-alias-lock");
+        createDirectory(projectDir);
+        resolveService.resolve(projectDir, openApiVersionRefConfig("openapi-one"), cacheRoot);
+        String existingLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, openApiVersionRefConfig("openapi-two"), cacheRoot, true));
+
+        assertTrue(existingLockfile.contains("aliasFingerprint = \"sha256:"));
+        assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void quarkusRuntimeExtensionAddsDeploymentArtifactScope() {
         addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """
                 <project>
@@ -2546,6 +2570,33 @@ final class ResolveServiceTest {
                 settings);
         return configWithDependencies(Map.of())
                 .withBuildSettings(BuildSettings.defaults().withGeneratedSources(List.of(step), List.of()));
+    }
+
+    private ProjectConfig openApiVersionRefConfig(String alias) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                test = "%s"
+
+                [versions]
+                "%s" = "7.11.0"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "%s"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
+                """.formatted(baseUri, alias, alias));
     }
 
     private ProjectConfig configWithDependencyAndProcessor() {

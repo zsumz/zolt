@@ -121,7 +121,7 @@ public final class ZoltTomlParser {
             "globalProperties",
             "typeMappings",
             "importMappings");
-    private static final Set<String> GENERATED_OPENAPI_TOOL_KEYS = Set.of("coordinate", "version");
+    private static final Set<String> GENERATED_OPENAPI_TOOL_KEYS = Set.of("coordinate", "version", "versionRef");
     private static final Set<String> GENERATED_OPENAPI_POST_PROCESS_KEYS = Set.of(
             "enablepostprocessfile",
             "postprocessfile",
@@ -304,7 +304,7 @@ public final class ZoltTomlParser {
         build = parseTestSources(testTable, build);
         build = parseTestRuntime(testTable, build);
         build = parseResourceRoots(optionalTable(result, "resources"), build);
-        build = parseGeneratedSources(optionalTable(result, "generated"), build);
+        build = parseGeneratedSources(optionalTable(result, "generated"), build, versionAliases);
         CompilerSettings compilerSettings = parseCompiler(optionalTable(result, "compiler"));
         PackageSettings packageSettings = parsePackage(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = parseFramework(optionalTable(result, "framework"));
@@ -517,12 +517,15 @@ public final class ZoltTomlParser {
         }
     }
 
-    private static BuildSettings parseGeneratedSources(TomlTable generatedTable, BuildSettings build) {
+    private static BuildSettings parseGeneratedSources(
+            TomlTable generatedTable,
+            BuildSettings build,
+            Map<String, String> versionAliases) {
         if (generatedTable == null) {
             return build;
         }
         validateKeys("generated", generatedTable, GENERATED_KEYS);
-        OpenApiTool tool = parseOpenApiTool(optionalTable(generatedTable, "openapiTool"));
+        OpenApiTool tool = parseOpenApiTool(optionalTable(generatedTable, "openapiTool"), versionAliases);
         Map<String, OpenApiGenerationSettings> presets = parseOpenApiPresets(optionalTable(generatedTable, "openapiPresets"));
         return build.withGeneratedSources(
                 parseGeneratedSourceScope(optionalTable(generatedTable, "main"), "generated.main", tool, presets),
@@ -619,14 +622,17 @@ public final class ZoltTomlParser {
                 merged);
     }
 
-    private static OpenApiTool parseOpenApiTool(TomlTable toolTable) {
+    private static OpenApiTool parseOpenApiTool(
+            TomlTable toolTable,
+            Map<String, String> versionAliases) {
         if (toolTable == null) {
-            return new OpenApiTool(Optional.empty(), Optional.empty());
+            return new OpenApiTool(Optional.empty(), Optional.empty(), Optional.empty());
         }
         validateKeys("generated.openapiTool", toolTable, GENERATED_OPENAPI_TOOL_KEYS);
         return new OpenApiTool(
                 optionalString(toolTable, "generated.openapiTool", "coordinate"),
-                optionalString(toolTable, "generated.openapiTool", "version"));
+                optionalVersionOrRef(toolTable, "generated.openapiTool", versionAliases),
+                optionalVersionRef(toolTable, "generated.openapiTool", versionAliases));
     }
 
     private static Map<String, OpenApiGenerationSettings> parseOpenApiPresets(TomlTable presetsTable) {
@@ -664,6 +670,7 @@ public final class ZoltTomlParser {
         validateOpenApiOptionKeys(section + ".configOptions", configOptions);
         validateOpenApiOptionKeys(section + ".globalProperties", globalProperties);
         return new OpenApiGenerationSettings(
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 optionalString(table, section, "preset"),
@@ -705,6 +712,7 @@ public final class ZoltTomlParser {
         return new OpenApiGenerationSettings(
                 tool.coordinate(),
                 tool.version(),
+                tool.versionRef(),
                 presetId,
                 step.generator().or(() -> preset.generator()),
                 step.library().or(() -> preset.library()),
@@ -1561,6 +1569,7 @@ public final class ZoltTomlParser {
 
     private record OpenApiTool(
             Optional<String> coordinate,
-            Optional<String> version) {
+            Optional<String> version,
+            Optional<String> versionRef) {
     }
 }

@@ -1121,14 +1121,20 @@ public final class ZoltTomlWriter {
                 .concat(build.generatedMainSources().stream(), build.generatedTestSources().stream())
                 .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
                 .map(GeneratedSourceStep::openApi)
-                .filter(openApi -> openApi.toolCoordinate().isPresent() || openApi.toolVersion().isPresent())
+                .filter(openApi -> openApi.toolCoordinate().isPresent()
+                        || openApi.toolVersion().isPresent()
+                        || openApi.toolVersionRef().isPresent())
                 .findFirst();
         if (settings.isEmpty()) {
             return;
         }
         toml.append("\n[generated.openapiTool]\n");
         settings.orElseThrow().toolCoordinate().ifPresent(coordinate -> writeAssignment(toml, "coordinate", coordinate));
-        settings.orElseThrow().toolVersion().ifPresent(version -> writeAssignment(toml, "version", version));
+        if (settings.orElseThrow().toolVersionRef().isPresent()) {
+            writeAssignment(toml, "versionRef", settings.orElseThrow().toolVersionRef().orElseThrow());
+        } else {
+            settings.orElseThrow().toolVersion().ifPresent(version -> writeAssignment(toml, "version", version));
+        }
     }
 
     private static void writeGeneratedSourceScope(

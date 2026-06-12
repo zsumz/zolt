@@ -832,6 +832,68 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesOpenApiToolVersionRef() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "openapi-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                openapi = "7.11.0"
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "openapi"
+
+                [generated.main.public-api]
+                kind = "openapi"
+                language = "java"
+                input = "src/main/openapi/public-api.yaml"
+                output = "target/generated/sources/openapi/public-api"
+                generator = "spring"
+                """);
+
+        var openApi = config.build().generatedMainSources().getFirst().openApi();
+        assertEquals("org.openapitools:openapi-generator-cli", openApi.toolCoordinate().orElseThrow());
+        assertEquals("7.11.0", openApi.toolVersion().orElseThrow());
+        assertEquals("openapi", openApi.toolVersionRef().orElseThrow());
+    }
+
+    @Test
+    void rejectsOpenApiToolVersionAndVersionRefTogether() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "openapi-demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [versions]
+                        openapi = "7.11.0"
+
+                        [generated.openapiTool]
+                        coordinate = "org.openapitools:openapi-generator-cli"
+                        version = "7.11.0"
+                        versionRef = "openapi"
+
+                        [generated.main.public-api]
+                        kind = "openapi"
+                        language = "java"
+                        input = "src/main/openapi/public-api.yaml"
+                        output = "target/generated/sources/openapi/public-api"
+                        generator = "spring"
+                        """));
+
+        assertEquals(
+                "Invalid value for [generated.openapiTool] in zolt.toml. Use either version or versionRef, not both.",
+                exception.getMessage());
+    }
+
+    @Test
     void parsesMultipleOpenApiGeneratedSourceStepsWithSharedPresetOverrides() {
         ProjectConfig config = parser.parse("""
                 [project]

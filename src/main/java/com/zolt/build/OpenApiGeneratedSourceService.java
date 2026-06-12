@@ -246,7 +246,7 @@ public final class OpenApiGeneratedSourceService {
         if (settings.toolCoordinate().isEmpty() || settings.toolVersion().isEmpty()) {
             throw new BuildException(
                     "OpenAPI generation requires [generated.openapiTool].coordinate and version. "
-                            + "Add org.openapitools:openapi-generator-cli, run `zolt resolve`, then retry.");
+                            + "Add org.openapitools:openapi-generator-cli with version or versionRef, run `zolt resolve`, then retry.");
         }
         if (settings.generator().isEmpty()) {
             throw new BuildException(
