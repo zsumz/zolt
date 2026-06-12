@@ -322,8 +322,40 @@ public final class BuildFingerprintService {
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> path + "|" + fileHash(path, cachedState, collectedState))
+                .map(path -> path + "|" + classpathHash(path, cachedState, collectedState))
                 .toList();
+    }
+
+    private static String classpathHash(
+            Path path,
+            FingerprintState cachedState,
+            Map<Path, CachedFileHash> collectedState) {
+        Path normalized = path.toAbsolutePath().normalize();
+        if (Files.isDirectory(normalized)) {
+            Optional<String> abiHash = zoltOutputAbiHash(normalized);
+            if (abiHash.isPresent()) {
+                return "abi:" + abiHash.orElseThrow();
+            }
+        }
+        return fileHash(normalized, cachedState, collectedState);
+    }
+
+    private static Optional<String> zoltOutputAbiHash(Path directory) {
+        Optional<IncrementalCompileState> state = new IncrementalCompileStateCodec()
+                .read(IncrementalCompileState.mainStatePath(directory));
+        if (state.isEmpty() || !state.orElseThrow().outputDirectory().equals(directory)) {
+            return Optional.empty();
+        }
+        StringBuilder content = new StringBuilder();
+        for (IncrementalCompileState.ClassRecord classRecord : state.orElseThrow().classes()) {
+            content.append(classRecord.binaryName())
+                    .append('|')
+                    .append(classRecord.abiHash())
+                    .append('|')
+                    .append(classRecord.packagePrivateAbiHash())
+                    .append('\n');
+        }
+        return Optional.of(sha256(content.toString().getBytes(StandardCharsets.UTF_8)));
     }
 
     private static List<String> fileEntries(

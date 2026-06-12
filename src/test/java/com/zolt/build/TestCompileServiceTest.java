@@ -536,7 +536,7 @@ final class TestCompileServiceTest {
     }
 
     @Test
-    void mainOutputChangeInvalidatesTestCompileFingerprint() throws IOException {
+    void mainImplementationOnlyChangeDoesNotInvalidateTestCompileFingerprint() throws IOException {
         writeLockfile("version = 1\n");
         Path mainSource = source(
                 "src/main/java/com/example/Main.java",
@@ -558,7 +558,35 @@ final class TestCompileServiceTest {
         TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(result.buildResult().mainCompilationSkipped());
+        assertTrue(result.testCompilationSkipped());
+    }
+
+    @Test
+    void mainAbiChangeInvalidatesTestCompileFingerprint() throws IOException {
+        writeLockfile("version = 1\n");
+        Path mainSource = source(
+                "src/main/java/com/example/Main.java",
+                "package com.example; public final class Main { public static String message() { return \"one\"; } }\n");
+        source("src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                public final class MainTest {
+                    public String message() {
+                        return Main.message();
+                    }
+                }
+                """);
+        testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+        Files.writeString(
+                mainSource,
+                "package com.example; public final class Main { public static String message() { return \"two\"; } public static String extra() { return \"extra\"; } }\n");
+
+        TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(result.buildResult().mainCompilationSkipped());
         assertFalse(result.testCompilationSkipped());
+        assertEquals("full", result.testCompilationMode());
+        assertEquals("compile-classpath-changed", result.testIncrementalFallbackReason());
     }
 
     @Test
