@@ -27,6 +27,11 @@ public final class ZoltLockfileWriter {
         lockfile.aliasFingerprint().ifPresent(value -> assignment(output, "aliasFingerprint", value));
         lockfile.projectResolutionFingerprint()
                 .ifPresent(value -> assignment(output, "projectResolutionFingerprint", value));
+        if (!lockfile.projectResolutionInputFingerprints().isEmpty()) {
+            output.append("projectResolutionInputFingerprints = ");
+            stringArray(output, sortedStrings(lockfile.projectResolutionInputFingerprints()));
+            output.append('\n');
+        }
         output.append('\n');
         for (LockPackage lockPackage : sortedPackages(lockfile.packages())) {
             writePackage(output, lockPackage);

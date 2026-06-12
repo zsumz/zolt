@@ -7,6 +7,7 @@ public record ZoltLockfile(
         int version,
         Optional<String> aliasFingerprint,
         Optional<String> projectResolutionFingerprint,
+        List<String> projectResolutionInputFingerprints,
         List<LockPackage> packages,
         List<LockConflict> conflicts,
         List<LockPolicyEffect> policyEffects) {
@@ -16,7 +17,7 @@ public record ZoltLockfile(
             int version,
             List<LockPackage> packages,
             List<LockConflict> conflicts) {
-        this(version, Optional.empty(), Optional.empty(), packages, conflicts, List.of());
+        this(version, Optional.empty(), Optional.empty(), List.of(), packages, conflicts, List.of());
     }
 
     public ZoltLockfile(
@@ -24,7 +25,7 @@ public record ZoltLockfile(
             List<LockPackage> packages,
             List<LockConflict> conflicts,
             List<LockPolicyEffect> policyEffects) {
-        this(version, Optional.empty(), Optional.empty(), packages, conflicts, policyEffects);
+        this(version, Optional.empty(), Optional.empty(), List.of(), packages, conflicts, policyEffects);
     }
 
     public ZoltLockfile(
@@ -33,7 +34,17 @@ public record ZoltLockfile(
             List<LockPackage> packages,
             List<LockConflict> conflicts,
             List<LockPolicyEffect> policyEffects) {
-        this(version, aliasFingerprint, Optional.empty(), packages, conflicts, policyEffects);
+        this(version, aliasFingerprint, Optional.empty(), List.of(), packages, conflicts, policyEffects);
+    }
+
+    public ZoltLockfile(
+            int version,
+            Optional<String> aliasFingerprint,
+            Optional<String> projectResolutionFingerprint,
+            List<LockPackage> packages,
+            List<LockConflict> conflicts,
+            List<LockPolicyEffect> policyEffects) {
+        this(version, aliasFingerprint, projectResolutionFingerprint, List.of(), packages, conflicts, policyEffects);
     }
 
     public ZoltLockfile {
@@ -41,6 +52,9 @@ public record ZoltLockfile(
         projectResolutionFingerprint = projectResolutionFingerprint == null
                 ? Optional.empty()
                 : projectResolutionFingerprint;
+        projectResolutionInputFingerprints = projectResolutionInputFingerprints == null
+                ? List.of()
+                : List.copyOf(projectResolutionInputFingerprints);
         packages = List.copyOf(packages);
         conflicts = List.copyOf(conflicts);
         policyEffects = policyEffects == null ? List.of() : List.copyOf(policyEffects);

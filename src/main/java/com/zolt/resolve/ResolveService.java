@@ -4,6 +4,7 @@ import com.zolt.cache.CachedArtifact;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.LockfileFreshnessSummary;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
@@ -278,8 +279,19 @@ public final class ResolveService {
 
         String expected = lockfileWriter.write(candidate);
         if (!existing.equals(expected)) {
+            String changedInputs = changedInputs(existing, candidate);
             throw new ResolveException(
-                    "zolt.lock is out of date. Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.");
+                    "zolt.lock is out of date."
+                            + changedInputs
+                            + " Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.");
+        }
+    }
+
+    private static String changedInputs(String existing, ZoltLockfile candidate) {
+        try {
+            return LockfileFreshnessSummary.changedInputs(new ZoltLockfileReader().read(existing), candidate);
+        } catch (LockfileReadException exception) {
+            return "";
         }
     }
 
@@ -696,6 +708,7 @@ public final class ResolveService {
                     ZoltLockfile.CURRENT_VERSION,
                     aliasFingerprint(context.config),
                     Optional.of(ProjectResolutionFingerprint.fingerprint(context.config)),
+                    ProjectResolutionFingerprint.inputFingerprints(context.config),
                     packages,
                     conflicts,
                     lockPolicyEffects(graph.policyEffects()));

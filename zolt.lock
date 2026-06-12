@@ -1,5 +1,6 @@
 version = 1
 projectResolutionFingerprint = "sha256:afa930f7cde384033cc90d4b15c87e7b44a83ef6e9fb3412d4d4555efae362b3"
+projectResolutionInputFingerprints = ["dependencies.compile=sha256:e1de0f06248c7145a3542f6a9f0199fa15a6da1d356fd0025c64348377e12c11", "dependencies.provided=sha256:6041cc04e0b71c2ea5a4431daeee0dd48a6068ffae86ef788d5c5297ea245e62", "dependencies.test=sha256:e5516a403420e89a8b33189dcf163f06078935e4e6bcd5907dab410bee6e5a9e", "framework.quarkus=sha256:68d7c5d5cedc29b433b63ce5b53c7054a4c27e79e03430701582a1b1d5cea01f", "java=sha256:fda3a3e438244e08721bfc730e9f34ef4ee260820f6fbcd44a4c64601a93bf71", "package=sha256:1ae86c65b1e6e588a2c7b97e49de5aa12a31ace329e1253d80d6be0028c0ec59", "repositories=sha256:e01822fdeeed818adfc2169ed3a3c6e24d67f4455bfc41e52af4d25221a85c51", "schema=sha256:5c48b263086f330542d7f620f6e05a9d4f2ffe1ca79d8b531d03ea3cbc6f9b15"]
 
 [[package]]
 id = "info.picocli:picocli"

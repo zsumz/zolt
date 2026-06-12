@@ -14,10 +14,12 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ProjectResolutionFingerprint {
     private ProjectResolutionFingerprint() {
@@ -27,6 +29,19 @@ public final class ProjectResolutionFingerprint {
         List<String> inputs = inputs(config);
         String input = String.join("\n", inputs) + "\n";
         return "sha256:" + sha256(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static List<String> inputFingerprints(ProjectConfig config) {
+        Map<String, List<String>> byCategory = inputs(config).stream()
+                .collect(Collectors.groupingBy(
+                        ProjectResolutionFingerprint::summaryCategory,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+        return byCategory.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=sha256:" + sha256((String.join("\n", entry.getValue()) + "\n")
+                        .getBytes(StandardCharsets.UTF_8)))
+                .toList();
     }
 
     static List<String> inputs(ProjectConfig config) {
@@ -168,6 +183,22 @@ public final class ProjectResolutionFingerprint {
 
     private static void line(List<String> inputs, String category, String... values) {
         inputs.add(category + "\t" + String.join("\t", values));
+    }
+
+    private static String summaryCategory(String line) {
+        String[] parts = line.split("\t", -1);
+        String category = parts[0];
+        return switch (category) {
+            case "repository", "repositoryCredential" -> "repositories";
+            case "workspaceApi" -> "dependencies.api.workspace";
+            case "workspaceCompile" -> "dependencies.compile.workspace";
+            case "workspaceTest" -> "dependencies.test.workspace";
+            case "managedDependency" -> parts.length > 1 ? "dependencies." + parts[1] : "dependencies";
+            case "dependencyMetadata", "dependencyMetadata.exclusion" -> "dependencyMetadata";
+            case "dependencyPolicy.exclusion", "dependencyPolicy.constraint" -> "dependencyPolicy";
+            case "generatedMain", "generatedTest" -> "generatedSources";
+            default -> category;
+        };
     }
 
     private static String nullToEmpty(String value) {

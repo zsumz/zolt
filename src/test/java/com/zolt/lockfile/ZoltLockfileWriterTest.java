@@ -53,6 +53,7 @@ final class ZoltLockfileWriterTest {
                 ZoltLockfile.CURRENT_VERSION,
                 Optional.empty(),
                 Optional.of("sha256:project-inputs"),
+                List.of("repositories=sha256:repo-inputs", "dependencies.compile=sha256:compile-inputs"),
                 List.of(),
                 List.of(),
                 List.of());
@@ -60,6 +61,7 @@ final class ZoltLockfileWriterTest {
         assertEquals("""
                 version = 1
                 projectResolutionFingerprint = "sha256:project-inputs"
+                projectResolutionInputFingerprints = ["dependencies.compile=sha256:compile-inputs", "repositories=sha256:repo-inputs"]
 
                 """, writer.write(lockfile));
     }

@@ -1,9 +1,12 @@
 package com.zolt.workspace;
 
 import com.zolt.lockfile.LockConflict;
+import com.zolt.lockfile.LockfileFreshnessSummary;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositorySettings;
@@ -117,8 +120,19 @@ public final class WorkspaceResolveService {
 
         String expected = lockfileWriter.write(candidate);
         if (!existing.equals(expected)) {
+            String changedInputs = changedInputs(existing, candidate);
             throw new ResolveException(
-                    "Workspace zolt.lock is out of date. Run `zolt resolve --workspace` to refresh it, then retry `zolt resolve --workspace --locked`.");
+                    "Workspace zolt.lock is out of date."
+                            + changedInputs
+                            + " Run `zolt resolve --workspace` to refresh it, then retry `zolt resolve --workspace --locked`.");
+        }
+    }
+
+    private static String changedInputs(String existing, ZoltLockfile candidate) {
+        try {
+            return LockfileFreshnessSummary.changedInputs(new ZoltLockfileReader().read(existing), candidate);
+        } catch (LockfileReadException exception) {
+            return "";
         }
     }
 
@@ -246,6 +260,7 @@ public final class WorkspaceResolveService {
                 ZoltLockfile.CURRENT_VERSION,
                 workspaceAliasFingerprint(memberOutputs),
                 workspaceProjectResolutionFingerprint(memberOutputs),
+                workspaceProjectResolutionInputFingerprints(memberOutputs),
                 List.copyOf(packages.values()),
                 List.copyOf(conflicts.values()),
                 List.copyOf(policyEffects.values()));
@@ -273,6 +288,25 @@ public final class WorkspaceResolveService {
             return Optional.empty();
         }
         return Optional.of("sha256:" + sha256((String.join("\n", inputs) + "\n").getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static List<String> workspaceProjectResolutionInputFingerprints(List<MemberResolveOutput> memberOutputs) {
+        Map<String, List<String>> inputs = new LinkedHashMap<>();
+        memberOutputs.stream()
+                .sorted(Comparator.comparing(MemberResolveOutput::member))
+                .forEach(output -> output.lockfile().projectResolutionInputFingerprints().forEach(input -> {
+                    int separator = input.indexOf('=');
+                    if (separator <= 0 || separator == input.length() - 1) {
+                        return;
+                    }
+                    inputs.computeIfAbsent(input.substring(0, separator), ignored -> new ArrayList<>())
+                            .add(output.member() + "\t" + input.substring(separator + 1));
+                }));
+        return inputs.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=sha256:" + sha256((String.join("\n", entry.getValue()) + "\n")
+                        .getBytes(StandardCharsets.UTF_8)))
+                .toList();
     }
 
     private static String sha256(byte[] bytes) {

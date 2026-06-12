@@ -421,6 +421,7 @@ final class WorkspaceResolveServiceTest {
 
         assertTrue(existing.contains("projectResolutionFingerprint = \"sha256:"));
         assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
+        assertTrue(exception.getMessage().contains("Changed inputs: repositories."));
         assertEquals(existing, Files.readString(first.lockfilePath()));
     }
 

@@ -1213,6 +1213,7 @@ final class ResolveServiceTest {
 
         assertTrue(existingLockfile.contains("projectResolutionFingerprint = \"sha256:"));
         assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertTrue(exception.getMessage().contains("Changed inputs: repositories."));
         assertEquals(existingLockfile, Files.readString(projectDir.resolve("zolt.lock")));
     }
 

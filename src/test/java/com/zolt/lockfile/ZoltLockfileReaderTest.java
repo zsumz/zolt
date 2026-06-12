@@ -40,9 +40,13 @@ final class ZoltLockfileReaderTest {
         ZoltLockfile lockfile = reader.read("""
                 version = 1
                 projectResolutionFingerprint = "sha256:project-inputs"
+                projectResolutionInputFingerprints = ["repositories=sha256:repo-inputs", "dependencies.compile=sha256:compile-inputs"]
                 """);
 
         assertEquals("sha256:project-inputs", lockfile.projectResolutionFingerprint().orElseThrow());
+        assertEquals(
+                List.of("repositories=sha256:repo-inputs", "dependencies.compile=sha256:compile-inputs"),
+                lockfile.projectResolutionInputFingerprints());
     }
 
     @Test

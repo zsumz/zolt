@@ -49,8 +49,32 @@ final class ProjectResolutionFingerprintTest {
         }
     }
 
+    @Test
+    void inputFingerprintsNameChangedInputCategories() {
+        List<String> baseInputs = ProjectResolutionFingerprint.inputFingerprints(parse(baseToml()));
+        List<String> changedRepositoryInputs = ProjectResolutionFingerprint.inputFingerprints(parse(
+                baseToml().replace("https://repo.acme.example/maven", "https://mirror.acme.example/maven")));
+        List<String> changedDependencyInputs = ProjectResolutionFingerprint.inputFingerprints(parse(
+                baseToml().replace("33.4.0-jre", "33.4.1-jre")));
+
+        assertNotEquals(valueFor(baseInputs, "repositories"), valueFor(changedRepositoryInputs, "repositories"));
+        assertEquals(
+                valueFor(baseInputs, "dependencies.compile"),
+                valueFor(changedRepositoryInputs, "dependencies.compile"));
+        assertNotEquals(
+                valueFor(baseInputs, "dependencies.compile"),
+                valueFor(changedDependencyInputs, "dependencies.compile"));
+    }
+
     private ProjectConfig parse(String toml) {
         return parser.parse(toml);
+    }
+
+    private static String valueFor(List<String> inputs, String category) {
+        return inputs.stream()
+                .filter(input -> input.startsWith(category + "="))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static String baseToml() {
