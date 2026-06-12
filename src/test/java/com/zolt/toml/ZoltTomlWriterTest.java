@@ -1,5 +1,6 @@
 package com.zolt.toml;
 
+import static com.zolt.toml.ProjectConfigFixture.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,7 +24,6 @@ import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectMetadata;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
@@ -226,47 +226,21 @@ final class ZoltTomlWriterTest {
 
     @Test
     void writesCredentialedRepositories() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("enterprise", "0.1.0", "com.acme", "17", Optional.empty()),
-                Map.of(),
-                Map.of(
+        ProjectConfig config = config()
+                .project("enterprise", "com.acme", "17", Optional.empty())
+                .repositorySettings(Map.of(
                         "central", RepositorySettings.unauthenticated("central", ProjectConfig.MAVEN_CENTRAL),
                         "company", new RepositorySettings(
                                 "company",
                                 "https://repo.acme.example/maven",
-                                Optional.of("company-artifactory"))),
-                Map.of(
+                                Optional.of("company-artifactory"))))
+                .repositoryCredentials(Map.of(
                         "company-artifactory",
                         new RepositoryCredentialSettings(
                                 "company-artifactory",
                                 "ARTIFACTORY_USERNAME",
-                                "ARTIFACTORY_ACCESS_TOKEN")),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                BuildSettings.defaults(),
-                null,
-                null,
-                null,
-                null,
-                Map.of());
+                                "ARTIFACTORY_ACCESS_TOKEN")))
+                .build();
 
         String toml = writer.write(config);
         ProjectConfig parsed = parser.parse(toml);
@@ -1070,17 +1044,14 @@ final class ZoltTomlWriterTest {
 
     @Test
     void preservesExplicitJavaTestSourceRootsWhenEditingDependencies() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
-                ProjectConfig.defaultRepositories(),
-                Map.of(),
-                Map.of(),
-                new BuildSettings(
+        ProjectConfig config = config()
+                .build(new BuildSettings(
                         "src/main/java",
                         "src/test/java",
                         "target/classes",
                         "target/test-classes",
-                        List.of("src/test/java", "src/integration-test/java")));
+                        List.of("src/test/java", "src/integration-test/java")))
+                .build();
         config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
 
         String toml = writer.write(config);
@@ -1093,18 +1064,15 @@ final class ZoltTomlWriterTest {
 
     @Test
     void preservesExplicitGroovyTestSourceRootsWhenEditingDependencies() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
-                ProjectConfig.defaultRepositories(),
-                Map.of(),
-                Map.of(),
-                new BuildSettings(
+        ProjectConfig config = config()
+                .build(new BuildSettings(
                         "src/main/java",
                         "src/test/java",
                         "target/classes",
                         "target/test-classes",
                         List.of("src/test/java"),
-                        List.of("src/test/groovy")));
+                        List.of("src/test/groovy")))
+                .build();
         config = writer.addDependency(config, DependencySection.TEST, "org.spockframework:spock-core", "2.4-M5-groovy-4.0");
 
         String toml = writer.write(config);
@@ -1141,16 +1109,12 @@ final class ZoltTomlWriterTest {
 
     @Test
     void writesManagedDependencies() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("spring", "0.1.0", "com.example", "21", Optional.empty()),
-                ProjectConfig.defaultRepositories(),
-                Map.of("org.springframework.boot:spring-boot-dependencies", "4.0.6"),
-                Map.of(),
-                Set.of("org.springframework.boot:spring-boot-starter-webmvc"),
-                Map.of(),
-                Set.of("org.junit.jupiter:junit-jupiter"),
-                BuildSettings.defaults(),
-                NativeSettings.defaults());
+        ProjectConfig config = config()
+                .project("spring", "com.example", "21", Optional.empty())
+                .platforms(Map.of("org.springframework.boot:spring-boot-dependencies", "4.0.6"))
+                .managedDependencies(Set.of("org.springframework.boot:spring-boot-starter-webmvc"))
+                .managedTestDependencies(Set.of("org.junit.jupiter:junit-jupiter"))
+                .build();
 
         String toml = writer.write(config);
         ProjectConfig parsed = parser.parse(toml);
@@ -1208,20 +1172,14 @@ final class ZoltTomlWriterTest {
 
     @Test
     void writesAnnotationProcessorDeclarationsDeterministically() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("micronaut", "0.1.0", "com.example", "21", Optional.empty()),
-                ProjectConfig.defaultRepositories(),
-                Map.of("io.micronaut.platform:micronaut-platform", "5.0.0"),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of("org.mapstruct:mapstruct-processor", "1.6.3"),
-                Set.of("io.micronaut:micronaut-inject-java"),
-                Map.of("com.example:test-processor", "1.0.0"),
-                Set.of("io.micronaut:micronaut-inject-java"),
-                BuildSettings.defaults(),
-                NativeSettings.defaults());
+        ProjectConfig config = config()
+                .project("micronaut", "com.example", "21", Optional.empty())
+                .platforms(Map.of("io.micronaut.platform:micronaut-platform", "5.0.0"))
+                .annotationProcessors(Map.of("org.mapstruct:mapstruct-processor", "1.6.3"))
+                .managedAnnotationProcessors(Set.of("io.micronaut:micronaut-inject-java"))
+                .testAnnotationProcessors(Map.of("com.example:test-processor", "1.0.0"))
+                .managedTestAnnotationProcessors(Set.of("io.micronaut:micronaut-inject-java"))
+                .build();
 
         String toml = writer.write(config);
         ProjectConfig parsed = parser.parse(toml);
@@ -1240,20 +1198,12 @@ final class ZoltTomlWriterTest {
 
     @Test
     void preservesAnnotationProcessorsWhenEditingDependencies() {
-        ProjectConfig config = new ProjectConfig(
-                new ProjectMetadata("micronaut", "0.1.0", "com.example", "21", Optional.empty()),
-                ProjectConfig.defaultRepositories(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of("org.mapstruct:mapstruct-processor", "1.6.3"),
-                Set.of("io.micronaut:micronaut-inject-java"),
-                Map.of("com.example:test-processor", "1.0.0"),
-                Set.of(),
-                BuildSettings.defaults(),
-                NativeSettings.defaults());
+        ProjectConfig config = config()
+                .project("micronaut", "com.example", "21", Optional.empty())
+                .annotationProcessors(Map.of("org.mapstruct:mapstruct-processor", "1.6.3"))
+                .managedAnnotationProcessors(Set.of("io.micronaut:micronaut-inject-java"))
+                .testAnnotationProcessors(Map.of("com.example:test-processor", "1.0.0"))
+                .build();
 
         config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
         config = writer.addManagedDependency(config, DependencySection.TEST, "com.example:test-helper");
@@ -1339,13 +1289,9 @@ final class ZoltTomlWriterTest {
     }
 
     private static ProjectConfig configWithNativeSettings() {
-        return new ProjectConfig(
-                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
-                ProjectConfig.defaultRepositories(),
-                Map.of(),
-                Map.of(),
-                BuildSettings.defaults(),
-                new NativeSettings("hello-native", "target/native-custom", List.of("--no-fallback")));
+        return config()
+                .nativeSettings(new NativeSettings("hello-native", "target/native-custom", List.of("--no-fallback")))
+                .build();
     }
 
     private static ResourceFilteringSettings resourceFilteringSettings() {
@@ -1361,26 +1307,14 @@ final class ZoltTomlWriterTest {
     }
 
     private static ProjectConfig configWithCompilerSettings() {
-        return new ProjectConfig(
-                new ProjectMetadata("hello", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
-                ProjectConfig.defaultRepositories(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                BuildSettings.defaults(),
-                NativeSettings.defaults(),
-                new CompilerSettings(
+        return config()
+                .compilerSettings(new CompilerSettings(
                         "build/generated/main",
                         "build/generated/test",
                         "17",
                         "UTF-8",
                         List.of("-Xlint:deprecation", "-parameters"),
-                        List.of("-Xlint:unchecked")));
+                        List.of("-Xlint:unchecked")))
+                .build();
     }
 }
