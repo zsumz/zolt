@@ -434,6 +434,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.PublishCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("publish")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test

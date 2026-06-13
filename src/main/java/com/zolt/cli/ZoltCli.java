@@ -48,6 +48,7 @@ import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PolicyCommand;
+import com.zolt.cli.command.PublishCommand;
 import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.SelfParityCommand;
@@ -90,15 +91,6 @@ import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionPolicy;
-import com.zolt.publish.PublishContext;
-import com.zolt.publish.PublishDryRunFormatter;
-import com.zolt.publish.PublishDryRunPlan;
-import com.zolt.publish.PublishDryRunService;
-import com.zolt.publish.PublishException;
-import com.zolt.publish.PublishReleasePolicyService;
-import com.zolt.publish.PublishUploadFormatter;
-import com.zolt.publish.PublishUploadResult;
-import com.zolt.publish.PublishUploadService;
 import com.zolt.quality.QualityCheckFormatter;
 import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckReport;
@@ -188,7 +180,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.TestCommand.class,
                 ZoltCli.CoverageCommand.class,
                 ZoltCli.PackageCommand.class,
-                ZoltCli.PublishCommand.class,
+                PublishCommand.class,
                 ZoltCli.RunPackageCommand.class,
                 ZoltCli.NativeCommand.class,
                 NativeSmokeCommand.class,
@@ -1994,47 +1986,6 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "package", workingDirectory, timingOptions, timings);
-            }
-        }
-    }
-
-    @Command(name = "publish", description = "Publish Zolt-produced artifacts to Maven-compatible repositories.")
-    public static final class PublishCommand implements Callable<Integer> {
-        @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
-        private boolean dryRun;
-
-        @Option(names = "--context", description = "Apply a publish context policy. Supported values: release.")
-        private PublishContext context;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public Integer call() {
-            try {
-                if (context != null && !dryRun) {
-                    spec.commandLine().getErr().println("error: Publish context policy is currently supported only with --dry-run.");
-                    spec.commandLine().getErr().flush();
-                    return 1;
-                }
-                if (dryRun) {
-                    PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
-                    if (context == PublishContext.RELEASE) {
-                        plan = new PublishReleasePolicyService().apply(workingDirectory, plan);
-                    }
-                    printAndFlush(spec, PublishDryRunFormatter.text(plan));
-                    return plan.ok() ? 0 : 1;
-                }
-                PublishUploadResult result = new PublishUploadService().upload(workingDirectory);
-                printAndFlush(spec, PublishUploadFormatter.text(result));
-                return 0;
-            } catch (PublishException | ZoltConfigException | PackageException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                spec.commandLine().getErr().flush();
-                return 1;
             }
         }
     }
