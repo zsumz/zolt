@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildMetadataSettings;
@@ -26,11 +27,6 @@ import com.zolt.project.QuarkusSettings;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
 import com.zolt.project.ResourceTokenSettings;
-import com.zolt.quarkus.QuarkusApplicationArtifact;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBootstrapDescriptor;
-import com.zolt.quarkus.QuarkusBootstrapWorkerResult;
-import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveService;
 import java.io.InputStream;
 import java.io.IOException;
@@ -897,7 +893,7 @@ final class PackageServiceTest {
                 new ClasspathBuilder(),
                 (projectDirectory, config, cacheRoot) -> {
                     augmented[0] = true;
-                    return Optional.of(quarkusResult(packageDirectory, runnerJar));
+                    return Optional.of(new FrameworkPackageResult(packageDirectory, runnerJar));
                 });
         ProjectConfig config = config(Optional.empty())
                 .withPackageSettings(new PackageSettings(PackageMode.QUARKUS))
@@ -1331,45 +1327,6 @@ final class PackageServiceTest {
 
     private void writeLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-    }
-
-    private QuarkusAugmentationResult quarkusResult(Path packageDirectory, Path runnerJar) {
-        return new QuarkusAugmentationResult(
-                projectDir.resolve("target/quarkus"),
-                projectDir.resolve("target/quarkus/augmentation-metadata.toml"),
-                quarkusDescriptor(packageDirectory),
-                "fingerprint",
-                new QuarkusBootstrapWorkerResult(
-                        "fingerprint",
-                        packageDirectory,
-                        runnerJar,
-                        packageDirectory.resolve("lib"),
-                        1));
-    }
-
-    private QuarkusBootstrapDescriptor quarkusDescriptor(Path packageDirectory) {
-        return new QuarkusBootstrapDescriptor(
-                projectDir.resolve("target/quarkus/bootstrap.toml"),
-                projectDir.resolve("target/quarkus/runtime-classpath.txt"),
-                projectDir.resolve("target/quarkus/deployment-classpath.txt"),
-                projectDir.resolve("target/quarkus/platform-properties.txt"),
-                projectDir.resolve("target/quarkus/application-model.txt"),
-                "io.quarkus.bootstrap.app.QuarkusBootstrap",
-                "create-production-application",
-                projectDir,
-                projectDir.resolve("target/classes"),
-                projectDir.resolve("target/quarkus"),
-                packageDirectory,
-                "fast-jar",
-                "fingerprint",
-                new QuarkusApplicationArtifact(
-                        new PackageId("com.example", "demo"),
-                        "0.1.0",
-                        projectDir.resolve("target/classes")),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of());
     }
 
     private static void createJarWithEntry(Path jarPath, String entryName) throws IOException {

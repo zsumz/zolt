@@ -3,13 +3,13 @@ package com.zolt.build;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.framework.FrameworkPackageAugmenter;
+import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveService;
@@ -66,17 +66,21 @@ public final class PackageService {
     private final ManifestGenerator manifestGenerator;
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
-    private final QuarkusBuildAugmenter quarkusBuildAugmenter;
+    private final FrameworkPackageAugmenter frameworkPackageAugmenter;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
 
     public PackageService() {
+        this(FrameworkPackageAugmenter.none());
+    }
+
+    public PackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
                 new BuildService(),
                 new ResolveService(),
                 new ManifestGenerator(),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
-                new QuarkusBuildAugmentationService()::augmentIfEnabled);
+                frameworkPackageAugmenter);
     }
 
     PackageService(
@@ -85,14 +89,14 @@ public final class PackageService {
             ManifestGenerator manifestGenerator,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
-            QuarkusBuildAugmenter quarkusBuildAugmenter) {
+            FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
                 buildService,
                 resolveService,
                 manifestGenerator,
                 lockfileReader,
                 classpathBuilder,
-                quarkusBuildAugmenter,
+                frameworkPackageAugmenter,
                 new PackageEvidenceManifestWriter());
     }
 
@@ -102,14 +106,14 @@ public final class PackageService {
             ManifestGenerator manifestGenerator,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
-            QuarkusBuildAugmenter quarkusBuildAugmenter,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackageEvidenceManifestWriter evidenceManifestWriter) {
         this.buildService = buildService;
         this.resolveService = resolveService;
         this.manifestGenerator = manifestGenerator;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
-        this.quarkusBuildAugmenter = quarkusBuildAugmenter;
+        this.frameworkPackageAugmenter = frameworkPackageAugmenter;
         this.evidenceManifestWriter = evidenceManifestWriter;
     }
 
@@ -539,14 +543,14 @@ public final class PackageService {
             ProjectConfig config,
             BuildResult buildResult,
             Path cacheRoot) {
-        Optional<QuarkusAugmentationResult> result = quarkusBuildAugmenter.augmentIfEnabled(
+        Optional<FrameworkPackageResult> result = frameworkPackageAugmenter.augmentIfEnabled(
                 projectDirectory,
                 config,
                 cacheRoot);
-        QuarkusAugmentationResult augmentationResult = result.orElseThrow(() -> new PackageException(
+        FrameworkPackageResult packageResult = result.orElseThrow(() -> new PackageException(
                 "Quarkus package mode requires [framework.quarkus] enabled = true in zolt.toml. "
                         + "Enable Quarkus, run `zolt resolve`, then retry `zolt package --mode quarkus`."));
-        Path runnerJar = augmentationResult.workerResult().runnerJar();
+        Path runnerJar = packageResult.runnerJar();
         if (!Files.isRegularFile(runnerJar)) {
             throw new PackageException(
                     "Quarkus package mode expected a runner jar at "
@@ -559,12 +563,12 @@ public final class PackageService {
                     PackageMode.QUARKUS,
                     runnerJar,
                     Optional.empty(),
-                    compiledFiles(augmentationResult.workerResult().packageDirectory()).size(),
+                    compiledFiles(packageResult.packageDirectory()).size(),
                     true);
         } catch (IOException exception) {
             throw new PackageException(
                     "Could not inspect Quarkus package directory at "
-                            + augmentationResult.workerResult().packageDirectory()
+                            + packageResult.packageDirectory()
                             + ". Check that target/quarkus-app is readable and retry.",
                     exception);
         }
@@ -585,15 +589,6 @@ public final class PackageService {
                         + "until uber jar support lands"
                         + ".");
     }
-
-    @FunctionalInterface
-    interface QuarkusBuildAugmenter {
-        Optional<QuarkusAugmentationResult> augmentIfEnabled(
-                Path projectDirectory,
-                ProjectConfig config,
-                Path cacheRoot);
-    }
-
     private Path requireOutputDirectory(BuildResult buildResult) {
         Path outputDirectory = buildResult.outputDirectory();
         if (!Files.isDirectory(outputDirectory)) {

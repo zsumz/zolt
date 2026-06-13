@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
@@ -24,8 +25,16 @@ public final class RunPackageService {
     }
 
     public RunPackageService(JdkChecker jdkDetector) {
+        this(jdkDetector, FrameworkPackageAugmenter.none());
+    }
+
+    public RunPackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(new JdkDetector(), frameworkPackageAugmenter);
+    }
+
+    public RunPackageService(JdkChecker jdkDetector, FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
-                new PackageService(),
+                new PackageService(frameworkPackageAugmenter),
                 new BuildService(jdkDetector),
                 new ClasspathBuilder(),
                 jdkDetector,
