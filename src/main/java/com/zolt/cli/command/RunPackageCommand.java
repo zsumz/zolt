@@ -41,6 +41,7 @@ public final class RunPackageCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final RunPackageService runPackageService;
     private final WorkspaceRunPackageService workspaceRunPackageService;
+    private final CommandLockfiles lockfiles;
 
     @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
     private List<String> arguments = List.of();
@@ -73,16 +74,18 @@ public final class RunPackageCommand implements Runnable {
     private CommandSpec spec;
 
     public RunPackageCommand() {
-        this(new ZoltTomlParser(), new RunPackageService(), new WorkspaceRunPackageService());
+        this(new ZoltTomlParser(), new RunPackageService(), new WorkspaceRunPackageService(), new CommandLockfiles());
     }
 
     RunPackageCommand(
             ZoltTomlParser tomlParser,
             RunPackageService runPackageService,
-            WorkspaceRunPackageService workspaceRunPackageService) {
+            WorkspaceRunPackageService workspaceRunPackageService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.runPackageService = runPackageService;
         this.workspaceRunPackageService = workspaceRunPackageService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -117,7 +120,7 @@ public final class RunPackageCommand implements Runnable {
     private void runWorkspacePackages(
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride) {
-        CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
         WorkspaceRunPackageResult result = timings.measure(
                 "run workspace packages",
                 () -> {
@@ -174,7 +177,7 @@ public final class RunPackageCommand implements Runnable {
                         "config read",
                         () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
                 packageModeOverride);
-        CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         RunPackageResult result = timings.measure(
                 "run packaged application",
                 () -> runPackageService.runPackage(

@@ -27,6 +27,7 @@ public final class ClasspathCommand implements Runnable {
     private final ClasspathLaneAuditFormatter auditFormatter;
     private final ClasspathBuilder classpathBuilder;
     private final ClasspathFormatter classpathFormatter;
+    private final CommandLockfiles lockfiles;
 
     enum Kind {
         COMPILE("compile"),
@@ -87,7 +88,8 @@ public final class ClasspathCommand implements Runnable {
                 new ZoltTomlParser(),
                 new ClasspathLaneAuditFormatter(),
                 new ClasspathBuilder(),
-                new ClasspathFormatter());
+                new ClasspathFormatter(),
+                new CommandLockfiles());
     }
 
     ClasspathCommand(
@@ -95,12 +97,14 @@ public final class ClasspathCommand implements Runnable {
             ZoltTomlParser tomlParser,
             ClasspathLaneAuditFormatter auditFormatter,
             ClasspathBuilder classpathBuilder,
-            ClasspathFormatter classpathFormatter) {
+            ClasspathFormatter classpathFormatter,
+            CommandLockfiles lockfiles) {
         this.lockfileReader = lockfileReader;
         this.tomlParser = tomlParser;
         this.auditFormatter = auditFormatter;
         this.classpathBuilder = classpathBuilder;
         this.classpathFormatter = classpathFormatter;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -109,7 +113,7 @@ public final class ClasspathCommand implements Runnable {
             Path configPath = workingDirectory.resolve("zolt.toml");
             if (Files.isRegularFile(configPath)) {
                 ProjectConfig config = tomlParser.parse(configPath);
-                CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
             }
             ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
             Kind parsedKind = Kind.parse(kind);

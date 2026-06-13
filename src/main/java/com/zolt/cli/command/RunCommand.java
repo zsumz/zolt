@@ -38,6 +38,7 @@ public final class RunCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final RunService runService;
     private final WorkspaceRunService workspaceRunService;
+    private final CommandLockfiles lockfiles;
 
     @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
     private List<String> arguments = List.of();
@@ -67,13 +68,18 @@ public final class RunCommand implements Runnable {
     private CommandSpec spec;
 
     public RunCommand() {
-        this(new ZoltTomlParser(), new RunService(), new WorkspaceRunService());
+        this(new ZoltTomlParser(), new RunService(), new WorkspaceRunService(), new CommandLockfiles());
     }
 
-    RunCommand(ZoltTomlParser tomlParser, RunService runService, WorkspaceRunService workspaceRunService) {
+    RunCommand(
+            ZoltTomlParser tomlParser,
+            RunService runService,
+            WorkspaceRunService workspaceRunService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.runService = runService;
         this.workspaceRunService = workspaceRunService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -81,7 +87,7 @@ public final class RunCommand implements Runnable {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         try {
             if (workspace) {
-                CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
                 WorkspaceRunResult result = timings.measure(
                         "run workspace",
                         () -> {
@@ -124,7 +130,7 @@ public final class RunCommand implements Runnable {
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-            CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+            lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
             RunResult result = timings.measure(
                     "run application",
                     () -> runService.run(

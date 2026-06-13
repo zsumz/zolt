@@ -46,6 +46,7 @@ public final class PackageCommand implements Runnable {
     private final PackageService packageService;
     private final BuildService buildService;
     private final WorkspacePackageService workspacePackageService;
+    private final CommandLockfiles lockfiles;
 
     @Option(names = "--workspace", description = "Package workspace members in dependency order.")
     private boolean workspace;
@@ -87,7 +88,8 @@ public final class PackageCommand implements Runnable {
                 new PackagePlanFormatter(),
                 new PackageService(),
                 new BuildService(),
-                new WorkspacePackageService());
+                new WorkspacePackageService(),
+                new CommandLockfiles());
     }
 
     PackageCommand(
@@ -96,13 +98,15 @@ public final class PackageCommand implements Runnable {
             PackagePlanFormatter packagePlanFormatter,
             PackageService packageService,
             BuildService buildService,
-            WorkspacePackageService workspacePackageService) {
+            WorkspacePackageService workspacePackageService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.packagePlanService = packagePlanService;
         this.packagePlanFormatter = packagePlanFormatter;
         this.packageService = packageService;
         this.buildService = buildService;
         this.workspacePackageService = workspacePackageService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -143,7 +147,7 @@ public final class PackageCommand implements Runnable {
         if (planOnly) {
             throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
         }
-        CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
         WorkspacePackageResult result = timings.measure(
                 "package workspace",
                 () -> {
@@ -188,7 +192,7 @@ public final class PackageCommand implements Runnable {
                         "config read",
                         () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
                 packageModeOverride);
-        CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         if (planOnly) {
             PackagePlan packagePlan = timings.measure(
                     "plan package contents",

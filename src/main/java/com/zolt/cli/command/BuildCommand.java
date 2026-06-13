@@ -39,6 +39,7 @@ public final class BuildCommand implements Runnable {
     private final BuildService buildService;
     private final WorkspaceBuildService workspaceBuildService;
     private final QuarkusBuildAugmentationService quarkusBuildAugmentationService;
+    private final CommandLockfiles lockfiles;
 
     @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
     private boolean offline;
@@ -72,18 +73,21 @@ public final class BuildCommand implements Runnable {
                 new ZoltTomlParser(),
                 new BuildService(),
                 new WorkspaceBuildService(),
-                new QuarkusBuildAugmentationService());
+                new QuarkusBuildAugmentationService(),
+                new CommandLockfiles());
     }
 
     BuildCommand(
             ZoltTomlParser tomlParser,
             BuildService buildService,
             WorkspaceBuildService workspaceBuildService,
-            QuarkusBuildAugmentationService quarkusBuildAugmentationService) {
+            QuarkusBuildAugmentationService quarkusBuildAugmentationService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.buildService = buildService;
         this.workspaceBuildService = workspaceBuildService;
         this.quarkusBuildAugmentationService = quarkusBuildAugmentationService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -91,7 +95,7 @@ public final class BuildCommand implements Runnable {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         try {
             if (workspace) {
-                CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
+                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
                 WorkspaceBuildResult result = timings.measure(
                         "build workspace",
                         () -> {
@@ -125,7 +129,7 @@ public final class BuildCommand implements Runnable {
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-            CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
+            lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
             BuildResult result = timings.measure(
                     "compile main",
                     () -> buildService.build(workingDirectory, config, cacheRoot, offline),

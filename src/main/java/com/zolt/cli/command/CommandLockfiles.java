@@ -12,10 +12,24 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 final class CommandLockfiles {
-    private CommandLockfiles() {
+    private final ResolveService resolveService;
+    private final WorkspaceDiscoveryService workspaceDiscoveryService;
+    private final WorkspaceResolveService workspaceResolveService;
+
+    CommandLockfiles() {
+        this(new ResolveService(), new WorkspaceDiscoveryService(), new WorkspaceResolveService());
     }
 
-    static void requireFreshLockfile(
+    CommandLockfiles(
+            ResolveService resolveService,
+            WorkspaceDiscoveryService workspaceDiscoveryService,
+            WorkspaceResolveService workspaceResolveService) {
+        this.resolveService = resolveService;
+        this.workspaceDiscoveryService = workspaceDiscoveryService;
+        this.workspaceResolveService = workspaceResolveService;
+    }
+
+    void requireFreshLockfile(
             Path workingDirectory,
             ProjectConfig config,
             Path cacheRoot,
@@ -24,11 +38,11 @@ final class CommandLockfiles {
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
             return;
         }
-        new ResolveService().resolve(workingDirectory, config, cacheRoot, true, offline);
+        resolveService.resolve(workingDirectory, config, cacheRoot, true, offline);
     }
 
-    static void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
-        Optional<Workspace> workspace = new WorkspaceDiscoveryService().discover(workingDirectory.toAbsolutePath().normalize());
+    void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
+        Optional<Workspace> workspace = workspaceDiscoveryService.discover(workingDirectory.toAbsolutePath().normalize());
         if (workspace.isEmpty()) {
             return;
         }
@@ -36,7 +50,7 @@ final class CommandLockfiles {
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
             return;
         }
-        new WorkspaceResolveService().resolve(workingDirectory, cacheRoot, true, offline);
+        workspaceResolveService.resolve(workingDirectory, cacheRoot, true, offline);
     }
 
     private static boolean looksGeneratedLockfile(Path lockfilePath) {

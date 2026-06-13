@@ -45,6 +45,7 @@ public final class TestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final TestRunService testRunService;
     private final WorkspaceTestService workspaceTestService;
+    private final CommandLockfiles lockfiles;
 
     @Option(names = "--workspace", description = "Test workspace members in dependency order.")
     private boolean workspace;
@@ -92,13 +93,18 @@ public final class TestCommand implements Runnable {
     private CommandSpec spec;
 
     public TestCommand() {
-        this(new ZoltTomlParser(), new TestRunService(), new WorkspaceTestService());
+        this(new ZoltTomlParser(), new TestRunService(), new WorkspaceTestService(), new CommandLockfiles());
     }
 
-    TestCommand(ZoltTomlParser tomlParser, TestRunService testRunService, WorkspaceTestService workspaceTestService) {
+    TestCommand(
+            ZoltTomlParser tomlParser,
+            TestRunService testRunService,
+            WorkspaceTestService workspaceTestService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.testRunService = testRunService;
         this.workspaceTestService = workspaceTestService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -152,7 +158,7 @@ public final class TestCommand implements Runnable {
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
-        CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
         WorkspaceTestResult result = timings.measure(
                 "test workspace",
                 () -> {
@@ -210,7 +216,7 @@ public final class TestCommand implements Runnable {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-        CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         TestRunResult result = timings.measure(
                 "run tests",
                 () -> {
