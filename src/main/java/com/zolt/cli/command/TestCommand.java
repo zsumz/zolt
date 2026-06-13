@@ -31,7 +31,6 @@ import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.List;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -43,6 +42,10 @@ import picocli.CommandLine.Spec;
         mixinStandardHelpOptions = true,
         description = "Compile and run tests, starting with JUnit support.")
 public final class TestCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final TestRunService testRunService;
+    private final WorkspaceTestService workspaceTestService;
+
     @Option(names = "--workspace", description = "Test workspace members in dependency order.")
     private boolean workspace;
 
@@ -87,6 +90,16 @@ public final class TestCommand implements Runnable {
 
     @Spec
     private CommandSpec spec;
+
+    public TestCommand() {
+        this(new ZoltTomlParser(), new TestRunService(), new WorkspaceTestService());
+    }
+
+    TestCommand(ZoltTomlParser tomlParser, TestRunService testRunService, WorkspaceTestService workspaceTestService) {
+        this.tomlParser = tomlParser;
+        this.testRunService = testRunService;
+        this.workspaceTestService = workspaceTestService;
+    }
 
     @Override
     public void run() {
@@ -140,7 +153,6 @@ public final class TestCommand implements Runnable {
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
         CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-        WorkspaceTestService workspaceTestService = new WorkspaceTestService();
         WorkspaceTestResult result = timings.measure(
                 "test workspace",
                 () -> {
@@ -197,9 +209,8 @@ public final class TestCommand implements Runnable {
             List<String> requestedTestEvents) {
         ProjectConfig config = timings.measure(
                 "config read",
-                () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
         CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
-        TestRunService testRunService = new TestRunService();
         TestRunResult result = timings.measure(
                 "run tests",
                 () -> {
