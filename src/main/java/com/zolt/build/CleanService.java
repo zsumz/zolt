@@ -1,12 +1,12 @@
 package com.zolt.build;
 
+import com.zolt.framework.FrameworkCleanTargets;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusOutputLayout;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +19,16 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public final class CleanService {
+    private final FrameworkCleanTargets frameworkCleanTargets;
+
+    public CleanService() {
+        this(new FrameworkCleanTargets());
+    }
+
+    CleanService(FrameworkCleanTargets frameworkCleanTargets) {
+        this.frameworkCleanTargets = frameworkCleanTargets;
+    }
+
     public CleanResult clean(Path projectDirectory, BuildSettings settings) {
         return clean(projectDirectory, settings, CompilerSettings.defaults());
     }
@@ -32,11 +42,7 @@ public final class CleanService {
     public CleanResult clean(Path projectDirectory, ProjectConfig config) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         Set<Path> targets = cleanTargets(projectRoot, config.build(), config.compilerSettings());
-        if (config.frameworkSettings().quarkus().enabled()) {
-            QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(projectRoot);
-            targets.add(outputLayout.augmentationDirectory());
-            targets.add(outputLayout.packageDirectory());
-        }
+        targets.addAll(frameworkCleanTargets.cleanTargets(projectRoot, config));
         return cleanTargets(targets);
     }
 
