@@ -53,6 +53,7 @@ import com.zolt.cli.command.PublishCommand;
 import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.ResolveCommand;
+import com.zolt.cli.command.SelfCheckCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TreeCommand;
 import com.zolt.cli.command.UpdateCommand;
@@ -92,8 +93,6 @@ import com.zolt.quarkus.QuarkusTestPlanService;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
-import com.zolt.selfhost.SelfCheckResult;
-import com.zolt.selfhost.SelfCheckService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
@@ -165,7 +164,7 @@ import picocli.CommandLine.Spec;
                 NativeSmokeCommand.class,
                 ReleaseArchiveCommand.class,
                 ReleaseVerifyCommand.class,
-                ZoltCli.SelfCheckCommand.class,
+                SelfCheckCommand.class,
                 SelfParityCommand.class,
                 CleanCommand.class,
                 DoctorCommand.class
@@ -1732,52 +1731,6 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    @Command(name = "self-check", description = "Run the self-hosting verification path.")
-    public static final class SelfCheckCommand implements Runnable {
-        @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
-        private boolean offline;
-
-        @Option(names = "--native", description = "Also build and smoke the Native Image binary.")
-        private boolean nativeCheck;
-
-        @Option(names = "--native-image", description = "Path to the native-image executable.")
-        private Path nativeImageExecutable;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            try {
-                SelfCheckResult result = timings.measure(
-                        "self-check",
-                        () -> new SelfCheckService().check(
-                                workingDirectory,
-                                cacheRoot,
-                                offline,
-                                nativeCheck,
-                                nativeImageExecutable),
-                        ZoltCli::selfCheckAttributes);
-                printSelfCheckStatus(spec, result);
-                if (!result.ok()) {
-                    throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");
-                }
-            } finally {
-                printTimings(spec, "self-check", workingDirectory, timingOptions, timings);
-            }
-        }
-    }
-
     public abstract static class StubCommand implements Runnable {
         private final String name;
 
@@ -2222,14 +2175,6 @@ public final class ZoltCli implements Runnable {
                 "diagnostics", Integer.toString(model.diagnostics().size()));
     }
 
-    private static Map<String, String> selfCheckAttributes(SelfCheckResult result) {
-        long failedSteps = result.steps().stream().filter(step -> !step.ok()).count();
-        return Map.of(
-                "steps", Integer.toString(result.steps().size()),
-                "failedSteps", Long.toString(failedSteps),
-                "ok", Boolean.toString(result.ok()));
-    }
-
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
         spec.commandLine().getOut().println("Resolved " + result.resolvedCount() + " packages");
         spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
@@ -2316,14 +2261,6 @@ public final class ZoltCli implements Runnable {
         selectedMembers.addAll(members);
         selectedMembers.addAll(memberGroups);
         return new WorkspaceSelectionRequest(all, selectedMembers);
-    }
-
-    private static void printSelfCheckStatus(CommandSpec spec, SelfCheckResult result) {
-        spec.commandLine().getOut().println("Self-check status: " + (result.ok() ? "ok" : "error"));
-        for (SelfCheckResult.SelfCheckStep step : result.steps()) {
-            String marker = step.ok() ? "ok" : "error";
-            spec.commandLine().getOut().println(marker + ": " + step.name() + " - " + step.message());
-        }
     }
 
     private record AddRequest(

@@ -318,7 +318,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$SelfCheckCommand",
+    "name": "com.zolt.cli.command.SelfCheckCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
