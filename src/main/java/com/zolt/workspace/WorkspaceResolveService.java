@@ -9,6 +9,8 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.project.RepositorySettings;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
@@ -467,12 +469,31 @@ public final class WorkspaceResolveService {
                     Optional.empty(),
                     Optional.empty(),
                     Optional.of(edge.to()),
-                    Optional.of(target.config().build().output()),
+                    Optional.of(workspaceOutput(workspace.root(), target)),
                     List.of(),
                     List.of(edge.from()),
                     edge.exported() ? List.of(edge.from()) : List.of()));
         }
         return packages;
+    }
+
+    private static String workspaceOutput(Path workspaceRoot, WorkspaceMember member) {
+        String configuredOutput = member.config().build().output();
+        try {
+            Path memberRoot = ProjectPaths.existingRoot(
+                    ProjectPaths.root(workspaceRoot),
+                    "[workspace].members",
+                    member.path());
+            ProjectPaths.output(memberRoot, "[build].output", configuredOutput);
+            return configuredOutput;
+        } catch (ProjectPathException exception) {
+            throw new ResolveException(
+                    "Workspace member `"
+                            + member.path()
+                            + "` has an invalid [build].output. "
+                            + exception.getMessage(),
+                    exception);
+        }
     }
 
     private static Set<PackageId> exportedExternalPackageIds(ProjectConfig config) {

@@ -148,6 +148,9 @@ final class WorkspaceClasspathServiceTest {
             List<String> members,
             List<WorkspaceProjectEdge> edges) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), "");
+        for (String member : members) {
+            Files.createDirectories(tempDir.resolve(member));
+        }
         return new Workspace(
                 tempDir,
                 tempDir.resolve("zolt-workspace.toml"),

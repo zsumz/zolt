@@ -159,6 +159,34 @@ final class WorkspaceResolveServiceTest {
     }
 
     @Test
+    void rejectsUnsafeWorkspaceMemberOutputBeforeWritingLockfile() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core", """
+
+                [build]
+                output = "../classes"
+                """);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> service.resolve(tempDir, tempDir.resolve("cache"), false, false));
+
+        assertTrue(exception.getMessage().contains("Workspace member `modules/core` has an invalid [build].output"));
+        assertTrue(exception.getMessage().contains("[build].output"));
+        assertTrue(exception.getMessage().contains("../classes"));
+        assertFalse(Files.exists(tempDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void recordsExportedWorkspacePackageOwners() throws IOException {
         workspace("""
                 [workspace]

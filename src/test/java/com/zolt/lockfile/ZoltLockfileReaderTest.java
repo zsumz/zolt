@@ -10,11 +10,17 @@ import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class ZoltLockfileReaderTest {
     private final ZoltLockfileReader reader = new ZoltLockfileReader();
+
+    @TempDir
+    private Path tempDir;
 
     @Test
     void readsCurrentLockfileVersion() throws IOException {
@@ -244,7 +250,9 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
-    void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() {
+    void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() throws IOException {
+        Path workspaceRoot = tempDir.resolve("workspace");
+        Files.createDirectories(workspaceRoot.resolve("modules/core"));
         ZoltLockfile lockfile = reader.read("""
                 version = 1
 
@@ -261,10 +269,62 @@ final class ZoltLockfileReaderTest {
 
         List<ResolvedClasspathPackage> packages = reader.classpathPackages(
                 lockfile,
-                java.nio.file.Path.of("cache"),
-                java.nio.file.Path.of("workspace"));
+                tempDir.resolve("cache"),
+                workspaceRoot);
 
-        assertEquals(java.nio.file.Path.of("workspace/modules/core/target/classes"), packages.getFirst().resolvedPackage().jarPath());
+        assertEquals(
+                workspaceRoot.resolve("modules/core/target/classes"),
+                packages.getFirst().resolvedPackage().jarPath());
+    }
+
+    @Test
+    void rejectsWorkspaceClasspathMemberThatEscapesWorkspaceRoot() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.acme:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "../outside"
+                workspaceOutput = "target/classes"
+                dependencies = []
+                """);
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir.resolve("workspace")));
+
+        assertTrue(exception.getMessage().contains("workspace"));
+        assertTrue(exception.getMessage().contains("../outside"));
+    }
+
+    @Test
+    void rejectsWorkspaceClasspathOutputThatEscapesMemberRoot() throws IOException {
+        Path workspaceRoot = tempDir.resolve("workspace");
+        Files.createDirectories(workspaceRoot.resolve("modules/core"));
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.acme:core"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/core"
+                workspaceOutput = "../classes"
+                dependencies = []
+                """);
+
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.classpathPackages(lockfile, tempDir.resolve("cache"), workspaceRoot));
+
+        assertTrue(exception.getMessage().contains("workspaceOutput"));
+        assertTrue(exception.getMessage().contains("../classes"));
     }
 
     @Test

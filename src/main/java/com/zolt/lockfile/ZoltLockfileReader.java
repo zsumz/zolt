@@ -1,6 +1,8 @@
 package com.zolt.lockfile;
 
 import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
@@ -75,9 +77,7 @@ public final class ZoltLockfileReader {
                         || (lockPackage.workspace().isPresent() && lockPackage.workspaceOutput().isPresent()))
                 .map(lockPackage -> {
                     Path classpathPath = lockPackage.workspace().isPresent()
-                            ? workspaceRoot.resolve(lockPackage.workspace().orElseThrow())
-                                    .resolve(lockPackage.workspaceOutput().orElseThrow())
-                                    .normalize()
+                            ? workspaceClasspathPath(workspaceRoot, lockPackage)
                             : cacheRoot.resolve(lockPackage.jar().orElseThrow());
                     return new ResolvedClasspathPackage(
                             new ResolvedPackage(
@@ -89,6 +89,17 @@ public final class ZoltLockfileReader {
                             lockPackage.scope());
                 })
                 .toList();
+    }
+
+    private static Path workspaceClasspathPath(Path workspaceRoot, LockPackage lockPackage) {
+        try {
+            Path root = ProjectPaths.root(workspaceRoot);
+            String workspace = lockPackage.workspace().orElseThrow();
+            Path memberRoot = ProjectPaths.existingRoot(root, "workspace", workspace);
+            return ProjectPaths.output(memberRoot, "workspaceOutput", lockPackage.workspaceOutput().orElseThrow());
+        } catch (ProjectPathException exception) {
+            throw new LockfileReadException(exception.getMessage(), exception);
+        }
     }
 
     private ZoltLockfile read(TomlParseResult result) {
