@@ -16,6 +16,8 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "self-check", description = "Run the self-hosting verification path.")
 public final class SelfCheckCommand implements Runnable {
+    private final SelfCheckService selfCheckService;
+
     @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
     private boolean offline;
 
@@ -37,13 +39,21 @@ public final class SelfCheckCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public SelfCheckCommand() {
+        this(new SelfCheckService());
+    }
+
+    SelfCheckCommand(SelfCheckService selfCheckService) {
+        this.selfCheckService = selfCheckService;
+    }
+
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         try {
             SelfCheckResult result = timings.measure(
                     "self-check",
-                    () -> new SelfCheckService().check(
+                    () -> selfCheckService.check(
                             workingDirectory,
                             cacheRoot,
                             offline,

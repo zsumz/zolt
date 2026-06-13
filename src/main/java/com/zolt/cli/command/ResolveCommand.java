@@ -20,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -29,6 +28,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "resolve", description = "Resolve dependencies, download artifacts, and write zolt.lock.")
 public final class ResolveCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final ResolveService resolveService;
+    private final WorkspaceResolveService workspaceResolveService;
+
     @Option(names = "--locked", description = "Fail if zolt.lock would change.")
     private boolean locked;
 
@@ -63,6 +66,19 @@ public final class ResolveCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public ResolveCommand() {
+        this(new ZoltTomlParser(), new ResolveService(), new WorkspaceResolveService());
+    }
+
+    ResolveCommand(
+            ZoltTomlParser tomlParser,
+            ResolveService resolveService,
+            WorkspaceResolveService workspaceResolveService) {
+        this.tomlParser = tomlParser;
+        this.resolveService = resolveService;
+        this.workspaceResolveService = workspaceResolveService;
+    }
+
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
@@ -75,7 +91,7 @@ public final class ResolveCommand implements Runnable {
                 }
                 ResolveResult result = timings.measure(
                         "resolve workspace",
-                        () -> new WorkspaceResolveService().resolve(
+                        () -> workspaceResolveService.resolve(
                                 workingDirectory,
                                 cacheRoot,
                                 locked,
@@ -86,10 +102,10 @@ public final class ResolveCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             ResolveResult result = timings.measure(
                     "resolve graph",
-                    () -> new ResolveService().resolve(
+                    () -> resolveService.resolve(
                             workingDirectory,
                             config,
                             cacheRoot,

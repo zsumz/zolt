@@ -21,6 +21,8 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "check", description = "Run Zolt-owned quality checks.")
 public final class CheckCommand implements Callable<Integer> {
+    private final QualityCheckService qualityCheckService;
+
     enum Format {
         TEXT,
         JSON
@@ -74,12 +76,20 @@ public final class CheckCommand implements Callable<Integer> {
     @Spec
     private CommandSpec spec;
 
+    public CheckCommand() {
+        this(new QualityCheckService());
+    }
+
+    CheckCommand(QualityCheckService qualityCheckService) {
+        this.qualityCheckService = qualityCheckService;
+    }
+
     @Override
     public Integer call() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         QualityCheckReport report = timings.measure(
                 "run quality checks",
-                () -> new QualityCheckService().check(new QualityCheckRequest(
+                () -> qualityCheckService.check(new QualityCheckRequest(
                         workingDirectory,
                         cacheRoot,
                         offline,
