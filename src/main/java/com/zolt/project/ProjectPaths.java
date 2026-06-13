@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 public final class ProjectPaths {
     private static final Pattern WINDOWS_ABSOLUTE = Pattern.compile("^[A-Za-z]:[\\\\/].*");
+    private static final Pattern SAFE_FILENAME_COMPONENT = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._+-]*");
 
     private ProjectPaths() {
     }
@@ -29,6 +30,18 @@ public final class ProjectPaths {
             requireExistingInsideProject(projectRoot, key, configuredPath, path);
         }
         return path;
+    }
+
+    public static String filenameComponent(String key, String value) {
+        if (value == null || value.isBlank() || !SAFE_FILENAME_COMPONENT.matcher(value).matches()) {
+            throw new ProjectPathException(
+                    "Invalid "
+                            + key
+                            + " value `"
+                            + value
+                            + "` cannot be used in derived file names. Use letters, digits, '.', '_', '-', or '+', and do not use path separators.");
+        }
+        return value;
     }
 
     private static void requireExistingAncestorInsideProject(

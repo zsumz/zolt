@@ -7,6 +7,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPaths;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.resolve.DependencyScope;
@@ -609,15 +610,23 @@ public final class PackageService {
     }
 
     private static Path archivePath(Path projectDirectory, ProjectConfig config, String extension) {
-        return projectDirectory
-                .resolve("target")
-                .resolve(config.project().name() + "-" + config.project().version() + "." + extension);
+        return ProjectPaths.output(
+                projectDirectory,
+                "package archive",
+                "target/" + artifactBaseName(config) + "." + extension);
     }
 
     private static Path classifierJarPath(Path projectDirectory, ProjectConfig config, String classifier) {
-        return projectDirectory
-                .resolve("target")
-                .resolve(config.project().name() + "-" + config.project().version() + "-" + classifier + ".jar");
+        return ProjectPaths.output(
+                projectDirectory,
+                "package artifact",
+                "target/" + artifactBaseName(config) + "-" + classifier + ".jar");
+    }
+
+    private static String artifactBaseName(ProjectConfig config) {
+        return ProjectPaths.filenameComponent("[project].name", config.project().name())
+                + "-"
+                + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
     private List<PackageArtifact> packageSupplementalArtifacts(
@@ -640,7 +649,7 @@ public final class PackageService {
     }
 
     private static PackageArtifact packageSourcesJar(Path projectDirectory, ProjectConfig config) {
-        Path sourceRoot = projectDirectory.resolve(config.build().source()).normalize();
+        Path sourceRoot = ProjectPaths.existingRoot(projectDirectory, "[build].source", config.build().source());
         Path jarPath = classifierJarPath(projectDirectory, config, "sources");
         try {
             Files.createDirectories(jarPath.getParent());
@@ -662,8 +671,8 @@ public final class PackageService {
             BuildResult buildResult,
             Optional<List<ResolvedClasspathPackage>> classpathPackages,
             Optional<ClasspathSet> classpaths) {
-        Path sourceRoot = projectDirectory.resolve(config.build().source()).normalize();
-        Path javadocDirectory = projectDirectory.resolve("target/javadoc").normalize();
+        Path sourceRoot = ProjectPaths.existingRoot(projectDirectory, "[build].source", config.build().source());
+        Path javadocDirectory = ProjectPaths.output(projectDirectory, "package javadoc output", "target/javadoc");
         Path jarPath = classifierJarPath(projectDirectory, config, "javadoc");
         try {
             Files.createDirectories(jarPath.getParent());
@@ -691,7 +700,7 @@ public final class PackageService {
     }
 
     private static PackageArtifact packageTestJar(Path projectDirectory, ProjectConfig config) {
-        Path testOutput = projectDirectory.resolve(config.build().testOutput()).normalize();
+        Path testOutput = ProjectPaths.output(projectDirectory, "[build].testOutput", config.build().testOutput());
         Path jarPath = classifierJarPath(projectDirectory, config, "tests");
         if (!Files.isDirectory(testOutput)) {
             throw new PackageException(

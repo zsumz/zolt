@@ -20,6 +20,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.ProjectPathException;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.ResourceFilteringSettings;
@@ -43,6 +44,7 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -83,6 +85,58 @@ final class PackageServiceTest {
             assertEquals("1.0", attributes.getValue(Attributes.Name.MANIFEST_VERSION));
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
         }
+    }
+
+    @Test
+    void rejectsPackageArchiveNameThatUsesUnsafeProjectName() throws IOException {
+        writeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        ProjectPathException exception = assertThrows(
+                ProjectPathException.class,
+                () -> packageService.packageJar(
+                        projectDir,
+                        config(new ProjectMetadata(
+                                "../outside",
+                                "0.1.0",
+                                "com.example",
+                                currentJavaMajorVersion(),
+                                Optional.of("com.example.Main"))),
+                        projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("[project].name"));
+        assertTrue(exception.getMessage().contains("../outside"));
+        assertFalse(Files.exists(projectDir.resolve("target/outside-0.1.0.jar")));
+    }
+
+    @Test
+    void rejectsPackageArchiveWhenTargetParentSymlinkEscapesProject() throws IOException {
+        writeLockfile();
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-target-");
+        createSymlink(projectDir.resolve("target"), outside);
+        Path classes = projectDir.resolve("classes/com/example/Main.class");
+        Files.createDirectories(classes.getParent());
+        Files.write(classes, new byte[] {0});
+        BuildResult buildResult = new BuildResult(Optional.empty(), 1, 0, projectDir.resolve("classes"), "");
+
+        ProjectPathException exception = assertThrows(
+                ProjectPathException.class,
+                () -> packageService.packageJar(
+                        projectDir,
+                        config(Optional.of("com.example.Main")),
+                        buildResult));
+
+        assertTrue(exception.getMessage().contains("package archive"));
+        assertTrue(exception.getMessage().contains("target/demo-0.1.0.jar"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertFalse(Files.exists(outside.resolve("demo-0.1.0.jar")));
     }
 
     @Test
@@ -1190,8 +1244,12 @@ final class PackageServiceTest {
     }
 
     private static ProjectConfig config(Optional<String> mainClass) {
+        return config(new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass));
+    }
+
+    private static ProjectConfig config(ProjectMetadata projectMetadata) {
         return new ProjectConfig(
-                new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
+                projectMetadata,
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),
                 Map.of(),
@@ -1275,6 +1333,14 @@ final class PackageServiceTest {
             output.putNextEntry(new JarEntry(entryName));
             output.write(new byte[] {0});
             output.closeEntry();
+        }
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
         }
     }
 

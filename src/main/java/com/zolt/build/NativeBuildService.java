@@ -7,6 +7,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -55,13 +56,15 @@ public final class NativeBuildService {
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList());
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
-        Path outputDirectory = projectDirectory.resolve(nativeSettings.output());
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
+        String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
         NativeImageResult nativeImageResult = nativeImageRunner.build(new NativeImageRequest(
                 nativeImageExecutable,
                 packageResult.jarPath(),
                 classpaths.runtime().entries(),
                 mainClass,
-                outputDirectory.resolve(nativeSettings.imageName()),
+                outputDirectory.resolve(imageName),
                 outputDirectory.resolve("native-image.log"),
                 nativeSettings.args()));
         reportSeriousWarnings(nativeImageResult);

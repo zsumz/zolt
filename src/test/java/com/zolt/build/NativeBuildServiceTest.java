@@ -13,6 +13,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.ProjectPathException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -122,6 +123,64 @@ final class NativeBuildServiceTest {
         assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
+    @Test
+    void rejectsNativeOutputThatEscapesProject() throws IOException {
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        NativeBuildService service = service(command -> {
+            throw new AssertionError("native-image should not run");
+        });
+
+        ProjectPathException exception = assertThrows(
+                ProjectPathException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        config(
+                                Optional.of("com.example.Main"),
+                                new NativeSettings("demo-native", "../native-out", List.of())),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("[native].output"));
+        assertTrue(exception.getMessage().contains("../native-out"));
+    }
+
+    @Test
+    void rejectsNativeImageNameThatUsesPathSeparator() throws IOException {
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        NativeBuildService service = service(command -> {
+            throw new AssertionError("native-image should not run");
+        });
+
+        ProjectPathException exception = assertThrows(
+                ProjectPathException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        config(
+                                Optional.of("com.example.Main"),
+                                new NativeSettings("bin/demo", "target/native-custom", List.of())),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("[native].imageName"));
+        assertTrue(exception.getMessage().contains("bin/demo"));
+    }
+
     private NativeBuildService service(NativeImageRunner.ProcessRunner processRunner) {
         return new NativeBuildService(
                 new PackageService(),
@@ -160,16 +219,22 @@ final class NativeBuildServiceTest {
     }
 
     private static ProjectConfig config(Optional<String> mainClass) {
+        return config(
+                mainClass,
+                new NativeSettings(
+                        "demo-native",
+                        "target/native-custom",
+                        List.of("--no-fallback", "--native-image-info")));
+    }
+
+    private static ProjectConfig config(Optional<String> mainClass, NativeSettings nativeSettings) {
         return new ProjectConfig(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),
                 Map.of(),
                 BuildSettings.defaults(),
-                new NativeSettings(
-                        "demo-native",
-                        "target/native-custom",
-                        List.of("--no-fallback", "--native-image-info")));
+                nativeSettings);
     }
 
     private static String currentJavaMajorVersion() {

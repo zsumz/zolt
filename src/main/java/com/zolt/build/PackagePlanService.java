@@ -5,6 +5,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import java.nio.file.Path;
@@ -296,11 +297,15 @@ public final class PackagePlanService {
 
     private static Path archivePath(Path projectRoot, ProjectConfig config, PackageMode mode) {
         return switch (mode) {
-            case WAR, SPRING_BOOT_WAR -> projectRoot.resolve("target")
-                    .resolve(config.project().name() + "-" + config.project().version() + ".war");
-            case QUARKUS -> projectRoot.resolve("target/quarkus-app/quarkus-run.jar");
-            default -> projectRoot.resolve("target")
-                    .resolve(config.project().name() + "-" + config.project().version() + ".jar");
+            case WAR, SPRING_BOOT_WAR -> ProjectPaths.output(
+                    projectRoot,
+                    "package archive",
+                    "target/" + artifactBaseName(config) + ".war");
+            case QUARKUS -> ProjectPaths.output(projectRoot, "package archive", "target/quarkus-app/quarkus-run.jar");
+            default -> ProjectPaths.output(
+                    projectRoot,
+                    "package archive",
+                    "target/" + artifactBaseName(config) + ".jar");
         };
     }
 
@@ -308,8 +313,16 @@ public final class PackagePlanService {
         if (mode != PackageMode.THIN) {
             return Optional.empty();
         }
-        return Optional.of(projectRoot.resolve("target")
-                .resolve(config.project().name() + "-" + config.project().version() + ".runtime-classpath"));
+        return Optional.of(ProjectPaths.output(
+                projectRoot,
+                "package runtime classpath",
+                "target/" + artifactBaseName(config) + ".runtime-classpath"));
+    }
+
+    private static String artifactBaseName(ProjectConfig config) {
+        return ProjectPaths.filenameComponent("[project].name", config.project().name())
+                + "-"
+                + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
     private static String applicationLayout(PackageMode mode) {

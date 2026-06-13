@@ -55,6 +55,24 @@ final class ProjectPathsTest {
     }
 
     @Test
+    void rejectsUnsafeFilenameComponents() {
+        ProjectPathException exception = assertThrows(
+                ProjectPathException.class,
+                () -> ProjectPaths.filenameComponent("[project].name", "../outside"));
+
+        assertTrue(exception.getMessage().contains("[project].name"));
+        assertTrue(exception.getMessage().contains("../outside"));
+        assertTrue(exception.getMessage().contains("derived file names"));
+    }
+
+    @Test
+    void acceptsNormalFilenameComponents() {
+        assertEquals("demo-0.1.0-SNAPSHOT", ProjectPaths.filenameComponent(
+                "[project].version",
+                "demo-0.1.0-SNAPSHOT"));
+    }
+
+    @Test
     void inputMayPointAtProjectRootButOutputMayNot() {
         Path root = ProjectPaths.root(projectDir);
 
