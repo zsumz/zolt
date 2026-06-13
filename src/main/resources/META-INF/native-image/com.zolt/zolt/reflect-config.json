@@ -156,19 +156,19 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ExplainCommand",
+    "name": "com.zolt.cli.command.ExplainCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ExplainCommand$Format",
+    "name": "com.zolt.cli.command.ExplainCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ExplainCommand$Source",
+    "name": "com.zolt.cli.command.ExplainCommand$Source",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
