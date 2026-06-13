@@ -17,12 +17,9 @@ import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
-import com.zolt.build.RunException;
 import com.zolt.build.RunPackageException;
 import com.zolt.build.RunPackageResult;
 import com.zolt.build.RunPackageService;
-import com.zolt.build.RunResult;
-import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestCompileResultWithClasspaths;
@@ -57,6 +54,7 @@ import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.RemoveCommand;
 import com.zolt.cli.command.ResolveCommand;
+import com.zolt.cli.command.RunCommand;
 import com.zolt.cli.command.SelfCheckCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TimingAttributeKeys;
@@ -73,10 +71,6 @@ import com.zolt.perf.TimingRecorder;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBuildAugmentationService;
-import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
@@ -90,8 +84,6 @@ import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
-import com.zolt.workspace.WorkspaceRunResult;
-import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceRunPackageResult;
 import com.zolt.workspace.WorkspaceRunPackageService;
 import com.zolt.workspace.WorkspaceSelection;
@@ -137,7 +129,7 @@ import picocli.CommandLine.Spec;
                 IdeCommand.class,
                 QuarkusCommand.class,
                 BuildCommand.class,
-                ZoltCli.RunCommand.class,
+                RunCommand.class,
                 ZoltCli.TestCommand.class,
                 CoverageCommand.class,
                 ZoltCli.PackageCommand.class,
@@ -188,128 +180,6 @@ public final class ZoltCli implements Runnable {
 
         public TimingFormat format() {
             return format;
-        }
-    }
-
-    @Command(name = "run", description = "Build and run the configured main class.")
-    public static final class RunCommand implements Runnable {
-        @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
-        private List<String> arguments = List.of();
-
-        @Option(names = "--workspace", description = "Run workspace members in dependency order.")
-        private boolean workspace;
-
-        @Option(names = "--all", description = "Select every workspace member.")
-        private boolean all;
-
-        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
-        private List<String> members = List.of();
-
-        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
-        private List<String> memberGroups = List.of();
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            try {
-                if (workspace) {
-                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-                    WorkspaceRunService workspaceRunService = new WorkspaceRunService();
-                    WorkspaceRunResult result = timings.measure(
-                            "run workspace",
-                            () -> {
-                                WorkspaceBuildPlan plan = timings.measure(
-                                        "plan workspace run",
-                                        () -> workspaceRunService.planRun(
-                                                workingDirectory,
-                                                cacheRoot,
-                                                workspaceSelection(all, members, memberGroups)),
-                                        ZoltCli::workspaceBuildPlanAttributes);
-                                WorkspaceBuildResult buildResult = timings.measure(
-                                        "build workspace run inputs",
-                                        () -> workspaceRunService.buildRunInputs(plan, cacheRoot),
-                                        ZoltCli::workspaceBuildAttributes);
-                                return timings.measure(
-                                        "launch workspace members",
-                                        () -> workspaceRunService.runBuiltMembers(
-                                                plan,
-                                                buildResult,
-                                                arguments,
-                                                output -> {
-                                                    spec.commandLine().getOut().print(output);
-                                                    spec.commandLine().getOut().flush();
-                                                }),
-                                        ZoltCli::workspaceRunAttributes);
-                            },
-                            ZoltCli::workspaceRunAttributes);
-                    if (result.resolvedLockfile()) {
-                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
-                    }
-                    for (WorkspaceRunResult.MemberRunResult member : result.members()) {
-                        String output = member.result().javaRunResult().output();
-                        if (!output.isEmpty() && !output.endsWith("\n")) {
-                            spec.commandLine().getOut().println();
-                        }
-                        spec.commandLine().getOut().println("Ran "
-                                + member.result().javaRunResult().mainClass()
-                                + " in "
-                                + member.member());
-                    }
-                    return;
-                }
-                ProjectConfig config = timings.measure(
-                        "config read",
-                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
-                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
-                RunResult result = timings.measure(
-                        "run application",
-                        () -> new RunService().run(
-                                workingDirectory,
-                                config,
-                                cacheRoot,
-                                arguments,
-                                output -> {
-                                    spec.commandLine().getOut().print(output);
-                                    spec.commandLine().getOut().flush();
-                                }),
-                        ZoltCli::runAttributes);
-                String output = result.javaRunResult().output();
-                if (!output.isEmpty() && !output.endsWith("\n")) {
-                    spec.commandLine().getOut().println();
-                }
-                spec.commandLine().getOut().println("Ran " + result.javaRunResult().mainClass());
-            } catch (JavaRunException exception) {
-                spec.commandLine().getErr().println("error: " + firstLine(exception.getMessage()));
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            } catch (BuildException
-                    | JavacException
-                    | GroovyCompileException
-                    | ResourceCopyException
-                    | RunException
-                    | QuarkusAugmentationException
-                    | QuarkusPlanException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | WorkspaceConfigException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            } finally {
-                printTimings(spec, "run", workingDirectory, timingOptions, timings);
-            }
         }
     }
 
@@ -1122,31 +992,6 @@ public final class ZoltCli implements Runnable {
         attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
     }
 
-    private static Map<String, String> runAttributes(RunResult result) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
-        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.buildResult().sourceCount()));
-        attributes.put(TimingAttributeKeys.RESOURCE_FILES, Integer.toString(result.buildResult().resourceCount()));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.buildResult().mainCompilationSkipped()));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.buildResult().mainCompilationMode());
-        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.buildResult().mainIncrementalFallbackReason());
-        addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
-        return attributes;
-    }
-
-    private static Map<String, String> workspaceRunAttributes(WorkspaceRunResult result) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
-        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunSourceCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunMainCompilationSkippedCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunMainCompilationExecutedCount(result)));
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunOutputBytes(result)));
-        return attributes;
-    }
-
     private static Map<String, String> packageAttributes(PackageResult result) {
         return Map.of(
                 TimingAttributeKeys.MODE, result.mode().configValue(),
@@ -1190,28 +1035,6 @@ public final class ZoltCli implements Runnable {
         return attributes;
     }
 
-    private static int workspaceRunSourceCount(WorkspaceRunResult result) {
-        return result.builtMembers().stream()
-                .mapToInt(member -> member.result().sourceCount())
-                .sum();
-    }
-
-    private static int workspaceRunMainCompilationSkippedCount(WorkspaceRunResult result) {
-        return (int) result.builtMembers().stream()
-                .filter(member -> member.result().mainCompilationSkipped())
-                .count();
-    }
-
-    private static int workspaceRunMainCompilationExecutedCount(WorkspaceRunResult result) {
-        return result.builtMembers().size() - workspaceRunMainCompilationSkippedCount(result);
-    }
-
-    private static int workspaceRunOutputBytes(WorkspaceRunResult result) {
-        return result.members().stream()
-                .mapToInt(member -> member.result().javaRunResult().output().length())
-                .sum();
-    }
-
     private static int workspaceRunPackageSourceCount(WorkspaceRunPackageResult result) {
         return result.builtMembers().stream()
                 .mapToInt(member -> member.result().sourceCount())
@@ -1238,16 +1061,6 @@ public final class ZoltCli implements Runnable {
         return result.members().stream()
                 .mapToInt(member -> member.result().javaRunResult().output().length())
                 .sum();
-    }
-
-    private static Map<String, String> quarkusAugmentationAttributes(Optional<QuarkusAugmentationResult> result) {
-        if (result.isEmpty()) {
-            return Map.of(TimingAttributeKeys.ENABLED, "false");
-        }
-        QuarkusAugmentationResult augmentation = result.orElseThrow();
-        return Map.of(
-                TimingAttributeKeys.ENABLED, "true",
-                TimingAttributeKeys.RUNNER_JAR, augmentation.workerResult().runnerJar().toString());
     }
 
     private static void printAndFlush(CommandSpec spec, String output) {
@@ -1310,11 +1123,6 @@ public final class ZoltCli implements Runnable {
         return packageModeOverride
                 .map(mode -> config.withPackageSettings(new PackageSettings(mode)))
                 .orElse(config);
-    }
-
-    private static String firstLine(String value) {
-        int newline = value.indexOf('\n');
-        return newline < 0 ? value : value.substring(0, newline);
     }
 
     private static WorkspaceSelectionRequest workspaceSelection(
