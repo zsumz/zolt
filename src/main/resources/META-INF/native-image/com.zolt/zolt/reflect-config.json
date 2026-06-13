@@ -246,7 +246,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$BuildCommand",
+    "name": "com.zolt.cli.command.BuildCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

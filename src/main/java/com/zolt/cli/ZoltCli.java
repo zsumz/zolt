@@ -35,6 +35,7 @@ import com.zolt.build.TestSelection;
 import com.zolt.build.TestSelectionException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cli.command.AddCommand;
+import com.zolt.cli.command.BuildCommand;
 import com.zolt.cli.command.CheckCommand;
 import com.zolt.cli.command.ClasspathCommand;
 import com.zolt.cli.command.CleanCommand;
@@ -135,7 +136,7 @@ import picocli.CommandLine.Spec;
                 ClasspathCommand.class,
                 IdeCommand.class,
                 QuarkusCommand.class,
-                ZoltCli.BuildCommand.class,
+                BuildCommand.class,
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
                 CoverageCommand.class,
@@ -187,118 +188,6 @@ public final class ZoltCli implements Runnable {
 
         public TimingFormat format() {
             return format;
-        }
-    }
-
-    @Command(name = "build", description = "Compile main Java sources with the resolved compile classpath.")
-    public static final class BuildCommand implements Runnable {
-        @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
-        private boolean offline;
-
-        @Option(names = "--workspace", description = "Build workspace members in dependency order.")
-        private boolean workspace;
-
-        @Option(names = "--all", description = "Select every workspace member.")
-        private boolean all;
-
-        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
-        private List<String> members = List.of();
-
-        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
-        private List<String> memberGroups = List.of();
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            try {
-                if (workspace) {
-                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
-                    WorkspaceBuildService workspaceBuildService = new WorkspaceBuildService();
-                    WorkspaceBuildResult result = timings.measure(
-                            "build workspace",
-                            () -> {
-                                WorkspaceBuildPlan plan = timings.measure(
-                                        "plan workspace build",
-                                        () -> workspaceBuildService.planBuild(
-                                                workingDirectory,
-                                                cacheRoot,
-                                                offline,
-                                                workspaceSelection(all, members, memberGroups)),
-                                        ZoltCli::workspaceBuildPlanAttributes);
-                                return timings.measure(
-                                        "compile workspace members",
-                                        () -> workspaceBuildService.build(plan, cacheRoot),
-                                        ZoltCli::workspaceBuildAttributes);
-                            },
-                            ZoltCli::workspaceBuildAttributes);
-                    if (result.resolvedLockfile()) {
-                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
-                    }
-                    for (WorkspaceBuildResult.MemberBuildResult member : result.members()) {
-                        spec.commandLine().getOut().println(
-                                "Compiled "
-                                        + member.result().sourceCount()
-                                        + " main source files in "
-                                        + member.member());
-                    }
-                    spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " workspace main source files");
-                    return;
-                }
-                ProjectConfig config = timings.measure(
-                        "config read",
-                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
-                requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
-                BuildResult result = timings.measure(
-                        "compile main",
-                        () -> new BuildService().build(workingDirectory, config, cacheRoot, offline),
-                        ZoltCli::buildAttributes);
-                if (result.resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
-                }
-                spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
-                spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
-                Optional<QuarkusAugmentationResult> quarkusResult =
-                        timings.measure(
-                                "quarkus augmentation",
-                                () -> new QuarkusBuildAugmentationService().augmentIfEnabled(
-                                        workingDirectory,
-                                        config,
-                                        cacheRoot),
-                                ZoltCli::quarkusAugmentationAttributes);
-                if (quarkusResult.isPresent()) {
-                    spec.commandLine().getOut().println(
-                            "Ran Quarkus augmentation; runner jar "
-                                    + quarkusResult.orElseThrow().workerResult().runnerJar());
-                }
-            } catch (BuildException
-                    | ArtifactCacheException
-                    | JavacException
-                    | GroovyCompileException
-                    | QuarkusAugmentationException
-                    | QuarkusPlanException
-                    | ResourceCopyException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | WorkspaceConfigException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            } finally {
-                printTimings(spec, "build", workingDirectory, timingOptions, timings);
-            }
         }
     }
 
