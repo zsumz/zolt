@@ -13,9 +13,6 @@ import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ManifestGenerationException;
-import com.zolt.build.NativeBuildResult;
-import com.zolt.build.NativeBuildService;
-import com.zolt.build.NativeImageException;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackageArtifact;
 import com.zolt.build.PackagePlan;
@@ -46,6 +43,7 @@ import com.zolt.cli.command.CleanCommand;
 import com.zolt.cli.command.ConflictsCommand;
 import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
+import com.zolt.cli.command.NativeCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.PublishCommand;
@@ -182,7 +180,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.PackageCommand.class,
                 PublishCommand.class,
                 ZoltCli.RunPackageCommand.class,
-                ZoltCli.NativeCommand.class,
+                NativeCommand.class,
                 NativeSmokeCommand.class,
                 ReleaseArchiveCommand.class,
                 ReleaseVerifyCommand.class,
@@ -2118,53 +2116,6 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "run-package", workingDirectory, timingOptions, timings);
-            }
-        }
-    }
-
-    @Command(name = "native", description = "Build a native binary with GraalVM Native Image.")
-    public static final class NativeCommand implements Runnable {
-        @Option(names = "--native-image", description = "Path to the native-image executable.")
-        private Path nativeImageExecutable;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                NativeBuildResult result = new NativeBuildService().buildNative(
-                        workingDirectory,
-                        config,
-                        cacheRoot,
-                        nativeImageExecutable);
-                if (result.packageResult().buildResult().resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
-                }
-                spec.commandLine().getOut().println("Built native binary at "
-                        + result.nativeImageResult().outputBinary());
-                spec.commandLine().getOut().println("Native Image log written to "
-                        + result.nativeImageResult().logFile());
-            } catch (BuildException
-                    | JavacException
-                    | GroovyCompileException
-                    | ManifestGenerationException
-                    | NativeImageException
-                    | PackageException
-                    | ResourceCopyException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
         }
     }

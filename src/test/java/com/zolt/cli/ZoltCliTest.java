@@ -443,6 +443,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.NativeCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("native")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test
