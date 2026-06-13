@@ -451,6 +451,25 @@ final class ZoltCliTest {
     }
 
     @Test
+    void planRejectsUnsafeReportsDirectory() throws IOException {
+        Path projectDir = tempDir.resolve("plan-unsafe-reports");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-unsafe-reports"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "plan",
+                "--target", "test",
+                "--reports-dir", "../reports",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Invalid --reports-dir path `../reports` resolved to "));
+        assertTrue(result.stderr().contains("Use a project-relative path under "
+                + projectDir.toAbsolutePath().normalize()));
+    }
+
+    @Test
     void planCiIncludesExplicitCoverageAndPublishNodes() throws IOException {
         Path projectDir = tempDir.resolve("plan-ci");
         Files.createDirectories(projectDir);
@@ -1002,6 +1021,27 @@ final class ZoltCliTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("error execution-context target/test-reports CI context expected JUnit XML reports, but the report directory is missing."));
         assertTrue(result.stdout().contains("next: Run `zolt test --reports-dir target/test-reports`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsUnsafeReportsDirectory() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-unsafe-reports");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-unsafe-reports"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "../reports",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context --reports-dir Invalid --reports-dir path `../reports` resolved to "));
+        assertTrue(result.stdout().contains("Use a project-relative path under "
+                + projectDir.toAbsolutePath().normalize()));
         assertEquals("", result.stderr());
     }
 

@@ -1077,7 +1077,7 @@ public final class ZoltCli implements Runnable {
                         workingDirectory,
                         config,
                         target,
-                        reportSettings.reportsDirectory());
+                        reportSettings.projectRelativeReportsDirectory(workingDirectory));
                 BuildPlanFormatter formatter = new BuildPlanFormatter();
                 if (format == Format.JSON) {
                     printAndFlush(spec, formatter.json(plan));

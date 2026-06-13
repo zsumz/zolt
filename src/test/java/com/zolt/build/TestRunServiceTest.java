@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -108,6 +109,35 @@ final class TestRunServiceTest {
         assertEquals(Optional.of(reportsDirectory), result.reportsDirectory());
         List<String> command = commands.getFirst();
         assertEquals(reportsDirectory.toString(), commandArgumentAfter(command, "--reports-dir"));
+    }
+
+    @Test
+    void reportsDirectoryRejectsExistingSymlinkThatEscapesProject() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-test-reports-");
+        createSymlink(projectDir.resolve("target/test-reports"), outside);
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> service.runTests(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.reportsDirectory(Path.of("target/test-reports"))));
+
+        assertTrue(exception.getMessage().contains("--reports-dir"));
+        assertTrue(exception.getMessage().contains("target/test-reports"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertTrue(commands.isEmpty());
     }
 
     @Test
@@ -997,6 +1027,15 @@ final class TestRunServiceTest {
         assertTrue(index >= 0, "missing command argument " + argument + " in " + command);
         assertTrue(index + 1 < command.size(), "missing value after command argument " + argument + " in " + command);
         return command.get(index + 1);
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 
     private static String executable(String name) {

@@ -20,6 +20,8 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
@@ -880,13 +882,18 @@ public final class QualityCheckService {
         if (context != QualityCheckContext.CI || reportsDir == null) {
             return List.of();
         }
-        Optional<QualityCheckResult> invalidPath = invalidReportsPath(member, reportsDir);
-        if (invalidPath.isPresent()) {
-            return List.of(invalidPath.orElseThrow());
+        Path root = ProjectPaths.root(projectRoot);
+        Path absoluteReportsDir;
+        try {
+            absoluteReportsDir = ProjectPaths.output(root, "--reports-dir", reportsDir.toString());
+        } catch (ProjectPathException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "--reports-dir",
+                    exception.getMessage(),
+                    "Use a path such as `target/test-reports`."));
         }
-        Path absoluteReportsDir = projectRoot.toAbsolutePath().normalize()
-                .resolve(reportsDir)
-                .normalize();
         if (!Files.isDirectory(absoluteReportsDir)) {
             return List.of(QualityCheckResult.failed(
                     EXECUTION_CONTEXT,
@@ -896,7 +903,7 @@ public final class QualityCheckService {
                     testReportsNextStep(member, commandReportsDir)));
         }
         try {
-            long xmlReports = countJUnitXmlReports(absoluteReportsDir);
+            long xmlReports = countJUnitXmlReports(root, absoluteReportsDir);
             if (xmlReports == 0) {
                 return List.of(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -920,6 +927,13 @@ public final class QualityCheckService {
                     displayPath(projectRoot, absoluteReportsDir),
                     "Could not inspect JUnit XML reports: " + exception.getMessage(),
                     "Check report directory permissions, then rerun `zolt check --context ci --reports-dir " + commandReportsDir + "`."));
+        } catch (ProjectPathException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteReportsDir),
+                    exception.getMessage(),
+                    "Remove symlinked report entries that escape the project, then rerun `zolt check --context ci --reports-dir " + commandReportsDir + "`."));
         }
     }
 
@@ -938,32 +952,10 @@ public final class QualityCheckService {
                 + "`.";
     }
 
-    private static Optional<QualityCheckResult> invalidReportsPath(
-            Optional<String> member,
-            Path reportsDir) {
-        if (reportsDir.isAbsolute()) {
-            return Optional.of(QualityCheckResult.failed(
-                    EXECUTION_CONTEXT,
-                    member,
-                    "--reports-dir",
-                    "Test reports directory must be project-relative.",
-                    "Use a path such as `target/test-reports`."));
-        }
-        if (reportsDir.normalize().startsWith("..")) {
-            return Optional.of(QualityCheckResult.failed(
-                    EXECUTION_CONTEXT,
-                    member,
-                    "--reports-dir",
-                    "Test reports directory must stay inside the project.",
-                    "Use a path such as `target/test-reports`."));
-        }
-        return Optional.empty();
-    }
-
-    private static long countJUnitXmlReports(Path reportsDir) throws java.io.IOException {
+    private static long countJUnitXmlReports(Path projectRoot, Path reportsDir) throws java.io.IOException {
         try (Stream<Path> paths = Files.walk(reportsDir)) {
             return paths
-                    .filter(Files::isRegularFile)
+                    .filter(path -> ProjectPaths.isRegularFileInsideProject(projectRoot, "--reports-dir", path))
                     .filter(QualityCheckService::isJUnitXmlReport)
                     .count();
         }

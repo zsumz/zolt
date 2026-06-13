@@ -1,21 +1,13 @@
 package com.zolt.build;
 
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Path;
 import java.util.Optional;
 
 public record TestReportSettings(Optional<Path> reportsDirectory) {
     public TestReportSettings {
         reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
-        reportsDirectory.ifPresent(directory -> {
-            if (directory.isAbsolute()) {
-                throw new TestRunException(
-                        "Test reports directory must be project-relative. Use a path such as `target/test-reports`.");
-            }
-            if (directory.normalize().startsWith("..")) {
-                throw new TestRunException(
-                        "Test reports directory must stay inside the project. Use a path such as `target/test-reports`.");
-            }
-        });
     }
 
     public static TestReportSettings disabled() {
@@ -33,9 +25,23 @@ public record TestReportSettings(Optional<Path> reportsDirectory) {
         return reportsDirectory(reportsDirectory.orElseThrow().resolve(memberPath));
     }
 
+    public Optional<Path> projectRelativeReportsDirectory(Path projectDirectory) {
+        reportsDirectory.ifPresent(directory -> safeReportsDirectory(projectDirectory, directory));
+        return reportsDirectory;
+    }
+
     public Optional<Path> absoluteReportsDirectory(Path projectDirectory) {
-        return reportsDirectory.map(directory -> projectDirectory.toAbsolutePath().normalize()
-                .resolve(directory)
-                .normalize());
+        return reportsDirectory.map(directory -> safeReportsDirectory(projectDirectory, directory));
+    }
+
+    private static Path safeReportsDirectory(Path projectDirectory, Path reportsDirectory) {
+        try {
+            return ProjectPaths.output(
+                    ProjectPaths.root(projectDirectory),
+                    "--reports-dir",
+                    reportsDirectory.toString());
+        } catch (ProjectPathException exception) {
+            throw new TestRunException(exception.getMessage(), exception);
+        }
     }
 }
