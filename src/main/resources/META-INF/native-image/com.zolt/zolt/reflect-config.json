@@ -264,7 +264,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$CoverageCommand",
+    "name": "com.zolt.cli.command.CoverageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
