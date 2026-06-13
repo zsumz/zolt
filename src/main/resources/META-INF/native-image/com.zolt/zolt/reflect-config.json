@@ -78,31 +78,31 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$AddCommand",
+    "name": "com.zolt.cli.command.AddCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$RemoveCommand",
+    "name": "com.zolt.cli.command.RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$PlatformCommand",
+    "name": "com.zolt.cli.command.PlatformCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$PlatformCommand$AddCommand",
+    "name": "com.zolt.cli.command.PlatformCommand$AddCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$PlatformCommand$RemoveCommand",
+    "name": "com.zolt.cli.command.PlatformCommand$RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

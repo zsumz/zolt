@@ -38,6 +38,7 @@ import com.zolt.build.TestRunService;
 import com.zolt.build.TestSelection;
 import com.zolt.build.TestSelectionException;
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.cli.command.AddCommand;
 import com.zolt.cli.command.CheckCommand;
 import com.zolt.cli.command.ClasspathCommand;
 import com.zolt.cli.command.CleanCommand;
@@ -49,11 +50,13 @@ import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PlanCommand;
+import com.zolt.cli.command.PlatformCommand;
 import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.PublishCommand;
 import com.zolt.cli.command.QuarkusCommand;
 import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
+import com.zolt.cli.command.RemoveCommand;
 import com.zolt.cli.command.ResolveCommand;
 import com.zolt.cli.command.SelfCheckCommand;
 import com.zolt.cli.command.SelfParityCommand;
@@ -65,29 +68,21 @@ import com.zolt.cli.command.WhyCommand;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.maven.Coordinate;
-import com.zolt.maven.CoordinateParseException;
-import com.zolt.maven.CoordinateParser;
 import com.zolt.perf.TimingFormat;
 import com.zolt.perf.TimingFormatter;
 import com.zolt.perf.TimingRecorder;
-import com.zolt.project.DependencyMetadata;
-import com.zolt.project.DependencySection;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
-import com.zolt.project.VersionPolicy;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.resolve.ResolveException;
-import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
-import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildPlan;
@@ -111,8 +106,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -132,9 +125,9 @@ import picocli.CommandLine.Spec;
                 VersionCommand.class,
                 UpdateCommand.class,
                 CheckCommand.class,
-                ZoltCli.AddCommand.class,
-                ZoltCli.RemoveCommand.class,
-                ZoltCli.PlatformCommand.class,
+                AddCommand.class,
+                RemoveCommand.class,
+                PlatformCommand.class,
                 ResolveCommand.class,
                 TreeCommand.class,
                 WhyCommand.class,
@@ -197,471 +190,6 @@ public final class ZoltCli implements Runnable {
 
         public TimingFormat format() {
             return format;
-        }
-    }
-
-    @Command(name = "add", description = "Add a dependency to zolt.toml and refresh zolt.lock.")
-    public static final class AddCommand implements Runnable {
-        @Parameters(
-                arity = "1..2",
-                paramLabel = "[api|runtime|provided|dev|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
-                description = "Dependency coordinate, optionally prefixed with a dependency section.")
-        private List<String> arguments;
-
-        @Option(names = "--managed", description = "Use a version managed by a declared platform.")
-        private boolean managed;
-
-        @Option(names = "--version-ref", description = "Use a version alias declared in [versions].")
-        private String versionRef;
-
-        @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
-        private boolean noResolve;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Spec
-        private CommandSpec spec;
-
-        private final CoordinateParser coordinateParser = new CoordinateParser();
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
-
-        @Override
-        public void run() {
-            try {
-                AddRequest request = parseRequest(arguments);
-                Path configPath = workingDirectory.resolve("zolt.toml");
-                ProjectConfig config = tomlParser.parse(configPath);
-                ProjectConfig updated = updateConfig(config, request);
-                tomlWriter.write(configPath, updated);
-                printAddSummary(config, request);
-                if (noResolve) {
-                    spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
-                    return;
-                }
-                printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-            } catch (AddCommandException
-                    | DependencySectionException
-                    | ArtifactCacheException
-                    | CoordinateParseException
-                    | ResolveException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-
-        private AddRequest parseRequest(List<String> values) {
-            DependencySection section = parseSection(values, "zolt add");
-            String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
-            Coordinate coordinate = coordinateParser.parse(rawCoordinate);
-            if (managed && coordinate.version().isPresent()) {
-                throw new AddCommandException(
-                        "Managed dependency coordinate must not include a version. Use `group:artifact`.");
-            }
-            if (versionRef != null && versionRef.isBlank()) {
-                throw new AddCommandException(
-                        "Version alias for --version-ref must be non-empty. Use `--version-ref <alias>`.");
-            }
-            if (managed && versionRef != null) {
-                throw new AddCommandException(
-                        "`--managed` and `--version-ref` cannot be used together. Choose a platform-managed dependency or a named [versions] alias.");
-            }
-            if (versionRef != null && coordinate.version().isPresent()) {
-                throw new AddCommandException(
-                        "Version-ref dependency coordinate must not include a version. Use `--version-ref "
-                                + versionRef
-                                + " group:artifact`.");
-            }
-            if (managed) {
-                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", true, null);
-            }
-            if (versionRef != null) {
-                return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), "", false, versionRef);
-            }
-            String version = coordinate.version().orElseThrow(() -> new AddCommandException(
-                    "Dependency coordinate must include a version. Use `group:artifact:version` or add `--managed` when a declared platform should provide the version."));
-            validateCommandVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "dependency", version, AddCommandException::new);
-            return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false, null);
-        }
-
-        private ProjectConfig updateConfig(ProjectConfig config, AddRequest request) {
-            if (request.managed()) {
-                return tomlWriter.addManagedDependency(config, request.section(), request.coordinate());
-            }
-            if (request.versionRef() != null) {
-                String version = config.versionAliases().get(request.versionRef());
-                if (version == null) {
-                    throw new AddCommandException(
-                            "Unknown versionRef `"
-                                    + request.versionRef()
-                                    + "`. Add [versions]."
-                                    + request.versionRef()
-                                    + " or use an explicit version.");
-                }
-                return tomlWriter.addVersionRefDependency(
-                        config,
-                        request.section(),
-                        request.coordinate(),
-                        request.versionRef(),
-                        version);
-            }
-            return tomlWriter.addDependency(config, request.section(), request.coordinate(), request.version());
-        }
-
-        private void printAddSummary(ProjectConfig original, AddRequest request) {
-            Map<String, String> dependencies = dependencies(original, request.section());
-            String section = sectionName(request.section());
-            String existing = dependencies.get(request.coordinate());
-            String existingWorkspace = workspaceDependencies(original, request.section()).get(request.coordinate());
-            String conflicting = conflictingDependencies(original, request.section()).get(request.coordinate());
-            String conflictingWorkspace = conflictingWorkspaceDependencies(original, request.section()).get(request.coordinate());
-            String existingVersionRef = versionRef(original, request.section(), request.coordinate());
-            boolean existingManaged = managedDependencies(original, request.section()).contains(request.coordinate());
-            boolean conflictingManaged = conflictingManagedDependencies(original, request.section()).contains(request.coordinate());
-            if (request.managed()) {
-                if (existingManaged) {
-                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
-                            + " already uses a platform-managed version in [" + section + "]");
-                } else if (existing != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from " + existing + " to platform-managed version in [" + section + "]");
-                } else if (existingWorkspace != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from workspace member " + existingWorkspace
-                            + " to platform-managed version in [" + section + "]");
-                } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
-                            + " to platform-managed version in [" + section + "]");
-                } else {
-                    spec.commandLine().getOut().println("Added dependency " + request.coordinate()
-                            + " with a platform-managed version to [" + section + "]");
-                }
-                return;
-            }
-            if (request.versionRef() != null) {
-                String version = original.versionAliases().get(request.versionRef());
-                String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
-                if (request.versionRef().equals(existingVersionRef)) {
-                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
-                            + " already uses " + versionRefDescription + " in [" + section + "]");
-                } else if (existingVersionRef != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from versionRef `" + existingVersionRef + "` to " + versionRefDescription
-                            + " in [" + section + "]");
-                } else if (existingManaged) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from managed version to " + versionRefDescription + " in [" + section + "]");
-                } else if (existing != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from " + existing + " to " + versionRefDescription + " in [" + section + "]");
-                } else if (existingWorkspace != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from workspace member " + existingWorkspace
-                            + " to " + versionRefDescription + " in [" + section + "]");
-                } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                    spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                            + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
-                            + " to " + versionRefDescription + " in [" + section + "]");
-                } else {
-                    spec.commandLine().getOut().println("Added dependency " + request.coordinate()
-                            + " with " + versionRefDescription + " to [" + section + "]");
-                }
-                return;
-            }
-            if (request.version().equals(existing)) {
-                spec.commandLine().getOut().println("Dependency " + request.coordinate() + ":" + request.version()
-                        + " already exists in [" + section + "]");
-            } else if (existingManaged) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                        + " from managed version to " + request.version() + " in [" + section + "]");
-            } else if (existing != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                        + " from " + existing + " to " + request.version() + " in [" + section + "]");
-            } else if (existingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                        + " from workspace member " + existingWorkspace
-                        + " to " + request.version() + " in [" + section + "]");
-            } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
-                        + " from " + existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
-                        + " to " + request.version() + " in [" + section + "]");
-            } else {
-                spec.commandLine().getOut().println("Added dependency " + request.coordinate() + ":" + request.version()
-                        + " to [" + section + "]");
-            }
-        }
-    }
-
-    @Command(
-            name = "platform",
-            mixinStandardHelpOptions = true,
-            description = "Manage BOM/platform imports in zolt.toml.",
-            subcommands = {
-                    PlatformCommand.AddCommand.class,
-                    PlatformCommand.RemoveCommand.class
-            })
-    public static final class PlatformCommand implements Runnable {
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            spec.commandLine().usage(spec.commandLine().getOut());
-        }
-
-        @Command(
-                name = "add",
-                mixinStandardHelpOptions = true,
-                description = "Add a platform BOM import to zolt.toml and refresh zolt.lock.")
-        public static final class AddCommand implements Runnable {
-            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT[:VERSION]", description = "Platform BOM coordinate.")
-            private String coordinate;
-
-            @Option(names = "--version-ref", description = "Use a version alias declared in [versions].")
-            private String versionRef;
-
-            @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
-            private boolean noResolve;
-
-            @Option(names = "--cwd", hidden = true)
-            private Path workingDirectory = Path.of(".");
-
-            @Option(names = "--cache-root", hidden = true)
-            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-            @Spec
-            private CommandSpec spec;
-
-            private final CoordinateParser coordinateParser = new CoordinateParser();
-            private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-            private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-            private final ResolveService resolveService = new ResolveService();
-
-            @Override
-            public void run() {
-                try {
-                    Coordinate parsed = coordinateParser.parse(coordinate);
-                    String platform = parsed.groupId() + ":" + parsed.artifactId();
-                    Path configPath = workingDirectory.resolve("zolt.toml");
-                    ProjectConfig config = tomlParser.parse(configPath);
-                    PlatformAddRequest request = addRequest(config, parsed, platform);
-                    ProjectConfig updated = request.versionRef() == null
-                            ? tomlWriter.addPlatform(config, platform, request.version())
-                            : tomlWriter.addVersionRefPlatform(
-                                    config,
-                                    platform,
-                                    request.versionRef(),
-                                    request.version());
-                    tomlWriter.write(configPath, updated);
-                    printAddSummary(config, platform, request);
-                    if (noResolve) {
-                        spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
-                        return;
-                    }
-                    printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-                } catch (PlatformCommandException
-                        | ArtifactCacheException
-                        | CoordinateParseException
-                        | ResolveException
-                        | ZoltConfigException exception) {
-                    spec.commandLine().getErr().println("error: " + exception.getMessage());
-                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-                }
-            }
-
-            private PlatformAddRequest addRequest(ProjectConfig config, Coordinate parsed, String platform) {
-                if (versionRef != null && versionRef.isBlank()) {
-                    throw new PlatformCommandException(
-                            "Version alias for --version-ref must be non-empty. Use `--version-ref <alias>`.");
-                }
-                if (versionRef != null && parsed.version().isPresent()) {
-                    throw new PlatformCommandException(
-                            "Version-ref platform coordinate must not include a version. Use `--version-ref "
-                                    + versionRef
-                                    + " "
-                                    + platform
-                                    + "`.");
-                }
-                if (versionRef == null) {
-                    String version = parsed.version().orElseThrow(() -> new PlatformCommandException(
-                            "Platform coordinate must include a version. Use `group:artifact:version` or `--version-ref <alias> group:artifact`."));
-                    validateCommandVersion(VersionPolicy.Context.PLATFORM, "platform", version, PlatformCommandException::new);
-                    return new PlatformAddRequest(version, null);
-                }
-                String version = config.versionAliases().get(versionRef);
-                if (version == null) {
-                    throw new PlatformCommandException(
-                            "Unknown versionRef `"
-                                    + versionRef
-                                    + "`. Add [versions]."
-                                    + versionRef
-                                    + " or use an explicit version.");
-                }
-                return new PlatformAddRequest(version, versionRef);
-            }
-
-            private void printAddSummary(ProjectConfig original, String platform, PlatformAddRequest request) {
-                String version = request.version();
-                String existing = original.platforms().get(platform);
-                String existingVersionRef = platformVersionRef(original, platform);
-                if (request.versionRef() != null) {
-                    String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
-                    if (request.versionRef().equals(existingVersionRef)) {
-                        spec.commandLine().getOut().println("Platform " + platform + " already uses "
-                                + versionRefDescription + " in [platforms]");
-                    } else if (existingVersionRef != null) {
-                        spec.commandLine().getOut().println("Updated platform " + platform
-                                + " from versionRef `" + existingVersionRef + "` to "
-                                + versionRefDescription + " in [platforms]");
-                    } else if (existing != null) {
-                        spec.commandLine().getOut().println("Updated platform " + platform
-                                + " from " + existing + " to " + versionRefDescription + " in [platforms]");
-                    } else {
-                        spec.commandLine().getOut().println("Added platform " + platform
-                                + " with " + versionRefDescription + " to [platforms]");
-                    }
-                    return;
-                }
-                if (existingVersionRef != null) {
-                    spec.commandLine().getOut().println("Updated platform " + platform
-                            + " from versionRef `" + existingVersionRef + "` to " + version + " in [platforms]");
-                } else if (version.equals(existing)) {
-                    spec.commandLine().getOut().println("Platform " + platform + ":" + version
-                            + " already exists in [platforms]");
-                } else if (existing != null) {
-                    spec.commandLine().getOut().println("Updated platform " + platform
-                            + " from " + existing + " to " + version + " in [platforms]");
-                } else {
-                    spec.commandLine().getOut().println("Added platform " + platform + ":" + version
-                            + " to [platforms]");
-                }
-            }
-
-            private static String platformVersionRef(ProjectConfig config, String platform) {
-                DependencyMetadata metadata =
-                        config.dependencyMetadata().get(DependencyMetadata.key("platforms", platform));
-                return metadata == null ? null : metadata.versionRef();
-            }
-
-            private record PlatformAddRequest(String version, String versionRef) {}
-        }
-
-        @Command(
-                name = "remove",
-                mixinStandardHelpOptions = true,
-                description = "Remove a platform BOM import and refresh zolt.lock.")
-        public static final class RemoveCommand implements Runnable {
-            @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Platform BOM coordinate.")
-            private String coordinate;
-
-            @Option(names = "--cwd", hidden = true)
-            private Path workingDirectory = Path.of(".");
-
-            @Option(names = "--cache-root", hidden = true)
-            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-            @Spec
-            private CommandSpec spec;
-
-            private final CoordinateParser coordinateParser = new CoordinateParser();
-            private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-            private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-            private final ResolveService resolveService = new ResolveService();
-
-            @Override
-            public void run() {
-                try {
-                    Coordinate parsed = coordinateParser.parse(coordinate);
-                    if (parsed.version().isPresent()) {
-                        throw new PlatformCommandException(
-                                "Platform remove coordinate must not include a version. Use `group:artifact`.");
-                    }
-                    String platform = parsed.groupId() + ":" + parsed.artifactId();
-                    Path configPath = workingDirectory.resolve("zolt.toml");
-                    ProjectConfig config = tomlParser.parse(configPath);
-                    if (!config.platforms().containsKey(platform)) {
-                        spec.commandLine().getOut().println(
-                                "Platform " + platform + " is not present in [platforms]; nothing to remove.");
-                        return;
-                    }
-                    ProjectConfig updated = tomlWriter.removePlatform(config, platform);
-                    tomlWriter.write(configPath, updated);
-                    spec.commandLine().getOut().println("Removed platform " + platform + " from [platforms]");
-                    printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-                } catch (PlatformCommandException
-                        | ArtifactCacheException
-                        | CoordinateParseException
-                        | ResolveException
-                        | ZoltConfigException exception) {
-                    spec.commandLine().getErr().println("error: " + exception.getMessage());
-                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-                }
-            }
-        }
-    }
-
-    @Command(name = "remove", description = "Remove a dependency and prune unused transitive packages.")
-    public static final class RemoveCommand implements Runnable {
-        @Parameters(
-                arity = "1..2",
-                paramLabel = "[api|runtime|provided|dev|test|processor|test-processor] GROUP:ARTIFACT",
-                description = "Dependency coordinate, optionally prefixed with a dependency section.")
-        private List<String> arguments;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Spec
-        private CommandSpec spec;
-
-        private final CoordinateParser coordinateParser = new CoordinateParser();
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
-
-        @Override
-        public void run() {
-            try {
-                RemoveRequest request = parseRequest(arguments);
-                Path configPath = workingDirectory.resolve("zolt.toml");
-                ProjectConfig config = tomlParser.parse(configPath);
-                String section = sectionName(request.section());
-                if (!hasDependency(config, request.section(), request.coordinate())) {
-                    spec.commandLine().getOut().println("Dependency " + request.coordinate()
-                            + " is not present in [" + section + "]; nothing to remove.");
-                    return;
-                }
-                ProjectConfig updated = tomlWriter.removeDependency(config, request.section(), request.coordinate());
-                tomlWriter.write(configPath, updated);
-                spec.commandLine().getOut().println(
-                        "Removed dependency " + request.coordinate() + " from [" + section + "]");
-                printResolveResult(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
-            } catch (RemoveCommandException
-                    | DependencySectionException
-                    | ArtifactCacheException
-                    | CoordinateParseException
-                    | ResolveException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-
-        private RemoveRequest parseRequest(List<String> values) {
-            DependencySection section = parseSection(values, "zolt remove");
-            String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
-            Coordinate coordinate = coordinateParser.parse(rawCoordinate);
-            return new RemoveRequest(section, coordinate.groupId() + ":" + coordinate.artifactId());
         }
     }
 
@@ -1574,10 +1102,6 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    private static void printResolveResult(CommandSpec spec, ResolveResult result) {
-        printResolveResult(spec, result, true);
-    }
-
     private static TimingRecorder timingRecorder(TimingOptions options) {
         return new TimingRecorder(options != null && options.enabled);
     }
@@ -1977,17 +1501,6 @@ public final class ZoltCli implements Runnable {
                 TimingAttributeKeys.RUNNER_JAR, augmentation.workerResult().runnerJar().toString());
     }
 
-    private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
-        spec.commandLine().getOut().println("Resolved " + result.resolvedCount() + " packages");
-        spec.commandLine().getOut().println("Downloaded " + result.downloadCount() + " artifacts");
-        spec.commandLine().getOut().println("Conflicts " + result.conflictCount());
-        if (wroteLockfile) {
-            spec.commandLine().getOut().println("Wrote " + result.lockfilePath());
-        } else {
-            spec.commandLine().getOut().println("Verified " + result.lockfilePath());
-        }
-    }
-
     private static void printAndFlush(CommandSpec spec, String output) {
         spec.commandLine().getOut().print(output);
         spec.commandLine().getOut().flush();
@@ -2065,242 +1578,4 @@ public final class ZoltCli implements Runnable {
         return new WorkspaceSelectionRequest(all, selectedMembers);
     }
 
-    private record AddRequest(
-            DependencySection section,
-            String coordinate,
-            String version,
-            boolean managed,
-            String versionRef) {
-    }
-
-    private record RemoveRequest(DependencySection section, String coordinate) {
-    }
-
-    private static Map<String, String> dependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> config.dependencies();
-            case API -> config.apiDependencies();
-            case RUNTIME -> config.runtimeDependencies();
-            case PROVIDED -> config.providedDependencies();
-            case DEV -> config.devDependencies();
-            case TEST -> config.testDependencies();
-            case PROCESSOR -> config.annotationProcessors();
-            case TEST_PROCESSOR -> config.testAnnotationProcessors();
-        };
-    }
-
-    private static java.util.Set<String> managedDependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> config.managedDependencies();
-            case API -> config.managedApiDependencies();
-            case RUNTIME -> config.managedRuntimeDependencies();
-            case PROVIDED -> config.managedProvidedDependencies();
-            case DEV -> config.managedDevDependencies();
-            case TEST -> config.managedTestDependencies();
-            case PROCESSOR -> config.managedAnnotationProcessors();
-            case TEST_PROCESSOR -> config.managedTestAnnotationProcessors();
-        };
-    }
-
-    private static Map<String, String> workspaceDependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> config.workspaceDependencies();
-            case API -> config.workspaceApiDependencies();
-            case TEST -> config.workspaceTestDependencies();
-            case RUNTIME, PROVIDED, DEV, PROCESSOR, TEST_PROCESSOR -> Map.of();
-        };
-    }
-
-    private static Map<String, String> conflictingDependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> combinedDependencies(
-                    config.apiDependencies(),
-                    config.runtimeDependencies(),
-                    config.providedDependencies(),
-                    config.devDependencies());
-            case API -> combinedDependencies(
-                    config.dependencies(),
-                    config.runtimeDependencies(),
-                    config.providedDependencies(),
-                    config.devDependencies());
-            case RUNTIME -> combinedDependencies(
-                    config.apiDependencies(),
-                    config.dependencies(),
-                    config.providedDependencies(),
-                    config.devDependencies());
-            case PROVIDED -> combinedDependencies(
-                    config.apiDependencies(),
-                    config.dependencies(),
-                    config.runtimeDependencies(),
-                    config.devDependencies());
-            case DEV -> combinedDependencies(
-                    config.apiDependencies(),
-                    config.dependencies(),
-                    config.runtimeDependencies(),
-                    config.providedDependencies());
-            case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
-        };
-    }
-
-    private static java.util.Set<String> conflictingManagedDependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> combinedManagedDependencies(
-                    config.managedApiDependencies(),
-                    config.managedRuntimeDependencies(),
-                    config.managedProvidedDependencies(),
-                    config.managedDevDependencies());
-            case API -> combinedManagedDependencies(
-                    config.managedDependencies(),
-                    config.managedRuntimeDependencies(),
-                    config.managedProvidedDependencies(),
-                    config.managedDevDependencies());
-            case RUNTIME -> combinedManagedDependencies(
-                    config.managedApiDependencies(),
-                    config.managedDependencies(),
-                    config.managedProvidedDependencies(),
-                    config.managedDevDependencies());
-            case PROVIDED -> combinedManagedDependencies(
-                    config.managedApiDependencies(),
-                    config.managedDependencies(),
-                    config.managedRuntimeDependencies(),
-                    config.managedDevDependencies());
-            case DEV -> combinedManagedDependencies(
-                    config.managedApiDependencies(),
-                    config.managedDependencies(),
-                    config.managedRuntimeDependencies(),
-                    config.managedProvidedDependencies());
-            case TEST, PROCESSOR, TEST_PROCESSOR -> java.util.Set.of();
-        };
-    }
-
-    private static Map<String, String> conflictingWorkspaceDependencies(ProjectConfig config, DependencySection section) {
-        return switch (section) {
-            case MAIN -> config.workspaceApiDependencies();
-            case API -> config.workspaceDependencies();
-            case RUNTIME -> combinedDependencies(config.workspaceApiDependencies(), config.workspaceDependencies());
-            case PROVIDED -> combinedDependencies(config.workspaceApiDependencies(), config.workspaceDependencies());
-            case DEV -> combinedDependencies(config.workspaceApiDependencies(), config.workspaceDependencies());
-            case TEST, PROCESSOR, TEST_PROCESSOR -> Map.of();
-        };
-    }
-
-    @SafeVarargs
-    private static Map<String, String> combinedDependencies(Map<String, String>... candidates) {
-        Map<String, String> combined = new java.util.LinkedHashMap<>();
-        for (Map<String, String> candidate : candidates) {
-            combined.putAll(candidate);
-        }
-        return combined;
-    }
-
-    @SafeVarargs
-    private static Set<String> combinedManagedDependencies(Set<String>... candidates) {
-        Set<String> combined = new java.util.LinkedHashSet<>();
-        for (Set<String> candidate : candidates) {
-            combined.addAll(candidate);
-        }
-        return combined;
-    }
-
-    private static String existingDescription(
-            String version,
-            boolean managed,
-            String workspace) {
-        if (version != null) {
-            return version;
-        }
-        if (managed) {
-            return "managed version";
-        }
-        return "workspace member " + workspace;
-    }
-
-    private static String versionRef(ProjectConfig config, DependencySection section, String coordinate) {
-        DependencyMetadata metadata = config.dependencyMetadata().get(DependencyMetadata.key(sectionName(section), coordinate));
-        return metadata == null ? null : metadata.versionRef();
-    }
-
-    private static boolean hasDependency(ProjectConfig config, DependencySection section, String coordinate) {
-        return dependencies(config, section).containsKey(coordinate)
-                || managedDependencies(config, section).contains(coordinate)
-                || workspaceDependencies(config, section).containsKey(coordinate);
-    }
-
-    private static String sectionName(DependencySection section) {
-        return switch (section) {
-            case MAIN -> "dependencies";
-            case API -> "api.dependencies";
-            case RUNTIME -> "runtime.dependencies";
-            case PROVIDED -> "provided.dependencies";
-            case DEV -> "dev.dependencies";
-            case TEST -> "test.dependencies";
-            case PROCESSOR -> "annotationProcessors";
-            case TEST_PROCESSOR -> "test.annotationProcessors";
-        };
-    }
-
-    private static DependencySection parseSection(List<String> values, String command) {
-        if (values.size() == 1) {
-            return DependencySection.MAIN;
-        }
-        return switch (values.get(0)) {
-            case "api" -> DependencySection.API;
-            case "runtime" -> DependencySection.RUNTIME;
-            case "provided" -> DependencySection.PROVIDED;
-            case "dev" -> DependencySection.DEV;
-            case "test" -> DependencySection.TEST;
-            case "processor" -> DependencySection.PROCESSOR;
-            case "test-processor" -> DependencySection.TEST_PROCESSOR;
-            default -> throw new DependencySectionException("Unexpected dependency section `" + values.get(0)
-                    + "`. Use `" + command + " api group:artifact`, `"
-                    + command + " runtime group:artifact`, `"
-                    + command + " provided group:artifact`, `"
-                    + command + " dev group:artifact`, `"
-                    + command + " test group:artifact`, `"
-                    + command + " processor group:artifact`, or `"
-                    + command + " test-processor group:artifact`.");
-        };
-    }
-
-    private static <T extends RuntimeException> void validateCommandVersion(
-            VersionPolicy.Context context,
-            String subject,
-            String version,
-            Function<String, T> exceptionFactory) {
-        VersionPolicy.violation(context, version).ifPresent(violation -> {
-            throw exceptionFactory.apply(
-                    "Invalid "
-                            + context.description()
-                            + " `"
-                            + version
-                            + "` for "
-                            + subject
-                            + ". "
-                            + violation.guidance());
-        });
-    }
-
-    private static final class AddCommandException extends RuntimeException {
-        private AddCommandException(String message) {
-            super(message);
-        }
-    }
-
-    private static final class RemoveCommandException extends RuntimeException {
-        private RemoveCommandException(String message) {
-            super(message);
-        }
-    }
-
-    private static final class DependencySectionException extends RuntimeException {
-        private DependencySectionException(String message) {
-            super(message);
-        }
-    }
-
-    private static final class PlatformCommandException extends RuntimeException {
-        private PlatformCommandException(String message) {
-            super(message);
-        }
-    }
 }
