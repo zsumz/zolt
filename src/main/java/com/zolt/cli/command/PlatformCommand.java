@@ -15,7 +15,6 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -44,6 +43,11 @@ public final class PlatformCommand implements Runnable {
             mixinStandardHelpOptions = true,
             description = "Add a platform BOM import to zolt.toml and refresh zolt.lock.")
     public static final class AddCommand implements Runnable {
+        private final CoordinateParser coordinateParser;
+        private final ZoltTomlParser tomlParser;
+        private final ZoltTomlWriter tomlWriter;
+        private final ResolveService resolveService;
+
         @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT[:VERSION]", description = "Platform BOM coordinate.")
         private String coordinate;
 
@@ -62,10 +66,20 @@ public final class PlatformCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
-        private final CoordinateParser coordinateParser = new CoordinateParser();
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
+        public AddCommand() {
+            this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+        }
+
+        AddCommand(
+                CoordinateParser coordinateParser,
+                ZoltTomlParser tomlParser,
+                ZoltTomlWriter tomlWriter,
+                ResolveService resolveService) {
+            this.coordinateParser = coordinateParser;
+            this.tomlParser = tomlParser;
+            this.tomlWriter = tomlWriter;
+            this.resolveService = resolveService;
+        }
 
         @Override
         public void run() {
@@ -184,6 +198,11 @@ public final class PlatformCommand implements Runnable {
             mixinStandardHelpOptions = true,
             description = "Remove a platform BOM import and refresh zolt.lock.")
     public static final class RemoveCommand implements Runnable {
+        private final CoordinateParser coordinateParser;
+        private final ZoltTomlParser tomlParser;
+        private final ZoltTomlWriter tomlWriter;
+        private final ResolveService resolveService;
+
         @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Platform BOM coordinate.")
         private String coordinate;
 
@@ -196,10 +215,20 @@ public final class PlatformCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
-        private final CoordinateParser coordinateParser = new CoordinateParser();
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
+        public RemoveCommand() {
+            this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+        }
+
+        RemoveCommand(
+                CoordinateParser coordinateParser,
+                ZoltTomlParser tomlParser,
+                ZoltTomlWriter tomlWriter,
+                ResolveService resolveService) {
+            this.coordinateParser = coordinateParser;
+            this.tomlParser = tomlParser;
+            this.tomlWriter = tomlWriter;
+            this.resolveService = resolveService;
+        }
 
         @Override
         public void run() {
