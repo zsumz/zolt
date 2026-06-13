@@ -4,7 +4,6 @@ import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -13,6 +12,8 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "init", description = "Create a new Zolt project.")
 public final class InitCommand implements Runnable {
+    private final ProjectInitializer projectInitializer;
+
     @Parameters(index = "0", paramLabel = "NAME", description = "Project directory to create.")
     private String name;
 
@@ -28,10 +29,18 @@ public final class InitCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public InitCommand() {
+        this(new ProjectInitializer());
+    }
+
+    InitCommand(ProjectInitializer projectInitializer) {
+        this.projectInitializer = projectInitializer;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectInitResult result = new ProjectInitializer().init(workingDirectory, name, group, javaVersion);
+            ProjectInitResult result = projectInitializer.init(workingDirectory, name, group, javaVersion);
             spec.commandLine().getOut().println("Created Zolt project at " + result.projectDirectory());
             spec.commandLine().getOut().println("Next: cd " + result.projectDirectory().getFileName());
         } catch (ProjectInitException exception) {

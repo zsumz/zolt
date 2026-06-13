@@ -8,7 +8,6 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.List;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -17,6 +16,9 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "release-verify", description = "Verify release archives by unpacking and smoking the binary.")
 public final class ReleaseVerifyCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final ReleaseVerificationService releaseVerificationService;
+
     @Parameters(arity = "1..*", paramLabel = "ARCHIVE", description = "Release archive path to verify.")
     private List<Path> archives;
 
@@ -29,14 +31,23 @@ public final class ReleaseVerifyCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public ReleaseVerifyCommand() {
+        this(new ZoltTomlParser(), new ReleaseVerificationService());
+    }
+
+    ReleaseVerifyCommand(ZoltTomlParser tomlParser, ReleaseVerificationService releaseVerificationService) {
+        this.tomlParser = tomlParser;
+        this.releaseVerificationService = releaseVerificationService;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             List<Path> resolvedArchives = archives.stream()
                     .map(path -> workingDirectory.resolve(path).normalize())
                     .toList();
-            ReleaseVerificationResult result = new ReleaseVerificationService().verify(
+            ReleaseVerificationResult result = releaseVerificationService.verify(
                     resolvedArchives,
                     workingDirectory.resolve(workDirectory).normalize(),
                     config.project().version());
