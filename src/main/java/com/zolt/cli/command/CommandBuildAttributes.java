@@ -5,6 +5,7 @@ import com.zolt.build.CompileDiagnostics;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.WorkspaceSelection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,14 @@ final class CommandBuildAttributes {
                 attributes,
                 result.mainFingerprintCheckNanos(),
                 result.mainFingerprintWriteNanos());
+        return attributes;
+    }
+
+    static Map<String, String> workspaceBuild(WorkspaceBuildResult result, WorkspaceSelection selection) {
+        Map<String, String> attributes = workspaceBuild(result);
+        attributes.put(TimingAttributeKeys.INCLUDED_MEMBERS, Integer.toString(selection.includedMembers().size()));
+        attributes.put(TimingAttributeKeys.SELECTED_MEMBERS, Integer.toString(selection.selectedMembers().size()));
+        attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
         return attributes;
     }
 
