@@ -32,7 +32,6 @@ import com.zolt.workspace.WorkspacePackageService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -41,6 +40,13 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "package", description = "Package compiled classes into a jar.")
 public final class PackageCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final PackagePlanService packagePlanService;
+    private final PackagePlanFormatter packagePlanFormatter;
+    private final PackageService packageService;
+    private final BuildService buildService;
+    private final WorkspacePackageService workspacePackageService;
+
     @Option(names = "--workspace", description = "Package workspace members in dependency order.")
     private boolean workspace;
 
@@ -73,6 +79,31 @@ public final class PackageCommand implements Runnable {
 
     @Spec
     private CommandSpec spec;
+
+    public PackageCommand() {
+        this(
+                new ZoltTomlParser(),
+                new PackagePlanService(),
+                new PackagePlanFormatter(),
+                new PackageService(),
+                new BuildService(),
+                new WorkspacePackageService());
+    }
+
+    PackageCommand(
+            ZoltTomlParser tomlParser,
+            PackagePlanService packagePlanService,
+            PackagePlanFormatter packagePlanFormatter,
+            PackageService packageService,
+            BuildService buildService,
+            WorkspacePackageService workspacePackageService) {
+        this.tomlParser = tomlParser;
+        this.packagePlanService = packagePlanService;
+        this.packagePlanFormatter = packagePlanFormatter;
+        this.packageService = packageService;
+        this.buildService = buildService;
+        this.workspacePackageService = workspacePackageService;
+    }
 
     @Override
     public void run() {
@@ -113,7 +144,6 @@ public final class PackageCommand implements Runnable {
             throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
         }
         CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-        WorkspacePackageService workspacePackageService = new WorkspacePackageService();
         WorkspacePackageResult result = timings.measure(
                 "package workspace",
                 () -> {
@@ -156,30 +186,28 @@ public final class PackageCommand implements Runnable {
         ProjectConfig config = CommandPackageSupport.withPackageModeOverride(
                 timings.measure(
                         "config read",
-                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
+                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
                 packageModeOverride);
         CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         if (planOnly) {
             PackagePlan packagePlan = timings.measure(
                     "plan package contents",
-                    () -> new PackagePlanService().plan(workingDirectory, config),
+                    () -> packagePlanService.plan(workingDirectory, config),
                     CommandPackageAttributes::packagePlan);
-            PackagePlanFormatter formatter = new PackagePlanFormatter();
             if (planOutputFormat == CommandPackageSupport.PlanOutputFormat.JSON) {
-                CommandOutput.printAndFlush(spec, formatter.json(packagePlan));
+                CommandOutput.printAndFlush(spec, packagePlanFormatter.json(packagePlan));
             } else {
-                CommandOutput.printAndFlush(spec, formatter.text(packagePlan));
+                CommandOutput.printAndFlush(spec, packagePlanFormatter.text(packagePlan));
             }
             return;
         }
-        PackageService packageService = new PackageService();
         PackageResult result = timings.measure(
                 "package",
                 () -> {
                     packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
                     BuildResultWithClasspaths buildResult = timings.measure(
                             "build package inputs",
-                            () -> new BuildService().buildWithClasspaths(
+                            () -> buildService.buildWithClasspaths(
                                     workingDirectory,
                                     config,
                                     cacheRoot,
