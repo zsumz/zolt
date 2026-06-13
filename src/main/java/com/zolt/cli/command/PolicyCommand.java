@@ -11,7 +11,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -19,6 +18,11 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "policy", description = "Show dependency baseline and policy diagnostics.")
 public final class PolicyCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final ZoltLockfileReader lockfileReader;
+    private final DependencyPolicyReportService reportService;
+    private final DependencyPolicyReportFormatter reportFormatter;
+
     enum Format {
         TEXT,
         JSON
@@ -33,17 +37,37 @@ public final class PolicyCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public PolicyCommand() {
+        this(
+                new ZoltTomlParser(),
+                new ZoltLockfileReader(),
+                new DependencyPolicyReportService(),
+                new DependencyPolicyReportFormatter());
+    }
+
+    PolicyCommand(
+            ZoltTomlParser tomlParser,
+            ZoltLockfileReader lockfileReader,
+            DependencyPolicyReportService reportService,
+            DependencyPolicyReportFormatter reportFormatter) {
+        this.tomlParser = tomlParser;
+        this.lockfileReader = lockfileReader;
+        this.reportService = reportService;
+        this.reportFormatter = reportFormatter;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-            ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
-            DependencyPolicyReport report = new DependencyPolicyReportService().report(
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
+            DependencyPolicyReport report = reportService.report(
                     workingDirectory,
                     config,
                     lockfile);
-            DependencyPolicyReportFormatter formatter = new DependencyPolicyReportFormatter();
-            CommandOutput.printAndFlush(spec, format == Format.JSON ? formatter.json(report) : formatter.text(report));
+            CommandOutput.printAndFlush(
+                    spec,
+                    format == Format.JSON ? reportFormatter.json(report) : reportFormatter.text(report));
         } catch (DependencyPolicyReportException | LockfileReadException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }

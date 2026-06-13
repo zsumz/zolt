@@ -14,7 +14,6 @@ import com.zolt.tree.DependencyJsonFormatter;
 import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -23,6 +22,12 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "why", description = "Explain why a package is present.")
 public final class WhyCommand implements Runnable {
+    private final CoordinateParser coordinateParser;
+    private final ZoltTomlParser tomlParser;
+    private final ZoltLockfileReader lockfileReader;
+    private final DependencyJsonFormatter jsonFormatter;
+    private final DependencyWhyFormatter whyFormatter;
+
     enum Format {
         TEXT,
         JSON
@@ -40,18 +45,38 @@ public final class WhyCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
-    private final CoordinateParser coordinateParser = new CoordinateParser();
+    public WhyCommand() {
+        this(
+                new CoordinateParser(),
+                new ZoltTomlParser(),
+                new ZoltLockfileReader(),
+                new DependencyJsonFormatter(),
+                new DependencyWhyFormatter());
+    }
+
+    WhyCommand(
+            CoordinateParser coordinateParser,
+            ZoltTomlParser tomlParser,
+            ZoltLockfileReader lockfileReader,
+            DependencyJsonFormatter jsonFormatter,
+            DependencyWhyFormatter whyFormatter) {
+        this.coordinateParser = coordinateParser;
+        this.tomlParser = tomlParser;
+        this.lockfileReader = lockfileReader;
+        this.jsonFormatter = jsonFormatter;
+        this.whyFormatter = whyFormatter;
+    }
 
     @Override
     public void run() {
         try {
             Coordinate coordinate = coordinateParser.parse(packageId);
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-            ZoltLockfile lockfile = new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock"));
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
             PackageId target = new PackageId(coordinate.groupId(), coordinate.artifactId());
             String output = format == Format.JSON
-                    ? new DependencyJsonFormatter().why(config, lockfile, target)
-                    : new DependencyWhyFormatter().format(config, lockfile, target);
+                    ? jsonFormatter.why(config, lockfile, target)
+                    : whyFormatter.format(config, lockfile, target);
             CommandOutput.printAndFlush(spec, output);
         } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
