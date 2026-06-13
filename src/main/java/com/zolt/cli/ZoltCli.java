@@ -38,6 +38,7 @@ import com.zolt.build.TestRunService;
 import com.zolt.build.TestSelection;
 import com.zolt.build.TestSelectionException;
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.cli.command.CheckCommand;
 import com.zolt.cli.command.ClasspathCommand;
 import com.zolt.cli.command.CleanCommand;
 import com.zolt.cli.command.ConflictsCommand;
@@ -77,11 +78,6 @@ import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionPolicy;
-import com.zolt.quality.QualityCheckFormatter;
-import com.zolt.quality.QualityCheckContext;
-import com.zolt.quality.QualityCheckReport;
-import com.zolt.quality.QualityCheckRequest;
-import com.zolt.quality.QualityCheckService;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusAugmentationResult;
 import com.zolt.quarkus.QuarkusAugmentationRequestFactory;
@@ -125,7 +121,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.function.Function;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -145,7 +140,7 @@ import picocli.CommandLine.Spec;
                 InitCommand.class,
                 VersionCommand.class,
                 UpdateCommand.class,
-                ZoltCli.CheckCommand.class,
+                CheckCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
                 ZoltCli.PlatformCommand.class,
@@ -211,89 +206,6 @@ public final class ZoltCli implements Runnable {
 
         public TimingFormat format() {
             return format;
-        }
-    }
-
-    @Command(name = "check", description = "Run Zolt-owned quality checks.")
-    public static final class CheckCommand implements Callable<Integer> {
-        enum Format {
-            TEXT,
-            JSON
-        }
-
-        @Option(names = "--check", description = "Run a quality check id. May be repeated.")
-        private List<String> checks = List.of();
-
-        @Option(names = "--context", description = "Apply a built-in check context. Supported values: local, ci.")
-        private QualityCheckContext context;
-
-        @Option(names = "--reports-dir", description = "Validate project-relative JUnit XML report output for CI context.")
-        private Path reportsDir;
-
-        @Option(names = "--require-package", description = "Require the configured package artifact and package evidence during CI context checks.")
-        private boolean requirePackage;
-
-        @Option(names = "--require-publish-dry-run", description = "Require publish dry-run preflight during CI context checks without uploading.")
-        private boolean requirePublishDryRun;
-
-        @Option(names = "--require-offline-ready", description = "Require locked dependency metadata to be available from the local cache during CI context checks.")
-        private boolean requireOfflineReady;
-
-        @Option(names = "--workspace", description = "Check workspace members using the workspace selection model.")
-        private boolean workspace;
-
-        @Option(names = "--offline", description = "Use only artifacts already present in the local cache for checks that need dependency metadata.")
-        private boolean offline;
-
-        @Option(names = "--all", description = "Select every workspace member.")
-        private boolean all;
-
-        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
-        private List<String> members = List.of();
-
-        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
-        private List<String> memberGroups = List.of();
-
-        @Option(names = "--format", description = "Output format: text or json.")
-        private Format format = Format.TEXT;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public Integer call() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            QualityCheckReport report = timings.measure(
-                    "run quality checks",
-                    () -> new QualityCheckService().check(new QualityCheckRequest(
-                            workingDirectory,
-                            cacheRoot,
-                            offline,
-                            workspace,
-                            checks,
-                            context,
-                            reportsDir,
-                            requirePackage,
-                            requirePublishDryRun,
-                            requireOfflineReady,
-                            workspaceSelection(all, members, memberGroups))),
-                    ZoltCli::qualityCheckAttributes);
-            if (format == Format.JSON) {
-                printAndFlush(spec, QualityCheckFormatter.json(report));
-            } else {
-                printAndFlush(spec, QualityCheckFormatter.text(report));
-            }
-            printTimings(spec, "check", workingDirectory, timingOptions, timings);
-            return report.ok() ? 0 : 1;
         }
     }
 
@@ -2316,17 +2228,6 @@ public final class ZoltCli implements Runnable {
                 "steps", Integer.toString(result.steps().size()),
                 "failedSteps", Long.toString(failedSteps),
                 "ok", Boolean.toString(result.ok()));
-    }
-
-    private static Map<String, String> qualityCheckAttributes(QualityCheckReport result) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("checks", Integer.toString(result.checks().size()));
-        attributes.put("passed", Long.toString(result.passedCount()));
-        attributes.put("failed", Long.toString(result.failedCount()));
-        attributes.put("skipped", Long.toString(result.skippedCount()));
-        attributes.put("workspace", Boolean.toString(result.workspace()));
-        attributes.put("ok", Boolean.toString(result.ok()));
-        return attributes;
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {

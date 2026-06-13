@@ -60,13 +60,13 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$CheckCommand",
+    "name": "com.zolt.cli.command.CheckCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$CheckCommand$Format",
+    "name": "com.zolt.cli.command.CheckCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
