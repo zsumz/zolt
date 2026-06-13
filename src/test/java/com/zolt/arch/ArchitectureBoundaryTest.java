@@ -158,7 +158,6 @@ final class ArchitectureBoundaryTest {
 
     private static Map<PackageEdge, String> allowedForbiddenImports() {
         Map<PackageEdge, String> imports = new LinkedHashMap<>();
-        imports.put(new PackageEdge("com.zolt.build", "com.zolt.quarkus"), "");
         imports.put(new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"), "/");
         imports.put(new PackageEdge("com.zolt.project", "com.zolt.toml"), "");
         imports.put(new PackageEdge("com.zolt.resolve", "com.zolt.quarkus"), "");

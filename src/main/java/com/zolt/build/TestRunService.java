@@ -14,10 +14,6 @@ import com.zolt.junit.JunitWorkerProcess;
 import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
-import com.zolt.quarkus.QuarkusPlanException;
-import com.zolt.quarkus.QuarkusTestPlan;
-import com.zolt.quarkus.QuarkusTestPlanService;
-import com.zolt.quarkus.QuarkusUnsupportedTest;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -346,12 +342,7 @@ public final class TestRunService {
                             testRuntime.environment()))
                     .orElseThrow(() -> new TestRunException(
                             "Framework test runner was not configured for the enabled framework."));
-            failOnUnsupportedQuarkusTests(
-                    projectDirectory,
-                    config,
-                    frameworkResult.supportsFrameworkTestAnnotations());
             String output = frameworkResult.output();
-            failOnHiddenQuarkusBootstrapFailure(config, output);
             return new TestRunResult(
                     compileResult,
                     output,
@@ -378,7 +369,6 @@ public final class TestRunService {
                     testRuntime.environment(),
                     reportsDirectory,
                     testRuntime.events());
-            failOnHiddenQuarkusBootstrapFailure(config, result.workerResult().output());
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
                         "JUnit worker tests failed with exit code "
@@ -425,7 +415,6 @@ public final class TestRunService {
         if (!testSelection.emptySelection() && noTestsFound(result.output())) {
             throw noSelectedTestsMatched(result.output(), null);
         }
-        failOnHiddenQuarkusBootstrapFailure(config, result.output());
         return new TestRunResult(
                 compileResult,
                 result.output(),
@@ -564,38 +553,6 @@ public final class TestRunService {
         }
     }
 
-    static void failOnUnsupportedQuarkusTests(Path projectDirectory, ProjectConfig config) {
-        failOnUnsupportedQuarkusTests(projectDirectory, config, false);
-    }
-
-    static void failOnUnsupportedQuarkusTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            boolean supportsQuarkusTestAnnotations) {
-        if (config == null || !config.frameworkSettings().quarkus().enabled()) {
-            return;
-        }
-        if (supportsQuarkusTestAnnotations) {
-            return;
-        }
-        try {
-            QuarkusTestPlan plan = new QuarkusTestPlanService().plan(projectDirectory, config);
-            if (plan.hasUnsupportedTests()) {
-                QuarkusUnsupportedTest firstUnsupportedTest = plan.unsupportedTests().getFirst();
-                throw new TestRunException(
-                        "Quarkus-specific `" + firstUnsupportedTest.annotationName()
-                                + "` execution is not supported by Zolt's current test runner. "
-                                + "Use plain JUnit tests for now, or remove `" + firstUnsupportedTest.annotationName()
-                                + "` until Zolt's dedicated "
-                                + "Quarkus test runner is implemented. Found "
-                                + firstUnsupportedTest.relativePath()
-                                + ".");
-            }
-        } catch (QuarkusPlanException exception) {
-            throw new TestRunException(exception.getMessage(), exception);
-        }
-    }
-
     private static boolean isConsoleJar(Path path) {
         String name = path.getFileName() == null ? "" : path.getFileName().toString();
         return name.startsWith("junit-platform-console") && name.endsWith(".jar");
@@ -706,31 +663,6 @@ public final class TestRunService {
                             + "`. Supported placeholder: ${project.root}.");
         }
         return expanded;
-    }
-
-    static void failOnHiddenQuarkusBootstrapFailure(ProjectConfig config, String output) {
-        if (!config.frameworkSettings().quarkus().enabled()) {
-            return;
-        }
-        if (output == null || output.isBlank()) {
-            return;
-        }
-        if (!hiddenQuarkusBootstrapFailure(output)) {
-            return;
-        }
-        throw new TestRunException(
-                "Quarkus test bootstrap failed while JUnit Platform reported success. "
-                        + "Zolt supports an early Quarkus test runner path, but this project hit an unsupported "
-                        + "Quarkus test bootstrap shape. Use plain JUnit tests for now, or simplify `@QuarkusTest` "
-                        + "usage until Zolt's dedicated Quarkus test runner is expanded.\n"
-                        + output.stripTrailing());
-    }
-
-    private static boolean hiddenQuarkusBootstrapFailure(String output) {
-        return output.contains("io.quarkus.test.junit")
-                && (output.contains("io.quarkus.bootstrap.BootstrapException")
-                        || output.contains("ClassCastException: class io.quarkus.builder.BuildChainBuilder")
-                        || output.contains("NullPointerException"));
     }
 
     private static boolean isJbossLogManagerJar(Path path) {

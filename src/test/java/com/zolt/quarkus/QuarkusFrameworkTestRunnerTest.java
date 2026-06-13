@@ -16,6 +16,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -112,6 +114,56 @@ final class QuarkusFrameworkTestRunnerTest {
         assertTrue(exception.getMessage().contains("Run `zolt build`, then run `zolt test` again"));
     }
 
+    @Test
+    void hiddenBootstrapStackTraceFailsEvenWhenJUnitReportsSuccess() {
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> QuarkusFrameworkTestRunner.failOnHiddenBootstrapFailure("""
+                        java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
+                            at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
+
+                        Test run finished after 41 ms
+                        [         1 tests successful      ]
+
+                        Tests passed
+                        """));
+
+        assertTrue(exception.getMessage().contains("Quarkus test bootstrap failed"));
+        assertTrue(exception.getMessage().contains("early Quarkus test runner path"));
+        assertTrue(exception.getMessage().contains("unsupported Quarkus test bootstrap shape"));
+        assertTrue(exception.getMessage().contains("BuildChainBuilder"));
+    }
+
+    @Test
+    void quarkusTestAnnotationFailsBeforeWorkerRuns() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
+        QuarkusFrameworkTestRunner runner = runner(false, "unused");
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> runner.runIfEnabled(request(quarkusConfig())));
+
+        assertTrue(exception.getMessage().contains("`@QuarkusTest` execution is not supported"));
+        assertTrue(exception.getMessage().contains("dedicated Quarkus test runner"));
+        assertTrue(exception.getMessage().contains("com/example/QuarkusHttpTest.class"));
+    }
+
+    @Test
+    void quarkusTestAnnotationCanPassThroughWhenDescriptorSupportsIt() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
+        QuarkusFrameworkTestRunner runner = runner(true, "Worker tests successful\n");
+
+        Optional<FrameworkTestRunResult> result = runner.runIfEnabled(request(quarkusConfig()));
+
+        assertTrue(result.isPresent());
+        assertTrue(result.orElseThrow().supportsFrameworkTestAnnotations());
+        assertEquals("Worker tests successful\n", result.orElseThrow().output());
+    }
+
     private FrameworkTestRunRequest request(ProjectConfig config) {
         return new FrameworkTestRunRequest(
                 projectDir,
@@ -131,6 +183,12 @@ final class QuarkusFrameworkTestRunnerTest {
     }
 
     private static QuarkusTestRunnerDescriptor descriptor(QuarkusTestRunnerRequest request) {
+        return descriptor(request, QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS);
+    }
+
+    private static QuarkusTestRunnerDescriptor descriptor(
+            QuarkusTestRunnerRequest request,
+            boolean supportsQuarkusTestAnnotations) {
         return new QuarkusTestRunnerDescriptor(
                 request.projectDirectory().resolve("target/quarkus/zolt-test-bootstrap.properties"),
                 request.projectDirectory().resolve("target/quarkus/zolt-test-classpath.txt"),
@@ -140,12 +198,21 @@ final class QuarkusFrameworkTestRunnerTest {
                 request.serializedApplicationModel(),
                 request.bootstrapDescriptorFile(),
                 QuarkusTestRunnerRequest.RUNNER_MODE,
-                QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS,
+                supportsQuarkusTestAnnotations,
                 request.jbossLogManagerPresent(),
                 request.testRuntimeClasspath(),
                 request.testSelection(),
                 request.jvmArguments(),
                 request.environment());
+    }
+
+    private QuarkusFrameworkTestRunner runner(boolean supportsQuarkusTestAnnotations, String output) {
+        return new QuarkusFrameworkTestRunner(
+                (projectDirectory, config) ->
+                        Optional.of(projectDirectory.resolve("target/quarkus/test-application-model.dat")),
+                request -> descriptor(request, supportsQuarkusTestAnnotations),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, descriptor) -> output);
     }
 
     private static ProjectConfig quarkusConfig() {

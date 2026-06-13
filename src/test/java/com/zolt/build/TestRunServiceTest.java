@@ -696,68 +696,6 @@ final class TestRunServiceTest {
         assertTrue(exception.getMessage().contains("worker failed"));
     }
 
-    @Test
-    void quarkusBootstrapStackTraceFailsEvenWhenJUnitConsoleExitsZero() throws IOException {
-        TestRunException exception = assertThrows(
-                TestRunException.class,
-                () -> TestRunService.failOnHiddenQuarkusBootstrapFailure(quarkusConfig(), """
-                        java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
-                            at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
-
-                        Test run finished after 41 ms
-                        [         1 tests successful      ]
-
-                        Tests passed
-                        """));
-
-        assertTrue(exception.getMessage().contains("Quarkus test bootstrap failed"));
-        assertTrue(exception.getMessage().contains("early Quarkus test runner path"));
-        assertTrue(exception.getMessage().contains("unsupported Quarkus test bootstrap shape"));
-        assertTrue(exception.getMessage().contains("BuildChainBuilder"));
-    }
-
-    @Test
-    void nonQuarkusProjectDoesNotScanSuccessfulJUnitOutputForQuarkusText() {
-        TestRunService.failOnHiddenQuarkusBootstrapFailure(config(), """
-                java.lang.ClassCastException: class io.quarkus.builder.BuildChainBuilder cannot be cast to class io.quarkus.builder.BuildChainBuilder
-                    at io.quarkus.test.junit.TestBuildChainFunction$1.accept(TestBuildChainFunction.java:51)
-                Tests passed
-                """);
-    }
-
-    @Test
-    void quarkusTestAnnotationFailsBeforeJUnitConsoleCanSkipIt() throws IOException {
-        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
-        Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
-
-        TestRunException exception = assertThrows(
-                TestRunException.class,
-                () -> TestRunService.failOnUnsupportedQuarkusTests(projectDir, quarkusConfig()));
-
-        assertTrue(exception.getMessage().contains("`@QuarkusTest` execution is not supported"));
-        assertTrue(exception.getMessage().contains("dedicated Quarkus test runner"));
-        assertTrue(exception.getMessage().contains("com/example/QuarkusHttpTest.class"));
-    }
-
-    @Test
-    void quarkusTestAnnotationCanPassThroughWhenDescriptorSupportsIt() throws IOException {
-        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
-        Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
-
-        TestRunService.failOnUnsupportedQuarkusTests(projectDir, quarkusConfig(), true);
-    }
-
-    @Test
-    void nonQuarkusProjectDoesNotRejectQuarkusTestAnnotationText() throws IOException {
-        Path testClass = projectDir.resolve("target/test-classes/com/example/QuarkusHttpTest.class");
-        Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
-
-        TestRunService.failOnUnsupportedQuarkusTests(projectDir, config());
-    }
-
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {
         return service(processRunner, new JdkDetector());
     }

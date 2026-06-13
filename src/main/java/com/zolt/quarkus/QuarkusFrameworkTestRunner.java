@@ -16,6 +16,7 @@ import java.util.function.Supplier;
 public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
     private final QuarkusTestApplicationModelWriter applicationModelWriter;
     private final QuarkusTestDescriptorWriter descriptorWriter;
+    private final QuarkusTestPlanner testPlanner;
     private final Supplier<List<Path>> workerClasspath;
     private final QuarkusTestWorkerRunner workerRunner;
 
@@ -23,6 +24,7 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
         this(
                 new QuarkusTestApplicationModelService()::writeIfEnabled,
                 new QuarkusTestRunnerDescriptorWriter()::write,
+                new QuarkusTestPlanService()::plan,
                 QuarkusFrameworkTestRunner::currentWorkerClasspath,
                 (javaExecutable, classpath, descriptor) ->
                         new QuarkusTestWorkerLauncher(javaExecutable, classpath).run(descriptor));
@@ -33,8 +35,23 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
             QuarkusTestDescriptorWriter descriptorWriter,
             Supplier<List<Path>> workerClasspath,
             QuarkusTestWorkerRunner workerRunner) {
+        this(
+                applicationModelWriter,
+                descriptorWriter,
+                new QuarkusTestPlanService()::plan,
+                workerClasspath,
+                workerRunner);
+    }
+
+    QuarkusFrameworkTestRunner(
+            QuarkusTestApplicationModelWriter applicationModelWriter,
+            QuarkusTestDescriptorWriter descriptorWriter,
+            QuarkusTestPlanner testPlanner,
+            Supplier<List<Path>> workerClasspath,
+            QuarkusTestWorkerRunner workerRunner) {
         this.applicationModelWriter = applicationModelWriter;
         this.descriptorWriter = descriptorWriter;
+        this.testPlanner = testPlanner;
         this.workerClasspath = workerClasspath;
         this.workerRunner = workerRunner;
     }
@@ -49,8 +66,10 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
                 "Could not prepare Quarkus test runner descriptor because the serialized application model was not written. "
                         + "Run `zolt build`, then run `zolt test` again."));
         QuarkusTestRunnerDescriptor descriptor = writeDescriptor(request, modelPath);
+        failOnUnsupportedTests(request, descriptor.supportsQuarkusTestAnnotations());
         List<Path> classpath = workerClasspath.get();
         String output = runWorker(request.javaExecutable(), classpath, descriptor);
+        failOnHiddenBootstrapFailure(output);
         return Optional.of(new FrameworkTestRunResult(
                 output,
                 descriptor.supportsQuarkusTestAnnotations(),
@@ -103,6 +122,52 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
         }
     }
 
+    private void failOnUnsupportedTests(
+            FrameworkTestRunRequest request,
+            boolean supportsQuarkusTestAnnotations) {
+        if (supportsQuarkusTestAnnotations) {
+            return;
+        }
+        try {
+            QuarkusTestPlan plan = testPlanner.plan(request.projectDirectory(), request.config());
+            if (plan.hasUnsupportedTests()) {
+                QuarkusUnsupportedTest firstUnsupportedTest = plan.unsupportedTests().getFirst();
+                throw new TestRunException(
+                        "Quarkus-specific `" + firstUnsupportedTest.annotationName()
+                                + "` execution is not supported by Zolt's current test runner. "
+                                + "Use plain JUnit tests for now, or remove `" + firstUnsupportedTest.annotationName()
+                                + "` until Zolt's dedicated "
+                                + "Quarkus test runner is implemented. Found "
+                                + firstUnsupportedTest.relativePath()
+                                + ".");
+            }
+        } catch (QuarkusPlanException exception) {
+            throw new TestRunException(exception.getMessage(), exception);
+        }
+    }
+
+    static void failOnHiddenBootstrapFailure(String output) {
+        if (output == null || output.isBlank()) {
+            return;
+        }
+        if (!hiddenBootstrapFailure(output)) {
+            return;
+        }
+        throw new TestRunException(
+                "Quarkus test bootstrap failed while JUnit Platform reported success. "
+                        + "Zolt supports an early Quarkus test runner path, but this project hit an unsupported "
+                        + "Quarkus test bootstrap shape. Use plain JUnit tests for now, or simplify `@QuarkusTest` "
+                        + "usage until Zolt's dedicated Quarkus test runner is expanded.\n"
+                        + output.stripTrailing());
+    }
+
+    private static boolean hiddenBootstrapFailure(String output) {
+        return output.contains("io.quarkus.test.junit")
+                && (output.contains("io.quarkus.bootstrap.BootstrapException")
+                        || output.contains("ClassCastException: class io.quarkus.builder.BuildChainBuilder")
+                        || output.contains("NullPointerException"));
+    }
+
     private static boolean isJbossLogManagerJar(Path path) {
         String name = path.getFileName() == null ? "" : path.getFileName().toString();
         return name.startsWith("jboss-logmanager-") && name.endsWith(".jar");
@@ -144,6 +209,11 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
     @FunctionalInterface
     interface QuarkusTestDescriptorWriter {
         QuarkusTestRunnerDescriptor write(QuarkusTestRunnerRequest request);
+    }
+
+    @FunctionalInterface
+    interface QuarkusTestPlanner {
+        QuarkusTestPlan plan(Path projectDirectory, ProjectConfig config);
     }
 
     @FunctionalInterface
