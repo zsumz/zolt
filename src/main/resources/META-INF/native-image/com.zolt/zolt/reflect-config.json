@@ -192,19 +192,19 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ClasspathCommand",
+    "name": "com.zolt.cli.command.ClasspathCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ClasspathCommand$Kind",
+    "name": "com.zolt.cli.command.ClasspathCommand$Kind",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ClasspathCommand$Format",
+    "name": "com.zolt.cli.command.ClasspathCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

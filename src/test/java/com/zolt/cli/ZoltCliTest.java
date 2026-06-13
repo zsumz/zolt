@@ -380,6 +380,15 @@ final class ZoltCliTest {
                 "self-parity",
                 "clean",
                 "doctor")));
+        assertEquals(
+                "com.zolt.cli.command.ClasspathCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("classpath")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test
