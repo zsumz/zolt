@@ -7,7 +7,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -15,17 +14,29 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "clean", description = "Remove project build output.")
 public final class CleanCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final CleanService cleanService;
+
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
 
     @Spec
     private CommandSpec spec;
 
+    public CleanCommand() {
+        this(new ZoltTomlParser(), new CleanService());
+    }
+
+    CleanCommand(ZoltTomlParser tomlParser, CleanService cleanService) {
+        this.tomlParser = tomlParser;
+        this.cleanService = cleanService;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-            CleanResult result = new CleanService().clean(workingDirectory, config);
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            CleanResult result = cleanService.clean(workingDirectory, config);
             if (result.deletedPaths().isEmpty()) {
                 spec.commandLine().getOut().println("Nothing to clean");
                 return;
