@@ -16,6 +16,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "doctor", description = "Inspect local Java/JDK/Zolt project health.")
 public final class DoctorCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final JdkDetector jdkDetector;
+    private final SelfHostingCheckService selfHostingCheckService;
+
     @Option(names = "--self-hosting", description = "Check whether the project is ready for Zolt-owned self-hosting flows.")
     private boolean selfHosting;
 
@@ -25,15 +29,28 @@ public final class DoctorCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public DoctorCommand() {
+        this(new ZoltTomlParser(), new JdkDetector(), new SelfHostingCheckService());
+    }
+
+    DoctorCommand(
+            ZoltTomlParser tomlParser,
+            JdkDetector jdkDetector,
+            SelfHostingCheckService selfHostingCheckService) {
+        this.tomlParser = tomlParser;
+        this.jdkDetector = jdkDetector;
+        this.selfHostingCheckService = selfHostingCheckService;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-            JdkStatus status = new JdkDetector().detect(config.project().java());
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            JdkStatus status = jdkDetector.detect(config.project().java());
             printJdkStatus(status);
             boolean ok = status.ok();
             if (selfHosting) {
-                SelfHostingCheckResult result = new SelfHostingCheckService().check(workingDirectory);
+                SelfHostingCheckResult result = selfHostingCheckService.check(workingDirectory);
                 printSelfHostingStatus(result);
                 ok = ok && result.ok();
             }

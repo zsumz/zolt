@@ -11,7 +11,6 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -19,6 +18,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "plan", description = "Show the typed Zolt command plan without executing it.")
 public final class PlanCommand implements Callable<Integer> {
+    private final ZoltTomlParser tomlParser;
+    private final BuildPlanService buildPlanService;
+    private final BuildPlanFormatter buildPlanFormatter;
+
     enum Format {
         TEXT,
         JSON
@@ -39,21 +42,33 @@ public final class PlanCommand implements Callable<Integer> {
     @Spec
     private CommandSpec spec;
 
+    public PlanCommand() {
+        this(new ZoltTomlParser(), new BuildPlanService(), new BuildPlanFormatter());
+    }
+
+    PlanCommand(
+            ZoltTomlParser tomlParser,
+            BuildPlanService buildPlanService,
+            BuildPlanFormatter buildPlanFormatter) {
+        this.tomlParser = tomlParser;
+        this.buildPlanService = buildPlanService;
+        this.buildPlanFormatter = buildPlanFormatter;
+    }
+
     @Override
     public Integer call() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
-            BuildPlan plan = new BuildPlanService().plan(
+            BuildPlan plan = buildPlanService.plan(
                     workingDirectory,
                     config,
                     target,
                     reportSettings.projectRelativeReportsDirectory(workingDirectory));
-            BuildPlanFormatter formatter = new BuildPlanFormatter();
             if (format == Format.JSON) {
-                CommandOutput.printAndFlush(spec, formatter.json(plan));
+                CommandOutput.printAndFlush(spec, buildPlanFormatter.json(plan));
             } else {
-                CommandOutput.printAndFlush(spec, formatter.text(plan));
+                CommandOutput.printAndFlush(spec, buildPlanFormatter.text(plan));
             }
             return plan.blocked() ? 1 : 0;
         } catch (TestRunException | ZoltConfigException exception) {
