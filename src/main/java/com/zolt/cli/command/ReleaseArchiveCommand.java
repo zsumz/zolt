@@ -8,7 +8,6 @@ import com.zolt.release.ReleaseTarget;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -16,6 +15,9 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "release-archive", description = "Assemble a release archive from a native binary.")
 public final class ReleaseArchiveCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final ReleaseArchiveService releaseArchiveService;
+
     @Option(names = "--target", description = "Release target. Supported: macos-arm64, macos-x64, linux-arm64, linux-x64, windows-x64.")
     private String target;
 
@@ -31,15 +33,24 @@ public final class ReleaseArchiveCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public ReleaseArchiveCommand() {
+        this(new ZoltTomlParser(), new ReleaseArchiveService());
+    }
+
+    ReleaseArchiveCommand(ZoltTomlParser tomlParser, ReleaseArchiveService releaseArchiveService) {
+        this.tomlParser = tomlParser;
+        this.releaseArchiveService = releaseArchiveService;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
             Path nativeBinary = binary == null
                     ? defaultNativeBinary(config, releaseTarget)
                     : binary;
-            ReleaseArchiveResult result = new ReleaseArchiveService().assemble(
+            ReleaseArchiveResult result = releaseArchiveService.assemble(
                     workingDirectory,
                     config,
                     releaseTarget,

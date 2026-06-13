@@ -20,6 +20,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "publish", description = "Publish Zolt-produced artifacts to Maven-compatible repositories.")
 public final class PublishCommand implements Callable<Integer> {
+    private final PublishDryRunService dryRunService;
+    private final PublishReleasePolicyService releasePolicyService;
+    private final PublishUploadService uploadService;
+
     @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
     private boolean dryRun;
 
@@ -32,6 +36,19 @@ public final class PublishCommand implements Callable<Integer> {
     @Spec
     private CommandSpec spec;
 
+    public PublishCommand() {
+        this(new PublishDryRunService(), new PublishReleasePolicyService(), new PublishUploadService());
+    }
+
+    PublishCommand(
+            PublishDryRunService dryRunService,
+            PublishReleasePolicyService releasePolicyService,
+            PublishUploadService uploadService) {
+        this.dryRunService = dryRunService;
+        this.releasePolicyService = releasePolicyService;
+        this.uploadService = uploadService;
+    }
+
     @Override
     public Integer call() {
         try {
@@ -40,14 +57,14 @@ public final class PublishCommand implements Callable<Integer> {
                 return 1;
             }
             if (dryRun) {
-                PublishDryRunPlan plan = new PublishDryRunService().plan(workingDirectory);
+                PublishDryRunPlan plan = dryRunService.plan(workingDirectory);
                 if (context == PublishContext.RELEASE) {
-                    plan = new PublishReleasePolicyService().apply(workingDirectory, plan);
+                    plan = releasePolicyService.apply(workingDirectory, plan);
                 }
                 CommandOutput.printAndFlush(spec, PublishDryRunFormatter.text(plan));
                 return plan.ok() ? 0 : 1;
             }
-            PublishUploadResult result = new PublishUploadService().upload(workingDirectory);
+            PublishUploadResult result = uploadService.upload(workingDirectory);
             CommandOutput.printAndFlush(spec, PublishUploadFormatter.text(result));
             return 0;
         } catch (PublishException | ZoltConfigException | PackageException exception) {

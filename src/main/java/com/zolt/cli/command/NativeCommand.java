@@ -16,7 +16,6 @@ import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -24,6 +23,9 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "native", description = "Build a native binary with GraalVM Native Image.")
 public final class NativeCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final NativeBuildService nativeBuildService;
+
     @Option(names = "--native-image", description = "Path to the native-image executable.")
     private Path nativeImageExecutable;
 
@@ -36,11 +38,20 @@ public final class NativeCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public NativeCommand() {
+        this(new ZoltTomlParser(), new NativeBuildService());
+    }
+
+    NativeCommand(ZoltTomlParser tomlParser, NativeBuildService nativeBuildService) {
+        this.tomlParser = tomlParser;
+        this.nativeBuildService = nativeBuildService;
+    }
+
     @Override
     public void run() {
         try {
-            ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-            NativeBuildResult result = new NativeBuildService().buildNative(
+            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            NativeBuildResult result = nativeBuildService.buildNative(
                     workingDirectory,
                     config,
                     cacheRoot,
