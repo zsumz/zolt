@@ -3,9 +3,9 @@ package com.zolt.build;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkRunAugmenter;
+import com.zolt.framework.FrameworkRunResult;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBuildAugmentationService;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,30 +17,37 @@ public final class RunService {
     private final BuildService buildService;
     private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
-    private final QuarkusBuildAugmenter quarkusBuildAugmenter;
+    private final FrameworkRunAugmenter frameworkRunAugmenter;
 
     public RunService() {
         this(new JdkDetector());
     }
 
     public RunService(JdkChecker jdkDetector) {
+        this(jdkDetector, FrameworkRunAugmenter.none());
+    }
+
+    public RunService(FrameworkRunAugmenter frameworkRunAugmenter) {
+        this(new JdkDetector(), frameworkRunAugmenter);
+    }
+
+    public RunService(JdkChecker jdkDetector, FrameworkRunAugmenter frameworkRunAugmenter) {
         this(
                 new BuildService(jdkDetector),
                 jdkDetector,
                 new JavaRunner(),
-                (projectDirectory, config, cacheRoot) ->
-                        new QuarkusBuildAugmentationService().augmentIfEnabled(projectDirectory, config, cacheRoot));
+                frameworkRunAugmenter);
     }
 
     RunService(
             BuildService buildService,
             JdkChecker jdkDetector,
             JavaRunner javaRunner,
-            QuarkusBuildAugmenter quarkusBuildAugmenter) {
+            FrameworkRunAugmenter frameworkRunAugmenter) {
         this.buildService = buildService;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
-        this.quarkusBuildAugmenter = quarkusBuildAugmenter;
+        this.frameworkRunAugmenter = frameworkRunAugmenter;
     }
 
     public RunResult run(
@@ -68,19 +75,19 @@ public final class RunService {
                 config,
                 cacheRoot,
                 false);
-        Optional<QuarkusAugmentationResult> quarkusResult =
-                quarkusBuildAugmenter.augmentIfEnabled(projectDirectory, config, cacheRoot);
+        Optional<FrameworkRunResult> frameworkRunResult =
+                frameworkRunAugmenter.augmentIfEnabled(projectDirectory, config, cacheRoot);
 
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
             throw new RunException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
-        if (quarkusResult.isPresent()) {
-            Path runnerJar = quarkusResult.orElseThrow().workerResult().runnerJar();
+        if (frameworkRunResult.isPresent()) {
+            FrameworkRunResult runResult = frameworkRunResult.orElseThrow();
             JavaRunResult javaRunResult = javaRunner.runJar(
                     jdkStatus.java().orElseThrow(),
-                    runnerJar,
-                    "Quarkus runner " + runnerJar,
+                    runResult.runnerJar(),
+                    runResult.runnerDescription(),
                     arguments,
                     outputConsumer);
             return new RunResult(buildResult.buildResult(), javaRunResult);
@@ -96,13 +103,5 @@ public final class RunService {
                 arguments,
                 outputConsumer);
         return new RunResult(buildResult.buildResult(), javaRunResult);
-    }
-
-    @FunctionalInterface
-    interface QuarkusBuildAugmenter {
-        Optional<QuarkusAugmentationResult> augmentIfEnabled(
-                Path projectDirectory,
-                ProjectConfig config,
-                Path cacheRoot);
     }
 }

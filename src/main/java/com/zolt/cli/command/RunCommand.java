@@ -15,6 +15,7 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.QuarkusRunAugmenter;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
@@ -68,7 +69,11 @@ public final class RunCommand implements Runnable {
     private CommandSpec spec;
 
     public RunCommand() {
-        this(new ZoltTomlParser(), new RunService(), new WorkspaceRunService(), new CommandLockfiles());
+        this(
+                new ZoltTomlParser(),
+                new RunService(new QuarkusRunAugmenter()),
+                new WorkspaceRunService(),
+                new CommandLockfiles());
     }
 
     RunCommand(

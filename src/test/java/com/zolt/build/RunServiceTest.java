@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
+import com.zolt.framework.FrameworkRunAugmenter;
+import com.zolt.framework.FrameworkRunResult;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
@@ -13,11 +15,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
-import com.zolt.quarkus.QuarkusApplicationArtifact;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBootstrapDescriptor;
-import com.zolt.quarkus.QuarkusBootstrapWorkerResult;
-import com.zolt.resolve.PackageId;
 import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,14 +37,15 @@ final class RunServiceTest {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         ProjectConfig config = config(true, Optional.empty());
-        QuarkusAugmentationResult augmentationResult = augmentationResult(projectDir);
+        Path runnerJar = projectDir.resolve("target/quarkus-app/quarkus-run.jar");
+        FrameworkRunResult runResult = new FrameworkRunResult(runnerJar, "Quarkus runner " + runnerJar);
         List<String> command = new ArrayList<>();
         RunService service = service(
                 (actualProjectDirectory, actualConfig, actualCacheRoot) -> {
                     assertEquals(projectDir, actualProjectDirectory);
                     assertEquals(config, actualConfig);
                     assertEquals(cacheRoot, actualCacheRoot);
-                    return Optional.of(augmentationResult);
+                    return Optional.of(runResult);
                 },
                 (actualCommand, outputConsumer) -> {
                     command.addAll(actualCommand);
@@ -59,7 +57,7 @@ final class RunServiceTest {
         });
 
         assertTrue(command.contains("-jar"));
-        assertTrue(command.contains(augmentationResult.workerResult().runnerJar().toString()));
+        assertTrue(command.contains(runnerJar.toString()));
         assertEquals("one", command.get(command.size() - 2));
         assertEquals("two", command.get(command.size() - 1));
         assertTrue(result.javaRunResult().mainClass().startsWith("Quarkus runner "));
@@ -159,20 +157,20 @@ final class RunServiceTest {
     }
 
     private static RunService service(
-            RunService.QuarkusBuildAugmenter quarkusBuildAugmenter,
+            FrameworkRunAugmenter frameworkRunAugmenter,
             JavaRunner.ProcessRunner processRunner) {
-        return service(quarkusBuildAugmenter, processRunner, new JdkDetector());
+        return service(frameworkRunAugmenter, processRunner, new JdkDetector());
     }
 
     private static RunService service(
-            RunService.QuarkusBuildAugmenter quarkusBuildAugmenter,
+            FrameworkRunAugmenter frameworkRunAugmenter,
             JavaRunner.ProcessRunner processRunner,
             JdkChecker jdkChecker) {
         return new RunService(
                 new BuildService(jdkChecker),
                 jdkChecker,
                 new JavaRunner(":", processRunner),
-                quarkusBuildAugmenter);
+                frameworkRunAugmenter);
     }
 
     private static ProjectConfig config(boolean quarkusEnabled, Optional<String> mainClass) {
@@ -185,53 +183,6 @@ final class RunServiceTest {
                 .withFrameworkSettings(new FrameworkSettings(new QuarkusSettings(
                         quarkusEnabled,
                         QuarkusPackageMode.FAST_JAR)));
-    }
-
-    private static QuarkusAugmentationResult augmentationResult(Path projectDir) {
-        Path augmentationDirectory = projectDir.resolve("target/quarkus");
-        Path packageDirectory = projectDir.resolve("target/quarkus-app");
-        String inputFingerprint = "sha256:" + "1".repeat(64);
-        QuarkusBootstrapWorkerResult workerResult = new QuarkusBootstrapWorkerResult(
-                inputFingerprint,
-                packageDirectory,
-                packageDirectory.resolve("quarkus-run.jar"),
-                packageDirectory.resolve("lib"),
-                1);
-        return new QuarkusAugmentationResult(
-                augmentationDirectory,
-                augmentationDirectory.resolve("zolt-augmentation.properties"),
-                descriptor(projectDir, augmentationDirectory, packageDirectory, inputFingerprint),
-                inputFingerprint,
-                workerResult);
-    }
-
-    private static QuarkusBootstrapDescriptor descriptor(
-            Path projectDir,
-            Path augmentationDirectory,
-            Path packageDirectory,
-            String inputFingerprint) {
-        return new QuarkusBootstrapDescriptor(
-                augmentationDirectory.resolve("zolt-bootstrap.properties"),
-                augmentationDirectory.resolve("runtime-classpath.txt"),
-                augmentationDirectory.resolve("deployment-classpath.txt"),
-                augmentationDirectory.resolve("platform-properties.txt"),
-                augmentationDirectory.resolve("application-model.properties"),
-                "io.quarkus.bootstrap.app.QuarkusBootstrap",
-                "io.quarkus.bootstrap.app.AugmentAction",
-                projectDir,
-                projectDir.resolve("target/classes"),
-                augmentationDirectory,
-                packageDirectory,
-                "fast-jar",
-                inputFingerprint,
-                new QuarkusApplicationArtifact(
-                        new PackageId("com.example", "demo"),
-                        "1.0.0",
-                        projectDir.resolve("target/classes")),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of());
     }
 
     private static String currentJavaMajorVersion() {
