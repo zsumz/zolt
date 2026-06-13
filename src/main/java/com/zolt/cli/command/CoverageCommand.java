@@ -25,7 +25,6 @@ import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -37,6 +36,9 @@ import picocli.CommandLine.Spec;
         mixinStandardHelpOptions = true,
         description = "Run tests with Jacoco instrumentation and write coverage reports.")
 public final class CoverageCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final CoverageService coverageService;
+
     @Option(names = "--test", description = "Select one test class or method. May be repeated.")
     private List<String> testSelectors = List.of();
 
@@ -82,6 +84,15 @@ public final class CoverageCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public CoverageCommand() {
+        this(new ZoltTomlParser(), new CoverageService());
+    }
+
+    CoverageCommand(ZoltTomlParser tomlParser, CoverageService coverageService) {
+        this.tomlParser = tomlParser;
+        this.coverageService = coverageService;
+    }
+
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
@@ -101,10 +112,10 @@ public final class CoverageCommand implements Runnable {
                     TestReportSettings.reportsDirectory(reportsDir));
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             CoverageResult result = timings.measure(
                     "run coverage",
-                    () -> new CoverageService().runCoverage(
+                    () -> coverageService.runCoverage(
                             workingDirectory,
                             config,
                             cacheRoot,

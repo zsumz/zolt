@@ -36,6 +36,11 @@ public final class IdeCommand implements Runnable {
 
     @Command(name = "model", description = "Export the Zolt project model.")
     public static final class ModelCommand implements Runnable {
+        private final WorkspaceIdeModelService workspaceIdeModelService;
+        private final WorkspaceIdeModelJsonWriter workspaceIdeModelJsonWriter;
+        private final IdeModelService ideModelService;
+        private final IdeModelJsonWriter ideModelJsonWriter;
+
         enum Format {
             JSON
         }
@@ -64,6 +69,25 @@ public final class IdeCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
+        public ModelCommand() {
+            this(
+                    new WorkspaceIdeModelService(),
+                    new WorkspaceIdeModelJsonWriter(),
+                    new IdeModelService(),
+                    new IdeModelJsonWriter());
+        }
+
+        ModelCommand(
+                WorkspaceIdeModelService workspaceIdeModelService,
+                WorkspaceIdeModelJsonWriter workspaceIdeModelJsonWriter,
+                IdeModelService ideModelService,
+                IdeModelJsonWriter ideModelJsonWriter) {
+            this.workspaceIdeModelService = workspaceIdeModelService;
+            this.workspaceIdeModelJsonWriter = workspaceIdeModelJsonWriter;
+            this.ideModelService = ideModelService;
+            this.ideModelJsonWriter = ideModelJsonWriter;
+        }
+
         @Override
         public void run() {
             TimingRecorder timings = CommandTimings.recorder(timingOptions);
@@ -71,7 +95,7 @@ public final class IdeCommand implements Runnable {
                 if (workspace) {
                     WorkspaceIdeModel model = timings.measure(
                             "ide model export",
-                            () -> new WorkspaceIdeModelService().export(
+                            () -> workspaceIdeModelService.export(
                                     workingDirectory,
                                     cacheRoot,
                                     true,
@@ -80,13 +104,13 @@ public final class IdeCommand implements Runnable {
                             IdeCommand::workspaceIdeModelAttributes);
                     String output = timings.measure(
                             "ide model json",
-                            () -> new WorkspaceIdeModelJsonWriter().write(model));
+                            () -> workspaceIdeModelJsonWriter.write(model));
                     CommandOutput.printAndFlush(spec, output);
                     return;
                 }
                 IdeModel model = timings.measure(
                         "ide model export",
-                        () -> new IdeModelService().export(
+                        () -> ideModelService.export(
                                 workingDirectory,
                                 cacheRoot,
                                 true,
@@ -95,7 +119,7 @@ public final class IdeCommand implements Runnable {
                         IdeCommand::ideModelAttributes);
                 String output = timings.measure(
                         "ide model json",
-                        () -> new IdeModelJsonWriter().write(model));
+                        () -> ideModelJsonWriter.write(model));
                 CommandOutput.printAndFlush(spec, output);
             } finally {
                 CommandTimings.print(spec, "ide model", workingDirectory, timingOptions, timings);
