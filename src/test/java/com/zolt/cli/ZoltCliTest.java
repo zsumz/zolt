@@ -416,6 +416,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.ReleaseVerifyCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("release-verify")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test

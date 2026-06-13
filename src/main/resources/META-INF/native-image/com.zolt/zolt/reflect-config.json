@@ -312,7 +312,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ReleaseVerifyCommand",
+    "name": "com.zolt.cli.command.ReleaseVerifyCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

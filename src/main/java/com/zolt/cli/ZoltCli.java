@@ -48,6 +48,7 @@ import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PolicyCommand;
+import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TreeCommand;
 import com.zolt.cli.command.UpdateCommand;
@@ -122,9 +123,6 @@ import com.zolt.release.ReleaseArchiveException;
 import com.zolt.release.ReleaseArchiveResult;
 import com.zolt.release.ReleaseArchiveService;
 import com.zolt.release.ReleaseTarget;
-import com.zolt.release.ReleaseVerificationException;
-import com.zolt.release.ReleaseVerificationResult;
-import com.zolt.release.ReleaseVerificationService;
 import com.zolt.selfhost.SelfCheckResult;
 import com.zolt.selfhost.SelfCheckService;
 import com.zolt.toml.ZoltConfigException;
@@ -198,7 +196,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.NativeCommand.class,
                 NativeSmokeCommand.class,
                 ZoltCli.ReleaseArchiveCommand.class,
-                ZoltCli.ReleaseVerifyCommand.class,
+                ReleaseVerifyCommand.class,
                 ZoltCli.SelfCheckCommand.class,
                 SelfParityCommand.class,
                 CleanCommand.class,
@@ -2273,44 +2271,6 @@ public final class ZoltCli implements Runnable {
                     ? imageName + ".exe"
                     : imageName;
             return Path.of(config.nativeSettings().output()).resolve(binaryName);
-        }
-    }
-
-    @Command(name = "release-verify", description = "Verify release archives by unpacking and smoking the binary.")
-    public static final class ReleaseVerifyCommand implements Runnable {
-        @Parameters(arity = "1..*", paramLabel = "ARCHIVE", description = "Release archive path to verify.")
-        private List<Path> archives;
-
-        @Option(names = "--work-dir", description = "Directory for unpacked verification work.")
-        private Path workDirectory = Path.of("target/release-verify");
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                List<Path> resolvedArchives = archives.stream()
-                        .map(path -> workingDirectory.resolve(path).normalize())
-                        .toList();
-                ReleaseVerificationResult result = new ReleaseVerificationService().verify(
-                        resolvedArchives,
-                        workingDirectory.resolve(workDirectory).normalize(),
-                        config.project().version());
-                for (ReleaseVerificationResult.VerifiedArchive archive : result.archives()) {
-                    spec.commandLine().getOut().println("Verified release archive " + archive.archivePath());
-                    spec.commandLine().getOut().println("Unpacked to " + archive.unpackDirectory());
-                    spec.commandLine().getOut().println("Ran smoke binary " + archive.binaryPath());
-                }
-                spec.commandLine().getOut().println("Verified " + result.verifiedCount() + " release archives");
-            } catch (ReleaseVerificationException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
         }
     }
 
