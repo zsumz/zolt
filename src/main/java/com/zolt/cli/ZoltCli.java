@@ -45,6 +45,7 @@ import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
+import com.zolt.cli.command.PlanCommand;
 import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.PublishCommand;
 import com.zolt.cli.command.ReleaseArchiveCommand;
@@ -78,10 +79,6 @@ import com.zolt.maven.CoordinateParser;
 import com.zolt.perf.TimingFormat;
 import com.zolt.perf.TimingFormatter;
 import com.zolt.perf.TimingRecorder;
-import com.zolt.plan.BuildPlan;
-import com.zolt.plan.BuildPlanFormatter;
-import com.zolt.plan.BuildPlanService;
-import com.zolt.plan.PlanTarget;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencySection;
 import com.zolt.project.PackageMode;
@@ -169,7 +166,7 @@ import picocli.CommandLine.Spec;
                 PolicyCommand.class,
                 ConflictsCommand.class,
                 ZoltCli.ExplainCommand.class,
-                ZoltCli.PlanCommand.class,
+                PlanCommand.class,
                 ClasspathCommand.class,
                 ZoltCli.IdeCommand.class,
                 ZoltCli.QuarkusCommand.class,
@@ -863,52 +860,6 @@ public final class ZoltCli implements Runnable {
                                 + value
                                 + "`. Supported overlays: maven-local.");
             };
-        }
-    }
-
-    @Command(name = "plan", description = "Show the typed Zolt command plan without executing it.")
-    public static final class PlanCommand implements Callable<Integer> {
-        enum Format {
-            TEXT,
-            JSON
-        }
-
-        @Option(names = "--target", description = "Plan target: build, test, package, or ci.")
-        private PlanTarget target = PlanTarget.PACKAGE;
-
-        @Option(names = "--reports-dir", description = "Include a project-relative test report output in test/ci plans.")
-        private Path reportsDir;
-
-        @Option(names = "--format", description = "Output format: text or json.")
-        private Format format = Format.TEXT;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public Integer call() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
-                BuildPlan plan = new BuildPlanService().plan(
-                        workingDirectory,
-                        config,
-                        target,
-                        reportSettings.projectRelativeReportsDirectory(workingDirectory));
-                BuildPlanFormatter formatter = new BuildPlanFormatter();
-                if (format == Format.JSON) {
-                    printAndFlush(spec, formatter.json(plan));
-                } else {
-                    printAndFlush(spec, formatter.text(plan));
-                }
-                return plan.blocked() ? 1 : 0;
-            } catch (TestRunException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
         }
     }
 
