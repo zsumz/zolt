@@ -177,7 +177,7 @@ final class ReleaseVerificationServiceTest {
         Path binary = projectDir.resolve(path);
         Files.createDirectories(binary.getParent());
         Files.writeString(binary, "native");
-        return binary;
+        return Path.of(path);
     }
 
     private static ProjectConfig config() {

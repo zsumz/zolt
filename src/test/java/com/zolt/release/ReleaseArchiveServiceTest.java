@@ -1,6 +1,7 @@
 package com.zolt.release;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipFile;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -190,6 +192,87 @@ final class ReleaseArchiveServiceTest {
     }
 
     @Test
+    void rejectsArchiveNameThatUsesUnsafeProjectVersion() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(new ProjectMetadata(
+                                "zolt",
+                                "../0.1.0",
+                                "com.zolt",
+                                currentJavaMajorVersion(),
+                                Optional.of("com.zolt.Main"))),
+                        ReleaseTarget.LINUX_X64,
+                        binary,
+                        Path.of("dist")));
+
+        assertTrue(exception.getMessage().contains("[project].version"));
+        assertTrue(exception.getMessage().contains("../0.1.0"));
+        assertFalse(Files.exists(projectDir.resolve("dist/zolt-0.1.0-linux-x64.tar.gz")));
+    }
+
+    @Test
+    void rejectsReleaseOutputOutsideProject() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(),
+                        ReleaseTarget.LINUX_X64,
+                        binary,
+                        Path.of("../dist")));
+
+        assertTrue(exception.getMessage().contains("--output"));
+        assertTrue(exception.getMessage().contains("../dist"));
+    }
+
+    @Test
+    void rejectsReleaseBinaryOutsideProject() throws IOException {
+        Path outside = Files.createTempFile(projectDir.getParent(), "outside-binary-", "");
+        Files.writeString(outside, "native");
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(),
+                        ReleaseTarget.LINUX_X64,
+                        projectDir.relativize(outside),
+                        Path.of("dist")));
+
+        assertTrue(exception.getMessage().contains("--binary"));
+        assertTrue(exception.getMessage().contains("outside-binary"));
+    }
+
+    @Test
+    void rejectsReleaseOutputSymlinkThatEscapesProject() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-dist-");
+        createSymlink(projectDir.resolve("dist"), outside);
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(),
+                        ReleaseTarget.LINUX_X64,
+                        binary,
+                        Path.of("dist")));
+
+        assertTrue(exception.getMessage().contains("--output"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertFalse(Files.exists(outside.resolve("zolt-0.1.0-linux-x64.tar.gz")));
+    }
+
+    @Test
     void unknownTargetListsSupportedTargets() {
         ReleaseArchiveException exception = assertThrows(
                 ReleaseArchiveException.class,
@@ -210,12 +293,21 @@ final class ReleaseArchiveServiceTest {
         Path binary = projectDir.resolve(path);
         Files.createDirectories(binary.getParent());
         Files.writeString(binary, "native");
-        return binary;
+        return Path.of(path);
     }
 
     private static ProjectConfig config() {
+        return config(new ProjectMetadata(
+                "zolt",
+                "0.1.0",
+                "com.zolt",
+                currentJavaMajorVersion(),
+                Optional.of("com.zolt.Main")));
+    }
+
+    private static ProjectConfig config(ProjectMetadata projectMetadata) {
         return new ProjectConfig(
-                new ProjectMetadata("zolt", "0.1.0", "com.zolt", currentJavaMajorVersion(), Optional.of("com.zolt.Main")),
+                projectMetadata,
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),
                 Map.of(),
@@ -263,6 +355,14 @@ final class ReleaseArchiveServiceTest {
     private static int paddedSize(long size) {
         long remainder = size % 512;
         return (int) (remainder == 0 ? size : size + 512 - remainder);
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 
     private static String currentJavaMajorVersion() {

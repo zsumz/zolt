@@ -1,6 +1,8 @@
 package com.zolt.release;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -23,21 +25,19 @@ public final class ReleaseArchiveService {
             ReleaseTarget target,
             Path binaryPath,
             Path outputDirectory) {
-        Path binary = projectDirectory.resolve(binaryPath).normalize();
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        Path binary = releaseInput(projectRoot, "--binary", binaryPath.toString());
         if (!Files.isRegularFile(binary)) {
             throw new ReleaseArchiveException(
                     "Release archive requires native binary at " + binary
                             + ". Run `zolt native` or pass --binary <path>.");
         }
 
-        String rootDirectory = config.project().name()
-                + "-"
-                + config.project().version()
-                + "-"
-                + target.id();
-        Path output = projectDirectory.resolve(outputDirectory).normalize();
+        String releaseBaseName = releaseBaseName(config);
+        String rootDirectory = releaseBaseName + "-" + target.id();
+        Path output = releaseOutput(projectRoot, "--output", outputDirectory.toString());
         Path archivePath = output.resolve(rootDirectory + target.archiveExtension());
-        List<ArchiveEntry> entries = entries(projectDirectory, binary, rootDirectory, target.binaryName());
+        List<ArchiveEntry> entries = entries(projectRoot, binary, rootDirectory, target.binaryName());
 
         try {
             Files.createDirectories(output);
@@ -48,7 +48,10 @@ public final class ReleaseArchiveService {
             }
             String checksum = sha256(archivePath);
             Path checksumPath = writeChecksum(archivePath, checksum);
-            Path manifestPath = writeManifest(output, config.project().name(), config.project().version());
+            Path manifestPath = writeManifest(
+                    output,
+                    ProjectPaths.filenameComponent("[project].name", config.project().name()),
+                    ProjectPaths.filenameComponent("[project].version", config.project().version()));
             return new ReleaseArchiveResult(
                     target,
                     archivePath,
@@ -61,6 +64,32 @@ public final class ReleaseArchiveService {
             throw new ReleaseArchiveException(
                     "Could not write release archive " + archivePath + ". Check that the output directory is writable.",
                     exception);
+        }
+    }
+
+    private static Path releaseInput(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.input(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new ReleaseArchiveException(exception.getMessage(), exception);
+        }
+    }
+
+    private static Path releaseOutput(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new ReleaseArchiveException(exception.getMessage(), exception);
+        }
+    }
+
+    private static String releaseBaseName(ProjectConfig config) {
+        try {
+            return ProjectPaths.filenameComponent("[project].name", config.project().name())
+                    + "-"
+                    + ProjectPaths.filenameComponent("[project].version", config.project().version());
+        } catch (ProjectPathException exception) {
+            throw new ReleaseArchiveException(exception.getMessage(), exception);
         }
     }
 
