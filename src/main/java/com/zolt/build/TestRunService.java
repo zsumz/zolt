@@ -15,6 +15,7 @@ import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,8 +57,19 @@ public final class TestRunService {
     }
 
     public TestRunService(JdkChecker jdkDetector, FrameworkTestRunner frameworkTestRunner) {
+        this(jdkDetector, frameworkTestRunner, new ResolveService());
+    }
+
+    public TestRunService(FrameworkTestRunner frameworkTestRunner, ResolveService resolveService) {
+        this(new JdkDetector(), frameworkTestRunner, resolveService);
+    }
+
+    public TestRunService(
+            JdkChecker jdkDetector,
+            FrameworkTestRunner frameworkTestRunner,
+            ResolveService resolveService) {
         this(
-                new TestCompileService(jdkDetector),
+                new TestCompileService(jdkDetector, resolveService),
                 jdkDetector,
                 new JavaRunner(),
                 frameworkTestRunner,

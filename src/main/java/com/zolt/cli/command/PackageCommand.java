@@ -87,9 +87,9 @@ public final class PackageCommand implements Runnable {
                 new ZoltTomlParser(),
                 new PackagePlanService(),
                 new PackagePlanFormatter(),
-                new PackageService(new QuarkusPackageAugmenter()),
-                new BuildService(),
-                new WorkspacePackageService(),
+                CommandFrameworkServices.packageService(new QuarkusPackageAugmenter()),
+                CommandFrameworkServices.buildService(),
+                CommandFrameworkServices.workspacePackageService(new QuarkusPackageAugmenter()),
                 new CommandLockfiles());
     }
 

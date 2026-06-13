@@ -60,7 +60,7 @@ public final class VersionCommand implements Runnable {
         private CommandSpec spec;
 
         public SetCommand() {
-            this(new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+            this(new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
         }
 
         SetCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {
@@ -130,7 +130,7 @@ public final class VersionCommand implements Runnable {
         private CommandSpec spec;
 
         public RemoveCommand() {
-            this(new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+            this(new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
         }
 
         RemoveCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {

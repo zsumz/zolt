@@ -3,9 +3,11 @@ package com.zolt.workspace;
 import com.zolt.build.PackageService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
+import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,10 +23,21 @@ public final class WorkspacePackageService {
         this(new JdkDetector());
     }
 
+    public WorkspacePackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+    }
+
     WorkspacePackageService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService(), FrameworkPackageAugmenter.none());
+    }
+
+    WorkspacePackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
-                new WorkspaceBuildService(jdkDetector),
-                new PackageService());
+                new WorkspaceBuildService(jdkDetector, resolveService),
+                new PackageService(resolveService, frameworkPackageAugmenter));
     }
 
     WorkspacePackageService(

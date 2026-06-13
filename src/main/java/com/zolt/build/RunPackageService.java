@@ -9,6 +9,7 @@ import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +34,20 @@ public final class RunPackageService {
     }
 
     public RunPackageService(JdkChecker jdkDetector, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(jdkDetector, new ResolveService(), frameworkPackageAugmenter);
+    }
+
+    public RunPackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+    }
+
+    public RunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
-                new PackageService(frameworkPackageAugmenter),
-                new BuildService(jdkDetector),
+                new PackageService(resolveService, frameworkPackageAugmenter),
+                new BuildService(jdkDetector, resolveService),
                 new ClasspathBuilder(),
                 jdkDetector,
                 new JavaRunner());

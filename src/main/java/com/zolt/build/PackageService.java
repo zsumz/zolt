@@ -74,9 +74,13 @@ public final class PackageService {
     }
 
     public PackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(new ResolveService(), frameworkPackageAugmenter);
+    }
+
+    public PackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
-                new BuildService(),
-                new ResolveService(),
+                new BuildService(resolveService),
+                resolveService,
                 new ManifestGenerator(),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),

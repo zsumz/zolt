@@ -34,11 +34,6 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
-import com.zolt.quarkus.QuarkusArtifactKey;
-import com.zolt.quarkus.QuarkusDeploymentArtifact;
-import com.zolt.quarkus.QuarkusExtensionMetadata;
-import com.zolt.quarkus.QuarkusExtensionMetadataReader;
-import com.zolt.quarkus.QuarkusMetadataException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -58,7 +53,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.zip.ZipException;
 
 public final class ResolveService {
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
@@ -82,9 +76,13 @@ public final class ResolveService {
     private final DependencyGraphTraverserFactory graphTraverserFactory;
     private final VersionSelector versionSelector;
     private final ZoltLockfileWriter lockfileWriter;
-    private final QuarkusExtensionMetadataReader quarkusMetadataReader;
+    private final FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner;
 
     public ResolveService() {
+        this(FrameworkDependencyRequestPlanner.none());
+    }
+
+    public ResolveService(FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner) {
         this(
                 new CoordinateParser(),
                 new MavenRepositoryClient(),
@@ -92,7 +90,7 @@ public final class ResolveService {
                 DependencyGraphTraverser::new,
                 new VersionSelector(),
                 new ZoltLockfileWriter(),
-                new QuarkusExtensionMetadataReader());
+                frameworkDependencyRequestPlanner);
     }
 
     ResolveService(
@@ -102,14 +100,16 @@ public final class ResolveService {
             DependencyGraphTraverserFactory graphTraverserFactory,
             VersionSelector versionSelector,
             ZoltLockfileWriter lockfileWriter,
-            QuarkusExtensionMetadataReader quarkusMetadataReader) {
+            FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner) {
         this.coordinateParser = coordinateParser;
         this.repositoryClient = repositoryClient;
         this.rawPomParser = rawPomParser;
         this.graphTraverserFactory = graphTraverserFactory;
         this.versionSelector = versionSelector;
         this.lockfileWriter = lockfileWriter;
-        this.quarkusMetadataReader = quarkusMetadataReader;
+        this.frameworkDependencyRequestPlanner = frameworkDependencyRequestPlanner == null
+                ? FrameworkDependencyRequestPlanner.none()
+                : frameworkDependencyRequestPlanner;
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -183,15 +183,12 @@ public final class ResolveService {
         directRequests = relocateDirectRequests(context, directRequests);
         ResolutionState initial = resolveGraph(context, directRequests);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
-        if (config.frameworkSettings().quarkus().enabled()) {
-            allRequests.addAll(quarkusDeploymentRequests(
-                    context,
-                    initial.graph(),
-                    initial.selection(),
-                    directRequests,
-                    managedVersions));
-            allRequests.addAll(context.projectPlatformPropertiesRequests());
-        }
+        allRequests.addAll(frameworkDependencyRequestPlanner.plan(frameworkDependencyRequestPlanRequest(
+                context,
+                initial.graph(),
+                initial.selection(),
+                directRequests,
+                managedVersions)));
         ResolutionState resolved = allRequests.size() == directRequests.size()
                 ? initial
                 : resolveGraph(context, allRequests);
@@ -771,123 +768,33 @@ public final class ResolveService {
         return value == null ? "" : value;
     }
 
-    private List<DependencyRequest> quarkusDeploymentRequests(
+    private FrameworkDependencyRequestPlanRequest frameworkDependencyRequestPlanRequest(
             RepositoryContext context,
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests,
             Map<PackageId, String> managedVersions) {
         Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
-        Map<PackageId, String> selectedVersions = selectedVersions(selection);
-        Map<String, DependencyRequest> requests = new LinkedHashMap<>();
-        selection.selectedNodes().stream()
+        List<FrameworkDependencyCandidate> candidates = selection.selectedNodes().stream()
                 .sorted(Comparator.comparing(node -> node.packageId() + ":" + node.selectedVersion()))
-                .forEach(node -> {
-                    boolean runtimeExtensionCandidate = selectedScopes
-                            .getOrDefault(node.packageId(), List.of())
-                            .stream()
-                            .map(SelectedScope::scope)
-                            .anyMatch(scope -> scope.entersMainRuntimeClasspath() && scope.packagedByDefault());
-                    if (!runtimeExtensionCandidate) {
-                        return;
-                    }
-                    Coordinate coordinate = new Coordinate(
-                            node.packageId().groupId(),
-                            node.packageId().artifactId(),
-                            Optional.of(node.selectedVersion()));
-                    CachedArtifact jar = context.getJar(coordinate);
-                    Optional<QuarkusExtensionMetadata> metadata = quarkusMetadata(jar.cachePath());
-                    metadata.ifPresent(quarkusMetadata -> {
-                        QuarkusDeploymentArtifact artifact = quarkusMetadata.deploymentArtifact();
-                        if (!"jar".equals(artifact.type())) {
-                            throw new ResolveException(
-                                    "Quarkus extension "
-                                            + coordinate
-                                            + " declares deployment artifact "
-                                            + artifact
-                                            + ", but Zolt currently supports only jar deployment artifacts. "
-                                            + "Remove that extension or wait for type-aware artifact resolution.");
-                        }
-                        DependencyRequest request = new DependencyRequest(
-                                new PackageId(artifact.groupId(), artifact.artifactId()),
-                                artifact.version(),
-                                DependencyScope.QUARKUS_DEPLOYMENT,
-                                RequestOrigin.TRANSITIVE,
-                                Optional.of(ArtifactDescriptor.jar(
-                                        new Coordinate(
-                                                artifact.groupId(),
-                                                artifact.artifactId(),
-                                                Optional.of(artifact.version())),
-                                                artifact.classifier())));
-                        requests.put(requestKey(request), request);
-                        for (QuarkusArtifactKey artifactKey : quarkusMetadata.parentFirstArtifacts()) {
-                            parentFirstDeploymentRequest(artifactKey, selectedVersions, managedVersions)
-                                    .ifPresent(parentFirstRequest -> requests.put(requestKey(parentFirstRequest), parentFirstRequest));
-                        }
-                        for (QuarkusArtifactKey artifactKey : quarkusMetadata.runnerParentFirstArtifacts()) {
-                            parentFirstDeploymentRequest(artifactKey, selectedVersions, managedVersions)
-                                    .ifPresent(parentFirstRequest -> requests.put(requestKey(parentFirstRequest), parentFirstRequest));
-                        }
-                    });
-                });
-        return List.copyOf(requests.values());
-    }
-
-    private static Map<PackageId, String> selectedVersions(VersionSelectionResult selection) {
+                .map(node -> new FrameworkDependencyCandidate(
+                        node.packageId(),
+                        node.selectedVersion(),
+                        selectedScopes.getOrDefault(node.packageId(), List.of()).stream()
+                                .map(SelectedScope::scope)
+                                .toList()))
+                .toList();
         Map<PackageId, String> versions = new LinkedHashMap<>();
         for (PackageNode node : selection.selectedNodes()) {
             versions.put(node.packageId(), node.selectedVersion());
         }
-        return versions;
-    }
-
-    private static Optional<DependencyRequest> parentFirstDeploymentRequest(
-            QuarkusArtifactKey artifactKey,
-            Map<PackageId, String> selectedVersions,
-            Map<PackageId, String> managedVersions) {
-        if (artifactKey.type().isPresent() && !"jar".equals(artifactKey.type().orElseThrow())) {
-            return Optional.empty();
-        }
-        PackageId packageId = new PackageId(artifactKey.groupId(), artifactKey.artifactId());
-        String version = selectedVersions.getOrDefault(packageId, managedVersions.get(packageId));
-        if (version == null || version.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(new DependencyRequest(
-                packageId,
-                version,
-                DependencyScope.QUARKUS_DEPLOYMENT,
-                RequestOrigin.TRANSITIVE,
-                Optional.of(ArtifactDescriptor.jar(
-                        new Coordinate(packageId.groupId(), packageId.artifactId(), Optional.of(version)),
-                        artifactKey.classifier()))));
-    }
-
-    private static String requestKey(DependencyRequest request) {
-        return request.packageId()
-                + ":"
-                + request.requestedVersion()
-                + ":"
-                + request.scope()
-                + ":"
-                + request.artifactDescriptor()
-                        .flatMap(ArtifactDescriptor::classifier)
-                        .orElse("")
-                + ":"
-                + request.artifactDescriptor()
-                        .map(ArtifactDescriptor::extension)
-                        .orElse("jar");
-    }
-
-    private Optional<QuarkusExtensionMetadata> quarkusMetadata(Path jarPath) {
-        try {
-            return quarkusMetadataReader.readIfPresent(jarPath);
-        } catch (QuarkusMetadataException exception) {
-            if (exception.getCause() instanceof ZipException) {
-                return Optional.empty();
-            }
-            throw exception;
-        }
+        return new FrameworkDependencyRequestPlanRequest(
+                context.config,
+                candidates,
+                versions,
+                managedVersions,
+                coordinate -> context.getJar(coordinate).cachePath(),
+                context::projectPlatformPropertiesRequests);
     }
 
     private Map<PackageId, List<SelectedScope>> selectedScopes(

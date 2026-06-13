@@ -143,15 +143,8 @@ final class ArchitectureBoundaryTest {
 
     private static Map<Set<String>, String> allowedCycles() {
         Map<Set<String>, String> cycles = new LinkedHashMap<>();
-        cycles.put(
-                sortedSet(
-                        "com.zolt.build",
-                        "com.zolt.classpath",
-                        "com.zolt.junit",
-                        "com.zolt.lockfile",
-                        "com.zolt.quarkus",
-                        "com.zolt.resolve"),
-                "//");
+        cycles.put(sortedSet("com.zolt.build", "com.zolt.junit"), "");
+        cycles.put(sortedSet("com.zolt.classpath", "com.zolt.lockfile", "com.zolt.resolve"), "/");
         cycles.put(sortedSet("com.zolt.project", "com.zolt.toml"), "");
         return Map.copyOf(cycles);
     }
@@ -160,7 +153,6 @@ final class ArchitectureBoundaryTest {
         Map<PackageEdge, String> imports = new LinkedHashMap<>();
         imports.put(new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"), "/");
         imports.put(new PackageEdge("com.zolt.project", "com.zolt.toml"), "");
-        imports.put(new PackageEdge("com.zolt.resolve", "com.zolt.quarkus"), "");
         return Map.copyOf(imports);
     }
 

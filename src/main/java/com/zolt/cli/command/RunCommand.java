@@ -72,7 +72,7 @@ public final class RunCommand implements Runnable {
         this(
                 new ZoltTomlParser(),
                 new RunService(new QuarkusRunAugmenter()),
-                new WorkspaceRunService(),
+                CommandFrameworkServices.workspaceRunService(),
                 new CommandLockfiles());
     }
 

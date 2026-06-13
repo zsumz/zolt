@@ -6,6 +6,8 @@ import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
+import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,10 +23,21 @@ public final class WorkspaceTestService {
         this(new JdkDetector());
     }
 
+    public WorkspaceTestService(ResolveService resolveService, FrameworkTestRunner frameworkTestRunner) {
+        this(new JdkDetector(), resolveService, frameworkTestRunner);
+    }
+
     WorkspaceTestService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService(), FrameworkTestRunner.none());
+    }
+
+    WorkspaceTestService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkTestRunner frameworkTestRunner) {
         this(
-                new WorkspaceBuildService(jdkDetector),
-                new TestRunService(jdkDetector));
+                new WorkspaceBuildService(jdkDetector, resolveService),
+                new TestRunService(jdkDetector, frameworkTestRunner, resolveService));
     }
 
     WorkspaceTestService(

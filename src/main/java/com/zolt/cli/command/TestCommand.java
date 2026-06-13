@@ -96,8 +96,8 @@ public final class TestCommand implements Runnable {
     public TestCommand() {
         this(
                 new ZoltTomlParser(),
-                new TestRunService(new QuarkusFrameworkTestRunner()),
-                new WorkspaceTestService(),
+                CommandFrameworkServices.testRunService(new QuarkusFrameworkTestRunner()),
+                CommandFrameworkServices.workspaceTestService(new QuarkusFrameworkTestRunner()),
                 new CommandLockfiles());
     }
 

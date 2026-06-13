@@ -8,6 +8,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolveService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,8 +32,12 @@ public final class TestCompileService {
     }
 
     public TestCompileService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService());
+    }
+
+    public TestCompileService(JdkChecker jdkDetector, ResolveService resolveService) {
         this(
-                new BuildService(jdkDetector),
+                new BuildService(jdkDetector, resolveService),
                 new SourceDiscoverer(),
                 new ResourceCopier(),
                 new BuildFingerprintService(),

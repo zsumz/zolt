@@ -17,7 +17,10 @@ final class CommandLockfiles {
     private final WorkspaceResolveService workspaceResolveService;
 
     CommandLockfiles() {
-        this(new ResolveService(), new WorkspaceDiscoveryService(), new WorkspaceResolveService());
+        this(
+                CommandFrameworkServices.resolveService(),
+                new WorkspaceDiscoveryService(),
+                CommandFrameworkServices.workspaceResolveService());
     }
 
     CommandLockfiles(

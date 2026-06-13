@@ -30,6 +30,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,7 +56,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class ResolveServiceTest {
-    private final ResolveService resolveService = new ResolveService();
+    private final ResolveService resolveService = new ResolveService(new QuarkusDependencyRequestPlanner());
     private final ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
     private final Map<String, byte[]> responses = new HashMap<>();
     private final Set<String> slowPomPaths = ConcurrentHashMap.newKeySet();

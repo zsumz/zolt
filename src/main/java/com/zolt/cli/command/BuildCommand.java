@@ -71,8 +71,8 @@ public final class BuildCommand implements Runnable {
     public BuildCommand() {
         this(
                 new ZoltTomlParser(),
-                new BuildService(),
-                new WorkspaceBuildService(),
+                CommandFrameworkServices.buildService(),
+                CommandFrameworkServices.workspaceBuildService(),
                 new QuarkusBuildAugmentationService(),
                 new CommandLockfiles());
     }

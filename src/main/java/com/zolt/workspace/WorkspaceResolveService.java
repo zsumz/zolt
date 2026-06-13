@@ -47,6 +47,10 @@ public final class WorkspaceResolveService {
         this(new WorkspaceDiscoveryService(), new ResolveService(), new ZoltLockfileWriter());
     }
 
+    public WorkspaceResolveService(ResolveService resolveService) {
+        this(new WorkspaceDiscoveryService(), resolveService, new ZoltLockfileWriter());
+    }
+
     WorkspaceResolveService(
             WorkspaceDiscoveryService workspaceDiscoveryService,
             ResolveService resolveService,

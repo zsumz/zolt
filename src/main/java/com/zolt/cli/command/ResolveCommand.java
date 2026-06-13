@@ -67,7 +67,10 @@ public final class ResolveCommand implements Runnable {
     private CommandSpec spec;
 
     public ResolveCommand() {
-        this(new ZoltTomlParser(), new ResolveService(), new WorkspaceResolveService());
+        this(
+                new ZoltTomlParser(),
+                CommandFrameworkServices.resolveService(),
+                CommandFrameworkServices.workspaceResolveService());
     }
 
     ResolveCommand(

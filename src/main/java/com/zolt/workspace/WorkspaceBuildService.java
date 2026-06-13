@@ -9,6 +9,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -31,13 +32,21 @@ public final class WorkspaceBuildService {
         this(new JdkDetector());
     }
 
+    public WorkspaceBuildService(ResolveService resolveService) {
+        this(new JdkDetector(), resolveService);
+    }
+
     WorkspaceBuildService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService());
+    }
+
+    WorkspaceBuildService(JdkChecker jdkDetector, ResolveService resolveService) {
         this(
                 new WorkspaceDiscoveryService(),
-                new WorkspaceResolveService(),
+                new WorkspaceResolveService(resolveService),
                 new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
-                new BuildService(jdkDetector),
+                new BuildService(jdkDetector, resolveService),
                 new WorkspaceMemberSelector());
     }
 

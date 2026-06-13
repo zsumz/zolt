@@ -7,8 +7,10 @@ import com.zolt.build.RunPackageResult;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,9 +27,20 @@ public final class WorkspaceRunPackageService {
         this(new JdkDetector());
     }
 
+    public WorkspaceRunPackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+    }
+
     WorkspaceRunPackageService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService(), FrameworkPackageAugmenter.none());
+    }
+
+    WorkspaceRunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(
-                new WorkspacePackageService(jdkDetector),
+                new WorkspacePackageService(jdkDetector, resolveService, frameworkPackageAugmenter),
                 jdkDetector,
                 new JavaRunner());
     }
