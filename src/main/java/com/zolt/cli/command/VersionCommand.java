@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -38,6 +37,10 @@ public final class VersionCommand implements Runnable {
 
     @Command(name = "set", description = "Set a version alias in zolt.toml and refresh zolt.lock.")
     public static final class SetCommand implements Runnable {
+        private final ZoltTomlParser tomlParser;
+        private final ZoltTomlWriter tomlWriter;
+        private final ResolveService resolveService;
+
         @Parameters(index = "0", paramLabel = "ALIAS", description = "Version alias name.")
         private String alias;
 
@@ -56,9 +59,15 @@ public final class VersionCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
+        public SetCommand() {
+            this(new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+        }
+
+        SetCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {
+            this.tomlParser = tomlParser;
+            this.tomlWriter = tomlWriter;
+            this.resolveService = resolveService;
+        }
 
         @Override
         public void run() {
@@ -101,6 +110,10 @@ public final class VersionCommand implements Runnable {
 
     @Command(name = "remove", description = "Remove an unused version alias from zolt.toml and refresh zolt.lock.")
     public static final class RemoveCommand implements Runnable {
+        private final ZoltTomlParser tomlParser;
+        private final ZoltTomlWriter tomlWriter;
+        private final ResolveService resolveService;
+
         @Parameters(index = "0", paramLabel = "ALIAS", description = "Version alias name.")
         private String alias;
 
@@ -116,9 +129,15 @@ public final class VersionCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
-        private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-        private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-        private final ResolveService resolveService = new ResolveService();
+        public RemoveCommand() {
+            this(new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+        }
+
+        RemoveCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {
+            this.tomlParser = tomlParser;
+            this.tomlWriter = tomlWriter;
+            this.resolveService = resolveService;
+        }
 
         @Override
         public void run() {

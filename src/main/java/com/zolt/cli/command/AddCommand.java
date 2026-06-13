@@ -19,7 +19,6 @@ import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -28,6 +27,11 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "add", description = "Add a dependency to zolt.toml and refresh zolt.lock.")
 public final class AddCommand implements Runnable {
+    private final CoordinateParser coordinateParser;
+    private final ZoltTomlParser tomlParser;
+    private final ZoltTomlWriter tomlWriter;
+    private final ResolveService resolveService;
+
     @Parameters(
             arity = "1..2",
             paramLabel = "[api|runtime|provided|dev|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
@@ -52,10 +56,20 @@ public final class AddCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
-    private final CoordinateParser coordinateParser = new CoordinateParser();
-    private final ZoltTomlParser tomlParser = new ZoltTomlParser();
-    private final ZoltTomlWriter tomlWriter = new ZoltTomlWriter();
-    private final ResolveService resolveService = new ResolveService();
+    public AddCommand() {
+        this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), new ResolveService());
+    }
+
+    AddCommand(
+            CoordinateParser coordinateParser,
+            ZoltTomlParser tomlParser,
+            ZoltTomlWriter tomlWriter,
+            ResolveService resolveService) {
+        this.coordinateParser = coordinateParser;
+        this.tomlParser = tomlParser;
+        this.tomlWriter = tomlWriter;
+        this.resolveService = resolveService;
+    }
 
     @Override
     public void run() {
