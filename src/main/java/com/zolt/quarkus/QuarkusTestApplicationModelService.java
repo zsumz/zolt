@@ -3,6 +3,8 @@ package com.zolt.quarkus;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -65,23 +67,26 @@ public final class QuarkusTestApplicationModelService {
             throw new QuarkusAugmentationException(
                     "JDK check failed for Quarkus test application model. " + String.join(" ", status.problems()));
         }
+        Path root = ProjectPaths.root(projectDirectory);
+        Path quarkusDirectory = outputPath(root, "Quarkus test application model output", "target/quarkus");
         QuarkusBootstrapDescriptor descriptor = descriptorReader.read(
-                projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"));
-        Path outputPath = projectDirectory.resolve("target/quarkus/test-application-model.dat");
+                quarkusDirectory.resolve("zolt-bootstrap.properties"));
+        Path outputPath = quarkusDirectory.resolve("test-application-model.dat");
         return Optional.of(launcherFactory.create(status.java().orElseThrow(), workerClasspath.get())
-                .write(descriptor, outputPath, workspaceModuleInputs(projectDirectory, config)));
+                .write(descriptor, outputPath, workspaceModuleInputs(root, config)));
     }
 
     private static QuarkusWorkspaceModuleInputs workspaceModuleInputs(Path projectDirectory, ProjectConfig config) {
+        Path root = ProjectPaths.root(projectDirectory);
         return new QuarkusWorkspaceModuleInputs(
-                projectDirectory,
-                projectDirectory.resolve("target"),
-                projectDirectory.resolve(config.build().source()),
-                projectDirectory.resolve(first(config.build().resourceRoots(), "src/main/resources")),
-                projectDirectory.resolve(config.build().output()),
-                projectDirectory.resolve(first(config.build().testSources(), config.build().test())),
-                projectDirectory.resolve(first(config.build().testResourceRoots(), "src/test/resources")),
-                projectDirectory.resolve(config.build().testOutput()));
+                root,
+                outputPath(root, "Quarkus build directory", "target"),
+                inputRoot(root, "[build].source", config.build().source()),
+                inputRoot(root, "[resources].main", first(config.build().resourceRoots(), "src/main/resources")),
+                outputPath(root, "[build].output", config.build().output()),
+                inputRoot(root, "[build].testSources", first(config.build().testSources(), config.build().test())),
+                inputRoot(root, "[resources].test", first(config.build().testResourceRoots(), "src/test/resources")),
+                outputPath(root, "[build].testOutput", config.build().testOutput()));
     }
 
     private static String first(List<String> values, String fallback) {
@@ -89,6 +94,22 @@ public final class QuarkusTestApplicationModelService {
             return fallback;
         }
         return values.getFirst();
+    }
+
+    private static Path inputRoot(Path root, String key, String configuredPath) {
+        try {
+            return ProjectPaths.existingRoot(root, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new QuarkusAugmentationException(exception.getMessage(), exception);
+        }
+    }
+
+    private static Path outputPath(Path root, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(root, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new QuarkusAugmentationException(exception.getMessage(), exception);
+        }
     }
 
     private static List<Path> currentWorkerClasspath() {

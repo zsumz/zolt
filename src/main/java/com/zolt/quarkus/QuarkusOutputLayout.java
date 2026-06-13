@@ -1,5 +1,7 @@
 package com.zolt.quarkus;
 
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Path;
 
 public record QuarkusOutputLayout(
@@ -16,8 +18,12 @@ public record QuarkusOutputLayout(
 
     public static QuarkusOutputLayout forProject(Path projectRoot) {
         Path root = projectRoot.toAbsolutePath().normalize();
-        return new QuarkusOutputLayout(
-                root.resolve("target/quarkus").normalize(),
-                root.resolve("target/quarkus-app").normalize());
+        try {
+            return new QuarkusOutputLayout(
+                    ProjectPaths.output(root, "Quarkus augmentation output", "target/quarkus"),
+                    ProjectPaths.output(root, "Quarkus package output", "target/quarkus-app"));
+        } catch (ProjectPathException exception) {
+            throw new QuarkusPlanException(exception.getMessage(), exception);
+        }
     }
 }

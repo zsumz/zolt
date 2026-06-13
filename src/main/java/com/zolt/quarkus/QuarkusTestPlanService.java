@@ -1,6 +1,8 @@
 package com.zolt.quarkus;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -32,14 +34,23 @@ public final class QuarkusTestPlanService {
                             + "run `zolt resolve`, then run `zolt quarkus test-plan` again.");
         }
         Path root = projectDirectory.toAbsolutePath().normalize();
-        Path testOutputDirectory = root.resolve(config.build().testOutput()).normalize();
+        Path testOutputDirectory = outputPath(root, "[build].testOutput", config.build().testOutput());
+        Path quarkusDirectory = outputPath(root, "Quarkus test output", "target/quarkus");
         return new QuarkusTestPlan(
                 root,
                 testOutputDirectory,
                 Files.isDirectory(testOutputDirectory),
-                root.resolve("target/quarkus/test-application-model.dat").normalize(),
-                root.resolve("target/quarkus/zolt-test-bootstrap.properties").normalize(),
+                quarkusDirectory.resolve("test-application-model.dat"),
+                quarkusDirectory.resolve("zolt-test-bootstrap.properties"),
                 unsupportedTestScanner.scan(testOutputDirectory));
+    }
+
+    private static Path outputPath(Path root, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(root, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new QuarkusPlanException(exception.getMessage(), exception);
+        }
     }
 
     @FunctionalInterface

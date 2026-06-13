@@ -6,6 +6,8 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import java.nio.file.Files;
@@ -60,7 +62,7 @@ public final class QuarkusPlanService {
         requireEnabled(config);
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path cache = cacheRoot.toAbsolutePath().normalize();
-        Path applicationClasses = root.resolve(config.build().output()).normalize();
+        Path applicationClasses = outputPath(root, "[build].output", config.build().output());
         ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cache));
         String fingerprint = inputFingerprint.fingerprint(applicationClasses, lockfile);
         return new QuarkusPlan(
@@ -83,6 +85,14 @@ public final class QuarkusPlanService {
 
     private static QuarkusOutputLayout outputLayout(Path projectRoot) {
         return QuarkusOutputLayout.forProject(projectRoot);
+    }
+
+    private static Path outputPath(Path root, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(root, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new QuarkusPlanException(exception.getMessage(), exception);
+        }
     }
 
     private static void requireEnabled(ProjectConfig config) {
