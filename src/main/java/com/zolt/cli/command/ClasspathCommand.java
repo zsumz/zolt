@@ -14,7 +14,6 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -23,6 +22,12 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "classpath", description = "Print a classpath from zolt.lock.")
 public final class ClasspathCommand implements Runnable {
+    private final ZoltLockfileReader lockfileReader;
+    private final ZoltTomlParser tomlParser;
+    private final ClasspathLaneAuditFormatter auditFormatter;
+    private final ClasspathBuilder classpathBuilder;
+    private final ClasspathFormatter classpathFormatter;
+
     enum Kind {
         COMPILE("compile"),
         RUNTIME("runtime"),
@@ -76,22 +81,42 @@ public final class ClasspathCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public ClasspathCommand() {
+        this(
+                new ZoltLockfileReader(),
+                new ZoltTomlParser(),
+                new ClasspathLaneAuditFormatter(),
+                new ClasspathBuilder(),
+                new ClasspathFormatter());
+    }
+
+    ClasspathCommand(
+            ZoltLockfileReader lockfileReader,
+            ZoltTomlParser tomlParser,
+            ClasspathLaneAuditFormatter auditFormatter,
+            ClasspathBuilder classpathBuilder,
+            ClasspathFormatter classpathFormatter) {
+        this.lockfileReader = lockfileReader;
+        this.tomlParser = tomlParser;
+        this.auditFormatter = auditFormatter;
+        this.classpathBuilder = classpathBuilder;
+        this.classpathFormatter = classpathFormatter;
+    }
+
     @Override
     public void run() {
         try {
-            ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
             Path configPath = workingDirectory.resolve("zolt.toml");
             if (Files.isRegularFile(configPath)) {
-                ProjectConfig config = new ZoltTomlParser().parse(configPath);
+                ProjectConfig config = tomlParser.parse(configPath);
                 CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
             }
             ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
             Kind parsedKind = Kind.parse(kind);
             if (parsedKind == Kind.AUDIT) {
-                ClasspathLaneAuditFormatter formatter = new ClasspathLaneAuditFormatter();
                 String output = format == Format.JSON
-                        ? formatter.formatJson(lockfile)
-                        : formatter.formatText(lockfile);
+                        ? auditFormatter.formatJson(lockfile)
+                        : auditFormatter.formatText(lockfile);
                 CommandOutput.printAndFlush(spec, output);
                 return;
             }
@@ -100,8 +125,8 @@ public final class ClasspathCommand implements Runnable {
                         "`zolt classpath --format json` is supported for `audit` only. "
                                 + "Use `zolt classpath audit --format json`.");
             }
-            ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
-            String output = new ClasspathFormatter().format(switch (parsedKind) {
+            ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+            String output = classpathFormatter.format(switch (parsedKind) {
                 case COMPILE -> classpaths.compile();
                 case RUNTIME -> classpaths.runtime();
                 case TEST -> classpaths.test();
