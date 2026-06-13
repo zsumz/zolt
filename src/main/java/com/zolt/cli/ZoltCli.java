@@ -49,6 +49,7 @@ import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TreeCommand;
+import com.zolt.cli.command.UpdateCommand;
 import com.zolt.cli.command.VersionCommand;
 import com.zolt.cli.command.WhyCommand;
 import com.zolt.explain.GradleExplainFormatter;
@@ -174,7 +175,7 @@ import picocli.CommandLine.Spec;
                 CommandLine.HelpCommand.class,
                 InitCommand.class,
                 VersionCommand.class,
-                ZoltCli.UpdateCommand.class,
+                UpdateCommand.class,
                 ZoltCli.CheckCommand.class,
                 ZoltCli.AddCommand.class,
                 ZoltCli.RemoveCommand.class,
@@ -234,22 +235,6 @@ public final class ZoltCli implements Runnable {
 
         @Option(names = "--timings-format", description = "Timing output format: text or json.")
         private TimingFormat format = TimingFormat.TEXT;
-    }
-
-    @Command(name = "update", description = "Update the Zolt executable in place.")
-    public static final class UpdateCommand implements Callable<Integer> {
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public Integer call() {
-            spec.commandLine().getOut().println("""
-                    zolt update is not available yet.
-                    Future behavior: check the release channel, download a verified native archive, replace the current zolt executable atomically, and keep a rollback copy.
-                    Track this work in followUps/-design-zolt-update-command.md.
-                    """.stripTrailing());
-            return 1;
-        }
     }
 
     @Command(name = "check", description = "Run Zolt-owned quality checks.")
