@@ -51,8 +51,7 @@ public final class ReleaseArchiveCommand implements Runnable {
             spec.commandLine().getOut().println("Wrote checksum to " + result.checksumPath());
             spec.commandLine().getOut().println("Wrote manifest to " + result.manifestPath());
         } catch (ReleaseArchiveException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 

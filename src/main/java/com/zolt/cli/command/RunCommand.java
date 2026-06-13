@@ -128,8 +128,7 @@ public final class RunCommand implements Runnable {
             }
             spec.commandLine().getOut().println("Ran " + result.javaRunResult().mainClass());
         } catch (JavaRunException exception) {
-            spec.commandLine().getErr().println("error: " + firstLine(exception.getMessage()));
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, firstLine(exception.getMessage()), exception);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -142,8 +141,7 @@ public final class RunCommand implements Runnable {
                 | ResolveException
                 | WorkspaceConfigException
                 | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         } finally {
             CommandTimings.print(spec, "run", workingDirectory, timingOptions, timings);
         }

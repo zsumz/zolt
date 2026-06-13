@@ -41,8 +41,7 @@ public final class TreeCommand implements Runnable {
                     : new DependencyTreeFormatter().format(config, lockfile);
             CommandOutput.printAndFlush(spec, output);
         } catch (LockfileReadException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

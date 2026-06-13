@@ -116,8 +116,7 @@ public final class ClasspathCommand implements Runnable {
                 | LockfileReadException
                 | ResolveException
                 | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 

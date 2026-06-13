@@ -41,8 +41,7 @@ public final class NativeSmokeCommand implements Runnable {
             spec.commandLine().getOut().println("Verified release archive " + result.archive());
             spec.commandLine().getOut().println("Ran generated project " + result.projectDirectory());
         } catch (NativeSmokeException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

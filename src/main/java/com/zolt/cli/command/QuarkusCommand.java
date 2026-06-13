@@ -74,8 +74,7 @@ public final class QuarkusCommand implements Runnable {
                         "quarkus augmentation request",
                         () -> new QuarkusAugmentationRequestFactory().create(plan));
             } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                throw CommandFailures.user(spec, exception);
             } finally {
                 CommandTimings.print(spec, "quarkus plan", workingDirectory, timingOptions, timings);
             }
@@ -97,8 +96,7 @@ public final class QuarkusCommand implements Runnable {
                 QuarkusTestPlan plan = new QuarkusTestPlanService().plan(workingDirectory, config);
                 CommandOutput.printAndFlush(spec, new QuarkusTestPlanFormatter().format(plan));
             } catch (QuarkusPlanException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+                throw CommandFailures.user(spec, exception);
             }
         }
     }

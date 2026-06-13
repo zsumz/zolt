@@ -54,8 +54,7 @@ public final class WhyCommand implements Runnable {
                     : new DependencyWhyFormatter().format(config, lockfile, target);
             CommandOutput.printAndFlush(spec, output);
         } catch (CoordinateParseException | DependencyWhyException | LockfileReadException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

@@ -35,8 +35,7 @@ public final class InitCommand implements Runnable {
             spec.commandLine().getOut().println("Created Zolt project at " + result.projectDirectory());
             spec.commandLine().getOut().println("Next: cd " + result.projectDirectory().getFileName());
         } catch (ProjectInitException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

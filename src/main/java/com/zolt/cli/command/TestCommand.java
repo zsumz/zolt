@@ -127,8 +127,7 @@ public final class TestCommand implements Runnable {
                 | ResolveException
                 | WorkspaceConfigException
                 | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         } finally {
             CommandTimings.print(spec, "test", workingDirectory, timingOptions, timings);
         }

@@ -25,8 +25,7 @@ public final class ConflictsCommand implements Runnable {
                     new ZoltLockfileReader().read(workingDirectory.resolve("zolt.lock")));
             CommandOutput.printAndFlush(spec, output);
         } catch (LockfileReadException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

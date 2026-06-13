@@ -98,8 +98,7 @@ public final class ResolveCommand implements Runnable {
                     ResolveCommand::resolveAttributes);
             CommandResolveOutput.print(spec, result, !locked);
         } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         } finally {
             CommandTimings.print(spec, "resolve", workingDirectory, timingOptions, timings);
         }

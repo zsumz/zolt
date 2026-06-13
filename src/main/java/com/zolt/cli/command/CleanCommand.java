@@ -35,8 +35,7 @@ public final class CleanCommand implements Runnable {
                 spec.commandLine().getOut().println("Deleted " + path);
             }
         } catch (CleanException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

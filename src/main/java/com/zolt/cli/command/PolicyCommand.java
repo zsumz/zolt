@@ -45,8 +45,7 @@ public final class PolicyCommand implements Runnable {
             DependencyPolicyReportFormatter formatter = new DependencyPolicyReportFormatter();
             CommandOutput.printAndFlush(spec, format == Format.JSON ? formatter.json(report) : formatter.text(report));
         } catch (DependencyPolicyReportException | LockfileReadException | ZoltConfigException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+            throw CommandFailures.user(spec, exception);
         }
     }
 }

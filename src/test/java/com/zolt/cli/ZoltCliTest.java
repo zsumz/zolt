@@ -3078,7 +3078,7 @@ final class ZoltCliTest {
     }
 
     @Test
-    void testRejectsInvalidSelectionBeforeReadingProjectConfig() {
+    void extractedTestCommandPreservesSelectionErrorAndExitCodeBeforeReadingProjectConfig() {
         CommandResult result = execute("test", "--cwd", tempDir.toString(), "--test", "*ServiceTest");
 
         assertEquals(1, result.exitCode());

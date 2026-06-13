@@ -36,8 +36,7 @@ public final class PublishCommand implements Callable<Integer> {
     public Integer call() {
         try {
             if (context != null && !dryRun) {
-                spec.commandLine().getErr().println("error: Publish context policy is currently supported only with --dry-run.");
-                spec.commandLine().getErr().flush();
+                CommandFailures.printUser(spec, "Publish context policy is currently supported only with --dry-run.");
                 return 1;
             }
             if (dryRun) {
@@ -52,8 +51,7 @@ public final class PublishCommand implements Callable<Integer> {
             CommandOutput.printAndFlush(spec, PublishUploadFormatter.text(result));
             return 0;
         } catch (PublishException | ZoltConfigException | PackageException exception) {
-            spec.commandLine().getErr().println("error: " + exception.getMessage());
-            spec.commandLine().getErr().flush();
+            CommandFailures.printUser(spec, exception);
             return 1;
         }
     }
