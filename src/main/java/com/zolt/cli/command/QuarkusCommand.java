@@ -17,7 +17,6 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.Map;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -43,6 +42,11 @@ public final class QuarkusCommand implements Runnable {
 
     @Command(name = "plan", description = "Print the Quarkus augmentation input plan.")
     public static final class PlanCommand implements Runnable {
+        private final ZoltTomlParser tomlParser;
+        private final QuarkusPlanService quarkusPlanService;
+        private final QuarkusPlanFormatter quarkusPlanFormatter;
+        private final QuarkusAugmentationRequestFactory augmentationRequestFactory;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
@@ -55,24 +59,43 @@ public final class QuarkusCommand implements Runnable {
         @Spec
         private CommandSpec spec;
 
+        public PlanCommand() {
+            this(
+                    new ZoltTomlParser(),
+                    new QuarkusPlanService(),
+                    new QuarkusPlanFormatter(),
+                    new QuarkusAugmentationRequestFactory());
+        }
+
+        PlanCommand(
+                ZoltTomlParser tomlParser,
+                QuarkusPlanService quarkusPlanService,
+                QuarkusPlanFormatter quarkusPlanFormatter,
+                QuarkusAugmentationRequestFactory augmentationRequestFactory) {
+            this.tomlParser = tomlParser;
+            this.quarkusPlanService = quarkusPlanService;
+            this.quarkusPlanFormatter = quarkusPlanFormatter;
+            this.augmentationRequestFactory = augmentationRequestFactory;
+        }
+
         @Override
         public void run() {
             TimingRecorder timings = CommandTimings.recorder(timingOptions);
             try {
                 ProjectConfig config = timings.measure(
                         "config read",
-                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
                 QuarkusPlan plan = timings.measure(
                         "quarkus plan",
-                        () -> new QuarkusPlanService().plan(workingDirectory, config, cacheRoot),
+                        () -> quarkusPlanService.plan(workingDirectory, config, cacheRoot),
                         QuarkusCommand::quarkusPlanAttributes);
                 String output = timings.measure(
                         "quarkus plan format",
-                        () -> new QuarkusPlanFormatter().format(plan));
+                        () -> quarkusPlanFormatter.format(plan));
                 CommandOutput.printAndFlush(spec, output);
                 timings.measure(
                         "quarkus augmentation request",
-                        () -> new QuarkusAugmentationRequestFactory().create(plan));
+                        () -> augmentationRequestFactory.create(plan));
             } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);
             } finally {
@@ -83,18 +106,35 @@ public final class QuarkusCommand implements Runnable {
 
     @Command(name = "test-plan", description = "Print the Quarkus test bootstrap plan.")
     public static final class TestPlanCommand implements Runnable {
+        private final ZoltTomlParser tomlParser;
+        private final QuarkusTestPlanService quarkusTestPlanService;
+        private final QuarkusTestPlanFormatter quarkusTestPlanFormatter;
+
         @Option(names = "--cwd", hidden = true)
         private Path workingDirectory = Path.of(".");
 
         @Spec
         private CommandSpec spec;
 
+        public TestPlanCommand() {
+            this(new ZoltTomlParser(), new QuarkusTestPlanService(), new QuarkusTestPlanFormatter());
+        }
+
+        TestPlanCommand(
+                ZoltTomlParser tomlParser,
+                QuarkusTestPlanService quarkusTestPlanService,
+                QuarkusTestPlanFormatter quarkusTestPlanFormatter) {
+            this.tomlParser = tomlParser;
+            this.quarkusTestPlanService = quarkusTestPlanService;
+            this.quarkusTestPlanFormatter = quarkusTestPlanFormatter;
+        }
+
         @Override
         public void run() {
             try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                QuarkusTestPlan plan = new QuarkusTestPlanService().plan(workingDirectory, config);
-                CommandOutput.printAndFlush(spec, new QuarkusTestPlanFormatter().format(plan));
+                ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+                QuarkusTestPlan plan = quarkusTestPlanService.plan(workingDirectory, config);
+                CommandOutput.printAndFlush(spec, quarkusTestPlanFormatter.format(plan));
             } catch (QuarkusPlanException | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);
             }
