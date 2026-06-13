@@ -27,7 +27,6 @@ import com.zolt.workspace.WorkspaceConfigException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -36,6 +35,11 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "build", description = "Compile main Java sources with the resolved compile classpath.")
 public final class BuildCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final BuildService buildService;
+    private final WorkspaceBuildService workspaceBuildService;
+    private final QuarkusBuildAugmentationService quarkusBuildAugmentationService;
+
     @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
     private boolean offline;
 
@@ -63,13 +67,31 @@ public final class BuildCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public BuildCommand() {
+        this(
+                new ZoltTomlParser(),
+                new BuildService(),
+                new WorkspaceBuildService(),
+                new QuarkusBuildAugmentationService());
+    }
+
+    BuildCommand(
+            ZoltTomlParser tomlParser,
+            BuildService buildService,
+            WorkspaceBuildService workspaceBuildService,
+            QuarkusBuildAugmentationService quarkusBuildAugmentationService) {
+        this.tomlParser = tomlParser;
+        this.buildService = buildService;
+        this.workspaceBuildService = workspaceBuildService;
+        this.quarkusBuildAugmentationService = quarkusBuildAugmentationService;
+    }
+
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         try {
             if (workspace) {
                 CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
-                WorkspaceBuildService workspaceBuildService = new WorkspaceBuildService();
                 WorkspaceBuildResult result = timings.measure(
                         "build workspace",
                         () -> {
@@ -102,11 +124,11 @@ public final class BuildCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
             BuildResult result = timings.measure(
                     "compile main",
-                    () -> new BuildService().build(workingDirectory, config, cacheRoot, offline),
+                    () -> buildService.build(workingDirectory, config, cacheRoot, offline),
                     CommandBuildAttributes::build);
             if (result.resolvedLockfile()) {
                 spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
@@ -116,7 +138,7 @@ public final class BuildCommand implements Runnable {
             Optional<QuarkusAugmentationResult> quarkusResult =
                     timings.measure(
                             "quarkus augmentation",
-                            () -> new QuarkusBuildAugmentationService().augmentIfEnabled(
+                            () -> quarkusBuildAugmentationService.augmentIfEnabled(
                                     workingDirectory,
                                     config,
                                     cacheRoot),
