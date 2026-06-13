@@ -26,7 +26,6 @@ import com.zolt.workspace.WorkspaceRunResult;
 import com.zolt.workspace.WorkspaceRunService;
 import java.nio.file.Path;
 import java.util.List;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -36,6 +35,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "run", description = "Build and run the configured main class.")
 public final class RunCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final RunService runService;
+    private final WorkspaceRunService workspaceRunService;
+
     @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
     private List<String> arguments = List.of();
 
@@ -63,13 +66,22 @@ public final class RunCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public RunCommand() {
+        this(new ZoltTomlParser(), new RunService(), new WorkspaceRunService());
+    }
+
+    RunCommand(ZoltTomlParser tomlParser, RunService runService, WorkspaceRunService workspaceRunService) {
+        this.tomlParser = tomlParser;
+        this.runService = runService;
+        this.workspaceRunService = workspaceRunService;
+    }
+
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         try {
             if (workspace) {
                 CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-                WorkspaceRunService workspaceRunService = new WorkspaceRunService();
                 WorkspaceRunResult result = timings.measure(
                         "run workspace",
                         () -> {
@@ -111,11 +123,11 @@ public final class RunCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
             RunResult result = timings.measure(
                     "run application",
-                    () -> new RunService().run(
+                    () -> runService.run(
                             workingDirectory,
                             config,
                             cacheRoot,

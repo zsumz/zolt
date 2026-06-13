@@ -29,7 +29,6 @@ import com.zolt.workspace.WorkspaceRunPackageService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -39,6 +38,10 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "run-package", description = "Run a packaged thin jar with runtime dependencies.")
 public final class RunPackageCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final RunPackageService runPackageService;
+    private final WorkspaceRunPackageService workspaceRunPackageService;
+
     @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
     private List<String> arguments = List.of();
 
@@ -68,6 +71,19 @@ public final class RunPackageCommand implements Runnable {
 
     @Spec
     private CommandSpec spec;
+
+    public RunPackageCommand() {
+        this(new ZoltTomlParser(), new RunPackageService(), new WorkspaceRunPackageService());
+    }
+
+    RunPackageCommand(
+            ZoltTomlParser tomlParser,
+            RunPackageService runPackageService,
+            WorkspaceRunPackageService workspaceRunPackageService) {
+        this.tomlParser = tomlParser;
+        this.runPackageService = runPackageService;
+        this.workspaceRunPackageService = workspaceRunPackageService;
+    }
 
     @Override
     public void run() {
@@ -102,7 +118,6 @@ public final class RunPackageCommand implements Runnable {
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride) {
         CommandLockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-        WorkspaceRunPackageService workspaceRunPackageService = new WorkspaceRunPackageService();
         WorkspaceRunPackageResult result = timings.measure(
                 "run workspace packages",
                 () -> {
@@ -157,12 +172,12 @@ public final class RunPackageCommand implements Runnable {
         ProjectConfig config = CommandPackageSupport.withPackageModeOverride(
                 timings.measure(
                         "config read",
-                        () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
+                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
                 packageModeOverride);
         CommandLockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         RunPackageResult result = timings.measure(
                 "run packaged application",
-                () -> new RunPackageService().runPackage(
+                () -> runPackageService.runPackage(
                         workingDirectory,
                         config,
                         cacheRoot,
