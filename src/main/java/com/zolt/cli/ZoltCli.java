@@ -51,6 +51,7 @@ import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PlanCommand;
 import com.zolt.cli.command.PolicyCommand;
 import com.zolt.cli.command.PublishCommand;
+import com.zolt.cli.command.QuarkusCommand;
 import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.ResolveCommand;
@@ -78,15 +79,8 @@ import com.zolt.project.TestRuntimeSettings;
 import com.zolt.project.VersionPolicy;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusAugmentationRequestFactory;
 import com.zolt.quarkus.QuarkusBuildAugmentationService;
-import com.zolt.quarkus.QuarkusPlan;
 import com.zolt.quarkus.QuarkusPlanException;
-import com.zolt.quarkus.QuarkusPlanFormatter;
-import com.zolt.quarkus.QuarkusPlanService;
-import com.zolt.quarkus.QuarkusTestPlan;
-import com.zolt.quarkus.QuarkusTestPlanFormatter;
-import com.zolt.quarkus.QuarkusTestPlanService;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -149,7 +143,7 @@ import picocli.CommandLine.Spec;
                 PlanCommand.class,
                 ClasspathCommand.class,
                 IdeCommand.class,
-                ZoltCli.QuarkusCommand.class,
+                QuarkusCommand.class,
                 ZoltCli.BuildCommand.class,
                 ZoltCli.RunCommand.class,
                 ZoltCli.TestCommand.class,
@@ -667,86 +661,6 @@ public final class ZoltCli implements Runnable {
             String rawCoordinate = values.size() == 2 ? values.get(1) : values.get(0);
             Coordinate coordinate = coordinateParser.parse(rawCoordinate);
             return new RemoveRequest(section, coordinate.groupId() + ":" + coordinate.artifactId());
-        }
-    }
-
-    @Command(
-            name = "quarkus",
-            mixinStandardHelpOptions = true,
-            description = "Inspect Quarkus build-time augmentation inputs.",
-            subcommands = {
-                    QuarkusCommand.PlanCommand.class,
-                    QuarkusCommand.TestPlanCommand.class
-            })
-    public static final class QuarkusCommand implements Runnable {
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            spec.commandLine().usage(spec.commandLine().getOut());
-        }
-
-        @Command(name = "plan", description = "Print the Quarkus augmentation input plan.")
-        public static final class PlanCommand implements Runnable {
-            @Option(names = "--cwd", hidden = true)
-            private Path workingDirectory = Path.of(".");
-
-            @Option(names = "--cache-root", hidden = true)
-            private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-            @Mixin
-            private TimingOptions timingOptions = new TimingOptions();
-
-            @Spec
-            private CommandSpec spec;
-
-            @Override
-            public void run() {
-                TimingRecorder timings = timingRecorder(timingOptions);
-                try {
-                    ProjectConfig config = timings.measure(
-                            "config read",
-                            () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml")));
-                    QuarkusPlan plan = timings.measure(
-                            "quarkus plan",
-                            () -> new QuarkusPlanService().plan(workingDirectory, config, cacheRoot),
-                            ZoltCli::quarkusPlanAttributes);
-                    String output = timings.measure(
-                            "quarkus plan format",
-                            () -> new QuarkusPlanFormatter().format(plan));
-                    printAndFlush(spec, output);
-                    timings.measure(
-                            "quarkus augmentation request",
-                            () -> new QuarkusAugmentationRequestFactory().create(plan));
-                } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
-                    spec.commandLine().getErr().println("error: " + exception.getMessage());
-                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-                } finally {
-                    printTimings(spec, "quarkus plan", workingDirectory, timingOptions, timings);
-                }
-            }
-        }
-
-        @Command(name = "test-plan", description = "Print the Quarkus test bootstrap plan.")
-        public static final class TestPlanCommand implements Runnable {
-            @Option(names = "--cwd", hidden = true)
-            private Path workingDirectory = Path.of(".");
-
-            @Spec
-            private CommandSpec spec;
-
-            @Override
-            public void run() {
-                try {
-                    ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                    QuarkusTestPlan plan = new QuarkusTestPlanService().plan(workingDirectory, config);
-                    printAndFlush(spec, new QuarkusTestPlanFormatter().format(plan));
-                } catch (QuarkusPlanException | ZoltConfigException exception) {
-                    spec.commandLine().getErr().println("error: " + exception.getMessage());
-                    throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-                }
-            }
         }
     }
 
@@ -2058,14 +1972,6 @@ public final class ZoltCli implements Runnable {
         return Map.of(
                 "enabled", "true",
                 "runnerJar", augmentation.workerResult().runnerJar().toString());
-    }
-
-    private static Map<String, String> quarkusPlanAttributes(QuarkusPlan plan) {
-        return Map.of(
-                "runtimeClasspathEntries", Integer.toString(plan.runtimeClasspath().size()),
-                "deploymentClasspathEntries", Integer.toString(plan.deploymentClasspath().size()),
-                "extensions", Integer.toString(plan.extensions().size()),
-                "packageMode", plan.packageMode().configValue());
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {

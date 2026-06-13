@@ -228,19 +228,19 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$QuarkusCommand",
+    "name": "com.zolt.cli.command.QuarkusCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$QuarkusCommand$PlanCommand",
+    "name": "com.zolt.cli.command.QuarkusCommand$PlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$QuarkusCommand$TestPlanCommand",
+    "name": "com.zolt.cli.command.QuarkusCommand$TestPlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
