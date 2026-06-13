@@ -389,6 +389,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.VersionCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("version")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test

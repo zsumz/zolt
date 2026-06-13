@@ -36,19 +36,19 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$VersionCommand",
+    "name": "com.zolt.cli.command.VersionCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$VersionCommand$SetCommand",
+    "name": "com.zolt.cli.command.VersionCommand$SetCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$VersionCommand$RemoveCommand",
+    "name": "com.zolt.cli.command.VersionCommand$RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
