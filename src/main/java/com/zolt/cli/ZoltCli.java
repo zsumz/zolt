@@ -48,6 +48,7 @@ import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PolicyCommand;
+import com.zolt.cli.command.ReleaseArchiveCommand;
 import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TreeCommand;
@@ -119,10 +120,6 @@ import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
-import com.zolt.release.ReleaseArchiveException;
-import com.zolt.release.ReleaseArchiveResult;
-import com.zolt.release.ReleaseArchiveService;
-import com.zolt.release.ReleaseTarget;
 import com.zolt.selfhost.SelfCheckResult;
 import com.zolt.selfhost.SelfCheckService;
 import com.zolt.toml.ZoltConfigException;
@@ -195,7 +192,7 @@ import picocli.CommandLine.Spec;
                 ZoltCli.RunPackageCommand.class,
                 ZoltCli.NativeCommand.class,
                 NativeSmokeCommand.class,
-                ZoltCli.ReleaseArchiveCommand.class,
+                ReleaseArchiveCommand.class,
                 ReleaseVerifyCommand.class,
                 ZoltCli.SelfCheckCommand.class,
                 SelfParityCommand.class,
@@ -2218,59 +2215,6 @@ public final class ZoltCli implements Runnable {
                 spec.commandLine().getErr().println("error: " + exception.getMessage());
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             }
-        }
-    }
-
-    @Command(name = "release-archive", description = "Assemble a release archive from a native binary.")
-    public static final class ReleaseArchiveCommand implements Runnable {
-        @Option(names = "--target", description = "Release target. Supported: macos-arm64, macos-x64, linux-arm64, linux-x64, windows-x64.")
-        private String target;
-
-        @Option(names = "--binary", description = "Path to the native binary to archive.")
-        private Path binary;
-
-        @Option(names = "--output", description = "Directory for release archives.")
-        private Path outputDirectory = Path.of("dist");
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            try {
-                ProjectConfig config = new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"));
-                ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
-                Path nativeBinary = binary == null
-                        ? defaultNativeBinary(config, releaseTarget)
-                        : binary;
-                ReleaseArchiveResult result = new ReleaseArchiveService().assemble(
-                        workingDirectory,
-                        config,
-                        releaseTarget,
-                        nativeBinary,
-                        outputDirectory);
-                spec.commandLine().getOut().println("Assembled " + result.target().id() + " release archive");
-                spec.commandLine().getOut().println("Included " + result.fileCount() + " files under " + result.rootDirectory());
-                spec.commandLine().getOut().println("Wrote archive to " + result.archivePath());
-                spec.commandLine().getOut().println("Wrote checksum to " + result.checksumPath());
-                spec.commandLine().getOut().println("Wrote manifest to " + result.manifestPath());
-            } catch (ReleaseArchiveException | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            }
-        }
-
-        private static Path defaultNativeBinary(ProjectConfig config, ReleaseTarget target) {
-            String imageName = config.nativeSettings()
-                    .withDefaultImageName(config.project().name())
-                    .imageName();
-            String binaryName = target == ReleaseTarget.WINDOWS_X64 && !imageName.endsWith(".exe")
-                    ? imageName + ".exe"
-                    : imageName;
-            return Path.of(config.nativeSettings().output()).resolve(binaryName);
         }
     }
 

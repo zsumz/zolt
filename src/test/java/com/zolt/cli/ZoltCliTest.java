@@ -425,6 +425,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.ReleaseArchiveCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("release-archive")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test

@@ -306,7 +306,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ReleaseArchiveCommand",
+    "name": "com.zolt.cli.command.ReleaseArchiveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
