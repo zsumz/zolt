@@ -23,6 +23,8 @@ import picocli.CommandLine.Spec;
 
 @Command(name = "self-parity", description = "Compare bootstrap and Zolt-built jar entries.")
 public final class SelfParityCommand implements Runnable {
+    private final SelfHostingParityService selfHostingParityService;
+
     @Option(names = "--bootstrap-jar", required = true, description = "Bootstrap-built jar to compare against.")
     private Path bootstrapJar;
 
@@ -35,11 +37,18 @@ public final class SelfParityCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
+    public SelfParityCommand() {
+        this(new SelfHostingParityService());
+    }
+
+    SelfParityCommand(SelfHostingParityService selfHostingParityService) {
+        this.selfHostingParityService = selfHostingParityService;
+    }
+
     @Override
     public void run() {
         try {
-            SelfHostingParityResult result = new SelfHostingParityService()
-                    .compare(workingDirectory, cacheRoot, bootstrapJar);
+            SelfHostingParityResult result = selfHostingParityService.compare(workingDirectory, cacheRoot, bootstrapJar);
             if (!result.ok()) {
                 spec.commandLine().getErr().println("error: Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.");
                 spec.commandLine().getErr().println("Missing from Zolt-built jar:");
