@@ -36,6 +36,13 @@ public final class ExplainCommand implements Callable<Integer> {
         GRADLE
     }
 
+    private final MavenStaticProjectInspector mavenInspector;
+    private final GradleStaticProjectInspector gradleInspector;
+    private final MavenExplainFormatter mavenExplainFormatter;
+    private final GradleExplainFormatter gradleExplainFormatter;
+    private final MigrationBlockerReportFormatter blockerReportFormatter;
+    private final MigrationReadinessScorecardFormatter scorecardFormatter;
+
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
 
@@ -53,6 +60,31 @@ public final class ExplainCommand implements Callable<Integer> {
 
     @Spec
     private CommandSpec spec;
+
+    public ExplainCommand() {
+        this(
+                new MavenStaticProjectInspector(),
+                new GradleStaticProjectInspector(),
+                new MavenExplainFormatter(),
+                new GradleExplainFormatter(),
+                new MigrationBlockerReportFormatter(),
+                new MigrationReadinessScorecardFormatter());
+    }
+
+    ExplainCommand(
+            MavenStaticProjectInspector mavenInspector,
+            GradleStaticProjectInspector gradleInspector,
+            MavenExplainFormatter mavenExplainFormatter,
+            GradleExplainFormatter gradleExplainFormatter,
+            MigrationBlockerReportFormatter blockerReportFormatter,
+            MigrationReadinessScorecardFormatter scorecardFormatter) {
+        this.mavenInspector = mavenInspector;
+        this.gradleInspector = gradleInspector;
+        this.mavenExplainFormatter = mavenExplainFormatter;
+        this.gradleExplainFormatter = gradleExplainFormatter;
+        this.blockerReportFormatter = blockerReportFormatter;
+        this.scorecardFormatter = scorecardFormatter;
+    }
 
     @Override
     public Integer call() {
@@ -74,34 +106,33 @@ public final class ExplainCommand implements Callable<Integer> {
 
     private Integer explainMaven(Path root) {
         try {
-            MavenInspectionResult result = new MavenStaticProjectInspector().inspect(root);
+            MavenInspectionResult result = mavenInspector.inspect(root);
             if (blockers) {
-                MigrationBlockerReportFormatter formatter = new MigrationBlockerReportFormatter();
                 if (format == Format.JSON) {
                     CommandOutput.printAndFlush(
                             spec,
-                            formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                            blockerReportFormatter.json(
+                                    MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
                 } else {
                     CommandOutput.printAndFlush(
                             spec,
-                            formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                            blockerReportFormatter.text(
+                                    MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
                 }
                 return 0;
             }
             if (scorecard) {
-                MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
                 if (format == Format.JSON) {
-                    CommandOutput.printAndFlush(spec, formatter.json(MigrationReadinessScorecards.from(result)));
+                    CommandOutput.printAndFlush(spec, scorecardFormatter.json(MigrationReadinessScorecards.from(result)));
                 } else {
-                    CommandOutput.printAndFlush(spec, formatter.text(MigrationReadinessScorecards.from(result)));
+                    CommandOutput.printAndFlush(spec, scorecardFormatter.text(MigrationReadinessScorecards.from(result)));
                 }
                 return 0;
             }
-            MavenExplainFormatter formatter = new MavenExplainFormatter();
             if (format == Format.JSON) {
-                CommandOutput.printAndFlush(spec, formatter.json(result));
+                CommandOutput.printAndFlush(spec, mavenExplainFormatter.json(result));
             } else {
-                CommandOutput.printAndFlush(spec, formatter.text(result));
+                CommandOutput.printAndFlush(spec, mavenExplainFormatter.text(result));
             }
             return 0;
         } catch (MigrationExplainException exception) {
@@ -111,34 +142,33 @@ public final class ExplainCommand implements Callable<Integer> {
 
     private Integer explainGradle(Path root) {
         try {
-            GradleInspectionResult result = new GradleStaticProjectInspector().inspect(root);
+            GradleInspectionResult result = gradleInspector.inspect(root);
             if (blockers) {
-                MigrationBlockerReportFormatter formatter = new MigrationBlockerReportFormatter();
                 if (format == Format.JSON) {
                     CommandOutput.printAndFlush(
                             spec,
-                            formatter.json(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                            blockerReportFormatter.json(
+                                    MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
                 } else {
                     CommandOutput.printAndFlush(
                             spec,
-                            formatter.text(MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
+                            blockerReportFormatter.text(
+                                    MigrationBlockerReports.from(MigrationReadinessScorecards.from(result))));
                 }
                 return 0;
             }
             if (scorecard) {
-                MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
                 if (format == Format.JSON) {
-                    CommandOutput.printAndFlush(spec, formatter.json(MigrationReadinessScorecards.from(result)));
+                    CommandOutput.printAndFlush(spec, scorecardFormatter.json(MigrationReadinessScorecards.from(result)));
                 } else {
-                    CommandOutput.printAndFlush(spec, formatter.text(MigrationReadinessScorecards.from(result)));
+                    CommandOutput.printAndFlush(spec, scorecardFormatter.text(MigrationReadinessScorecards.from(result)));
                 }
                 return 0;
             }
-            GradleExplainFormatter formatter = new GradleExplainFormatter();
             if (format == Format.JSON) {
-                CommandOutput.printAndFlush(spec, formatter.json(result));
+                CommandOutput.printAndFlush(spec, gradleExplainFormatter.json(result));
             } else {
-                CommandOutput.printAndFlush(spec, formatter.text(result));
+                CommandOutput.printAndFlush(spec, gradleExplainFormatter.text(result));
             }
             return 0;
         } catch (MigrationExplainException exception) {
