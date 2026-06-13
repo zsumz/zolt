@@ -4,21 +4,19 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkTestRunRequest;
+import com.zolt.framework.FrameworkTestRunResult;
+import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.framework.FrameworkTestSelection;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;
 import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
-import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
-import com.zolt.quarkus.QuarkusTestApplicationModelService;
 import com.zolt.quarkus.QuarkusTestPlan;
 import com.zolt.quarkus.QuarkusTestPlanService;
-import com.zolt.quarkus.QuarkusTestRunnerDescriptor;
-import com.zolt.quarkus.QuarkusTestRunnerDescriptorWriter;
-import com.zolt.quarkus.QuarkusTestRunnerRequest;
-import com.zolt.quarkus.QuarkusTestWorkerLauncher;
 import com.zolt.quarkus.QuarkusUnsupportedTest;
 import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
@@ -43,10 +41,7 @@ public final class TestRunService {
     private final TestCompileService testCompileService;
     private final JdkChecker jdkDetector;
     private final JavaRunner javaRunner;
-    private final QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter;
-    private final QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter;
-    private final Supplier<List<Path>> quarkusTestWorkerClasspath;
-    private final QuarkusTestWorkerRunner quarkusTestWorkerRunner;
+    private final FrameworkTestRunner frameworkTestRunner;
     private final Supplier<List<Path>> plainJunitWorkerClasspath;
     private final PlainJunitWorkerRunner plainJunitWorkerRunner;
     private final boolean plainJunitWorkerEnabled;
@@ -57,15 +52,19 @@ public final class TestRunService {
     }
 
     public TestRunService(JdkChecker jdkDetector) {
+        this(jdkDetector, FrameworkTestRunner.none());
+    }
+
+    public TestRunService(FrameworkTestRunner frameworkTestRunner) {
+        this(new JdkDetector(), frameworkTestRunner);
+    }
+
+    public TestRunService(JdkChecker jdkDetector, FrameworkTestRunner frameworkTestRunner) {
         this(
                 new TestCompileService(jdkDetector),
                 jdkDetector,
                 new JavaRunner(),
-                new QuarkusTestApplicationModelService()::writeIfEnabled,
-                new QuarkusTestRunnerDescriptorWriter(),
-                TestRunService::currentWorkerClasspath,
-                (javaExecutable, workerClasspath, descriptor) ->
-                        new QuarkusTestWorkerLauncher(javaExecutable, workerClasspath).run(descriptor),
+                frameworkTestRunner,
                 TestRunService::currentWorkerClasspath,
                 TestRunService::runPlainJunitWorker,
                 Boolean.getBoolean("zolt.junit.worker"),
@@ -76,10 +75,7 @@ public final class TestRunService {
             TestCompileService testCompileService,
             JdkChecker jdkDetector,
             JavaRunner javaRunner,
-            QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
-            QuarkusTestRunnerDescriptorWriter quarkusTestRunnerDescriptorWriter,
-            Supplier<List<Path>> quarkusTestWorkerClasspath,
-            QuarkusTestWorkerRunner quarkusTestWorkerRunner,
+            FrameworkTestRunner frameworkTestRunner,
             Supplier<List<Path>> plainJunitWorkerClasspath,
             PlainJunitWorkerRunner plainJunitWorkerRunner,
             boolean plainJunitWorkerEnabled,
@@ -87,10 +83,7 @@ public final class TestRunService {
         this.testCompileService = testCompileService;
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
-        this.quarkusTestApplicationModelWriter = quarkusTestApplicationModelWriter;
-        this.quarkusTestRunnerDescriptorWriter = quarkusTestRunnerDescriptorWriter;
-        this.quarkusTestWorkerClasspath = quarkusTestWorkerClasspath;
-        this.quarkusTestWorkerRunner = quarkusTestWorkerRunner;
+        this.frameworkTestRunner = frameworkTestRunner;
         this.plainJunitWorkerClasspath = plainJunitWorkerClasspath;
         this.plainJunitWorkerRunner = plainJunitWorkerRunner;
         this.plainJunitWorkerEnabled = plainJunitWorkerEnabled;
@@ -334,15 +327,6 @@ public final class TestRunService {
         if (!jdkStatus.ok()) {
             throw new BuildException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
-        Optional<Path> serializedApplicationModel = writeQuarkusTestApplicationModel(projectDirectory, config);
-        Optional<QuarkusTestRunnerDescriptor> quarkusTestRunnerDescriptor = writeQuarkusTestRunnerDescriptor(
-                    projectDirectory,
-                    config,
-                    compileResult,
-                    runnerClasspath,
-                    serializedApplicationModel,
-                    testSelection,
-                    testRuntime);
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
         if (config.frameworkSettings().quarkus().enabled()) {
             if (reportsDirectory.isPresent()) {
@@ -350,24 +334,31 @@ public final class TestRunService {
                         "JUnit XML reports are not supported by the Quarkus plain-JUnit worker path yet. "
                                 + "Run without --reports-dir or use the JUnit Console path for this project.");
             }
-            QuarkusTestRunnerDescriptor descriptor = quarkusTestRunnerDescriptor.orElseThrow();
+            FrameworkTestRunResult frameworkResult = frameworkTestRunner.runIfEnabled(new FrameworkTestRunRequest(
+                            projectDirectory,
+                            config,
+                            compileResult.buildResult().outputDirectory(),
+                            compileResult.outputDirectory(),
+                            runnerClasspath,
+                            jdkStatus.java().orElseThrow(),
+                            frameworkTestSelection(testSelection),
+                            testJvmArguments.values(),
+                            testRuntime.environment()))
+                    .orElseThrow(() -> new TestRunException(
+                            "Framework test runner was not configured for the enabled framework."));
             failOnUnsupportedQuarkusTests(
                     projectDirectory,
                     config,
-                    descriptor.supportsQuarkusTestAnnotations());
-            List<Path> workerClasspath = quarkusTestWorkerClasspath.get();
-            String output = runQuarkusPlainJunitWorker(
-                    jdkStatus.java().orElseThrow(),
-                    workerClasspath,
-                    descriptor);
+                    frameworkResult.supportsFrameworkTestAnnotations());
+            String output = frameworkResult.output();
             failOnHiddenQuarkusBootstrapFailure(config, output);
             return new TestRunResult(
                     compileResult,
                     output,
                     QUARKUS_TEST_WORKER_RUNNER,
                     runnerClasspath.size(),
-                    workerClasspath.size(),
-                    1,
+                    frameworkResult.workerClasspathEntries(),
+                    frameworkResult.discoveryScanRoots(),
                     -1L,
                     -1L,
                     testSelection,
@@ -414,7 +405,7 @@ public final class TestRunService {
                     jdkStatus.java().orElseThrow(),
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
-                    jvmArguments(projectDirectory, runnerClasspath, serializedApplicationModel, testJvmArguments),
+                    jvmArguments(projectDirectory, runnerClasspath, testJvmArguments),
                     consoleArguments(
                             runnerClasspath,
                             compileResult.outputDirectory(),
@@ -545,17 +536,6 @@ public final class TestRunService {
                 .toList();
     }
 
-    private String runQuarkusPlainJunitWorker(
-            Path javaExecutable,
-            List<Path> workerClasspath,
-            QuarkusTestRunnerDescriptor descriptor) {
-        try {
-            return quarkusTestWorkerRunner.run(javaExecutable, workerClasspath, descriptor);
-        } catch (QuarkusAugmentationException exception) {
-            throw new TestRunException(exception.getMessage(), exception);
-        }
-    }
-
     private static PlainJunitWorkerRunResult runPlainJunitWorker(
             Path javaExecutable,
             List<Path> workerClasspath,
@@ -660,16 +640,10 @@ public final class TestRunService {
     private List<String> jvmArguments(
             Path projectDirectory,
             List<Path> runnerClasspath,
-            Optional<Path> serializedApplicationModel,
             TestJvmArguments testJvmArguments) {
         List<String> arguments = new ArrayList<>();
         arguments.addAll(testJvmArguments.values());
         arguments.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
-        serializedApplicationModel
-                .ifPresent(path -> arguments.add("-D"
-                        + QuarkusTestApplicationModelService.SERIALIZED_TEST_MODEL_PROPERTY
-                        + "="
-                        + path));
         if (runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar)) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
         }
@@ -734,53 +708,6 @@ public final class TestRunService {
         return expanded;
     }
 
-    private Optional<Path> writeQuarkusTestApplicationModel(Path projectDirectory, ProjectConfig config) {
-        try {
-            return quarkusTestApplicationModelWriter.write(projectDirectory, config);
-        } catch (QuarkusAugmentationException exception) {
-            throw new TestRunException(
-                    "Could not prepare Quarkus test application model. "
-                            + "Run `zolt resolve`, then run `zolt test` again. "
-                            + exception.getMessage(),
-                    exception);
-        }
-    }
-
-    private Optional<QuarkusTestRunnerDescriptor> writeQuarkusTestRunnerDescriptor(
-            Path projectDirectory,
-            ProjectConfig config,
-            TestCompileResult compileResult,
-            List<Path> runnerClasspath,
-            Optional<Path> serializedApplicationModel,
-            TestSelection testSelection,
-            TestRuntimeInputs testRuntime) {
-        if (!config.frameworkSettings().quarkus().enabled()) {
-            return Optional.empty();
-        }
-        Path modelPath = serializedApplicationModel.orElseThrow(() -> new TestRunException(
-                "Could not prepare Quarkus test runner descriptor because the serialized application model was not written. "
-                        + "Run `zolt build`, then run `zolt test` again."));
-        try {
-            return Optional.of(quarkusTestRunnerDescriptorWriter.write(new QuarkusTestRunnerRequest(
-                    projectDirectory,
-                    compileResult.buildResult().outputDirectory(),
-                    compileResult.outputDirectory(),
-                    modelPath,
-                    projectDirectory.resolve("target/quarkus/zolt-bootstrap.properties"),
-                    runnerClasspath,
-                    runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar),
-                    testSelection,
-                    testRuntime.jvmArguments(),
-                    testRuntime.environment())));
-        } catch (QuarkusAugmentationException exception) {
-            throw new TestRunException(
-                    "Could not write Quarkus test runner descriptor. "
-                            + "Clean target/quarkus, run `zolt build`, then run `zolt test` again. "
-                            + exception.getMessage(),
-                    exception);
-        }
-    }
-
     static void failOnHiddenQuarkusBootstrapFailure(ProjectConfig config, String output) {
         if (!config.frameworkSettings().quarkus().enabled()) {
             return;
@@ -826,14 +753,20 @@ public final class TestRunService {
         return entries;
     }
 
-    @FunctionalInterface
-    interface QuarkusTestApplicationModelWriter {
-        Optional<Path> write(Path projectDirectory, ProjectConfig config);
-    }
-
-    @FunctionalInterface
-    interface QuarkusTestWorkerRunner {
-        String run(Path javaExecutable, List<Path> workerClasspath, QuarkusTestRunnerDescriptor descriptor);
+    private static FrameworkTestSelection frameworkTestSelection(TestSelection selection) {
+        if (selection == null) {
+            return FrameworkTestSelection.empty();
+        }
+        return new FrameworkTestSelection(
+                selection.classSelectors(),
+                selection.methodSelectors().stream()
+                        .map(method -> new FrameworkTestSelection.MethodSelector(
+                                method.className(),
+                                method.methodName()))
+                        .toList(),
+                selection.classNamePatterns(),
+                selection.includedTags(),
+                selection.excludedTags());
     }
 
     @FunctionalInterface

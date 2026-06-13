@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkTestRunRequest;
+import com.zolt.framework.FrameworkTestRunResult;
+import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildSettings;
@@ -18,9 +21,6 @@ import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.TestRuntimeSettings;
-import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.QuarkusTestRunnerDescriptor;
-import com.zolt.quarkus.QuarkusTestRunnerDescriptorWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -559,11 +559,7 @@ final class TestRunServiceTest {
                     return new JavaRunner.ProcessResult(0, "direct java should not run\n");
                 },
                 new JdkDetector(),
-                (projectDirectory, config) -> Optional.empty(),
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, descriptor) -> {
-                    throw new QuarkusAugmentationException("Quarkus test worker should not run.");
-                },
+                FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
                     workerClasspaths.add(workerClasspath);
@@ -626,11 +622,7 @@ final class TestRunServiceTest {
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 new JdkDetector(),
-                (projectDirectory, config) -> Optional.empty(),
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, descriptor) -> {
-                    throw new QuarkusAugmentationException("Quarkus test worker should not run.");
-                },
+                FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) ->
                         new TestRunService.PlainJunitWorkerRunResult(
@@ -654,22 +646,19 @@ final class TestRunServiceTest {
         source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<List<String>> javaCommands = new ArrayList<>();
-        List<QuarkusTestRunnerDescriptor> descriptors = new ArrayList<>();
-        List<List<Path>> workerClasspaths = new ArrayList<>();
+        List<FrameworkTestRunRequest> frameworkRequests = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     javaCommands.add(command);
                     return new JavaRunner.ProcessResult(0, "direct java should not run\n");
                 },
-                (projectDirectory, config) -> Optional.of(projectDirectory
-                        .resolve("target/quarkus/test-application-model.dat")
-                        .toAbsolutePath()
-                        .normalize()),
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, descriptor) -> {
-                    workerClasspaths.add(workerClasspath);
-                    descriptors.add(descriptor);
-                    return "Worker tests successful\n";
+                (FrameworkTestRunner) request -> {
+                    frameworkRequests.add(request);
+                    return Optional.of(new FrameworkTestRunResult(
+                            "Worker tests successful\n",
+                            false,
+                            1,
+                            1));
                 });
 
         TestRunResult result = service.runTests(projectDir, quarkusConfig(), projectDir.resolve("cache"));
@@ -680,16 +669,13 @@ final class TestRunServiceTest {
         assertEquals(1, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
         assertTrue(javaCommands.isEmpty());
-        assertEquals(List.of(Path.of("/zolt/zolt.jar")), workerClasspaths.getFirst());
-        QuarkusTestRunnerDescriptor descriptor = descriptors.getFirst();
-        assertEquals(projectDir.toAbsolutePath().normalize(), descriptor.projectDirectory());
-        assertEquals(projectDir.resolve("target/classes").toAbsolutePath().normalize(), descriptor.mainOutputDirectory());
-        assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize(), descriptor.testOutputDirectory());
-        assertEquals(
-                projectDir.resolve("target/quarkus/test-application-model.dat").toAbsolutePath().normalize(),
-                descriptor.serializedApplicationModel());
-        assertTrue(descriptor.jbossLogManagerPresent());
-        assertTrue(Files.exists(projectDir.resolve("target/quarkus/zolt-test-bootstrap.properties")));
+        FrameworkTestRunRequest request = frameworkRequests.getFirst();
+        assertEquals(projectDir, request.projectDirectory());
+        assertEquals(quarkusConfig(), request.config());
+        assertEquals(projectDir.resolve("target/classes"), request.mainOutputDirectory());
+        assertEquals(projectDir.resolve("target/test-classes"), request.testOutputDirectory());
+        assertTrue(request.testRuntimeClasspath().stream()
+                .anyMatch(path -> path.getFileName().toString().startsWith("junit-platform-console-standalone")));
     }
 
     @Test
@@ -699,13 +685,8 @@ final class TestRunServiceTest {
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
-                (projectDirectory, config) -> Optional.of(projectDirectory
-                        .resolve("target/quarkus/test-application-model.dat")
-                        .toAbsolutePath()
-                        .normalize()),
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, descriptor) -> {
-                    throw new QuarkusAugmentationException("worker failed");
+                (FrameworkTestRunner) request -> {
+                    throw new TestRunException("worker failed");
                 });
 
         TestRunException exception = assertThrows(
@@ -785,27 +766,18 @@ final class TestRunServiceTest {
         return service(
                 processRunner,
                 jdkChecker,
-                (projectDirectory, config) -> Optional.empty(),
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, descriptor) -> {
-                    throw new QuarkusAugmentationException("Quarkus test worker should not run for this test.");
-                });
+                FrameworkTestRunner.none());
     }
 
     private TestRunService service(
             JavaRunner.ProcessRunner processRunner,
             JdkChecker jdkChecker,
-            TestRunService.QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
-            java.util.function.Supplier<List<Path>> quarkusTestWorkerClasspath,
-            TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner) {
+            FrameworkTestRunner frameworkTestRunner) {
         return new TestRunService(
                 new TestCompileService(jdkChecker),
                 jdkChecker,
                 new JavaRunner(":", processRunner),
-                quarkusTestApplicationModelWriter,
-                new QuarkusTestRunnerDescriptorWriter(),
-                quarkusTestWorkerClasspath,
-                quarkusTestWorkerRunner,
+                frameworkTestRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
@@ -817,9 +789,7 @@ final class TestRunServiceTest {
     private TestRunService service(
             JavaRunner.ProcessRunner processRunner,
             JdkChecker jdkChecker,
-            TestRunService.QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
-            java.util.function.Supplier<List<Path>> quarkusTestWorkerClasspath,
-            TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner,
+            FrameworkTestRunner frameworkTestRunner,
             java.util.function.Supplier<List<Path>> plainJunitWorkerClasspath,
             TestRunService.PlainJunitWorkerRunner plainJunitWorkerRunner,
             boolean plainJunitWorkerEnabled) {
@@ -827,10 +797,7 @@ final class TestRunServiceTest {
                 new TestCompileService(jdkChecker),
                 jdkChecker,
                 new JavaRunner(":", processRunner),
-                quarkusTestApplicationModelWriter,
-                new QuarkusTestRunnerDescriptorWriter(),
-                quarkusTestWorkerClasspath,
-                quarkusTestWorkerRunner,
+                frameworkTestRunner,
                 plainJunitWorkerClasspath,
                 plainJunitWorkerRunner,
                 plainJunitWorkerEnabled,
@@ -839,15 +806,11 @@ final class TestRunServiceTest {
 
     private TestRunService service(
             JavaRunner.ProcessRunner processRunner,
-            TestRunService.QuarkusTestApplicationModelWriter quarkusTestApplicationModelWriter,
-            java.util.function.Supplier<List<Path>> quarkusTestWorkerClasspath,
-            TestRunService.QuarkusTestWorkerRunner quarkusTestWorkerRunner) {
+            FrameworkTestRunner frameworkTestRunner) {
         return service(
                 processRunner,
                 new JdkDetector(),
-                quarkusTestApplicationModelWriter,
-                quarkusTestWorkerClasspath,
-                quarkusTestWorkerRunner);
+                frameworkTestRunner);
     }
 
     private void writeConsoleLockfile() throws IOException {
