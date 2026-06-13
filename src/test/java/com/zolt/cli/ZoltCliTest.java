@@ -407,6 +407,15 @@ final class ZoltCliTest {
                         .userObject()
                         .getClass()
                         .getName());
+        assertEquals(
+                "com.zolt.cli.command.NativeSmokeCommand",
+                ZoltCli.newCommandLine()
+                        .getSubcommands()
+                        .get("native-smoke")
+                        .getCommandSpec()
+                        .userObject()
+                        .getClass()
+                        .getName());
     }
 
     @Test

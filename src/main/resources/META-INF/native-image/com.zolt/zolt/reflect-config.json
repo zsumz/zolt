@@ -300,7 +300,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$NativeSmokeCommand",
+    "name": "com.zolt.cli.command.NativeSmokeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
