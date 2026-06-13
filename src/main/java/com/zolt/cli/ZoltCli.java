@@ -57,6 +57,7 @@ import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.ResolveCommand;
 import com.zolt.cli.command.SelfCheckCommand;
 import com.zolt.cli.command.SelfParityCommand;
+import com.zolt.cli.command.TimingAttributeKeys;
 import com.zolt.cli.command.TreeCommand;
 import com.zolt.cli.command.UpdateCommand;
 import com.zolt.cli.command.VersionCommand;
@@ -1163,11 +1164,11 @@ public final class ZoltCli implements Runnable {
                                 cacheRoot,
                                 testSelection,
                                 reportSettings,
-                                requestedTestEvents),
+                        requestedTestEvents),
                         coverageResult -> Map.of(
-                                "execFile", coverageResult.execFile().toString(),
-                                "xmlReport", coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
-                                "htmlDirectory", coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
+                                TimingAttributeKeys.EXEC_FILE, coverageResult.execFile().toString(),
+                                TimingAttributeKeys.XML_REPORT, coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
+                                TimingAttributeKeys.HTML_DIRECTORY, coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
                 printAndFlush(spec, result.testRunResult().output());
                 if (!result.testRunResult().output().isEmpty() && !result.testRunResult().output().endsWith("\n")) {
                     spec.commandLine().getOut().println();
@@ -1600,12 +1601,12 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> buildAttributes(BuildResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("sourceFiles", Integer.toString(result.sourceCount()));
-        attributes.put("resourceFiles", Integer.toString(result.resourceCount()));
-        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
-        attributes.put("mainCompilationSkipped", Boolean.toString(result.mainCompilationSkipped()));
-        attributes.put("mainCompilationMode", result.mainCompilationMode());
-        attributes.put("mainIncrementalFallbackReason", result.mainIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.SOURCE_FILES, Integer.toString(result.sourceCount()));
+        attributes.put(TimingAttributeKeys.RESOURCE_FILES, Integer.toString(result.resourceCount()));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.mainCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.mainCompilationMode());
+        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.mainIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
         addMainFingerprintAttributes(attributes, result);
         return attributes;
@@ -1652,13 +1653,13 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> workspaceBuildAttributes(WorkspaceBuildResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("members", Integer.toString(result.members().size()));
-        attributes.put("sourceFiles", Integer.toString(result.sourceCount()));
-        attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
-        attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
+        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
+        attributes.put(TimingAttributeKeys.SOURCE_FILES, Integer.toString(result.sourceCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(result.mainCompilationSkippedCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(result.mainCompilationExecutedCount()));
         addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
-        attributes.put("workspaceAbiInvalidations", Integer.toString(result.workspaceAbiInvalidationCount()));
-        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.WORKSPACE_ABI_INVALIDATIONS, Integer.toString(result.workspaceAbiInvalidationCount()));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
         addMainFingerprintAttributes(
                 attributes,
                 result.mainFingerprintCheckNanos(),
@@ -1676,48 +1677,48 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> workspaceBuildPlanAttributes(WorkspaceBuildPlan plan) {
         return Map.of(
-                "includedMembers", Integer.toString(plan.selection().includedMembers().size()),
-                "selectedMembers", Integer.toString(plan.selection().selectedMembers().size()),
-                "resolvedLockfile", Boolean.toString(plan.resolvedLockfile()));
+                TimingAttributeKeys.INCLUDED_MEMBERS, Integer.toString(plan.selection().includedMembers().size()),
+                TimingAttributeKeys.SELECTED_MEMBERS, Integer.toString(plan.selection().selectedMembers().size()),
+                TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(plan.resolvedLockfile()));
     }
 
     private static Map<String, String> testRunAttributes(TestRunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("mainSourceFiles", Integer.toString(result.compileResult().buildResult().sourceCount()));
-        attributes.put("testSourceFiles", Integer.toString(result.compileResult().sourceCount()));
-        attributes.put("testResourceFiles", Integer.toString(result.compileResult().resourceCount()));
-        attributes.put("mainCompilationSkipped", Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()));
-        attributes.put("mainCompilationMode", result.compileResult().buildResult().mainCompilationMode());
-        attributes.put("mainIncrementalFallbackReason", result.compileResult().buildResult().mainIncrementalFallbackReason());
-        attributes.put("testCompilationSkipped", Boolean.toString(result.compileResult().testCompilationSkipped()));
-        attributes.put("testCompilationMode", result.compileResult().testCompilationMode());
-        attributes.put("testIncrementalFallbackReason", result.compileResult().testIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.compileResult().buildResult().sourceCount()));
+        attributes.put(TimingAttributeKeys.TEST_SOURCE_FILES, Integer.toString(result.compileResult().sourceCount()));
+        attributes.put(TimingAttributeKeys.TEST_RESOURCE_FILES, Integer.toString(result.compileResult().resourceCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.compileResult().buildResult().mainCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.compileResult().buildResult().mainCompilationMode());
+        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.compileResult().buildResult().mainIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.TEST_COMPILATION_SKIPPED, Boolean.toString(result.compileResult().testCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.TEST_COMPILATION_MODE, result.compileResult().testCompilationMode());
+        attributes.put(TimingAttributeKeys.TEST_INCREMENTAL_FALLBACK_REASON, result.compileResult().testIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.compileResult().buildResult().mainCompileDiagnostics());
         addTestCompileDiagnostics(attributes, result.compileResult().testCompileDiagnostics());
-        attributes.put("testRunner", result.testRunner());
-        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
-        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
-        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        attributes.put(TimingAttributeKeys.TEST_RUNNER, result.testRunner());
+        attributes.put(TimingAttributeKeys.TEST_RUNTIME_CLASSPATH_ENTRIES, Integer.toString(result.testRuntimeClasspathEntries()));
+        attributes.put(TimingAttributeKeys.TEST_LAUNCHER_CLASSPATH_ENTRIES, Integer.toString(result.testLauncherClasspathEntries()));
+        attributes.put(TimingAttributeKeys.TEST_DISCOVERY_SCAN_ROOTS, Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
-        attributes.put("testJvmArgs", Integer.toString(result.testJvmArguments().values().size()));
+        attributes.put(TimingAttributeKeys.TEST_JVM_ARGS, Integer.toString(result.testJvmArguments().values().size()));
         addMainFingerprintAttributes(attributes, result.compileResult().buildResult());
         addTestFingerprintAttributes(attributes, result.compileResult());
         addPlainJunitWorkerTimingAttributes(attributes, result);
-        attributes.put("outputBytes", Integer.toString(result.output().length()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.output().length()));
         return attributes;
     }
 
     private static Map<String, String> testCompileAttributes(TestCompileResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("mainSourceFiles", Integer.toString(result.buildResult().sourceCount()));
-        attributes.put("testSourceFiles", Integer.toString(result.sourceCount()));
-        attributes.put("testResourceFiles", Integer.toString(result.resourceCount()));
-        attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
-        attributes.put("mainCompilationMode", result.buildResult().mainCompilationMode());
-        attributes.put("mainIncrementalFallbackReason", result.buildResult().mainIncrementalFallbackReason());
-        attributes.put("testCompilationSkipped", Boolean.toString(result.testCompilationSkipped()));
-        attributes.put("testCompilationMode", result.testCompilationMode());
-        attributes.put("testIncrementalFallbackReason", result.testIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.buildResult().sourceCount()));
+        attributes.put(TimingAttributeKeys.TEST_SOURCE_FILES, Integer.toString(result.sourceCount()));
+        attributes.put(TimingAttributeKeys.TEST_RESOURCE_FILES, Integer.toString(result.resourceCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.buildResult().mainCompilationMode());
+        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.buildResult().mainIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.TEST_COMPILATION_SKIPPED, Boolean.toString(result.testCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.TEST_COMPILATION_MODE, result.testCompilationMode());
+        attributes.put(TimingAttributeKeys.TEST_INCREMENTAL_FALLBACK_REASON, result.testIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
         addTestCompileDiagnostics(attributes, result.testCompileDiagnostics());
         addMainFingerprintAttributes(attributes, result.buildResult());
@@ -1727,34 +1728,34 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> testExecutionAttributes(TestRunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("testRunner", result.testRunner());
-        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntries()));
-        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntries()));
-        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRoots()));
+        attributes.put(TimingAttributeKeys.TEST_RUNNER, result.testRunner());
+        attributes.put(TimingAttributeKeys.TEST_RUNTIME_CLASSPATH_ENTRIES, Integer.toString(result.testRuntimeClasspathEntries()));
+        attributes.put(TimingAttributeKeys.TEST_LAUNCHER_CLASSPATH_ENTRIES, Integer.toString(result.testLauncherClasspathEntries()));
+        attributes.put(TimingAttributeKeys.TEST_DISCOVERY_SCAN_ROOTS, Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
-        attributes.put("testJvmArgs", Integer.toString(result.testJvmArguments().values().size()));
+        attributes.put(TimingAttributeKeys.TEST_JVM_ARGS, Integer.toString(result.testJvmArguments().values().size()));
         addPlainJunitWorkerTimingAttributes(attributes, result);
-        attributes.put("outputBytes", Integer.toString(result.output().length()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.output().length()));
         return attributes;
     }
 
     private static void addPlainJunitWorkerTimingAttributes(Map<String, String> attributes, TestRunResult result) {
         if (result.testRunnerStartupNanos() >= 0L) {
-            attributes.put("testRunnerStartupMillis", Long.toString(result.testRunnerStartupNanos() / 1_000_000L));
-            attributes.put("testRunnerStartupNanos", Long.toString(result.testRunnerStartupNanos()));
+            attributes.put(TimingAttributeKeys.TEST_RUNNER_STARTUP_MILLIS, Long.toString(result.testRunnerStartupNanos() / 1_000_000L));
+            attributes.put(TimingAttributeKeys.TEST_RUNNER_STARTUP_NANOS, Long.toString(result.testRunnerStartupNanos()));
         }
         if (result.testRunnerRequestNanos() >= 0L) {
-            attributes.put("testRunnerRequestMillis", Long.toString(result.testRunnerRequestNanos() / 1_000_000L));
-            attributes.put("testRunnerRequestNanos", Long.toString(result.testRunnerRequestNanos()));
+            attributes.put(TimingAttributeKeys.TEST_RUNNER_REQUEST_MILLIS, Long.toString(result.testRunnerRequestNanos() / 1_000_000L));
+            attributes.put(TimingAttributeKeys.TEST_RUNNER_REQUEST_NANOS, Long.toString(result.testRunnerRequestNanos()));
         }
     }
 
     private static void addMainCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {
-        addCompileDiagnostics(attributes, "main", diagnostics);
+        addCompileDiagnostics(attributes, TimingAttributeKeys.MAIN_PREFIX, diagnostics);
     }
 
     private static void addTestCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {
-        addCompileDiagnostics(attributes, "test", diagnostics);
+        addCompileDiagnostics(attributes, TimingAttributeKeys.TEST_PREFIX, diagnostics);
     }
 
     private static void addCompileDiagnostics(
@@ -1762,15 +1763,17 @@ public final class ZoltCli implements Runnable {
             String prefix,
             CompileDiagnostics diagnostics) {
         CompileDiagnostics values = diagnostics == null ? CompileDiagnostics.empty() : diagnostics;
-        attributes.put(prefix + "SourcesAdded", Integer.toString(values.sourcesAdded()));
-        attributes.put(prefix + "SourcesChanged", Integer.toString(values.sourcesChanged()));
-        attributes.put(prefix + "SourcesDeleted", Integer.toString(values.sourcesDeleted()));
-        attributes.put(prefix + "SourcesRecompiled", Integer.toString(values.sourcesRecompiled()));
-        attributes.put(prefix + "DependentSourcesRecompiled", Integer.toString(values.dependentSourcesRecompiled()));
-        attributes.put(prefix + "ClassesDeleted", Integer.toString(values.classesDeleted()));
-        attributes.put(prefix + "AbiChangedClasses", Integer.toString(values.abiChangedClasses()));
+        attributes.put(prefix + TimingAttributeKeys.SOURCES_ADDED_SUFFIX, Integer.toString(values.sourcesAdded()));
+        attributes.put(prefix + TimingAttributeKeys.SOURCES_CHANGED_SUFFIX, Integer.toString(values.sourcesChanged()));
+        attributes.put(prefix + TimingAttributeKeys.SOURCES_DELETED_SUFFIX, Integer.toString(values.sourcesDeleted()));
+        attributes.put(prefix + TimingAttributeKeys.SOURCES_RECOMPILED_SUFFIX, Integer.toString(values.sourcesRecompiled()));
         attributes.put(
-                prefix + "PackagePrivateAbiChangedClasses",
+                prefix + TimingAttributeKeys.DEPENDENT_SOURCES_RECOMPILED_SUFFIX,
+                Integer.toString(values.dependentSourcesRecompiled()));
+        attributes.put(prefix + TimingAttributeKeys.CLASSES_DELETED_SUFFIX, Integer.toString(values.classesDeleted()));
+        attributes.put(prefix + TimingAttributeKeys.ABI_CHANGED_CLASSES_SUFFIX, Integer.toString(values.abiChangedClasses()));
+        attributes.put(
+                prefix + TimingAttributeKeys.PACKAGE_PRIVATE_ABI_CHANGED_CLASSES_SUFFIX,
                 Integer.toString(values.packagePrivateAbiChangedClasses()));
     }
 
@@ -1785,132 +1788,132 @@ public final class ZoltCli implements Runnable {
             Map<String, String> attributes,
             long checkNanos,
             long writeNanos) {
-        attributes.put("mainFingerprintCheckMillis", Long.toString(checkNanos / 1_000_000L));
-        attributes.put("mainFingerprintCheckNanos", Long.toString(checkNanos));
-        attributes.put("mainFingerprintWriteMillis", Long.toString(writeNanos / 1_000_000L));
-        attributes.put("mainFingerprintWriteNanos", Long.toString(writeNanos));
+        attributes.put(TimingAttributeKeys.MAIN_FINGERPRINT_CHECK_MILLIS, Long.toString(checkNanos / 1_000_000L));
+        attributes.put(TimingAttributeKeys.MAIN_FINGERPRINT_CHECK_NANOS, Long.toString(checkNanos));
+        attributes.put(TimingAttributeKeys.MAIN_FINGERPRINT_WRITE_MILLIS, Long.toString(writeNanos / 1_000_000L));
+        attributes.put(TimingAttributeKeys.MAIN_FINGERPRINT_WRITE_NANOS, Long.toString(writeNanos));
     }
 
     private static void addTestFingerprintAttributes(Map<String, String> attributes, TestCompileResult result) {
-        attributes.put("testFingerprintCheckMillis", Long.toString(result.testFingerprintCheckMillis()));
-        attributes.put("testFingerprintCheckNanos", Long.toString(result.testFingerprintCheckNanos()));
-        attributes.put("testFingerprintWriteMillis", Long.toString(result.testFingerprintWriteMillis()));
-        attributes.put("testFingerprintWriteNanos", Long.toString(result.testFingerprintWriteNanos()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_CHECK_MILLIS, Long.toString(result.testFingerprintCheckMillis()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_CHECK_NANOS, Long.toString(result.testFingerprintCheckNanos()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_WRITE_MILLIS, Long.toString(result.testFingerprintWriteMillis()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_WRITE_NANOS, Long.toString(result.testFingerprintWriteNanos()));
     }
 
     private static void addTestSelectionAttributes(Map<String, String> attributes, TestSelection selection) {
-        attributes.put("testClassSelectors", Integer.toString(selection.classSelectors().size()));
-        attributes.put("testMethodSelectors", Integer.toString(selection.methodSelectors().size()));
-        attributes.put("testPatterns", Integer.toString(selection.classNamePatterns().size()));
-        attributes.put("testIncludedTags", Integer.toString(selection.includedTags().size()));
-        attributes.put("testExcludedTags", Integer.toString(selection.excludedTags().size()));
+        attributes.put(TimingAttributeKeys.TEST_CLASS_SELECTORS, Integer.toString(selection.classSelectors().size()));
+        attributes.put(TimingAttributeKeys.TEST_METHOD_SELECTORS, Integer.toString(selection.methodSelectors().size()));
+        attributes.put(TimingAttributeKeys.TEST_PATTERNS, Integer.toString(selection.classNamePatterns().size()));
+        attributes.put(TimingAttributeKeys.TEST_INCLUDED_TAGS, Integer.toString(selection.includedTags().size()));
+        attributes.put(TimingAttributeKeys.TEST_EXCLUDED_TAGS, Integer.toString(selection.excludedTags().size()));
     }
 
     private static Map<String, String> workspaceTestAttributes(WorkspaceTestResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("members", Integer.toString(result.members().size()));
-        attributes.put("includedMembers", Integer.toString(result.includedMemberCount()));
-        attributes.put("selectedMembers", Integer.toString(result.selectedMemberCount()));
-        attributes.put("dependencyMembers", Integer.toString(result.dependencyMemberCount()));
-        attributes.put("mainSourceFiles", Integer.toString(result.mainSourceCount()));
-        attributes.put("testSourceFiles", Integer.toString(result.testSourceCount()));
-        attributes.put("mainCompilationsSkipped", Integer.toString(result.mainCompilationSkippedCount()));
-        attributes.put("mainCompilationsExecuted", Integer.toString(result.mainCompilationExecutedCount()));
-        attributes.put("testCompilationsSkipped", Integer.toString(result.testCompilationSkippedCount()));
-        attributes.put("testCompilationsExecuted", Integer.toString(result.testCompilationExecutedCount()));
-        attributes.put("testRuntimeClasspathEntries", Integer.toString(result.testRuntimeClasspathEntryCount()));
-        attributes.put("testLauncherClasspathEntries", Integer.toString(result.testLauncherClasspathEntryCount()));
-        attributes.put("testDiscoveryScanRoots", Integer.toString(result.testDiscoveryScanRootCount()));
+        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
+        attributes.put(TimingAttributeKeys.INCLUDED_MEMBERS, Integer.toString(result.includedMemberCount()));
+        attributes.put(TimingAttributeKeys.SELECTED_MEMBERS, Integer.toString(result.selectedMemberCount()));
+        attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(result.dependencyMemberCount()));
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.mainSourceCount()));
+        attributes.put(TimingAttributeKeys.TEST_SOURCE_FILES, Integer.toString(result.testSourceCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(result.mainCompilationSkippedCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(result.mainCompilationExecutedCount()));
+        attributes.put(TimingAttributeKeys.TEST_COMPILATIONS_SKIPPED, Integer.toString(result.testCompilationSkippedCount()));
+        attributes.put(TimingAttributeKeys.TEST_COMPILATIONS_EXECUTED, Integer.toString(result.testCompilationExecutedCount()));
+        attributes.put(TimingAttributeKeys.TEST_RUNTIME_CLASSPATH_ENTRIES, Integer.toString(result.testRuntimeClasspathEntryCount()));
+        attributes.put(TimingAttributeKeys.TEST_LAUNCHER_CLASSPATH_ENTRIES, Integer.toString(result.testLauncherClasspathEntryCount()));
+        attributes.put(TimingAttributeKeys.TEST_DISCOVERY_SCAN_ROOTS, Integer.toString(result.testDiscoveryScanRootCount()));
         addMainFingerprintAttributes(
                 attributes,
                 result.mainFingerprintCheckNanos(),
                 result.mainFingerprintWriteNanos());
-        attributes.put("testFingerprintCheckMillis", Long.toString(result.testFingerprintCheckMillis()));
-        attributes.put("testFingerprintCheckNanos", Long.toString(result.testFingerprintCheckNanos()));
-        attributes.put("testFingerprintWriteMillis", Long.toString(result.testFingerprintWriteMillis()));
-        attributes.put("testFingerprintWriteNanos", Long.toString(result.testFingerprintWriteNanos()));
-        attributes.put("testClassSelectors", Integer.toString(result.testClassSelectorCount()));
-        attributes.put("testMethodSelectors", Integer.toString(result.testMethodSelectorCount()));
-        attributes.put("testPatterns", Integer.toString(result.testPatternCount()));
-        attributes.put("testIncludedTags", Integer.toString(result.testIncludedTagCount()));
-        attributes.put("testExcludedTags", Integer.toString(result.testExcludedTagCount()));
-        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_CHECK_MILLIS, Long.toString(result.testFingerprintCheckMillis()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_CHECK_NANOS, Long.toString(result.testFingerprintCheckNanos()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_WRITE_MILLIS, Long.toString(result.testFingerprintWriteMillis()));
+        attributes.put(TimingAttributeKeys.TEST_FINGERPRINT_WRITE_NANOS, Long.toString(result.testFingerprintWriteNanos()));
+        attributes.put(TimingAttributeKeys.TEST_CLASS_SELECTORS, Integer.toString(result.testClassSelectorCount()));
+        attributes.put(TimingAttributeKeys.TEST_METHOD_SELECTORS, Integer.toString(result.testMethodSelectorCount()));
+        attributes.put(TimingAttributeKeys.TEST_PATTERNS, Integer.toString(result.testPatternCount()));
+        attributes.put(TimingAttributeKeys.TEST_INCLUDED_TAGS, Integer.toString(result.testIncludedTagCount()));
+        attributes.put(TimingAttributeKeys.TEST_EXCLUDED_TAGS, Integer.toString(result.testExcludedTagCount()));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
         return attributes;
     }
 
     private static void addWorkspaceSelectionAttributes(
             Map<String, String> attributes,
             WorkspaceSelection selection) {
-        attributes.put("includedMembers", Integer.toString(selection.includedMembers().size()));
-        attributes.put("selectedMembers", Integer.toString(selection.selectedMembers().size()));
-        attributes.put("dependencyMembers", Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
+        attributes.put(TimingAttributeKeys.INCLUDED_MEMBERS, Integer.toString(selection.includedMembers().size()));
+        attributes.put(TimingAttributeKeys.SELECTED_MEMBERS, Integer.toString(selection.selectedMembers().size()));
+        attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
     }
 
     private static Map<String, String> runAttributes(RunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("mainClass", result.javaRunResult().mainClass());
-        attributes.put("mainSourceFiles", Integer.toString(result.buildResult().sourceCount()));
-        attributes.put("resourceFiles", Integer.toString(result.buildResult().resourceCount()));
-        attributes.put("mainCompilationSkipped", Boolean.toString(result.buildResult().mainCompilationSkipped()));
-        attributes.put("mainCompilationMode", result.buildResult().mainCompilationMode());
-        attributes.put("mainIncrementalFallbackReason", result.buildResult().mainIncrementalFallbackReason());
+        attributes.put(TimingAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.buildResult().sourceCount()));
+        attributes.put(TimingAttributeKeys.RESOURCE_FILES, Integer.toString(result.buildResult().resourceCount()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.buildResult().mainCompilationMode());
+        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.buildResult().mainIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
-        attributes.put("resolvedLockfile", Boolean.toString(result.buildResult().resolvedLockfile()));
-        attributes.put("outputBytes", Integer.toString(result.javaRunResult().output().length()));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
         return attributes;
     }
 
     private static Map<String, String> workspaceRunAttributes(WorkspaceRunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("members", Integer.toString(result.members().size()));
-        attributes.put("mainSourceFiles", Integer.toString(workspaceRunSourceCount(result)));
-        attributes.put("mainCompilationsSkipped", Integer.toString(workspaceRunMainCompilationSkippedCount(result)));
-        attributes.put("mainCompilationsExecuted", Integer.toString(workspaceRunMainCompilationExecutedCount(result)));
-        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
-        attributes.put("outputBytes", Integer.toString(workspaceRunOutputBytes(result)));
+        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunSourceCount(result)));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunMainCompilationSkippedCount(result)));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunMainCompilationExecutedCount(result)));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunOutputBytes(result)));
         return attributes;
     }
 
     private static Map<String, String> packageAttributes(PackageResult result) {
         return Map.of(
-                "mode", result.mode().configValue(),
-                "entries", Integer.toString(result.entryCount()),
-                "hasMainClass", Boolean.toString(result.hasMainClass()),
-                "resolvedLockfile", Boolean.toString(result.buildResult().resolvedLockfile()));
+                TimingAttributeKeys.MODE, result.mode().configValue(),
+                TimingAttributeKeys.ENTRIES, Integer.toString(result.entryCount()),
+                TimingAttributeKeys.HAS_MAIN_CLASS, Boolean.toString(result.hasMainClass()),
+                TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
     }
 
     private static Map<String, String> workspacePackageAttributes(WorkspacePackageResult result) {
         return Map.of(
-                "members", Integer.toString(result.members().size()),
-                "entries", Integer.toString(result.entryCount()),
-                "resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
+                TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()),
+                TimingAttributeKeys.ENTRIES, Integer.toString(result.entryCount()),
+                TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
     }
 
     private static Map<String, String> runPackageAttributes(RunPackageResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("mode", result.packageResult().mode().configValue());
-        attributes.put("entries", Integer.toString(result.packageResult().entryCount()));
-        attributes.put("hasMainClass", Boolean.toString(result.packageResult().hasMainClass()));
-        attributes.put("mainClass", result.javaRunResult().mainClass());
-        attributes.put("mainCompilationSkipped", Boolean.toString(result.packageResult().buildResult().mainCompilationSkipped()));
-        attributes.put("mainCompilationMode", result.packageResult().buildResult().mainCompilationMode());
+        attributes.put(TimingAttributeKeys.MODE, result.packageResult().mode().configValue());
+        attributes.put(TimingAttributeKeys.ENTRIES, Integer.toString(result.packageResult().entryCount()));
+        attributes.put(TimingAttributeKeys.HAS_MAIN_CLASS, Boolean.toString(result.packageResult().hasMainClass()));
+        attributes.put(TimingAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.packageResult().buildResult().mainCompilationSkipped()));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.packageResult().buildResult().mainCompilationMode());
         attributes.put(
-                "mainIncrementalFallbackReason",
+                TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON,
                 result.packageResult().buildResult().mainIncrementalFallbackReason());
-        attributes.put("resolvedLockfile", Boolean.toString(result.packageResult().buildResult().resolvedLockfile()));
-        attributes.put("outputBytes", Integer.toString(result.javaRunResult().output().length()));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.packageResult().buildResult().resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
         return attributes;
     }
 
     private static Map<String, String> workspaceRunPackageAttributes(WorkspaceRunPackageResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("members", Integer.toString(result.members().size()));
-        attributes.put("mainSourceFiles", Integer.toString(workspaceRunPackageSourceCount(result)));
-        attributes.put("mainCompilationsSkipped", Integer.toString(workspaceRunPackageMainCompilationSkippedCount(result)));
-        attributes.put("mainCompilationsExecuted", Integer.toString(workspaceRunPackageMainCompilationExecutedCount(result)));
-        attributes.put("entries", Integer.toString(workspaceRunPackageEntryCount(result)));
-        attributes.put("resolvedLockfile", Boolean.toString(result.resolvedLockfile()));
-        attributes.put("outputBytes", Integer.toString(workspaceRunPackageOutputBytes(result)));
+        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
+        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunPackageSourceCount(result)));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunPackageMainCompilationSkippedCount(result)));
+        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunPackageMainCompilationExecutedCount(result)));
+        attributes.put(TimingAttributeKeys.ENTRIES, Integer.toString(workspaceRunPackageEntryCount(result)));
+        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
+        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunPackageOutputBytes(result)));
         return attributes;
     }
 
@@ -1966,12 +1969,12 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> quarkusAugmentationAttributes(Optional<QuarkusAugmentationResult> result) {
         if (result.isEmpty()) {
-            return Map.of("enabled", "false");
+            return Map.of(TimingAttributeKeys.ENABLED, "false");
         }
         QuarkusAugmentationResult augmentation = result.orElseThrow();
         return Map.of(
-                "enabled", "true",
-                "runnerJar", augmentation.workerResult().runnerJar().toString());
+                TimingAttributeKeys.ENABLED, "true",
+                TimingAttributeKeys.RUNNER_JAR, augmentation.workerResult().runnerJar().toString());
     }
 
     private static void printResolveResult(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
@@ -2019,9 +2022,9 @@ public final class ZoltCli implements Runnable {
 
     private static Map<String, String> packagePlanAttributes(PackagePlan plan) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("mode", plan.mode().configValue());
-        attributes.put("dependencies", String.valueOf(plan.dependencies().size()));
-        attributes.put("warnings", String.valueOf(plan.warnings().size()));
+        attributes.put(TimingAttributeKeys.MODE, plan.mode().configValue());
+        attributes.put(TimingAttributeKeys.DEPENDENCIES, String.valueOf(plan.dependencies().size()));
+        attributes.put(TimingAttributeKeys.WARNINGS, String.valueOf(plan.warnings().size()));
         return attributes;
     }
 

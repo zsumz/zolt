@@ -62,9 +62,9 @@ public final class SelfCheckCommand implements Runnable {
     private static Map<String, String> selfCheckAttributes(SelfCheckResult result) {
         long failedSteps = result.steps().stream().filter(step -> !step.ok()).count();
         return Map.of(
-                "steps", Integer.toString(result.steps().size()),
-                "failedSteps", Long.toString(failedSteps),
-                "ok", Boolean.toString(result.ok()));
+                TimingAttributeKeys.STEPS, Integer.toString(result.steps().size()),
+                TimingAttributeKeys.FAILED_STEPS, Long.toString(failedSteps),
+                TimingAttributeKeys.OK, Boolean.toString(result.ok()));
     }
 
     private void printSelfCheckStatus(SelfCheckResult result) {

@@ -103,12 +103,12 @@ public final class CheckCommand implements Callable<Integer> {
 
     private static Map<String, String> qualityCheckAttributes(QualityCheckReport result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("checks", Integer.toString(result.checks().size()));
-        attributes.put("passed", Long.toString(result.passedCount()));
-        attributes.put("failed", Long.toString(result.failedCount()));
-        attributes.put("skipped", Long.toString(result.skippedCount()));
-        attributes.put("workspace", Boolean.toString(result.workspace()));
-        attributes.put("ok", Boolean.toString(result.ok()));
+        attributes.put(TimingAttributeKeys.CHECKS, Integer.toString(result.checks().size()));
+        attributes.put(TimingAttributeKeys.PASSED, Long.toString(result.passedCount()));
+        attributes.put(TimingAttributeKeys.FAILED, Long.toString(result.failedCount()));
+        attributes.put(TimingAttributeKeys.SKIPPED, Long.toString(result.skippedCount()));
+        attributes.put(TimingAttributeKeys.WORKSPACE, Boolean.toString(result.workspace()));
+        attributes.put(TimingAttributeKeys.OK, Boolean.toString(result.ok()));
         return attributes;
     }
 }

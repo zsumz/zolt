@@ -105,19 +105,19 @@ public final class IdeCommand implements Runnable {
 
     private static Map<String, String> ideModelAttributes(IdeModel model) {
         LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
-        attributes.put("sourceRoots", Integer.toString(model.sourceRoots().size()));
-        attributes.put("resourceRoots", Integer.toString(model.resourceRoots().size()));
-        attributes.put("compileClasspathEntries", Integer.toString(model.classpaths().compile().size()));
-        attributes.put("runtimeClasspathEntries", Integer.toString(model.classpaths().runtime().size()));
-        attributes.put("testClasspathEntries", Integer.toString(model.classpaths().test().size()));
-        attributes.put("diagnostics", Integer.toString(model.diagnostics().size()));
+        attributes.put(TimingAttributeKeys.SOURCE_ROOTS, Integer.toString(model.sourceRoots().size()));
+        attributes.put(TimingAttributeKeys.RESOURCE_ROOTS, Integer.toString(model.resourceRoots().size()));
+        attributes.put(TimingAttributeKeys.COMPILE_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().compile().size()));
+        attributes.put(TimingAttributeKeys.RUNTIME_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().runtime().size()));
+        attributes.put(TimingAttributeKeys.TEST_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().test().size()));
+        attributes.put(TimingAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
         return attributes;
     }
 
     private static Map<String, String> workspaceIdeModelAttributes(WorkspaceIdeModel model) {
         return Map.of(
-                "projects", Integer.toString(model.projects().size()),
-                "edges", Integer.toString(model.edges().size()),
-                "diagnostics", Integer.toString(model.diagnostics().size()));
+                TimingAttributeKeys.PROJECTS, Integer.toString(model.projects().size()),
+                TimingAttributeKeys.EDGES, Integer.toString(model.edges().size()),
+                TimingAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
     }
 }
