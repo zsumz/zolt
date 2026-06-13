@@ -6,6 +6,8 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolveException;
 import com.zolt.workspace.Workspace;
@@ -254,19 +256,32 @@ public final class WorkspaceIdeModelService {
                         .toList());
         for (WorkspaceMember member : workspace.members()) {
             ClasspathSet classpaths = zoltClasspathsByMember.get(member.path());
-            Path mainOutput = member.directory().resolve(member.config().build().output()).normalize();
-            Path testOutput = member.directory().resolve(member.config().build().testOutput()).normalize();
+            Optional<Path> mainOutput = outputPath(member, "[build].output", member.config().build().output());
+            Optional<Path> testOutput = outputPath(member, "[build].testOutput", member.config().build().testOutput());
             classpathsByMember.put(
                     member.path(),
                     new IdeModel.ClasspathInfo(
                             absoluteEntries(classpaths.compile()),
-                            withOutputs(List.of(mainOutput), classpaths.runtime()),
-                            withOutputs(List.of(mainOutput, testOutput), classpaths.test()),
+                            withOutputs(mainOutput.stream().toList(), classpaths.runtime()),
+                            withOutputs(
+                                    java.util.stream.Stream.concat(mainOutput.stream(), testOutput.stream()).toList(),
+                                    classpaths.test()),
                             absoluteEntries(classpaths.processor()),
                             absoluteEntries(classpaths.testProcessor()),
                             absoluteEntries(classpaths.quarkusDeployment())));
         }
         return Collections.unmodifiableMap(classpathsByMember);
+    }
+
+    private static Optional<Path> outputPath(WorkspaceMember member, String key, String configuredPath) {
+        try {
+            return Optional.of(ProjectPaths.output(
+                    ProjectPaths.root(member.directory()),
+                    key,
+                    configuredPath));
+        } catch (ProjectPathException exception) {
+            return Optional.empty();
+        }
     }
 
     private static String lockDiagnosticCode(ResolveException exception) {

@@ -203,6 +203,33 @@ final class WorkspaceIdeModelServiceTest {
     }
 
     @Test
+    void omitsUnsafeMemberOutputsFromWorkspaceClasspaths() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", """
+
+                [build]
+                output = "../classes"
+                testOutput = "../test-classes"
+                """);
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        IdeModel apiModel = model.projects().getFirst().model();
+        assertTrue(apiModel.diagnostics().stream()
+                .anyMatch(diagnostic -> diagnostic.code().equals("PROJECT_PATH_INVALID")
+                        && diagnostic.message().contains("[build].output")));
+        assertTrue(apiModel.diagnostics().stream()
+                .anyMatch(diagnostic -> diagnostic.code().equals("PROJECT_PATH_INVALID")
+                        && diagnostic.message().contains("[build].testOutput")));
+        assertTrue(apiModel.classpaths().runtime().isEmpty());
+        assertTrue(apiModel.classpaths().test().isEmpty());
+    }
+
+    @Test
     void reportsMissingWorkspaceLockAtWorkspaceLevel() throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), """
                 [workspace]

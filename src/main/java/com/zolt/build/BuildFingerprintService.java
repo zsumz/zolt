@@ -4,6 +4,8 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.Classpath;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +52,7 @@ public final class BuildFingerprintService {
                 lockfilePath,
                 mainSourceRoots(config.build()),
                 config.build().resourceRoots(),
+                "[resources].main",
                 sources.mainSources(),
                 config.build().generatedMainSources(),
                 classpaths.compile(),
@@ -74,6 +77,7 @@ public final class BuildFingerprintService {
                 lockfilePath,
                 mainSourceRoots(config.build()),
                 config.build().resourceRoots(),
+                "[resources].main",
                 sources.mainSources(),
                 config.build().generatedMainSources(),
                 classpaths.compile(),
@@ -99,6 +103,7 @@ public final class BuildFingerprintService {
                 lockfilePath,
                 testSourceRoots(config.build()),
                 config.build().testResourceRoots(),
+                "[resources].test",
                 sources.allTestSources(),
                 config.build().generatedTestSources(),
                 compileClasspath,
@@ -124,6 +129,7 @@ public final class BuildFingerprintService {
                 lockfilePath,
                 testSourceRoots(config.build()),
                 config.build().testResourceRoots(),
+                "[resources].test",
                 sources.allTestSources(),
                 config.build().generatedTestSources(),
                 compileClasspath,
@@ -159,6 +165,7 @@ public final class BuildFingerprintService {
             Path lockfilePath,
             List<String> sourceRoots,
             List<String> resourceRoots,
+            String resourceRootKey,
             List<Path> sources,
             List<GeneratedSourceStep> generatedSteps,
             Classpath compileClasspath,
@@ -191,6 +198,7 @@ public final class BuildFingerprintService {
                             lockfilePath,
                             sourceRoots,
                             resourceRoots,
+                            resourceRootKey,
                             sources,
                             generatedSteps,
                             compileClasspath,
@@ -210,6 +218,7 @@ public final class BuildFingerprintService {
                     lockfilePath,
                     sourceRoots,
                     resourceRoots,
+                    resourceRootKey,
                     sources,
                     generatedSteps,
                     compileClasspath,
@@ -234,6 +243,7 @@ public final class BuildFingerprintService {
             Path lockfilePath,
             List<String> sourceRoots,
             List<String> resourceRoots,
+            String resourceRootKey,
             List<Path> sources,
             List<GeneratedSourceStep> generatedSteps,
             Classpath compileClasspath,
@@ -252,6 +262,7 @@ public final class BuildFingerprintService {
                     lockfilePath,
                     sourceRoots,
                     resourceRoots,
+                    resourceRootKey,
                     sources,
                     generatedSteps,
                     compileClasspath,
@@ -286,6 +297,7 @@ public final class BuildFingerprintService {
             Path lockfilePath,
             List<String> sourceRoots,
             List<String> resourceRoots,
+            String resourceRootKey,
             List<Path> sources,
             List<GeneratedSourceStep> generatedSteps,
             Classpath compileClasspath,
@@ -309,7 +321,7 @@ public final class BuildFingerprintService {
         section(content, "processorClasspath", classpathEntries(processorClasspath, cachedState, collectedState));
         section(content, "sources", fileEntries(projectRoot, sources, cachedState, collectedState));
         section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
-        section(content, "resources", resourceEntries(projectRoot, resourceRoots, config.build(), cachedState, collectedState));
+        section(content, "resources", resourceEntries(projectRoot, resourceRoots, resourceRootKey, config.build(), cachedState, collectedState));
         section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory, cachedState, collectedState));
         section(content, "expectedClasses", expectedClassEntries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
@@ -373,14 +385,15 @@ public final class BuildFingerprintService {
     private static List<String> resourceEntries(
             Path projectRoot,
             List<String> configuredRoots,
+            String resourceRootKey,
             BuildSettings settings,
             FingerprintState cachedState,
             Map<Path, CachedFileHash> collectedState) {
         List<Path> resources = new ArrayList<>();
-        Path mainOutput = projectRoot.resolve(settings.output()).normalize();
-        Path testOutput = projectRoot.resolve(settings.testOutput()).normalize();
+        Path mainOutput = outputPath(projectRoot, "[build].output", settings.output());
+        Path testOutput = outputPath(projectRoot, "[build].testOutput", settings.testOutput());
         for (String configuredRoot : configuredRoots) {
-            Path root = projectRoot.resolve(configuredRoot).normalize();
+            Path root = existingRoot(projectRoot, resourceRootKey, configuredRoot);
             if (!Files.isDirectory(root)) {
                 continue;
             }
@@ -409,8 +422,8 @@ public final class BuildFingerprintService {
             FingerprintState cachedState,
             Map<Path, CachedFileHash> collectedState) {
         return steps.stream()
-                .flatMap(step -> step.inputs().stream())
-                .map(input -> projectRoot.resolve(input).normalize())
+                .flatMap(step -> step.inputs().stream()
+                        .map(input -> inputPath(projectRoot, "[generated." + step.id() + "].inputs", input)))
                 .distinct()
                 .sorted()
                 .map(path -> relative(projectRoot, path) + "|" + fileHash(path, cachedState, collectedState))
@@ -521,6 +534,30 @@ public final class BuildFingerprintService {
 
     private static String normalize(String value) {
         return Path.of(value).normalize().toString().replace('\\', '/');
+    }
+
+    private static Path inputPath(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.input(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
+    }
+
+    private static Path existingRoot(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.existingRoot(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
+    }
+
+    private static Path outputPath(Path projectRoot, String key, String configuredPath) {
+        try {
+            return ProjectPaths.output(projectRoot, key, configuredPath);
+        } catch (ProjectPathException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
     }
 
     private static String relative(Path projectRoot, Path path) {

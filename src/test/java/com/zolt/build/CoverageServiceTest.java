@@ -3,6 +3,7 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.BuildSettings;
@@ -109,6 +110,19 @@ final class CoverageServiceTest {
     }
 
     @Test
+    void rejectsCoverageOutputSymlinkThatEscapesProject() throws IOException {
+        Files.createDirectories(projectDir.resolve("target"));
+        createSymlink(projectDir.resolve("target/coverage"), Files.createTempDirectory("zolt-coverage-"));
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> CoverageReportSettings.defaults().absoluteExecFile(projectDir));
+
+        assertTrue(exception.getMessage().contains("coverage output"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+    }
+
+    @Test
     void missingCoverageToolingExplainsHowToRefreshLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         CoverageService service = service(
@@ -204,5 +218,13 @@ final class CoverageServiceTest {
             throw new AssertionError("Missing argument " + argument + " in " + command);
         }
         return command.get(index + 1);
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 }

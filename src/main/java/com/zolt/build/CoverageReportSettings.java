@@ -1,5 +1,7 @@
 package com.zolt.build;
 
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -48,7 +50,11 @@ public record CoverageReportSettings(
     }
 
     private static Path absolute(Path projectDirectory, Path path) {
-        return projectDirectory.toAbsolutePath().normalize().resolve(path).normalize();
+        try {
+            return ProjectPaths.output(ProjectPaths.root(projectDirectory), "coverage output", path.toString());
+        } catch (ProjectPathException exception) {
+            throw new CoverageException(exception.getMessage(), exception);
+        }
     }
 
     private static void validateProjectRelative(String label, Path path, String example) {

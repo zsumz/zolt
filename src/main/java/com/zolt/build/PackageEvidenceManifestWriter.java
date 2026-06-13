@@ -4,6 +4,8 @@ import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceTokenSettings;
 import java.io.IOException;
@@ -276,7 +278,7 @@ public final class PackageEvidenceManifestWriter {
     private static List<Path> resourceInputs(Path projectRoot, ProjectConfig config) {
         List<Path> resources = new ArrayList<>();
         for (String configuredRoot : config.build().resourceRoots()) {
-            Path resourceRoot = projectRoot.resolve(configuredRoot).normalize();
+            Path resourceRoot = resourceRoot(projectRoot, configuredRoot);
             if (!Files.isDirectory(resourceRoot)) {
                 continue;
             }
@@ -294,6 +296,14 @@ public final class PackageEvidenceManifestWriter {
             }
         }
         return List.copyOf(resources);
+    }
+
+    private static Path resourceRoot(Path projectRoot, String configuredRoot) {
+        try {
+            return ProjectPaths.existingRoot(projectRoot, "[resources].main", configuredRoot);
+        } catch (ProjectPathException exception) {
+            throw new PackageException(exception.getMessage(), exception);
+        }
     }
 
     private static String resourceFingerprint(
