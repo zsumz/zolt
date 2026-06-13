@@ -3,19 +3,13 @@ package com.zolt.cli;
 import com.zolt.build.BuildException;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildResultWithClasspaths;
-import com.zolt.build.BuildService;
 import com.zolt.build.CompileDiagnostics;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ManifestGenerationException;
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageArtifact;
-import com.zolt.build.PackagePlan;
-import com.zolt.build.PackagePlanFormatter;
-import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageResult;
-import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.RunPackageException;
 import com.zolt.build.RunPackageResult;
@@ -45,6 +39,7 @@ import com.zolt.cli.command.IdeCommand;
 import com.zolt.cli.command.InitCommand;
 import com.zolt.cli.command.NativeCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
+import com.zolt.cli.command.PackageCommand;
 import com.zolt.cli.command.PlanCommand;
 import com.zolt.cli.command.PlatformCommand;
 import com.zolt.cli.command.PolicyCommand;
@@ -82,7 +77,6 @@ import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspacePackageResult;
-import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
 import com.zolt.workspace.WorkspaceRunPackageResult;
 import com.zolt.workspace.WorkspaceRunPackageService;
@@ -132,7 +126,7 @@ import picocli.CommandLine.Spec;
                 RunCommand.class,
                 ZoltCli.TestCommand.class,
                 CoverageCommand.class,
-                ZoltCli.PackageCommand.class,
+                PackageCommand.class,
                 PublishCommand.class,
                 ZoltCli.RunPackageCommand.class,
                 NativeCommand.class,
@@ -366,208 +360,6 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "test", workingDirectory, timingOptions, timings);
-            }
-        }
-    }
-
-    @Command(name = "package", description = "Package compiled classes into a jar.")
-    public static final class PackageCommand implements Runnable {
-        @Option(names = "--workspace", description = "Package workspace members in dependency order.")
-        private boolean workspace;
-
-        @Option(names = "--all", description = "Select every workspace member.")
-        private boolean all;
-
-        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
-        private List<String> members = List.of();
-
-        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
-        private List<String> memberGroups = List.of();
-
-        @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
-        private String mode;
-
-        @Option(names = "--plan", description = "Print the package content plan without building or writing the archive.")
-        private boolean planOnly;
-
-        @Option(names = "--format", description = "Package plan output format: text or json.")
-        private String format = "text";
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            try {
-                Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
-                PlanOutputFormat planOutputFormat = planOutputFormat(format);
-                if (!planOnly && planOutputFormat != PlanOutputFormat.TEXT) {
-                    throw new PackageException("Package --format is only supported with --plan. Use `zolt package --plan --format json`.");
-                }
-                if (workspace) {
-                    if (planOnly) {
-                        throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
-                    }
-                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-                    WorkspacePackageService workspacePackageService = new WorkspacePackageService();
-                    WorkspacePackageResult result = timings.measure(
-                            "package workspace",
-                            () -> {
-                                WorkspaceBuildPlan plan = timings.measure(
-                                        "plan workspace packages",
-                                        () -> workspacePackageService.planPackages(
-                                                workingDirectory,
-                                                cacheRoot,
-                                                workspaceSelection(all, members, memberGroups)),
-                                        ZoltCli::workspaceBuildPlanAttributes);
-                                WorkspaceBuildResult buildResult = timings.measure(
-                                        "build workspace package inputs",
-                                        () -> workspacePackageService.buildPackageInputs(plan, cacheRoot),
-                                        ZoltCli::workspaceBuildAttributes);
-                                return timings.measure(
-                                        "assemble workspace packages",
-                                        () -> workspacePackageService.packageBuiltJars(
-                                                plan,
-                                                buildResult,
-                                                packageModeOverride),
-                                        ZoltCli::workspacePackageAttributes);
-                            },
-                            ZoltCli::workspacePackageAttributes);
-                    if (result.resolvedLockfile()) {
-                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
-                    }
-                    for (WorkspacePackageResult.MemberPackageResult member : result.members()) {
-                        spec.commandLine().getOut().println(
-                                packageSummary(member.result())
-                                        + " in "
-                                        + member.member());
-                        if (member.result().hasMainClass()) {
-                            spec.commandLine().getOut().println("Included Main-Class manifest entry in " + member.member());
-                        }
-                        spec.commandLine().getOut().println("Wrote archive to " + member.result().jarPath());
-                        member.result().evidenceManifestPath().ifPresent(path ->
-                                spec.commandLine().getOut().println("Wrote package evidence to " + path));
-                        for (PackageArtifact artifact : member.result().artifacts()) {
-                            spec.commandLine().getOut().println(
-                                    "Wrote "
-                                            + artifact.classifier()
-                                            + " jar to "
-                                            + artifact.path());
-                        }
-                    }
-                    spec.commandLine().getOut().println(
-                            "Packaged "
-                                    + result.members().size()
-                                    + " workspace members");
-                    return;
-                }
-                ProjectConfig config = withPackageModeOverride(
-                        timings.measure(
-                                "config read",
-                                () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
-                        packageModeOverride);
-                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
-                if (planOnly) {
-                    PackagePlan packagePlan = timings.measure(
-                            "plan package contents",
-                            () -> new PackagePlanService().plan(workingDirectory, config),
-                            ZoltCli::packagePlanAttributes);
-                    PackagePlanFormatter formatter = new PackagePlanFormatter();
-                    if (planOutputFormat == PlanOutputFormat.JSON) {
-                        printAndFlush(spec, formatter.json(packagePlan));
-                    } else {
-                        printAndFlush(spec, formatter.text(packagePlan));
-                    }
-                    return;
-                }
-                PackageService packageService = new PackageService();
-                PackageResult result = timings.measure(
-                        "package",
-                        () -> {
-                            packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
-                            BuildResultWithClasspaths buildResult = timings.measure(
-                                    "build package inputs",
-                                    () -> new BuildService().buildWithClasspaths(
-                                            workingDirectory,
-                                            config,
-                                            cacheRoot,
-                                            false),
-                                    resultWithClasspaths -> buildAttributes(resultWithClasspaths.buildResult()));
-                            return timings.measure(
-                                    "assemble package",
-                                    () -> packageService.packageJar(workingDirectory, config, buildResult, cacheRoot),
-                                    ZoltCli::packageAttributes);
-                        },
-                        ZoltCli::packageAttributes);
-                if (result.buildResult().resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
-                }
-                spec.commandLine().getOut().println(packageSummary(result));
-                if (result.hasMainClass()) {
-                    spec.commandLine().getOut().println("Included Main-Class manifest entry");
-                    spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
-                    if (result.mode() == PackageMode.SPRING_BOOT) {
-                        spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
-                    } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
-                        spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot-war -- [args]");
-                    } else if (result.mode() == PackageMode.QUARKUS) {
-                        spec.commandLine().getOut().println("Run with Zolt: zolt run");
-                    } else {
-                        spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
-                    }
-                } else if (result.mode() == PackageMode.WAR) {
-                    spec.commandLine().getOut().println("WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.");
-                } else {
-                    spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
-                }
-                if (result.mode() == PackageMode.SPRING_BOOT) {
-                    spec.commandLine().getOut().println("Spring Boot jar: dependencies are nested under BOOT-INF/lib.");
-                } else if (result.mode() == PackageMode.WAR) {
-                    spec.commandLine().getOut().println("WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.");
-                } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
-                    spec.commandLine().getOut().println("Spring Boot WAR: runtime dependencies are under WEB-INF/lib and provided dependencies are under WEB-INF/lib-provided.");
-                } else if (result.mode() == PackageMode.QUARKUS) {
-                    spec.commandLine().getOut().println("Quarkus fast-jar: deploy the whole target/quarkus-app directory.");
-                } else {
-                    spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
-                    result.runtimeClasspathPath().ifPresent(path ->
-                            spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
-                }
-                spec.commandLine().getOut().println("Wrote archive to " + result.jarPath());
-                result.evidenceManifestPath().ifPresent(path ->
-                        spec.commandLine().getOut().println("Wrote package evidence to " + path));
-                for (PackageArtifact artifact : result.artifacts()) {
-                    spec.commandLine().getOut().println(
-                            "Wrote "
-                                    + artifact.classifier()
-                                    + " jar to "
-                                    + artifact.path());
-                }
-            } catch (BuildException
-                    | JavacException
-                    | GroovyCompileException
-                    | ManifestGenerationException
-                    | PackageException
-                    | ResourceCopyException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | WorkspaceConfigException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            } finally {
-                printTimings(spec, "package", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -992,14 +784,6 @@ public final class ZoltCli implements Runnable {
         attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
     }
 
-    private static Map<String, String> packageAttributes(PackageResult result) {
-        return Map.of(
-                TimingAttributeKeys.MODE, result.mode().configValue(),
-                TimingAttributeKeys.ENTRIES, Integer.toString(result.entryCount()),
-                TimingAttributeKeys.HAS_MAIN_CLASS, Boolean.toString(result.hasMainClass()),
-                TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
-    }
-
     private static Map<String, String> workspacePackageAttributes(WorkspacePackageResult result) {
         return Map.of(
                 TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()),
@@ -1078,43 +862,6 @@ public final class ZoltCli implements Runnable {
                         + "`. Supported package modes are: "
                         + PackageMode.supportedValues()
                         + ".")));
-    }
-
-    private static String packageSummary(PackageResult result) {
-        if (result.mode() == PackageMode.QUARKUS) {
-            return "Packaged Quarkus fast-jar layout with " + result.entryCount() + " files";
-        }
-        String extension = (result.mode() == PackageMode.WAR || result.mode() == PackageMode.SPRING_BOOT_WAR)
-                ? "war"
-                : "jar";
-        return "Packaged "
-                + result.entryCount()
-                + " compiled files as "
-                + result.mode().configValue()
-                + " "
-                + extension;
-    }
-
-    private static Map<String, String> packagePlanAttributes(PackagePlan plan) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MODE, plan.mode().configValue());
-        attributes.put(TimingAttributeKeys.DEPENDENCIES, String.valueOf(plan.dependencies().size()));
-        attributes.put(TimingAttributeKeys.WARNINGS, String.valueOf(plan.warnings().size()));
-        return attributes;
-    }
-
-    private enum PlanOutputFormat {
-        TEXT,
-        JSON
-    }
-
-    private static PlanOutputFormat planOutputFormat(String value) {
-        String normalized = value == null || value.isBlank() ? "text" : value.trim().toLowerCase();
-        return switch (normalized) {
-            case "text" -> PlanOutputFormat.TEXT;
-            case "json" -> PlanOutputFormat.JSON;
-            default -> throw new PackageException("Unsupported package plan format `" + value + "`. Use text or json.");
-        };
     }
 
     private static ProjectConfig withPackageModeOverride(
