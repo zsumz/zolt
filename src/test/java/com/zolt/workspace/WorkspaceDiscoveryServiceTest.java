@@ -3,11 +3,13 @@ package com.zolt.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -74,9 +76,50 @@ final class WorkspaceDiscoveryServiceTest {
                 WorkspaceConfigException.class,
                 () -> service.load(tempDir));
 
-        assertEquals(
-                "Invalid workspace member path `../outside` in [workspace].members. Use a relative path under the workspace root.",
-                exception.getMessage());
+        assertTrue(exception.getMessage().contains("Invalid workspace member path `../outside` in [workspace].members."));
+        assertTrue(exception.getMessage().contains("[workspace].members"));
+        assertTrue(exception.getMessage().contains("resolved to"));
+    }
+
+    @Test
+    void rejectsWindowsAbsoluteWorkspaceMemberPathsOnEveryHost() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["C:\\\\outside\\\\member"]
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertTrue(exception.getMessage().contains("Invalid workspace member path `C:\\outside\\member`"));
+        assertTrue(exception.getMessage().contains("[workspace].members"));
+    }
+
+    @Test
+    void rejectsWorkspaceMemberSymlinkThatEscapesWorkspaceRoot() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        Path outside = Files.createTempDirectory(tempDir.getParent(), "outside-member-");
+        Files.writeString(outside.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+                """);
+        createSymlink(tempDir.resolve("apps/api"), outside);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertTrue(exception.getMessage().contains("[workspace].members"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
     }
 
     @Test
@@ -282,6 +325,27 @@ final class WorkspaceDiscoveryServiceTest {
     }
 
     @Test
+    void rejectsWorkspaceDependencyPathThatEscapesWorkspaceRoot() throws IOException {
+        workspace("""
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", "com.acme", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "../outside" }
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertTrue(exception.getMessage().contains("[dependencies].com.acme:core.workspace"));
+        assertTrue(exception.getMessage().contains("../outside"));
+    }
+
+    @Test
     void rejectsWorkspaceDependencyCoordinateMismatch() throws IOException {
         workspace("""
                 [workspace]
@@ -344,5 +408,14 @@ final class WorkspaceDiscoveryServiceTest {
                 group = "%s"
                 java = "21"
                 %s""".formatted(name, group, extraToml));
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 }

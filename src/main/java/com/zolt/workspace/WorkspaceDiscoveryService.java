@@ -1,6 +1,8 @@
 package com.zolt.workspace;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
@@ -324,15 +326,17 @@ public final class WorkspaceDiscoveryService {
     }
 
     private static ResolvedMemberPath resolveMemberPath(Path root, String declaredPath, String field) {
-        Path configured = Path.of(declaredPath);
-        Path directory = root.resolve(configured).normalize();
-        if (configured.isAbsolute() || !directory.startsWith(root)) {
+        Path directory;
+        try {
+            directory = ProjectPaths.existingRoot(root, field, declaredPath);
+        } catch (ProjectPathException exception) {
             throw new WorkspaceConfigException(
                     "Invalid workspace member path `"
                             + declaredPath
                             + "` in "
                             + field
-                            + ". Use a relative path under the workspace root.");
+                            + ". "
+                            + exception.getMessage());
         }
         Path relative = root.relativize(directory);
         String normalizedPath = relative.toString().replace('\\', '/');
