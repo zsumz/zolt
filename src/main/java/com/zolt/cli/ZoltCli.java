@@ -7,13 +7,7 @@ import com.zolt.build.CompileDiagnostics;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
-import com.zolt.build.ManifestGenerationException;
-import com.zolt.build.PackageException;
-import com.zolt.build.PackageResult;
 import com.zolt.build.ResourceCopyException;
-import com.zolt.build.RunPackageException;
-import com.zolt.build.RunPackageResult;
-import com.zolt.build.RunPackageService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestCompileResultWithClasspaths;
@@ -50,6 +44,7 @@ import com.zolt.cli.command.ReleaseVerifyCommand;
 import com.zolt.cli.command.RemoveCommand;
 import com.zolt.cli.command.ResolveCommand;
 import com.zolt.cli.command.RunCommand;
+import com.zolt.cli.command.RunPackageCommand;
 import com.zolt.cli.command.SelfCheckCommand;
 import com.zolt.cli.command.SelfParityCommand;
 import com.zolt.cli.command.TimingAttributeKeys;
@@ -63,8 +58,6 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingFormat;
 import com.zolt.perf.TimingFormatter;
 import com.zolt.perf.TimingRecorder;
-import com.zolt.project.PackageMode;
-import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -76,10 +69,7 @@ import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceDiscoveryService;
-import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspaceResolveService;
-import com.zolt.workspace.WorkspaceRunPackageResult;
-import com.zolt.workspace.WorkspaceRunPackageService;
 import com.zolt.workspace.WorkspaceSelection;
 import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
@@ -128,7 +118,7 @@ import picocli.CommandLine.Spec;
                 CoverageCommand.class,
                 PackageCommand.class,
                 PublishCommand.class,
-                ZoltCli.RunPackageCommand.class,
+                RunPackageCommand.class,
                 NativeCommand.class,
                 NativeSmokeCommand.class,
                 ReleaseArchiveCommand.class,
@@ -360,138 +350,6 @@ public final class ZoltCli implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
             } finally {
                 printTimings(spec, "test", workingDirectory, timingOptions, timings);
-            }
-        }
-    }
-
-    @Command(name = "run-package", description = "Run a packaged thin jar with runtime dependencies.")
-    public static final class RunPackageCommand implements Runnable {
-        @Parameters(arity = "0..*", paramLabel = "ARGS", description = "Arguments passed to the application after `--`.")
-        private List<String> arguments = List.of();
-
-        @Option(names = "--workspace", description = "Run packaged workspace members in dependency order.")
-        private boolean workspace;
-
-        @Option(names = "--all", description = "Select every workspace member.")
-        private boolean all;
-
-        @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
-        private List<String> members = List.of();
-
-        @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
-        private List<String> memberGroups = List.of();
-
-        @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
-        private String mode;
-
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
-
-        @Option(names = "--cache-root", hidden = true)
-        private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
-
-        @Mixin
-        private TimingOptions timingOptions = new TimingOptions();
-
-        @Spec
-        private CommandSpec spec;
-
-        @Override
-        public void run() {
-            TimingRecorder timings = timingRecorder(timingOptions);
-            try {
-                Optional<PackageMode> packageModeOverride = packageModeOverride(mode);
-                if (workspace) {
-                    requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
-                    WorkspaceRunPackageService workspaceRunPackageService = new WorkspaceRunPackageService();
-                    WorkspaceRunPackageResult result = timings.measure(
-                            "run workspace packages",
-                            () -> {
-                                WorkspaceBuildPlan plan = timings.measure(
-                                        "plan workspace run packages",
-                                        () -> workspaceRunPackageService.planRunPackages(
-                                                workingDirectory,
-                                                cacheRoot,
-                                                workspaceSelection(all, members, memberGroups)),
-                                        ZoltCli::workspaceBuildPlanAttributes);
-                                WorkspaceBuildResult buildResult = timings.measure(
-                                        "build workspace run-package inputs",
-                                        () -> workspaceRunPackageService.buildRunPackageInputs(plan, cacheRoot),
-                                        ZoltCli::workspaceBuildAttributes);
-                                WorkspacePackageResult packageResult = timings.measure(
-                                        "assemble workspace run packages",
-                                        () -> workspaceRunPackageService.packageRunPackageInputs(
-                                                plan,
-                                                buildResult,
-                                                packageModeOverride),
-                                        ZoltCli::workspacePackageAttributes);
-                                return timings.measure(
-                                        "launch workspace packages",
-                                        () -> workspaceRunPackageService.runPackagedMembers(
-                                                plan,
-                                                packageResult,
-                                                arguments),
-                                        ZoltCli::workspaceRunPackageAttributes);
-                            },
-                            ZoltCli::workspaceRunPackageAttributes);
-                    if (result.resolvedLockfile()) {
-                        spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
-                    }
-                    for (WorkspaceRunPackageResult.MemberRunPackageResult member : result.members()) {
-                        String output = member.result().javaRunResult().output();
-                        printAndFlush(spec, output);
-                        if (!output.isEmpty() && !output.endsWith("\n")) {
-                            spec.commandLine().getOut().println();
-                        }
-                        spec.commandLine().getOut().println("Ran packaged "
-                                + member.result().javaRunResult().mainClass()
-                                + " in "
-                                + member.member()
-                                + " from "
-                                + member.result().packageResult().jarPath());
-                    }
-                    return;
-                }
-                ProjectConfig config = withPackageModeOverride(
-                        timings.measure(
-                                "config read",
-                                () -> new ZoltTomlParser().parse(workingDirectory.resolve("zolt.toml"))),
-                        packageModeOverride);
-                requireFreshLockfile(workingDirectory, config, cacheRoot, false);
-                RunPackageResult result = timings.measure(
-                        "run packaged application",
-                        () -> new RunPackageService().runPackage(
-                                workingDirectory,
-                                config,
-                                cacheRoot,
-                                arguments),
-                        ZoltCli::runPackageAttributes);
-                String output = result.javaRunResult().output();
-                printAndFlush(spec, output);
-                if (!output.isEmpty() && !output.endsWith("\n")) {
-                    spec.commandLine().getOut().println();
-                }
-                spec.commandLine().getOut().println("Ran packaged "
-                        + result.javaRunResult().mainClass()
-                        + " from "
-                        + result.packageResult().jarPath());
-            } catch (BuildException
-                    | JavacException
-                    | GroovyCompileException
-                    | JavaRunException
-                    | ManifestGenerationException
-                    | PackageException
-                    | ResourceCopyException
-                    | RunPackageException
-                    | SourceDiscoveryException
-                    | LockfileReadException
-                    | ResolveException
-                    | WorkspaceConfigException
-                    | ZoltConfigException exception) {
-                spec.commandLine().getErr().println("error: " + exception.getMessage());
-                throw new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
-            } finally {
-                printTimings(spec, "run-package", workingDirectory, timingOptions, timings);
             }
         }
     }
@@ -784,92 +642,9 @@ public final class ZoltCli implements Runnable {
         attributes.put(TimingAttributeKeys.DEPENDENCY_MEMBERS, Integer.toString(selection.includedMembers().size() - selection.selectedMembers().size()));
     }
 
-    private static Map<String, String> workspacePackageAttributes(WorkspacePackageResult result) {
-        return Map.of(
-                TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()),
-                TimingAttributeKeys.ENTRIES, Integer.toString(result.entryCount()),
-                TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
-    }
-
-    private static Map<String, String> runPackageAttributes(RunPackageResult result) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MODE, result.packageResult().mode().configValue());
-        attributes.put(TimingAttributeKeys.ENTRIES, Integer.toString(result.packageResult().entryCount()));
-        attributes.put(TimingAttributeKeys.HAS_MAIN_CLASS, Boolean.toString(result.packageResult().hasMainClass()));
-        attributes.put(TimingAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.packageResult().buildResult().mainCompilationSkipped()));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.packageResult().buildResult().mainCompilationMode());
-        attributes.put(
-                TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON,
-                result.packageResult().buildResult().mainIncrementalFallbackReason());
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.packageResult().buildResult().resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
-        return attributes;
-    }
-
-    private static Map<String, String> workspaceRunPackageAttributes(WorkspaceRunPackageResult result) {
-        Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
-        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunPackageSourceCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunPackageMainCompilationSkippedCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunPackageMainCompilationExecutedCount(result)));
-        attributes.put(TimingAttributeKeys.ENTRIES, Integer.toString(workspaceRunPackageEntryCount(result)));
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunPackageOutputBytes(result)));
-        return attributes;
-    }
-
-    private static int workspaceRunPackageSourceCount(WorkspaceRunPackageResult result) {
-        return result.builtMembers().stream()
-                .mapToInt(member -> member.result().sourceCount())
-                .sum();
-    }
-
-    private static int workspaceRunPackageMainCompilationSkippedCount(WorkspaceRunPackageResult result) {
-        return (int) result.builtMembers().stream()
-                .filter(member -> member.result().mainCompilationSkipped())
-                .count();
-    }
-
-    private static int workspaceRunPackageMainCompilationExecutedCount(WorkspaceRunPackageResult result) {
-        return result.builtMembers().size() - workspaceRunPackageMainCompilationSkippedCount(result);
-    }
-
-    private static int workspaceRunPackageEntryCount(WorkspaceRunPackageResult result) {
-        return result.members().stream()
-                .mapToInt(member -> member.result().packageResult().entryCount())
-                .sum();
-    }
-
-    private static int workspaceRunPackageOutputBytes(WorkspaceRunPackageResult result) {
-        return result.members().stream()
-                .mapToInt(member -> member.result().javaRunResult().output().length())
-                .sum();
-    }
-
     private static void printAndFlush(CommandSpec spec, String output) {
         spec.commandLine().getOut().print(output);
         spec.commandLine().getOut().flush();
-    }
-
-    private static Optional<PackageMode> packageModeOverride(String value) {
-        if (value == null || value.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(PackageMode.fromConfigValue(value).orElseThrow(() -> new PackageException(
-                "Unsupported package mode `"
-                        + value
-                        + "`. Supported package modes are: "
-                        + PackageMode.supportedValues()
-                        + ".")));
-    }
-
-    private static ProjectConfig withPackageModeOverride(
-            ProjectConfig config,
-            Optional<PackageMode> packageModeOverride) {
-        return packageModeOverride
-                .map(mode -> config.withPackageSettings(new PackageSettings(mode)))
-                .orElse(config);
     }
 
     private static WorkspaceSelectionRequest workspaceSelection(

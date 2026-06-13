@@ -288,7 +288,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$RunPackageCommand",
+    "name": "com.zolt.cli.command.RunPackageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
