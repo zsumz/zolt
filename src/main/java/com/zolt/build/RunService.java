@@ -65,8 +65,8 @@ public final class RunService {
             Path cacheRoot,
             List<String> arguments,
             Consumer<String> outputConsumer) {
-        boolean quarkusEnabled = config.frameworkSettings().quarkus().enabled();
-        String mainClass = quarkusEnabled
+        boolean frameworkRunEnabled = frameworkRunAugmenter.isEnabled(config);
+        String mainClass = frameworkRunEnabled
                 ? null
                 : config.project().main().orElseThrow(() -> new RunException(
                         "No main class is configured. Add [project].main to zolt.toml."));
@@ -91,6 +91,9 @@ public final class RunService {
                     arguments,
                     outputConsumer);
             return new RunResult(buildResult.buildResult(), javaRunResult);
+        }
+        if (frameworkRunEnabled) {
+            throw new RunException("Framework run augmenter was not configured for the enabled framework.");
         }
 
         List<Path> runtimeEntries = new ArrayList<>();

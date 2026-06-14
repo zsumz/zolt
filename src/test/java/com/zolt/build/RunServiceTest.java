@@ -41,12 +41,7 @@ final class RunServiceTest {
         FrameworkRunResult runResult = new FrameworkRunResult(runnerJar, "Quarkus runner " + runnerJar);
         List<String> command = new ArrayList<>();
         RunService service = service(
-                (actualProjectDirectory, actualConfig, actualCacheRoot) -> {
-                    assertEquals(projectDir, actualProjectDirectory);
-                    assertEquals(config, actualConfig);
-                    assertEquals(cacheRoot, actualCacheRoot);
-                    return Optional.of(runResult);
-                },
+                frameworkRunAugmenter(true, Optional.of(runResult), projectDir, config, cacheRoot),
                 (actualCommand, outputConsumer) -> {
                     command.addAll(actualCommand);
                     outputConsumer.accept("started\n");
@@ -62,6 +57,27 @@ final class RunServiceTest {
         assertEquals("two", command.get(command.size() - 1));
         assertTrue(result.javaRunResult().mainClass().startsWith("Quarkus runner "));
         assertEquals("started\n", result.javaRunResult().output());
+    }
+
+    @Test
+    void enabledFrameworkRunRequiresRunnerResult() throws IOException {
+        Path projectDir = tempDir.resolve("demo-missing-runner");
+        Path cacheRoot = tempDir.resolve("cache-missing-runner");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = config(true, Optional.empty());
+        RunService service = service(
+                frameworkRunAugmenter(true, Optional.empty(), projectDir, config, cacheRoot),
+                (actualCommand, outputConsumer) -> {
+                    throw new AssertionError("application JVM should not be launched without a framework runner");
+                });
+
+        RunException exception = assertThrows(
+                RunException.class,
+                () -> service.run(projectDir, config, cacheRoot, List.of()));
+
+        assertTrue(exception.getMessage().contains(
+                "Framework run augmenter was not configured for the enabled framework."));
     }
 
     @Test
@@ -171,6 +187,32 @@ final class RunServiceTest {
                 jdkChecker,
                 new JavaRunner(":", processRunner),
                 frameworkRunAugmenter);
+    }
+
+    private static FrameworkRunAugmenter frameworkRunAugmenter(
+            boolean enabled,
+            Optional<FrameworkRunResult> result,
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot) {
+        return new FrameworkRunAugmenter() {
+            @Override
+            public Optional<FrameworkRunResult> augmentIfEnabled(
+                    Path actualProjectDirectory,
+                    ProjectConfig actualConfig,
+                    Path actualCacheRoot) {
+                assertEquals(projectDirectory, actualProjectDirectory);
+                assertEquals(config, actualConfig);
+                assertEquals(cacheRoot, actualCacheRoot);
+                return result;
+            }
+
+            @Override
+            public boolean isEnabled(ProjectConfig actualConfig) {
+                assertEquals(config, actualConfig);
+                return enabled;
+            }
+        };
     }
 
     private static ProjectConfig config(boolean quarkusEnabled, Optional<String> mainClass) {

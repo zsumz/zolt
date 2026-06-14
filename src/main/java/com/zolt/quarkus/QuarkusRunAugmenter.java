@@ -19,6 +19,11 @@ public final class QuarkusRunAugmenter implements FrameworkRunAugmenter {
     }
 
     @Override
+    public boolean isEnabled(ProjectConfig config) {
+        return config.frameworkSettings().quarkus().enabled();
+    }
+
+    @Override
     public Optional<FrameworkRunResult> augmentIfEnabled(
             Path projectDirectory,
             ProjectConfig config,

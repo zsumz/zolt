@@ -11,6 +11,10 @@ public interface FrameworkRunAugmenter {
             ProjectConfig config,
             Path cacheRoot);
 
+    default boolean isEnabled(ProjectConfig config) {
+        return false;
+    }
+
     static FrameworkRunAugmenter none() {
         return (projectDirectory, config, cacheRoot) -> Optional.empty();
     }
