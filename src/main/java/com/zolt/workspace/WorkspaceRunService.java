@@ -7,7 +7,7 @@ import com.zolt.build.RunResult;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;

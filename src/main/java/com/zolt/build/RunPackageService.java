@@ -8,7 +8,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;

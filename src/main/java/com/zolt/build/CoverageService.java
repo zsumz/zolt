@@ -8,7 +8,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;

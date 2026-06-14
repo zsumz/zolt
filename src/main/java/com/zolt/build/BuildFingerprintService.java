@@ -6,7 +6,7 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -8,7 +8,7 @@ import com.zolt.build.JavacRunner;
 import com.zolt.test.TestSelection;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkStatus;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

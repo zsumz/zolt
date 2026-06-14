@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

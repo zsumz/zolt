@@ -8,7 +8,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import com.zolt.resolve.ResolveException;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceClasspathService;

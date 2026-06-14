@@ -6,7 +6,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.framework.FrameworkRunAugmenter;
 import com.zolt.framework.FrameworkRunResult;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;

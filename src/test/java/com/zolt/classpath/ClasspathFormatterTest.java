@@ -2,7 +2,6 @@ package com.zolt.classpath;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

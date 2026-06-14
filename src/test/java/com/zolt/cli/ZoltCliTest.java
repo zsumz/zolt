@@ -8508,7 +8508,7 @@ final class ZoltCliTest {
         new com.zolt.build.JavacRunner().compile(
                 currentJavac(),
                 java.util.List.of(source),
-                new com.zolt.resolve.Classpath(java.util.List.of()),
+                new com.zolt.classpath.Classpath(java.util.List.of()),
                 classes);
 
         Files.createDirectories(jar.getParent());

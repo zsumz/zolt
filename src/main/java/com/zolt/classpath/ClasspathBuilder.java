@@ -1,7 +1,6 @@
 package com.zolt.classpath;
 
 import com.zolt.dependency.DependencyScope;
-import com.zolt.resolve.Classpath;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import java.nio.file.Path;
 import java.util.Comparator;

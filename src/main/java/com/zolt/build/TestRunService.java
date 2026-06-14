@@ -14,7 +14,7 @@ import com.zolt.junit.JunitWorkerProcess;
 import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestRuntimeSettings;
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;

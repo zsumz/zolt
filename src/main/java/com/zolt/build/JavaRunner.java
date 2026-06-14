@@ -1,6 +1,6 @@
 package com.zolt.build;
 
-import com.zolt.resolve.Classpath;
+import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

@@ -1,6 +1,5 @@
 package com.zolt.classpath;
 
-import com.zolt.resolve.Classpath;
 import java.nio.file.Path;
 import java.util.StringJoiner;
 
