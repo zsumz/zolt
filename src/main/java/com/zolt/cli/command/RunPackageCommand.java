@@ -17,7 +17,6 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusPackageAugmenter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -77,8 +76,8 @@ public final class RunPackageCommand implements Runnable {
     public RunPackageCommand() {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.runPackageService(new QuarkusPackageAugmenter()),
-                CommandFrameworkServices.workspaceRunPackageService(new QuarkusPackageAugmenter()),
+                CommandFrameworkServices.runPackageService(),
+                CommandFrameworkServices.workspaceRunPackageService(),
                 new CommandLockfiles());
     }
 

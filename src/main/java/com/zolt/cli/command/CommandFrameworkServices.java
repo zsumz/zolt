@@ -3,10 +3,14 @@ package com.zolt.cli.command;
 import com.zolt.build.BuildService;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
+import com.zolt.build.RunService;
 import com.zolt.build.TestRunService;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
+import com.zolt.quarkus.QuarkusFrameworkTestRunner;
+import com.zolt.quarkus.QuarkusPackageAugmenter;
+import com.zolt.quarkus.QuarkusRunAugmenter;
 import com.zolt.resolve.ResolveService;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspacePackageService;
@@ -34,16 +38,36 @@ final class CommandFrameworkServices {
         return new BuildService(resolveService());
     }
 
+    static RunService runService() {
+        return new RunService(new QuarkusRunAugmenter());
+    }
+
+    static PackageService packageService() {
+        return packageService(new QuarkusPackageAugmenter());
+    }
+
     static PackageService packageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
         return new PackageService(resolveService(), frameworkPackageAugmenter);
+    }
+
+    static RunPackageService runPackageService() {
+        return runPackageService(new QuarkusPackageAugmenter());
     }
 
     static RunPackageService runPackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
         return new RunPackageService(resolveService(), frameworkPackageAugmenter);
     }
 
+    static WorkspacePackageService workspacePackageService() {
+        return workspacePackageService(new QuarkusPackageAugmenter());
+    }
+
     static WorkspacePackageService workspacePackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
         return new WorkspacePackageService(resolveService(), frameworkPackageAugmenter);
+    }
+
+    static WorkspaceRunPackageService workspaceRunPackageService() {
+        return workspaceRunPackageService(new QuarkusPackageAugmenter());
     }
 
     static WorkspaceRunPackageService workspaceRunPackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
@@ -58,7 +82,15 @@ final class CommandFrameworkServices {
         return new TestRunService(frameworkTestRunner, resolveService());
     }
 
+    static TestRunService testRunService() {
+        return testRunService(new QuarkusFrameworkTestRunner());
+    }
+
     static WorkspaceTestService workspaceTestService(FrameworkTestRunner frameworkTestRunner) {
         return new WorkspaceTestService(resolveService(), frameworkTestRunner);
+    }
+
+    static WorkspaceTestService workspaceTestService() {
+        return workspaceTestService(new QuarkusFrameworkTestRunner());
     }
 }

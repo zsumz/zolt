@@ -21,7 +21,6 @@ import com.zolt.cli.ZoltCli;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusFrameworkTestRunner;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -96,8 +95,8 @@ public final class TestCommand implements Runnable {
     public TestCommand() {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.testRunService(new QuarkusFrameworkTestRunner()),
-                CommandFrameworkServices.workspaceTestService(new QuarkusFrameworkTestRunner()),
+                CommandFrameworkServices.testRunService(),
+                CommandFrameworkServices.workspaceTestService(),
                 new CommandLockfiles());
     }
 
