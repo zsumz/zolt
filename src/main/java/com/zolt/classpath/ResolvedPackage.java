@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.classpath;
 
 import com.zolt.dependency.PackageId;
 import java.nio.file.Path;

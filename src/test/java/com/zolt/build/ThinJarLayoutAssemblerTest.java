@@ -11,7 +11,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.classpath.ResolvedClasspathPackage;
-import com.zolt.resolve.ResolvedPackage;
+import com.zolt.classpath.ResolvedPackage;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;

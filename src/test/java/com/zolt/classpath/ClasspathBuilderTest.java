@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.ResolvedPackage;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

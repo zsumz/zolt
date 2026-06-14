@@ -6,7 +6,6 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
-import com.zolt.resolve.ResolvedPackage;
 import java.nio.file.Path;
 import java.util.List;
 
