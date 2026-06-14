@@ -12,7 +12,6 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
-import com.zolt.maven.MavenRepositoryPathBuilder;
 import com.zolt.maven.PomInterpolationException;
 import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
@@ -338,7 +337,6 @@ public final class ResolveService {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
-        private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
         private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
         private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
@@ -371,11 +369,13 @@ public final class ResolveService {
         private long graphTraversalNanos;
         private long versionSelectionNanos;
         private long lockfileAssemblyNanos;
+        private final LocalOverlayMaterializer localOverlayMaterializer;
 
         RepositoryContext(ProjectConfig config, LocalArtifactCache cache, ResolveOptions options) {
             this.config = config;
             this.cache = cache;
             this.options = options;
+            this.localOverlayMaterializer = new LocalOverlayMaterializer(cache, artifactSources);
         }
 
         @Override
@@ -473,35 +473,11 @@ public final class ResolveService {
         }
 
         private Optional<CachedArtifact> materializeOverlayPom(Coordinate coordinate) {
-            for (RepositoryOverlay overlay : options.repositoryOverlays()) {
-                if (overlay.kind() != RepositoryOverlayKind.MAVEN_LOCAL) {
-                    continue;
-                }
-                Path sourcePath = overlay.root().resolve(repositoryPathBuilder.pomPath(coordinate)).normalize();
-                if (!Files.isRegularFile(sourcePath)) {
-                    continue;
-                }
-                CachedArtifact artifact = cache.materializeOverlayPom(coordinate, overlay.id(), sourcePath);
-                artifactSources.put(artifact.repositoryPath(), overlay.lockfileSource());
-                return Optional.of(artifact);
-            }
-            return Optional.empty();
+            return localOverlayMaterializer.materializePom(options.repositoryOverlays(), coordinate);
         }
 
         private Optional<CachedArtifact> materializeOverlayArtifact(ArtifactDescriptor descriptor) {
-            for (RepositoryOverlay overlay : options.repositoryOverlays()) {
-                if (overlay.kind() != RepositoryOverlayKind.MAVEN_LOCAL) {
-                    continue;
-                }
-                Path sourcePath = overlay.root().resolve(repositoryPathBuilder.artifactPath(descriptor)).normalize();
-                if (!Files.isRegularFile(sourcePath)) {
-                    continue;
-                }
-                CachedArtifact artifact = cache.materializeOverlayArtifact(descriptor, overlay.id(), sourcePath);
-                artifactSources.put(artifact.repositoryPath(), overlay.lockfileSource());
-                return Optional.of(artifact);
-            }
-            return Optional.empty();
+            return localOverlayMaterializer.materializeArtifact(options.repositoryOverlays(), descriptor);
         }
 
         @Override
