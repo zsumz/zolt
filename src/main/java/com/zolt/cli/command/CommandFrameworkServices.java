@@ -5,8 +5,10 @@ import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
 import com.zolt.build.RunService;
 import com.zolt.build.TestRunService;
+import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.quarkus.QuarkusBuildAugmenter;
 import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
 import com.zolt.quarkus.QuarkusFrameworkTestRunner;
 import com.zolt.quarkus.QuarkusPackageAugmenter;
@@ -36,6 +38,10 @@ final class CommandFrameworkServices {
 
     static BuildService buildService() {
         return new BuildService(resolveService());
+    }
+
+    static FrameworkBuildAugmenter buildAugmenter() {
+        return new QuarkusBuildAugmenter();
     }
 
     static RunService runService() {

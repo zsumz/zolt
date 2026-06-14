@@ -2,7 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.CompileDiagnostics;
-import com.zolt.quarkus.QuarkusAugmentationResult;
+import com.zolt.framework.FrameworkBuildAugmentationResult;
 import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceSelection;
@@ -58,14 +58,14 @@ final class CommandBuildAttributes {
                 TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(plan.resolvedLockfile()));
     }
 
-    static Map<String, String> quarkusAugmentation(Optional<QuarkusAugmentationResult> result) {
+    static Map<String, String> frameworkAugmentation(Optional<FrameworkBuildAugmentationResult> result) {
         if (result.isEmpty()) {
             return Map.of(TimingAttributeKeys.ENABLED, "false");
         }
-        QuarkusAugmentationResult augmentation = result.orElseThrow();
+        FrameworkBuildAugmentationResult augmentation = result.orElseThrow();
         return Map.of(
                 TimingAttributeKeys.ENABLED, "true",
-                TimingAttributeKeys.RUNNER_JAR, augmentation.workerResult().runnerJar().toString());
+                TimingAttributeKeys.RUNNER_JAR, augmentation.runnerJar().toString());
     }
 
     private static void addMainCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {

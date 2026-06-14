@@ -10,13 +10,12 @@ import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.ZoltCli;
+import com.zolt.framework.FrameworkBuildAugmentationResult;
+import com.zolt.framework.FrameworkBuildAugmenter;
+import com.zolt.framework.FrameworkBuildException;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.QuarkusAugmentationResult;
-import com.zolt.quarkus.QuarkusBuildAugmentationService;
-import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -38,7 +37,7 @@ public final class BuildCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final BuildService buildService;
     private final WorkspaceBuildService workspaceBuildService;
-    private final QuarkusBuildAugmentationService quarkusBuildAugmentationService;
+    private final FrameworkBuildAugmenter frameworkBuildAugmenter;
     private final CommandLockfiles lockfiles;
 
     @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
@@ -73,7 +72,7 @@ public final class BuildCommand implements Runnable {
                 new ZoltTomlParser(),
                 CommandFrameworkServices.buildService(),
                 CommandFrameworkServices.workspaceBuildService(),
-                new QuarkusBuildAugmentationService(),
+                CommandFrameworkServices.buildAugmenter(),
                 new CommandLockfiles());
     }
 
@@ -81,12 +80,12 @@ public final class BuildCommand implements Runnable {
             ZoltTomlParser tomlParser,
             BuildService buildService,
             WorkspaceBuildService workspaceBuildService,
-            QuarkusBuildAugmentationService quarkusBuildAugmentationService,
+            FrameworkBuildAugmenter frameworkBuildAugmenter,
             CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.buildService = buildService;
         this.workspaceBuildService = workspaceBuildService;
-        this.quarkusBuildAugmentationService = quarkusBuildAugmentationService;
+        this.frameworkBuildAugmenter = frameworkBuildAugmenter;
         this.lockfiles = lockfiles;
     }
 
@@ -139,25 +138,27 @@ public final class BuildCommand implements Runnable {
             }
             spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
             spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
-            Optional<QuarkusAugmentationResult> quarkusResult =
+            Optional<FrameworkBuildAugmentationResult> augmentationResult =
                     timings.measure(
-                            "quarkus augmentation",
-                            () -> quarkusBuildAugmentationService.augmentIfEnabled(
+                            "framework augmentation",
+                            () -> frameworkBuildAugmenter.augmentIfEnabled(
                                     workingDirectory,
                                     config,
                                     cacheRoot),
-                            CommandBuildAttributes::quarkusAugmentation);
-            if (quarkusResult.isPresent()) {
+                            CommandBuildAttributes::frameworkAugmentation);
+            if (augmentationResult.isPresent()) {
+                FrameworkBuildAugmentationResult augmentation = augmentationResult.orElseThrow();
                 spec.commandLine().getOut().println(
-                        "Ran Quarkus augmentation; runner jar "
-                                + quarkusResult.orElseThrow().workerResult().runnerJar());
+                        "Ran "
+                                + augmentation.displayName()
+                                + " augmentation; runner jar "
+                                + augmentation.runnerJar());
             }
         } catch (BuildException
                 | ArtifactCacheException
                 | JavacException
                 | GroovyCompileException
-                | QuarkusAugmentationException
-                | QuarkusPlanException
+                | FrameworkBuildException
                 | ResourceCopyException
                 | SourceDiscoveryException
                 | LockfileReadException
