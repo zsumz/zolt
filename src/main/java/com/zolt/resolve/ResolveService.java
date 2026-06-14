@@ -25,7 +25,6 @@ import com.zolt.maven.RepositoryAuthentication;
 import com.zolt.maven.RepositoryMissingArtifactException;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
-import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
@@ -60,7 +59,7 @@ public final class ResolveService {
     private final RawPomParser rawPomParser;
     private final ZoltLockfileWriter lockfileWriter;
     private final DependencyGraphResolver graphResolver;
-    private final ToolingDependencyContributor toolingDependencyContributor;
+    private final DependencyRequestPlanner dependencyRequestPlanner;
     private final FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner;
 
     public ResolveService() {
@@ -99,9 +98,7 @@ public final class ResolveService {
         this.rawPomParser = rawPomParser;
         this.lockfileWriter = lockfileWriter;
         this.graphResolver = new DependencyGraphResolver(graphTraverserFactory, versionSelector);
-        this.toolingDependencyContributor = toolingDependencyContributor == null
-                ? new ToolingDependencyContributor(coordinateParser)
-                : toolingDependencyContributor;
+        this.dependencyRequestPlanner = new DependencyRequestPlanner(coordinateParser, toolingDependencyContributor);
         this.frameworkDependencyRequestPlanner = frameworkDependencyRequestPlanner == null
                 ? FrameworkDependencyRequestPlanner.none()
                 : frameworkDependencyRequestPlanner;
@@ -173,8 +170,10 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, ResolveOptions options) {
         RepositoryContext context = new RepositoryContext(config, new LocalArtifactCache(cacheRoot), options);
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
-        List<DependencyRequest> directRequests = directRequests(config, managedVersions, options.includeCoverageTooling());
-        validateDirectRequestsAllowed(config, directRequests);
+        List<DependencyRequest> directRequests = dependencyRequestPlanner.plan(
+                config,
+                managedVersions,
+                options.includeCoverageTooling());
         directRequests = relocateDirectRequests(context, directRequests);
         DependencyGraphResolution initial = graphResolver.resolve(
                 context,
@@ -284,213 +283,6 @@ public final class ResolveService {
         }
     }
 
-    private List<DependencyRequest> directRequests(
-            ProjectConfig config,
-            Map<PackageId, String> projectManagedVersions,
-            boolean includeCoverageTooling) {
-        List<DependencyRequest> requests = new ArrayList<>();
-        for (Map.Entry<String, String> dependency : config.apiDependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "api.dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.COMPILE));
-        }
-        for (String dependency : config.managedApiDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "api.dependencies",
-                    packageId,
-                    managedVersion("api.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.COMPILE));
-        }
-        for (Map.Entry<String, String> dependency : config.dependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.COMPILE));
-        }
-        for (String dependency : config.managedDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "dependencies",
-                    packageId,
-                    managedVersion("dependencies", packageId, projectManagedVersions),
-                    DependencyScope.COMPILE));
-        }
-        for (Map.Entry<String, String> dependency : config.runtimeDependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "runtime.dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.RUNTIME));
-        }
-        for (String dependency : config.managedRuntimeDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "runtime.dependencies",
-                    packageId,
-                    managedVersion("runtime.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.RUNTIME));
-        }
-        for (Map.Entry<String, String> dependency : config.providedDependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "provided.dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.PROVIDED));
-        }
-        for (String dependency : config.managedProvidedDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "provided.dependencies",
-                    packageId,
-                    managedVersion("provided.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.PROVIDED));
-        }
-        for (Map.Entry<String, String> dependency : config.devDependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "dev.dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.DEV));
-        }
-        for (String dependency : config.managedDevDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "dev.dependencies",
-                    packageId,
-                    managedVersion("dev.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.DEV));
-        }
-        for (Map.Entry<String, String> dependency : config.testDependencies().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "test.dependencies",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.TEST));
-        }
-        for (String dependency : config.managedTestDependencies()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "test.dependencies",
-                    packageId,
-                    managedVersion("test.dependencies", packageId, projectManagedVersions),
-                    DependencyScope.TEST));
-        }
-        for (Map.Entry<String, String> dependency : config.annotationProcessors().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "annotationProcessors",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.PROCESSOR));
-        }
-        for (String dependency : config.managedAnnotationProcessors()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "annotationProcessors",
-                    packageId,
-                    managedVersion("annotationProcessors", packageId, projectManagedVersions),
-                    DependencyScope.PROCESSOR));
-        }
-        for (Map.Entry<String, String> dependency : config.testAnnotationProcessors().entrySet()) {
-            Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
-            requests.add(directDependencyRequest(
-                    config,
-                    "test.annotationProcessors",
-                    PackageId.from(coordinate),
-                    coordinate.version().orElseThrow(),
-                    DependencyScope.TEST_PROCESSOR));
-        }
-        for (String dependency : config.managedTestAnnotationProcessors()) {
-            Coordinate coordinate = coordinateParser.parse(dependency);
-            PackageId packageId = PackageId.from(coordinate);
-            requests.add(directDependencyRequest(
-                    config,
-                    "test.annotationProcessors",
-                    packageId,
-                    managedVersion("test.annotationProcessors", packageId, projectManagedVersions),
-                    DependencyScope.TEST_PROCESSOR));
-        }
-        toolingDependencyContributor.contribute(config, projectManagedVersions, requests, includeCoverageTooling);
-        return requests;
-    }
-
-    private static DependencyRequest directDependencyRequest(
-            ProjectConfig config,
-            String section,
-            PackageId packageId,
-            String version,
-            DependencyScope scope) {
-        DependencyMetadata metadata = config.dependencyMetadata()
-                .get(DependencyMetadata.key(section, packageId.toString()));
-        if (metadata == null || metadata.exclusions().isEmpty()) {
-            return new DependencyRequest(packageId, version, scope, RequestOrigin.DIRECT);
-        }
-        return new DependencyRequest(
-                packageId,
-                version,
-                scope,
-                RequestOrigin.DIRECT,
-                metadata.exclusions().stream()
-                        .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
-                        .toList());
-    }
-
-    private static void validateDirectRequestsAllowed(
-            ProjectConfig config,
-            List<DependencyRequest> directRequests) {
-        List<DependencyPolicyExclusion> exclusions = config.dependencyPolicy().exclusions();
-        if (exclusions.isEmpty()) {
-            return;
-        }
-        for (DependencyRequest request : directRequests) {
-            for (DependencyPolicyExclusion exclusion : exclusions) {
-                if (exclusion.group().equals(request.packageId().groupId())
-                        && exclusion.artifact().equals(request.packageId().artifactId())) {
-                    String reason = exclusion.reason()
-                            .map(value -> " Reason: " + value + ".")
-                            .orElse("");
-                    throw new ResolveException(
-                            "Dependency policy excludes direct dependency `"
-                                    + request.packageId()
-                                    + "`."
-                                    + reason
-                                    + " Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry, then run `zolt resolve` again.");
-                }
-            }
-        }
-    }
-
     private static List<GeneratedSourceStep> openApiSteps(ProjectConfig config) {
         List<GeneratedSourceStep> steps = new ArrayList<>();
         config.build().generatedMainSources().stream()
@@ -504,22 +296,6 @@ public final class ResolveService {
 
     private static boolean isSpringBootArchive(PackageMode mode) {
         return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
-    }
-
-    private static String managedVersion(
-            String section,
-            PackageId packageId,
-            Map<PackageId, String> projectManagedVersions) {
-        String version = projectManagedVersions.get(packageId);
-        if (version == null || version.isBlank()) {
-            throw new ResolveException(
-                    "Dependency "
-                            + packageId
-                            + " in ["
-                            + section
-                            + "] uses a platform-managed version, but no declared [platforms] entry manages it. Add a version or add a platform that manages this dependency.");
-        }
-        return version;
     }
 
     private ZoltLockfile lockfile(
