@@ -1,8 +1,8 @@
 package com.zolt.lockfile;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ConflictSelectionReason;
-import com.zolt.resolve.DependencyScope;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;

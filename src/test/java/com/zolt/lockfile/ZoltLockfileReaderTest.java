@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ConflictSelectionReason;
-import com.zolt.resolve.DependencyScope;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

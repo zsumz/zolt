@@ -1,6 +1,6 @@
 package com.zolt.classpath;
 
-import com.zolt.resolve.DependencyScope;
+import com.zolt.dependency.DependencyScope;
 import java.util.ArrayList;
 import java.util.List;
 

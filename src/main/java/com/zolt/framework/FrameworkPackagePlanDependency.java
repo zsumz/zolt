@@ -1,6 +1,6 @@
 package com.zolt.framework;
 
-import com.zolt.resolve.DependencyScope;
+import com.zolt.dependency.DependencyScope;
 import java.util.List;
 
 public record FrameworkPackagePlanDependency(

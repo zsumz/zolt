@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

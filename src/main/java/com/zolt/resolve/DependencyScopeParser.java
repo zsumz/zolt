@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.maven.RawPomDependency;
 
 public final class DependencyScopeParser {

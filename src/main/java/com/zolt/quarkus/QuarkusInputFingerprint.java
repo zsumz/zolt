@@ -2,7 +2,7 @@ package com.zolt.quarkus;
 
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.resolve.DependencyScope;
+import com.zolt.dependency.DependencyScope;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -1,7 +1,7 @@
 package com.zolt.lockfile;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.DependencyScope;
 import java.util.List;
 import java.util.Optional;
 

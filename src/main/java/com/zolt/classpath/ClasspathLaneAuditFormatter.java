@@ -2,7 +2,7 @@ package com.zolt.classpath;
 
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.resolve.DependencyScope;
+import com.zolt.dependency.DependencyScope;
 import java.util.Comparator;
 import java.util.List;
 

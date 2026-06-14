@@ -1,7 +1,7 @@
 package com.zolt.quarkus;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.DependencyScope;
 import java.nio.file.Path;
 
 public record QuarkusBootstrapDependency(

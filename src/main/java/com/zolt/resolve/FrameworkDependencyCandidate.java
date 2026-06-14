@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import java.util.List;
 

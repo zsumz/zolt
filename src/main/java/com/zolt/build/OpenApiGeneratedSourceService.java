@@ -7,7 +7,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.DependencyScope;
+import com.zolt.dependency.DependencyScope;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

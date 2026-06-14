@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.LockfileFreshnessSummary;

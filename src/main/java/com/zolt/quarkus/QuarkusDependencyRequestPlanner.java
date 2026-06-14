@@ -2,9 +2,9 @@ package com.zolt.quarkus;
 
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
+import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.DependencyRequest;
-import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.FrameworkDependencyCandidate;
 import com.zolt.resolve.FrameworkDependencyRequestPlanRequest;
 import com.zolt.resolve.FrameworkDependencyRequestPlanner;

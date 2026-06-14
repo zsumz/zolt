@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.RawPomDependency;
 import java.util.List;

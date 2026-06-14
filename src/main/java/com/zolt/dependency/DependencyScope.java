@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.dependency;
 
 public enum DependencyScope {
     COMPILE(true, true, false, false, false, true, "compile"),
