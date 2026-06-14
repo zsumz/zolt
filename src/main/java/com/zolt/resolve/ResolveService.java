@@ -18,15 +18,11 @@ import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
-import com.zolt.maven.RepositoryAuthentication;
 import com.zolt.maven.RepositoryMissingArtifactException;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.RepositoryCredentialSettings;
-import com.zolt.project.RepositorySettings;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -386,11 +382,6 @@ public final class ResolveService {
     private record PomMetadataFailure(String coordinate, String message) {
     }
 
-    private record RepositoryAccess(
-            URI uri,
-            Optional<RepositoryAuthentication> authentication) {
-    }
-
     @FunctionalInterface
     private interface RepositoryFetchAction {
         com.zolt.maven.RepositoryArtifact fetch(RepositoryAccess access);
@@ -406,6 +397,7 @@ public final class ResolveService {
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
         private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
+        private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -988,58 +980,7 @@ public final class ResolveService {
         }
 
         private List<RepositoryAccess> repositoryAccesses() {
-            List<RepositorySettings> repositories = config.repositorySettings().values().stream()
-                    .sorted(Comparator.comparing(RepositorySettings::id))
-                    .toList();
-            if (repositories.isEmpty()) {
-                throw new ResolveException(
-                        "No repositories are configured in zolt.toml. Add [repositories] with at least one Maven-compatible repository URL.");
-            }
-            List<RepositoryAccess> access = new ArrayList<>();
-            for (RepositorySettings repository : repositories) {
-                access.add(new RepositoryAccess(
-                        URI.create(repository.url()),
-                        repository.credentials().map(credentialId -> authentication(repository, credentialId))));
-            }
-            return List.copyOf(access);
-        }
-
-        private RepositoryAuthentication authentication(RepositorySettings repository, String credentialId) {
-            RepositoryCredentialSettings credential = config.repositoryCredentials().get(credentialId);
-            if (credential == null) {
-                throw new ResolveException(
-                        "Repository `"
-                                + repository.id()
-                                + "` references credentials `"
-                                + credentialId
-                                + "`, but [repositoryCredentials."
-                                + credentialId
-                                + "] is not defined.");
-            }
-            String username = System.getenv(credential.usernameEnv());
-            String password = System.getenv(credential.passwordEnv());
-            List<String> missing = new ArrayList<>();
-            if (username == null || username.isBlank()) {
-                missing.add(credential.usernameEnv());
-            }
-            if (password == null || password.isBlank()) {
-                missing.add(credential.passwordEnv());
-            }
-            if (!missing.isEmpty()) {
-                throw new ResolveException(
-                        "Repository `"
-                                + repository.id()
-                                + "` requires credentials `"
-                                + credentialId
-                                + "`, but environment variable"
-                                + (missing.size() == 1 ? " " : "s ")
-                                + String.join(", ", missing)
-                                + (missing.size() == 1 ? " is" : " are")
-                                + " not set. Set the variable"
-                                + (missing.size() == 1 ? "" : "s")
-                                + " and retry. Secret values are never written to zolt.lock or command output.");
-            }
-            return new RepositoryAuthentication(username, password);
+            return repositoryAccessPlanner.plan(config);
         }
 
         private Optional<String> nearestGroupId(List<RawPom> parents) {
