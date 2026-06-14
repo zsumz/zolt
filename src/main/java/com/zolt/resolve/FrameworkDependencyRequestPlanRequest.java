@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.maven.Coordinate;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;

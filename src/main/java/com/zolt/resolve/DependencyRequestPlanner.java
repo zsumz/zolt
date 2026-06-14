@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.project.DependencyMetadata;

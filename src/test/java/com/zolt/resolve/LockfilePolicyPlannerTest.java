@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.zolt.lockfile.LockPolicyEffect;

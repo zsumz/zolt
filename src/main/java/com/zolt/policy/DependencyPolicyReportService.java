@@ -7,7 +7,7 @@ import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

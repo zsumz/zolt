@@ -1,6 +1,6 @@
 package com.zolt.build;
 
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;

@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import java.nio.file.Path;
 
 public record ResolvedPackage(

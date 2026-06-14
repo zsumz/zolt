@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.cache.CachedArtifact;
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;

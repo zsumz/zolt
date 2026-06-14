@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ConflictSelectionReason;
-import com.zolt.resolve.PackageId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

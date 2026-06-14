@@ -1,6 +1,6 @@
 package com.zolt.lockfile;
 
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.util.Optional;
 
 public record LockPolicyEffect(

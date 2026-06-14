@@ -3,9 +3,9 @@ package com.zolt.lockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.PackageId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

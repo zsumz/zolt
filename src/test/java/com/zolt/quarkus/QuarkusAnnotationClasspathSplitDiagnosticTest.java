@@ -2,7 +2,7 @@ package com.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

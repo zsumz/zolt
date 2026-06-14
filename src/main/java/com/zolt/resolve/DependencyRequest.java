@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.maven.ArtifactDescriptor;
 import java.util.List;
 import java.util.Optional;

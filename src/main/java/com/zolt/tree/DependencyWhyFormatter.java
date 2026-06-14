@@ -4,7 +4,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

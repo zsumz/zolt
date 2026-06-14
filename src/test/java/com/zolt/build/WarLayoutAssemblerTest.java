@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;

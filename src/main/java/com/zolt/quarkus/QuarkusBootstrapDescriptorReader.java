@@ -1,7 +1,7 @@
 package com.zolt.quarkus;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.PackageId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

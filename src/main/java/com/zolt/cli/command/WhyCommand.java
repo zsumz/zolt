@@ -7,7 +7,7 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.tree.DependencyJsonFormatter;

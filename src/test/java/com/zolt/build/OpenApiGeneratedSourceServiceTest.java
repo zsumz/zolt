@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolvedPackage;
 import com.zolt.toml.ZoltTomlParser;

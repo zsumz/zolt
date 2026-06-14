@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.QuarkusPackageMode;
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.PackageId;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

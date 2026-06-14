@@ -3,8 +3,8 @@ package com.zolt.classpath;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import com.zolt.dependency.PackageId;
 import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolvedPackage;
 import java.nio.file.Path;

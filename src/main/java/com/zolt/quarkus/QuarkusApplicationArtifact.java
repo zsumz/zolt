@@ -1,6 +1,6 @@
 package com.zolt.quarkus;
 
-import com.zolt.resolve.PackageId;
+import com.zolt.dependency.PackageId;
 import java.nio.file.Path;
 
 public record QuarkusApplicationArtifact(
