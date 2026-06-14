@@ -493,9 +493,28 @@ final class PackageServiceTest {
                 public final class CalculatorTest {
                 }
                 """);
+        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        source("target/generated/sources/openapi/com/example/generated/GeneratedApi.java", """
+                package com.example.generated;
+
+                public interface GeneratedApi {
+                }
+                """);
         Files.createDirectories(projectDir.resolve("target/test-classes/com/example"));
         Files.write(projectDir.resolve("target/test-classes/com/example/CalculatorTest.class"), new byte[] {0});
+        BuildSettings build = BuildSettings.defaults()
+                .withGeneratedSources(
+                        List.of(new GeneratedSourceStep(
+                                "openapi",
+                                GeneratedSourceKind.DECLARED_ROOT,
+                                "java",
+                                "target/generated/sources/openapi",
+                                List.of("src/main/openapi/api.yaml"),
+                                true,
+                                false)),
+                        List.of());
         ProjectConfig config = config(Optional.empty())
+                .withBuildSettings(build)
                 .withPackageSettings(new PackageSettings(PackageMode.THIN, true, true, true, null));
 
         PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
@@ -505,6 +524,7 @@ final class PackageServiceTest {
                 .toList());
         try (JarFile sources = new JarFile(projectDir.resolve("target/demo-0.1.0-sources.jar").toFile())) {
             assertNotNull(sources.getEntry("com/example/Calculator.java"));
+            assertNull(sources.getEntry("com/example/generated/GeneratedApi.java"));
         }
         try (JarFile javadocs = new JarFile(projectDir.resolve("target/demo-0.1.0-javadoc.jar").toFile())) {
             assertTrue(javadocs.stream().anyMatch(entry -> entry.getName().endsWith("Calculator.html")));
