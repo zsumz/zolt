@@ -342,6 +342,8 @@ public final class ResolveService {
         private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
         private final ProjectPlatformMetadataPlanner projectPlatformMetadataPlanner =
                 new ProjectPlatformMetadataPlanner(coordinateParser);
+        private final EffectivePomInheritanceBuilder effectivePomInheritanceBuilder =
+                new EffectivePomInheritanceBuilder();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -679,22 +681,15 @@ public final class ResolveService {
             try {
                 RawPom rawPom = rawPom(coordinate);
                 List<RawPom> parents = loadParents(rawPom);
-                String groupId = rawPom.groupId().or(() -> nearestGroupId(parents)).orElse(coordinate.groupId());
-                String version = rawPom.version()
-                        .or(() -> nearestVersion(parents))
-                        .orElse(coordinate.version().orElseThrow());
-                Map<String, String> properties = inheritedProperties(rawPom, parents);
-                List<RawPomDependency> dependencyManagement = inheritedDependencyManagement(rawPom, parents);
-                EffectiveRawPom base =
-                        new EffectiveRawPom(rawPom, parents, groupId, version, properties, dependencyManagement);
+                EffectiveRawPom base = effectivePomInheritanceBuilder.build(coordinate, rawPom, parents);
                 List<String> nextStack = new ArrayList<>(importStack);
                 nextStack.add(key);
                 EffectiveRawPom effective = new EffectiveRawPom(
                         rawPom,
                         parents,
-                        groupId,
-                        version,
-                        properties,
+                        base.groupId(),
+                        base.version(),
+                        base.properties(),
                         expandedDependencyManagement(base, nextStack));
                 metadata.put(key, effective);
                 pending.complete(effective);
@@ -795,42 +790,6 @@ public final class ResolveService {
 
         private List<RepositoryAccess> repositoryAccesses() {
             return repositoryAccessPlanner.plan(config);
-        }
-
-        private Optional<String> nearestGroupId(List<RawPom> parents) {
-            for (int index = parents.size() - 1; index >= 0; index--) {
-                if (parents.get(index).groupId().isPresent()) {
-                    return parents.get(index).groupId();
-                }
-            }
-            return Optional.empty();
-        }
-
-        private Optional<String> nearestVersion(List<RawPom> parents) {
-            for (int index = parents.size() - 1; index >= 0; index--) {
-                if (parents.get(index).version().isPresent()) {
-                    return parents.get(index).version();
-                }
-            }
-            return Optional.empty();
-        }
-
-        private Map<String, String> inheritedProperties(RawPom rawPom, List<RawPom> parents) {
-            Map<String, String> properties = new LinkedHashMap<>();
-            for (RawPom parent : parents) {
-                properties.putAll(parent.properties());
-            }
-            properties.putAll(rawPom.properties());
-            return properties;
-        }
-
-        private List<RawPomDependency> inheritedDependencyManagement(RawPom rawPom, List<RawPom> parents) {
-            List<RawPomDependency> dependencies = new ArrayList<>();
-            for (RawPom parent : parents) {
-                dependencies.addAll(parent.dependencyManagement());
-            }
-            dependencies.addAll(rawPom.dependencyManagement());
-            return dependencies;
         }
 
         private List<RawPomDependency> expandedDependencyManagement(EffectiveRawPom pom, List<String> importStack) {
