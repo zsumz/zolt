@@ -326,6 +326,7 @@ public final class ResolveService {
             implements DependencyMetadataSource,
                     ResolverMetricsSink,
                     LockfileAssemblyContext,
+                    ArtifactLoadMetricsSink,
                     RawPomLoadMetricsSink,
                     EffectivePomLoadMetricsSink {
         private final ProjectConfig config;
@@ -333,6 +334,7 @@ public final class ResolveService {
         private final ResolveOptions options;
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
         private final RepositoryFetchCoordinator repositoryFetchCoordinator = new RepositoryFetchCoordinator();
+        private final ArtifactMaterializer artifactMaterializer;
         private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
         private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
         private final ProjectPlatformMetadataPlanner projectPlatformMetadataPlanner =
@@ -379,6 +381,7 @@ public final class ResolveService {
             this.cache = cache;
             this.options = options;
             this.localOverlayMaterializer = new LocalOverlayMaterializer(cache, artifactSources);
+            this.artifactMaterializer = new ArtifactMaterializer(cache, options, localOverlayMaterializer);
         }
 
         @Override
@@ -398,76 +401,15 @@ public final class ResolveService {
 
         @Override
         public CachedArtifact getPom(Coordinate coordinate) {
-            long started = System.nanoTime();
-            Optional<CachedArtifact> overlayArtifact = materializeOverlayPom(coordinate);
-            if (overlayArtifact.isPresent()) {
-                recordPomCacheHit(elapsedSince(started));
-                return overlayArtifact.orElseThrow();
-            }
-            if (options.offline()) {
-                CachedArtifact artifact = cache.getCachedPom(coordinate);
-                recordPomCacheHit(elapsedSince(started));
-                return artifact;
-            }
-            Path before = cache.pomPath(coordinate);
-            boolean cached = java.nio.file.Files.isRegularFile(before);
-            CachedArtifact artifact = cache.getOrFetchPom(coordinate, requested ->
-                    fetchPom(requested));
-            if (cached) {
-                recordPomCacheHit(elapsedSince(started));
-            } else {
-                recordPomDownload(elapsedSince(started));
-            }
-            return artifact;
+            return artifactMaterializer.getPom(coordinate, this::fetchPom, this);
         }
 
         CachedArtifact getJar(Coordinate coordinate) {
-            long started = System.nanoTime();
-            Optional<CachedArtifact> overlayArtifact = materializeOverlayArtifact(ArtifactDescriptor.jar(coordinate));
-            if (overlayArtifact.isPresent()) {
-                recordJarCacheHit(elapsedSince(started));
-                return overlayArtifact.orElseThrow();
-            }
-            if (options.offline()) {
-                CachedArtifact artifact = cache.getCachedJar(coordinate);
-                recordJarCacheHit(elapsedSince(started));
-                return artifact;
-            }
-            Path before = cache.jarPath(coordinate);
-            boolean cached = java.nio.file.Files.isRegularFile(before);
-            CachedArtifact artifact = cache.getOrFetchJar(coordinate, requested ->
-                    fetchJar(requested));
-            if (cached) {
-                recordJarCacheHit(elapsedSince(started));
-            } else {
-                recordJarDownload(elapsedSince(started));
-            }
-            return artifact;
+            return artifactMaterializer.getJar(coordinate, this::fetchJar, this);
         }
 
         CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
-            long started = System.nanoTime();
-            Optional<CachedArtifact> overlayArtifact = materializeOverlayArtifact(descriptor);
-            if (overlayArtifact.isPresent()) {
-                recordArtifactCacheHit(elapsedSince(started));
-                return overlayArtifact.orElseThrow();
-            }
-            if (options.offline()) {
-                CachedArtifact artifact =
-                        cache.getCachedArtifact(descriptor, descriptor.extension().toUpperCase(java.util.Locale.ROOT));
-                recordArtifactCacheHit(elapsedSince(started));
-                return artifact;
-            }
-            Path before = cache.artifactPath(descriptor);
-            boolean cached = java.nio.file.Files.isRegularFile(before);
-            CachedArtifact artifact = cache.getOrFetchArtifact(descriptor, requested ->
-                    fetchArtifact(descriptor));
-            if (cached) {
-                recordArtifactCacheHit(elapsedSince(started));
-            } else {
-                recordArtifactDownload(elapsedSince(started));
-            }
-            return artifact;
+            return artifactMaterializer.getArtifact(descriptor, this::fetchArtifact, this);
         }
 
         @Override
@@ -475,47 +417,45 @@ public final class ResolveService {
             return artifactSources.getOrDefault(artifact.repositoryPath(), "maven-central");
         }
 
-        private Optional<CachedArtifact> materializeOverlayPom(Coordinate coordinate) {
-            return localOverlayMaterializer.materializePom(options.repositoryOverlays(), coordinate);
-        }
-
-        private Optional<CachedArtifact> materializeOverlayArtifact(ArtifactDescriptor descriptor) {
-            return localOverlayMaterializer.materializeArtifact(options.repositoryOverlays(), descriptor);
-        }
-
         @Override
         public Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
             return artifactBatchMaterializer.materialize(descriptors, cache.downloadConcurrency(), this::getArtifact);
         }
 
-        private synchronized void recordPomCacheHit(long elapsedNanos) {
+        @Override
+        public synchronized void recordPomCacheHit(long elapsedNanos) {
             pomCacheHits++;
             pomCacheHitNanos += elapsedNanos;
         }
 
-        private synchronized void recordPomDownload(long elapsedNanos) {
+        @Override
+        public synchronized void recordPomDownload(long elapsedNanos) {
             pomCacheMisses++;
             pomDownloadNanos += elapsedNanos;
             downloadCount++;
         }
 
-        private synchronized void recordJarCacheHit(long elapsedNanos) {
+        @Override
+        public synchronized void recordJarCacheHit(long elapsedNanos) {
             jarCacheHits++;
             jarCacheHitNanos += elapsedNanos;
         }
 
-        private synchronized void recordJarDownload(long elapsedNanos) {
+        @Override
+        public synchronized void recordJarDownload(long elapsedNanos) {
             jarCacheMisses++;
             jarDownloadNanos += elapsedNanos;
             downloadCount++;
         }
 
-        private synchronized void recordArtifactCacheHit(long elapsedNanos) {
+        @Override
+        public synchronized void recordArtifactCacheHit(long elapsedNanos) {
             artifactCacheHits++;
             artifactCacheHitNanos += elapsedNanos;
         }
 
-        private synchronized void recordArtifactDownload(long elapsedNanos) {
+        @Override
+        public synchronized void recordArtifactDownload(long elapsedNanos) {
             artifactCacheMisses++;
             artifactDownloadNanos += elapsedNanos;
             downloadCount++;
