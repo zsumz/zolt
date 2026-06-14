@@ -105,7 +105,7 @@ final class ArchitectureBoundaryTest {
 
         assertTrue(
                 violations.isEmpty(),
-                () -> "Command attribute maps must use TimingAttributeKeys constants, not raw output key strings:\n"
+                () -> "Command attribute maps must use CommandAttributeKeys constants, not raw output key strings:\n"
                         + describeRawCommandAttributeKeys(violations));
     }
 
@@ -157,7 +157,7 @@ final class ArchitectureBoundaryTest {
                         attributes.put(
                                 "jarDownloadNanos",
                                 "0");
-                        attributes.put(TimingAttributeKeys.RAW_POM_PARSE_NANOS, "0");
+                        attributes.put(CommandAttributeKeys.RAW_POM_PARSE_NANOS, "0");
                         return attributes;
                     }
                 }

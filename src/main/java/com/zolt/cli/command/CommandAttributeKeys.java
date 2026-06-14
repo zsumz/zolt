@@ -1,6 +1,6 @@
 package com.zolt.cli.command;
 
-public final class TimingAttributeKeys {
+public final class CommandAttributeKeys {
     public static final String ABI_CHANGED_CLASSES_SUFFIX = "AbiChangedClasses";
     public static final String ARTIFACT_CACHE_HIT_MILLIS = "artifactCacheHitMillis";
     public static final String ARTIFACT_CACHE_HIT_NANOS = "artifactCacheHitNanos";
@@ -125,6 +125,6 @@ public final class TimingAttributeKeys {
     public static final String WORKSPACE_ABI_INVALIDATIONS = "workspaceAbiInvalidations";
     public static final String XML_REPORT = "xmlReport";
 
-    private TimingAttributeKeys() {
+    private CommandAttributeKeys() {
     }
 }

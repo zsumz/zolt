@@ -144,47 +144,47 @@ public final class ResolveCommand implements Runnable {
 
     private static Map<String, String> resolveAttributes(ResolveResult result) {
         LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.RESOLVED_PACKAGES, Integer.toString(result.resolvedCount()));
-        attributes.put(TimingAttributeKeys.DOWNLOADED_ARTIFACTS, Integer.toString(result.downloadCount()));
-        attributes.put(TimingAttributeKeys.CONFLICTS, Integer.toString(result.conflictCount()));
-        attributes.put(TimingAttributeKeys.POM_CACHE_HITS, Integer.toString(result.metrics().pomCacheHits()));
-        attributes.put(TimingAttributeKeys.POM_CACHE_MISSES, Integer.toString(result.metrics().pomCacheMisses()));
-        attributes.put(TimingAttributeKeys.JAR_CACHE_HITS, Integer.toString(result.metrics().jarCacheHits()));
-        attributes.put(TimingAttributeKeys.JAR_CACHE_MISSES, Integer.toString(result.metrics().jarCacheMisses()));
-        attributes.put(TimingAttributeKeys.ARTIFACT_CACHE_HITS, Integer.toString(result.metrics().artifactCacheHits()));
-        attributes.put(TimingAttributeKeys.ARTIFACT_CACHE_MISSES, Integer.toString(result.metrics().artifactCacheMisses()));
-        attributes.put(TimingAttributeKeys.RAW_POM_CACHE_HITS, Integer.toString(result.metrics().rawPomCacheHits()));
-        attributes.put(TimingAttributeKeys.RAW_POM_CACHE_MISSES, Integer.toString(result.metrics().rawPomCacheMisses()));
-        attributes.put(TimingAttributeKeys.EFFECTIVE_POM_CACHE_HITS, Integer.toString(result.metrics().effectivePomCacheHits()));
-        attributes.put(TimingAttributeKeys.EFFECTIVE_POM_CACHE_MISSES, Integer.toString(result.metrics().effectivePomCacheMisses()));
-        attributes.put(TimingAttributeKeys.POM_CACHE_HIT_MILLIS, Long.toString(result.metrics().pomCacheHitNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.POM_DOWNLOAD_MILLIS, Long.toString(result.metrics().pomDownloadNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.JAR_CACHE_HIT_MILLIS, Long.toString(result.metrics().jarCacheHitNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.JAR_DOWNLOAD_MILLIS, Long.toString(result.metrics().jarDownloadNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.ARTIFACT_CACHE_HIT_MILLIS, Long.toString(result.metrics().artifactCacheHitNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.ARTIFACT_DOWNLOAD_MILLIS, Long.toString(result.metrics().artifactDownloadNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.RAW_POM_PARSE_MILLIS, Long.toString(result.metrics().rawPomParseNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.EFFECTIVE_POM_BUILD_MILLIS, Long.toString(result.metrics().effectivePomBuildNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.GRAPH_TRAVERSAL_MILLIS, Long.toString(result.metrics().graphTraversalNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.VERSION_SELECTION_MILLIS, Long.toString(result.metrics().versionSelectionNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.LOCKFILE_ASSEMBLY_MILLIS, Long.toString(result.metrics().lockfileAssemblyNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.LOCKFILE_WRITE_MILLIS, Long.toString(result.metrics().lockfileWriteNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.RESOLVED_PACKAGES, Integer.toString(result.resolvedCount()));
+        attributes.put(CommandAttributeKeys.DOWNLOADED_ARTIFACTS, Integer.toString(result.downloadCount()));
+        attributes.put(CommandAttributeKeys.CONFLICTS, Integer.toString(result.conflictCount()));
+        attributes.put(CommandAttributeKeys.POM_CACHE_HITS, Integer.toString(result.metrics().pomCacheHits()));
+        attributes.put(CommandAttributeKeys.POM_CACHE_MISSES, Integer.toString(result.metrics().pomCacheMisses()));
+        attributes.put(CommandAttributeKeys.JAR_CACHE_HITS, Integer.toString(result.metrics().jarCacheHits()));
+        attributes.put(CommandAttributeKeys.JAR_CACHE_MISSES, Integer.toString(result.metrics().jarCacheMisses()));
+        attributes.put(CommandAttributeKeys.ARTIFACT_CACHE_HITS, Integer.toString(result.metrics().artifactCacheHits()));
+        attributes.put(CommandAttributeKeys.ARTIFACT_CACHE_MISSES, Integer.toString(result.metrics().artifactCacheMisses()));
+        attributes.put(CommandAttributeKeys.RAW_POM_CACHE_HITS, Integer.toString(result.metrics().rawPomCacheHits()));
+        attributes.put(CommandAttributeKeys.RAW_POM_CACHE_MISSES, Integer.toString(result.metrics().rawPomCacheMisses()));
+        attributes.put(CommandAttributeKeys.EFFECTIVE_POM_CACHE_HITS, Integer.toString(result.metrics().effectivePomCacheHits()));
+        attributes.put(CommandAttributeKeys.EFFECTIVE_POM_CACHE_MISSES, Integer.toString(result.metrics().effectivePomCacheMisses()));
+        attributes.put(CommandAttributeKeys.POM_CACHE_HIT_MILLIS, Long.toString(result.metrics().pomCacheHitNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.POM_DOWNLOAD_MILLIS, Long.toString(result.metrics().pomDownloadNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.JAR_CACHE_HIT_MILLIS, Long.toString(result.metrics().jarCacheHitNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.JAR_DOWNLOAD_MILLIS, Long.toString(result.metrics().jarDownloadNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.ARTIFACT_CACHE_HIT_MILLIS, Long.toString(result.metrics().artifactCacheHitNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.ARTIFACT_DOWNLOAD_MILLIS, Long.toString(result.metrics().artifactDownloadNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.RAW_POM_PARSE_MILLIS, Long.toString(result.metrics().rawPomParseNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.EFFECTIVE_POM_BUILD_MILLIS, Long.toString(result.metrics().effectivePomBuildNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.GRAPH_TRAVERSAL_MILLIS, Long.toString(result.metrics().graphTraversalNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.VERSION_SELECTION_MILLIS, Long.toString(result.metrics().versionSelectionNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.LOCKFILE_ASSEMBLY_MILLIS, Long.toString(result.metrics().lockfileAssemblyNanos() / 1_000_000L));
+        attributes.put(CommandAttributeKeys.LOCKFILE_WRITE_MILLIS, Long.toString(result.metrics().lockfileWriteNanos() / 1_000_000L));
         attributes.put(
-                TimingAttributeKeys.LOCKFILE_VERIFICATION_MILLIS,
+                CommandAttributeKeys.LOCKFILE_VERIFICATION_MILLIS,
                 Long.toString(result.metrics().lockfileVerificationNanos() / 1_000_000L));
-        attributes.put(TimingAttributeKeys.POM_CACHE_HIT_NANOS, Long.toString(result.metrics().pomCacheHitNanos()));
-        attributes.put(TimingAttributeKeys.POM_DOWNLOAD_NANOS, Long.toString(result.metrics().pomDownloadNanos()));
-        attributes.put(TimingAttributeKeys.JAR_CACHE_HIT_NANOS, Long.toString(result.metrics().jarCacheHitNanos()));
-        attributes.put(TimingAttributeKeys.JAR_DOWNLOAD_NANOS, Long.toString(result.metrics().jarDownloadNanos()));
-        attributes.put(TimingAttributeKeys.ARTIFACT_CACHE_HIT_NANOS, Long.toString(result.metrics().artifactCacheHitNanos()));
-        attributes.put(TimingAttributeKeys.ARTIFACT_DOWNLOAD_NANOS, Long.toString(result.metrics().artifactDownloadNanos()));
-        attributes.put(TimingAttributeKeys.RAW_POM_PARSE_NANOS, Long.toString(result.metrics().rawPomParseNanos()));
-        attributes.put(TimingAttributeKeys.EFFECTIVE_POM_BUILD_NANOS, Long.toString(result.metrics().effectivePomBuildNanos()));
-        attributes.put(TimingAttributeKeys.GRAPH_TRAVERSAL_NANOS, Long.toString(result.metrics().graphTraversalNanos()));
-        attributes.put(TimingAttributeKeys.VERSION_SELECTION_NANOS, Long.toString(result.metrics().versionSelectionNanos()));
-        attributes.put(TimingAttributeKeys.LOCKFILE_ASSEMBLY_NANOS, Long.toString(result.metrics().lockfileAssemblyNanos()));
-        attributes.put(TimingAttributeKeys.LOCKFILE_WRITE_NANOS, Long.toString(result.metrics().lockfileWriteNanos()));
-        attributes.put(TimingAttributeKeys.LOCKFILE_VERIFICATION_NANOS, Long.toString(result.metrics().lockfileVerificationNanos()));
+        attributes.put(CommandAttributeKeys.POM_CACHE_HIT_NANOS, Long.toString(result.metrics().pomCacheHitNanos()));
+        attributes.put(CommandAttributeKeys.POM_DOWNLOAD_NANOS, Long.toString(result.metrics().pomDownloadNanos()));
+        attributes.put(CommandAttributeKeys.JAR_CACHE_HIT_NANOS, Long.toString(result.metrics().jarCacheHitNanos()));
+        attributes.put(CommandAttributeKeys.JAR_DOWNLOAD_NANOS, Long.toString(result.metrics().jarDownloadNanos()));
+        attributes.put(CommandAttributeKeys.ARTIFACT_CACHE_HIT_NANOS, Long.toString(result.metrics().artifactCacheHitNanos()));
+        attributes.put(CommandAttributeKeys.ARTIFACT_DOWNLOAD_NANOS, Long.toString(result.metrics().artifactDownloadNanos()));
+        attributes.put(CommandAttributeKeys.RAW_POM_PARSE_NANOS, Long.toString(result.metrics().rawPomParseNanos()));
+        attributes.put(CommandAttributeKeys.EFFECTIVE_POM_BUILD_NANOS, Long.toString(result.metrics().effectivePomBuildNanos()));
+        attributes.put(CommandAttributeKeys.GRAPH_TRAVERSAL_NANOS, Long.toString(result.metrics().graphTraversalNanos()));
+        attributes.put(CommandAttributeKeys.VERSION_SELECTION_NANOS, Long.toString(result.metrics().versionSelectionNanos()));
+        attributes.put(CommandAttributeKeys.LOCKFILE_ASSEMBLY_NANOS, Long.toString(result.metrics().lockfileAssemblyNanos()));
+        attributes.put(CommandAttributeKeys.LOCKFILE_WRITE_NANOS, Long.toString(result.metrics().lockfileWriteNanos()));
+        attributes.put(CommandAttributeKeys.LOCKFILE_VERIFICATION_NANOS, Long.toString(result.metrics().lockfileVerificationNanos()));
         return attributes;
     }
 }

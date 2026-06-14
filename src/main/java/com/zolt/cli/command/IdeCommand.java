@@ -129,19 +129,19 @@ public final class IdeCommand implements Runnable {
 
     private static Map<String, String> ideModelAttributes(IdeModel model) {
         LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.SOURCE_ROOTS, Integer.toString(model.sourceRoots().size()));
-        attributes.put(TimingAttributeKeys.RESOURCE_ROOTS, Integer.toString(model.resourceRoots().size()));
-        attributes.put(TimingAttributeKeys.COMPILE_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().compile().size()));
-        attributes.put(TimingAttributeKeys.RUNTIME_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().runtime().size()));
-        attributes.put(TimingAttributeKeys.TEST_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().test().size()));
-        attributes.put(TimingAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
+        attributes.put(CommandAttributeKeys.SOURCE_ROOTS, Integer.toString(model.sourceRoots().size()));
+        attributes.put(CommandAttributeKeys.RESOURCE_ROOTS, Integer.toString(model.resourceRoots().size()));
+        attributes.put(CommandAttributeKeys.COMPILE_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().compile().size()));
+        attributes.put(CommandAttributeKeys.RUNTIME_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().runtime().size()));
+        attributes.put(CommandAttributeKeys.TEST_CLASSPATH_ENTRIES, Integer.toString(model.classpaths().test().size()));
+        attributes.put(CommandAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
         return attributes;
     }
 
     private static Map<String, String> workspaceIdeModelAttributes(WorkspaceIdeModel model) {
         return Map.of(
-                TimingAttributeKeys.PROJECTS, Integer.toString(model.projects().size()),
-                TimingAttributeKeys.EDGES, Integer.toString(model.edges().size()),
-                TimingAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
+                CommandAttributeKeys.PROJECTS, Integer.toString(model.projects().size()),
+                CommandAttributeKeys.EDGES, Integer.toString(model.edges().size()),
+                CommandAttributeKeys.DIAGNOSTICS, Integer.toString(model.diagnostics().size()));
     }
 }

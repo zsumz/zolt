@@ -143,9 +143,9 @@ public final class QuarkusCommand implements Runnable {
 
     private static Map<String, String> quarkusPlanAttributes(QuarkusPlan plan) {
         return Map.of(
-                TimingAttributeKeys.RUNTIME_CLASSPATH_ENTRIES, Integer.toString(plan.runtimeClasspath().size()),
-                TimingAttributeKeys.DEPLOYMENT_CLASSPATH_ENTRIES, Integer.toString(plan.deploymentClasspath().size()),
-                TimingAttributeKeys.EXTENSIONS, Integer.toString(plan.extensions().size()),
-                TimingAttributeKeys.PACKAGE_MODE, plan.packageMode().configValue());
+                CommandAttributeKeys.RUNTIME_CLASSPATH_ENTRIES, Integer.toString(plan.runtimeClasspath().size()),
+                CommandAttributeKeys.DEPLOYMENT_CLASSPATH_ENTRIES, Integer.toString(plan.deploymentClasspath().size()),
+                CommandAttributeKeys.EXTENSIONS, Integer.toString(plan.extensions().size()),
+                CommandAttributeKeys.PACKAGE_MODE, plan.packageMode().configValue());
     }
 }

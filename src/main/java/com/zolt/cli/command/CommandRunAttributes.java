@@ -12,42 +12,42 @@ final class CommandRunAttributes {
 
     static Map<String, String> run(RunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
-        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.buildResult().sourceCount()));
-        attributes.put(TimingAttributeKeys.RESOURCE_FILES, Integer.toString(result.buildResult().resourceCount()));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.buildResult().mainCompilationSkipped()));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATION_MODE, result.buildResult().mainCompilationMode());
-        attributes.put(TimingAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.buildResult().mainIncrementalFallbackReason());
+        attributes.put(CommandAttributeKeys.MAIN_CLASS, result.javaRunResult().mainClass());
+        attributes.put(CommandAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(result.buildResult().sourceCount()));
+        attributes.put(CommandAttributeKeys.RESOURCE_FILES, Integer.toString(result.buildResult().resourceCount()));
+        attributes.put(CommandAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.buildResult().mainCompilationSkipped()));
+        attributes.put(CommandAttributeKeys.MAIN_COMPILATION_MODE, result.buildResult().mainCompilationMode());
+        attributes.put(CommandAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.buildResult().mainIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.buildResult().mainCompileDiagnostics());
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
+        attributes.put(CommandAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.buildResult().resolvedLockfile()));
+        attributes.put(CommandAttributeKeys.OUTPUT_BYTES, Integer.toString(result.javaRunResult().output().length()));
         return attributes;
     }
 
     static Map<String, String> workspaceRun(WorkspaceRunResult result) {
         Map<String, String> attributes = new LinkedHashMap<>();
-        attributes.put(TimingAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
-        attributes.put(TimingAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunSourceCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunMainCompilationSkippedCount(result)));
-        attributes.put(TimingAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunMainCompilationExecutedCount(result)));
-        attributes.put(TimingAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
-        attributes.put(TimingAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunOutputBytes(result)));
+        attributes.put(CommandAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
+        attributes.put(CommandAttributeKeys.MAIN_SOURCE_FILES, Integer.toString(workspaceRunSourceCount(result)));
+        attributes.put(CommandAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(workspaceRunMainCompilationSkippedCount(result)));
+        attributes.put(CommandAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(workspaceRunMainCompilationExecutedCount(result)));
+        attributes.put(CommandAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
+        attributes.put(CommandAttributeKeys.OUTPUT_BYTES, Integer.toString(workspaceRunOutputBytes(result)));
         return attributes;
     }
 
     private static void addMainCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {
         CompileDiagnostics values = diagnostics == null ? CompileDiagnostics.empty() : diagnostics;
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.SOURCES_ADDED_SUFFIX, Integer.toString(values.sourcesAdded()));
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.SOURCES_CHANGED_SUFFIX, Integer.toString(values.sourcesChanged()));
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.SOURCES_DELETED_SUFFIX, Integer.toString(values.sourcesDeleted()));
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.SOURCES_RECOMPILED_SUFFIX, Integer.toString(values.sourcesRecompiled()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.SOURCES_ADDED_SUFFIX, Integer.toString(values.sourcesAdded()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.SOURCES_CHANGED_SUFFIX, Integer.toString(values.sourcesChanged()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.SOURCES_DELETED_SUFFIX, Integer.toString(values.sourcesDeleted()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.SOURCES_RECOMPILED_SUFFIX, Integer.toString(values.sourcesRecompiled()));
         attributes.put(
-                TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.DEPENDENT_SOURCES_RECOMPILED_SUFFIX,
+                CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.DEPENDENT_SOURCES_RECOMPILED_SUFFIX,
                 Integer.toString(values.dependentSourcesRecompiled()));
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.CLASSES_DELETED_SUFFIX, Integer.toString(values.classesDeleted()));
-        attributes.put(TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.ABI_CHANGED_CLASSES_SUFFIX, Integer.toString(values.abiChangedClasses()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.CLASSES_DELETED_SUFFIX, Integer.toString(values.classesDeleted()));
+        attributes.put(CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.ABI_CHANGED_CLASSES_SUFFIX, Integer.toString(values.abiChangedClasses()));
         attributes.put(
-                TimingAttributeKeys.MAIN_PREFIX + TimingAttributeKeys.PACKAGE_PRIVATE_ABI_CHANGED_CLASSES_SUFFIX,
+                CommandAttributeKeys.MAIN_PREFIX + CommandAttributeKeys.PACKAGE_PRIVATE_ABI_CHANGED_CLASSES_SUFFIX,
                 Integer.toString(values.packagePrivateAbiChangedClasses()));
     }
 

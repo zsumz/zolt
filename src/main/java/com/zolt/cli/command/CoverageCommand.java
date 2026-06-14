@@ -123,9 +123,9 @@ public final class CoverageCommand implements Runnable {
                             reportSettings,
                             requestedTestEvents),
                     coverageResult -> Map.of(
-                            TimingAttributeKeys.EXEC_FILE, coverageResult.execFile().toString(),
-                            TimingAttributeKeys.XML_REPORT, coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
-                            TimingAttributeKeys.HTML_DIRECTORY, coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
+                            CommandAttributeKeys.EXEC_FILE, coverageResult.execFile().toString(),
+                            CommandAttributeKeys.XML_REPORT, coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
+                            CommandAttributeKeys.HTML_DIRECTORY, coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
             CommandOutput.printAndFlush(spec, result.testRunResult().output());
             if (!result.testRunResult().output().isEmpty() && !result.testRunResult().output().endsWith("\n")) {
                 spec.commandLine().getOut().println();
