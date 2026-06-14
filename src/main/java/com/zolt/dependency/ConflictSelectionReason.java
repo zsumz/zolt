@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.dependency;
 
 public enum ConflictSelectionReason {
     DIRECT_DEPENDENCY,

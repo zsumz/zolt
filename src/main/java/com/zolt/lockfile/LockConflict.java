@@ -1,7 +1,7 @@
 package com.zolt.lockfile;
 
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import java.util.List;
 
 public record LockConflict(

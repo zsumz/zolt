@@ -14,7 +14,7 @@ import com.zolt.project.ProjectPaths;
 import com.zolt.project.RepositorySettings;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveMetrics;
 import com.zolt.resolve.ResolveOutput;

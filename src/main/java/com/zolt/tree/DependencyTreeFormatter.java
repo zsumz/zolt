@@ -5,7 +5,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

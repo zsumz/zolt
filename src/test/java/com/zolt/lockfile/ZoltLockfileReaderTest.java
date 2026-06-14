@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

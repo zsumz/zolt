@@ -2,7 +2,7 @@ package com.zolt.conflict;
 
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.resolve.VersionComparator;
 import java.util.Comparator;
 import java.util.List;

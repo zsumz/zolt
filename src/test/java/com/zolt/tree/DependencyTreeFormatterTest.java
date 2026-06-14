@@ -11,7 +11,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.ConflictSelectionReason;
+import com.zolt.dependency.ConflictSelectionReason;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
