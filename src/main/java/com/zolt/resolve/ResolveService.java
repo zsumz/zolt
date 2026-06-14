@@ -323,33 +323,8 @@ public final class ResolveService {
     }
 
 
-    private static String artifactDescriptorKey(ArtifactDescriptor descriptor) {
-        return descriptor.coordinate()
-                + ":"
-                + descriptor.classifier().orElse("")
-                + ":"
-                + descriptor.extension();
-    }
-
     private static long elapsedSince(long started) {
         return Math.max(0L, System.nanoTime() - started);
-    }
-
-    private static ResolveException artifactDownloadException(List<ArtifactDownloadFailure> failures) {
-        List<ArtifactDownloadFailure> sorted = failures.stream()
-                .sorted(Comparator.comparing(ArtifactDownloadFailure::artifactKey))
-                .toList();
-        StringBuilder message = new StringBuilder("Selected artifact downloads failed:");
-        for (ArtifactDownloadFailure failure : sorted) {
-            message.append(System.lineSeparator())
-                    .append("- ")
-                    .append(failure.artifactKey())
-                    .append(": ")
-                    .append(failure.message());
-        }
-        message.append(System.lineSeparator())
-                .append("Retry the command or check your repository and network settings.");
-        return new ResolveException(message.toString());
     }
 
     private static ResolveException pomMetadataException(List<PomMetadataFailure> failures) {
@@ -376,9 +351,6 @@ public final class ResolveService {
         return cause.getMessage();
     }
 
-    private record ArtifactDownloadFailure(String artifactKey, String message) {
-    }
-
     private record PomMetadataFailure(String coordinate, String message) {
     }
 
@@ -398,6 +370,7 @@ public final class ResolveService {
         private final ResolveOptions options;
         private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
+        private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -591,40 +564,7 @@ public final class ResolveService {
 
         @Override
         public Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
-            Map<ArtifactDescriptor, ArtifactDescriptor> uniqueDescriptors = new LinkedHashMap<>();
-            descriptors.stream()
-                    .sorted(Comparator.comparing(ResolveService::artifactDescriptorKey))
-                    .forEach(descriptor -> uniqueDescriptors.putIfAbsent(descriptor, descriptor));
-            if (uniqueDescriptors.isEmpty()) {
-                return Map.of();
-            }
-            try (ExecutorService executor = Executors.newFixedThreadPool(cache.downloadConcurrency())) {
-                Map<ArtifactDescriptor, Future<CachedArtifact>> futures = new LinkedHashMap<>();
-                for (ArtifactDescriptor descriptor : uniqueDescriptors.values()) {
-                    futures.put(descriptor, executor.submit(() -> getArtifact(descriptor)));
-                }
-
-                Map<ArtifactDescriptor, CachedArtifact> artifacts = new LinkedHashMap<>();
-                List<ArtifactDownloadFailure> failures = new ArrayList<>();
-                for (Map.Entry<ArtifactDescriptor, Future<CachedArtifact>> entry : futures.entrySet()) {
-                    try {
-                        artifacts.put(entry.getKey(), entry.getValue().get());
-                    } catch (InterruptedException exception) {
-                        Thread.currentThread().interrupt();
-                        failures.add(new ArtifactDownloadFailure(
-                                artifactDescriptorKey(entry.getKey()),
-                                "interrupted while materializing artifact"));
-                    } catch (ExecutionException exception) {
-                        failures.add(new ArtifactDownloadFailure(
-                                artifactDescriptorKey(entry.getKey()),
-                                failureMessage(exception.getCause())));
-                    }
-                }
-                if (!failures.isEmpty()) {
-                    throw artifactDownloadException(failures);
-                }
-                return artifacts;
-            }
+            return artifactBatchMaterializer.materialize(descriptors, cache.downloadConcurrency(), this::getArtifact);
         }
 
         private synchronized void recordPomCacheHit(long elapsedNanos) {
