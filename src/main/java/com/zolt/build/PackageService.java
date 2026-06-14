@@ -64,6 +64,7 @@ public final class PackageService {
     private final FrameworkPackageAugmenter frameworkPackageAugmenter;
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
+    private final ThinJarLayoutAssembler thinJarLayoutAssembler;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -144,6 +145,10 @@ public final class PackageService {
         this.frameworkPackageAugmenter = frameworkPackageAugmenter;
         this.packagePlanService = packagePlanService == null ? new PackagePlanService() : packagePlanService;
         this.evidenceManifestWriter = evidenceManifestWriter;
+        this.thinJarLayoutAssembler = new ThinJarLayoutAssembler(
+                manifestGenerator,
+                lockfileReader,
+                classpathBuilder);
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -267,7 +272,13 @@ public final class PackageService {
             Optional<ClasspathSet> classpaths) {
         PackageMode mode = config.packageSettings().mode();
         PackageResult result = switch (mode) {
-            case THIN -> packageThinJar(projectDirectory, config, buildResult, cacheRoot, classpathPackages);
+            case THIN -> thinJarLayoutAssembler.assemble(
+                    projectDirectory,
+                    config,
+                    buildResult,
+                    jarPath(projectDirectory, config),
+                    cacheRoot,
+                    classpathPackages);
             case SPRING_BOOT -> packageSpringBootJar(
                     projectDirectory,
                     config,
@@ -330,51 +341,6 @@ public final class PackageService {
                 result.runtimeClasspathPath(),
                 List.of(),
                 List.of());
-    }
-
-    private PackageResult packageThinJar(
-            Path projectDirectory,
-            ProjectConfig config,
-            BuildResult buildResult,
-            Optional<Path> cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
-        Path outputDirectory = requireOutputDirectory(buildResult);
-        Path jarPath = jarPath(projectDirectory, config);
-        Path runtimeClasspathPath = runtimeClasspathPath(jarPath);
-        GeneratedManifest manifest = manifestGenerator.generate(config);
-
-        try {
-            Files.createDirectories(jarPath.getParent());
-            List<Path> files = compiledFiles(outputDirectory);
-            try (PackageArchiveWriter archive = PackageArchiveWriter.open(jarPath)) {
-                archive.writeEntry(manifest.path(), manifest.content());
-                for (Path file : files) {
-                    archive.writeFile(entryName(outputDirectory, file), file);
-                }
-            }
-            Optional<Path> writtenRuntimeClasspathPath = Optional.empty();
-            if (cacheRoot.isPresent()) {
-                if (classpathPackages.isPresent()) {
-                    writeRuntimeClasspath(runtimeClasspathPath, classpathPackages.orElseThrow());
-                } else {
-                    writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
-                }
-                writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
-            }
-            return new PackageResult(
-                    buildResult,
-                    PackageMode.THIN,
-                    jarPath,
-                    writtenRuntimeClasspathPath,
-                    files.size(),
-                    manifest.mainClass().isPresent());
-        } catch (IOException exception) {
-            throw new PackageException(
-                    "Could not package jar at "
-                            + jarPath
-                            + ". Check that target/ is writable and try again.",
-                    exception);
-        }
     }
 
     private PackageResult packageSpringBootJar(
@@ -862,27 +828,6 @@ public final class PackageService {
         }
     }
 
-    private void writeRuntimeClasspath(
-            Path projectDirectory,
-            Path cacheRoot,
-            Path runtimeClasspathPath) throws IOException {
-        ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        writeRuntimeClasspath(runtimeClasspathPath, packagedClasspathPackages(lockfile, cacheRoot));
-    }
-
-    private void writeRuntimeClasspath(
-            Path runtimeClasspathPath,
-            List<ResolvedClasspathPackage> classpathPackages) throws IOException {
-        ClasspathSet classpaths = classpathBuilder.build(packagedClasspathPackages(classpathPackages));
-        String content = classpaths.runtime().entries().stream()
-                .map(Path::toString)
-                .collect(Collectors.joining("\n"));
-        if (!content.isEmpty()) {
-            content = content + "\n";
-        }
-        Files.writeString(runtimeClasspathPath, content);
-    }
-
     private List<RuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
         return runtimeJars(packagedClasspathPackages(lockfile, cacheRoot));
     }
@@ -1097,14 +1042,6 @@ public final class PackageService {
                             + ". Run `zolt resolve` to refresh the artifact cache and retry.");
         }
         return Files.readAllBytes(runtimeJar.jarPath());
-    }
-
-    private static Path runtimeClasspathPath(Path jarPath) {
-        String fileName = jarPath.getFileName().toString();
-        if (fileName.endsWith(".jar")) {
-            return jarPath.resolveSibling(fileName.substring(0, fileName.length() - 4) + ".runtime-classpath");
-        }
-        return jarPath.resolveSibling(fileName + ".runtime-classpath");
     }
 
     private static List<Path> compiledFiles(Path outputDirectory) throws IOException {
