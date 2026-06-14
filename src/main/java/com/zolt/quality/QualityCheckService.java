@@ -34,7 +34,7 @@ import com.zolt.publish.PublishRepositorySettings;
 import com.zolt.publish.PublishSettings;
 import com.zolt.publish.PublishSettingsReader;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;

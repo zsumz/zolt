@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.classpath;
 
 import com.zolt.lockfile.ArtifactIntegrityVerifier;
 import com.zolt.lockfile.LockPackage;
@@ -6,6 +6,8 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
+import com.zolt.resolve.ResolvedClasspathPackage;
+import com.zolt.resolve.ResolvedPackage;
 import java.nio.file.Path;
 import java.util.List;
 

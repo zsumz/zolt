@@ -10,7 +10,7 @@ import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;

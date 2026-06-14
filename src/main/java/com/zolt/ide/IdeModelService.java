@@ -20,7 +20,7 @@ import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.classpath.Classpath;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.quarkus.QuarkusAugmentationState;

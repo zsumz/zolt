@@ -12,7 +12,7 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
 import java.io.IOException;

@@ -9,7 +9,7 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;

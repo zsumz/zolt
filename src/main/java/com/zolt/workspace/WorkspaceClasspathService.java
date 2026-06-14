@@ -6,7 +6,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.classpath.Classpath;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;

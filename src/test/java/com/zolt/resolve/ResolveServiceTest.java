@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;

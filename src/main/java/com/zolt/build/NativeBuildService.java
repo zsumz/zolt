@@ -8,7 +8,7 @@ import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.resolve.LockfileClasspathPackageConverter;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
