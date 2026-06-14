@@ -58,9 +58,8 @@ public final class ResolveService {
     private final CoordinateParser coordinateParser;
     private final MavenRepositoryClient repositoryClient;
     private final RawPomParser rawPomParser;
-    private final DependencyGraphTraverserFactory graphTraverserFactory;
-    private final VersionSelector versionSelector;
     private final ZoltLockfileWriter lockfileWriter;
+    private final DependencyGraphResolver graphResolver;
     private final ToolingDependencyContributor toolingDependencyContributor;
     private final FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner;
 
@@ -98,9 +97,8 @@ public final class ResolveService {
         this.coordinateParser = coordinateParser;
         this.repositoryClient = repositoryClient;
         this.rawPomParser = rawPomParser;
-        this.graphTraverserFactory = graphTraverserFactory;
-        this.versionSelector = versionSelector;
         this.lockfileWriter = lockfileWriter;
+        this.graphResolver = new DependencyGraphResolver(graphTraverserFactory, versionSelector);
         this.toolingDependencyContributor = toolingDependencyContributor == null
                 ? new ToolingDependencyContributor(coordinateParser)
                 : toolingDependencyContributor;
@@ -178,7 +176,11 @@ public final class ResolveService {
         List<DependencyRequest> directRequests = directRequests(config, managedVersions, options.includeCoverageTooling());
         validateDirectRequestsAllowed(config, directRequests);
         directRequests = relocateDirectRequests(context, directRequests);
-        ResolutionState initial = resolveGraph(context, directRequests);
+        DependencyGraphResolution initial = graphResolver.resolve(
+                context,
+                context.config.dependencyPolicy(),
+                directRequests,
+                context);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         allRequests.addAll(frameworkDependencyRequestPlanner.plan(frameworkDependencyRequestPlanRequest(
                 context,
@@ -186,9 +188,13 @@ public final class ResolveService {
                 initial.selection(),
                 directRequests,
                 managedVersions)));
-        ResolutionState resolved = allRequests.size() == directRequests.size()
+        DependencyGraphResolution resolved = allRequests.size() == directRequests.size()
                 ? initial
-                : resolveGraph(context, allRequests);
+                : graphResolver.resolve(
+                        context,
+                        context.config.dependencyPolicy(),
+                        allRequests,
+                        context);
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
     }
@@ -237,17 +243,6 @@ public final class ResolveService {
         return "Local repository overlay artifacts are not allowed for this resolve. "
                 + "Run `zolt resolve` without local overlays to refresh zolt.lock from configured repositories, "
                 + "or remove --no-local-overlays for a local development-only resolve.";
-    }
-
-    private ResolutionState resolveGraph(RepositoryContext context, List<DependencyRequest> requests) {
-        DependencyGraphTraverser traverser = graphTraverserFactory.create(context, context.config.dependencyPolicy());
-        long traversalStarted = System.nanoTime();
-        ResolutionGraph graph = traverser.traverse(requests);
-        context.addGraphTraversalNanos(elapsedSince(traversalStarted));
-        long selectionStarted = System.nanoTime();
-        VersionSelectionResult selection = versionSelector.select(requests, graph);
-        context.addVersionSelectionNanos(elapsedSince(selectionStarted));
-        return new ResolutionState(graph, selection);
     }
 
     private List<DependencyRequest> relocateDirectRequests(
@@ -963,9 +958,6 @@ public final class ResolveService {
         }
     }
 
-    private record ResolutionState(ResolutionGraph graph, VersionSelectionResult selection) {
-    }
-
     private record LockPackagePlan(
             PackageNode node,
             SelectedScope selectedScope,
@@ -996,7 +988,7 @@ public final class ResolveService {
         DependencyGraphTraverser create(DependencyMetadataSource source, DependencyPolicySettings dependencyPolicy);
     }
 
-    private final class RepositoryContext implements DependencyMetadataSource {
+    private final class RepositoryContext implements DependencyMetadataSource, ResolverMetricsSink {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
@@ -1348,11 +1340,13 @@ public final class ResolveService {
                     0L);
         }
 
-        void addGraphTraversalNanos(long nanos) {
+        @Override
+        public void addGraphTraversalNanos(long nanos) {
             graphTraversalNanos += nanos;
         }
 
-        void addVersionSelectionNanos(long nanos) {
+        @Override
+        public void addVersionSelectionNanos(long nanos) {
             versionSelectionNanos += nanos;
         }
 
