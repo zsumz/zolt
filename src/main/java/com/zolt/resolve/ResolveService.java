@@ -340,6 +340,8 @@ public final class ResolveService {
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
         private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
         private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
+        private final ProjectPlatformMetadataPlanner projectPlatformMetadataPlanner =
+                new ProjectPlatformMetadataPlanner(coordinateParser);
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -638,62 +640,16 @@ public final class ResolveService {
             if (projectManagedVersions != null) {
                 return projectManagedVersions;
             }
-            Map<PackageId, ManagedVersion> details = new LinkedHashMap<>();
-            config.platforms().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(platform -> {
-                        Coordinate coordinate = coordinateParser.parse(platform.getKey() + ":" + platform.getValue());
-                        EffectiveRawPom pom = effectivePom(coordinate, List.of());
-                        for (RawPomDependency dependency : pom.dependencyManagement()) {
-                            if (dependency.classifier().isPresent()) {
-                                continue;
-                            }
-                            RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
-                            if (managedJarDependency(interpolated) && interpolated.version().isPresent()) {
-                                PackageId packageId = new PackageId(interpolated.groupId(), interpolated.artifactId());
-                                details.put(
-                                        packageId,
-                                        new ManagedVersion(interpolated.version().orElseThrow(), platform.getKey() + ":" + platform.getValue()));
-                            }
-                        }
-                    });
-            projectManagedVersions = Map.copyOf(details);
+            projectManagedVersions = projectPlatformMetadataPlanner.managedVersions(
+                    config,
+                    coordinate -> effectivePom(coordinate, List.of()));
             return projectManagedVersions;
         }
 
         List<DependencyRequest> projectPlatformPropertiesRequests() {
-            List<DependencyRequest> requests = new ArrayList<>();
-            config.platforms().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(platform -> {
-                        Coordinate coordinate = coordinateParser.parse(platform.getKey() + ":" + platform.getValue());
-                        EffectiveRawPom pom = effectivePom(coordinate, List.of());
-                        for (RawPomDependency dependency : pom.dependencyManagement()) {
-                            if (dependency.classifier().isPresent()) {
-                                continue;
-                            }
-                            RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
-                            if (!interpolated.type().filter("properties"::equals).isPresent()
-                                    || interpolated.version().isEmpty()) {
-                                continue;
-                            }
-                            PackageId packageId = new PackageId(interpolated.groupId(), interpolated.artifactId());
-                            Optional<String> version = interpolated.version();
-                            requests.add(new DependencyRequest(
-                                    packageId,
-                                    version.orElseThrow(),
-                                    DependencyScope.QUARKUS_DEPLOYMENT,
-                                    RequestOrigin.TRANSITIVE,
-                                    Optional.of(new ArtifactDescriptor(
-                                            new Coordinate(
-                                                    packageId.groupId(),
-                                                    packageId.artifactId(),
-                                                    version),
-                                            Optional.empty(),
-                                            "properties"))));
-                        }
-                    });
-            return List.copyOf(requests);
+            return projectPlatformMetadataPlanner.propertiesRequests(
+                    config,
+                    coordinate -> effectivePom(coordinate, List.of()));
         }
 
         private EffectiveRawPom effectivePom(Coordinate coordinate, List<String> importStack) {
@@ -933,9 +889,5 @@ public final class ResolveService {
             }
         }
 
-        private static boolean managedJarDependency(RawPomDependency dependency) {
-            return dependency.type().orElse("jar").equals("jar")
-                    && dependency.classifier().isEmpty();
-        }
     }
 }
