@@ -40,6 +40,7 @@ final class ArchitectureBoundaryTest {
             allowedForbiddenImports();
     private static final Set<PackageEdge> FORBIDDEN_IMPORTS = Set.of(
             new PackageEdge("com.zolt.build", "com.zolt.quarkus"),
+            new PackageEdge("com.zolt.classpath", "com.zolt.resolve"),
             new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"),
             new PackageEdge("com.zolt.resolve", "com.zolt.quarkus"));
 
