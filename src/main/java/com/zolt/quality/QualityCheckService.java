@@ -8,6 +8,7 @@ import com.zolt.build.PackageEvidenceManifest;
 import com.zolt.build.PackageEvidenceManifestReader;
 import com.zolt.build.PackageEvidenceManifestWriter;
 import com.zolt.build.PackageException;
+import com.zolt.build.PackagePlanDependency;
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockPackage;
@@ -1314,13 +1315,14 @@ public final class QualityCheckService {
             if (staleEvidence.isPresent()) {
                 return List.of(staleEvidence.orElseThrow());
             }
+            List<QualityCheckResult> results = new ArrayList<>();
             long policyEffects = plan.dependencies().stream()
                     .filter(dependency -> !dependency.policies().isEmpty())
                     .count();
             String policyMessage = policyEffects == 0
                     ? ""
                     : " " + policyEffects + " dependencies include dependency policy effects.";
-            return List.of(QualityCheckResult.passed(
+            results.add(QualityCheckResult.passed(
                     PACKAGE_CONTENTS,
                     member,
                     config.project().name(),
@@ -1330,6 +1332,8 @@ public final class QualityCheckService {
                             + plan.dependencies().size()
                             + " dependency dispositions."
                             + policyMessage));
+            results.addAll(packageContentRuleDiagnostics(member, plan));
+            return List.copyOf(results);
         }
         List<QualityCheckResult> results = new ArrayList<>();
         for (PackagePlanWarning warning : plan.warnings()) {
@@ -1341,6 +1345,114 @@ public final class QualityCheckService {
                     warning.nextStep()));
         }
         return List.copyOf(results);
+    }
+
+    private static List<QualityCheckResult> packageContentRuleDiagnostics(
+            Optional<String> member,
+            PackagePlan plan) {
+        Map<PackageContentRuleKey, PackageContentRuleStats> stats = new TreeMap<>();
+        for (PackagePlanDependency dependency : plan.dependencies()) {
+            PackageContentRuleKey key = new PackageContentRuleKey(
+                    dependency.ruleName(),
+                    dependency.scope().lockfileName(),
+                    dependency.disposition(),
+                    locationShape(dependency.location()));
+            stats.computeIfAbsent(key, ignored -> new PackageContentRuleStats()).add(dependency);
+        }
+        List<QualityCheckResult> results = new ArrayList<>();
+        for (Map.Entry<PackageContentRuleKey, PackageContentRuleStats> entry : stats.entrySet()) {
+            PackageContentRuleKey key = entry.getKey();
+            PackageContentRuleStats value = entry.getValue();
+            String policyMessage = value.policyEffects() == 0
+                    ? ""
+                    : " "
+                            + value.policyEffects()
+                            + " "
+                            + verb(value.policyEffects(), "includes", "include")
+                            + " dependency policy effects.";
+            results.add(QualityCheckResult.passed(
+                    PACKAGE_CONTENTS,
+                    member,
+                    "rule:" + key.ruleName(),
+                    value.count()
+                            + " "
+                            + plural(value.count(), "dependency", "dependencies")
+                            + " "
+                            + verb(value.count(), "uses", "use")
+                            + " package rule `"
+                            + key.ruleName()
+                            + "` with scope `"
+                            + key.scope()
+                            + "`, disposition `"
+                            + key.disposition()
+                            + "`, and location `"
+                            + key.location()
+                            + "`."
+                            + policyMessage));
+        }
+        return List.copyOf(results);
+    }
+
+    private static String locationShape(String location) {
+        if (location == null || location.isBlank()) {
+            return "none";
+        }
+        int slash = location.lastIndexOf('/');
+        if (slash <= 0 || location.endsWith("/")) {
+            return location;
+        }
+        return location.substring(0, slash + 1) + "*";
+    }
+
+    private static String plural(long count, String singular, String plural) {
+        return count == 1 ? singular : plural;
+    }
+
+    private static String verb(long count, String singular, String plural) {
+        return count == 1 ? singular : plural;
+    }
+
+    private record PackageContentRuleKey(
+            String ruleName,
+            String scope,
+            String disposition,
+            String location) implements Comparable<PackageContentRuleKey> {
+        @Override
+        public int compareTo(PackageContentRuleKey other) {
+            int rule = ruleName.compareTo(other.ruleName);
+            if (rule != 0) {
+                return rule;
+            }
+            int scopeComparison = scope.compareTo(other.scope);
+            if (scopeComparison != 0) {
+                return scopeComparison;
+            }
+            int dispositionComparison = disposition.compareTo(other.disposition);
+            if (dispositionComparison != 0) {
+                return dispositionComparison;
+            }
+            return location.compareTo(other.location);
+        }
+    }
+
+    private static final class PackageContentRuleStats {
+        private long count;
+        private long policyEffects;
+
+        void add(PackagePlanDependency dependency) {
+            count++;
+            if (!dependency.policies().isEmpty()) {
+                policyEffects++;
+            }
+        }
+
+        long count() {
+            return count;
+        }
+
+        long policyEffects() {
+            return policyEffects;
+        }
     }
 
     private Optional<QualityCheckResult> stalePackageEvidence(Optional<String> member, PackagePlan plan) {
