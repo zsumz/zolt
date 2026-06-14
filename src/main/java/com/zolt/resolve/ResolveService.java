@@ -34,9 +34,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public final class ResolveService {
     private final CoordinateParser coordinateParser;
@@ -327,33 +324,6 @@ public final class ResolveService {
         return Math.max(0L, System.nanoTime() - started);
     }
 
-    private static ResolveException pomMetadataException(List<PomMetadataFailure> failures) {
-        List<PomMetadataFailure> sorted = failures.stream()
-                .sorted(Comparator.comparing(PomMetadataFailure::coordinate))
-                .toList();
-        StringBuilder message = new StringBuilder("POM metadata fetch failed:");
-        for (PomMetadataFailure failure : sorted) {
-            message.append(System.lineSeparator())
-                    .append("- ")
-                    .append(failure.coordinate())
-                    .append(": ")
-                    .append(failure.message());
-        }
-        message.append(System.lineSeparator())
-                .append("Retry the command or check your repository and network settings.");
-        return new ResolveException(message.toString());
-    }
-
-    private static String failureMessage(Throwable cause) {
-        if (cause == null || cause.getMessage() == null || cause.getMessage().isBlank()) {
-            return cause == null ? "download failed" : cause.getClass().getSimpleName();
-        }
-        return cause.getMessage();
-    }
-
-    private record PomMetadataFailure(String coordinate, String message) {
-    }
-
     @FunctionalInterface
     private interface RepositoryFetchAction {
         com.zolt.maven.RepositoryArtifact fetch(RepositoryAccess access);
@@ -371,6 +341,7 @@ public final class ResolveService {
         private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
         private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
+        private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -414,36 +385,7 @@ public final class ResolveService {
 
         @Override
         public void preload(List<Coordinate> coordinates) {
-            Map<String, Coordinate> uniqueCoordinates = new LinkedHashMap<>();
-            coordinates.stream()
-                    .sorted(Comparator.comparing(Coordinate::toString))
-                    .forEach(coordinate -> uniqueCoordinates.putIfAbsent(coordinate.toString(), coordinate));
-            if (uniqueCoordinates.isEmpty()) {
-                return;
-            }
-            try (ExecutorService executor = Executors.newFixedThreadPool(cache.downloadConcurrency())) {
-                Map<String, Future<EffectiveRawPom>> futures = new LinkedHashMap<>();
-                for (Map.Entry<String, Coordinate> entry : uniqueCoordinates.entrySet()) {
-                    futures.put(entry.getKey(), executor.submit(() -> load(entry.getValue())));
-                }
-
-                List<PomMetadataFailure> failures = new ArrayList<>();
-                for (Map.Entry<String, Future<EffectiveRawPom>> entry : futures.entrySet()) {
-                    try {
-                        entry.getValue().get();
-                    } catch (InterruptedException exception) {
-                        Thread.currentThread().interrupt();
-                        failures.add(new PomMetadataFailure(
-                                entry.getKey(),
-                                "interrupted while fetching POM metadata"));
-                    } catch (ExecutionException exception) {
-                        failures.add(new PomMetadataFailure(entry.getKey(), failureMessage(exception.getCause())));
-                    }
-                }
-                if (!failures.isEmpty()) {
-                    throw pomMetadataException(failures);
-                }
-            }
+            pomMetadataPreloader.preload(coordinates, cache.downloadConcurrency(), this::load);
         }
 
         @Override
