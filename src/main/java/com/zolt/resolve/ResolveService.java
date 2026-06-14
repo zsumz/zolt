@@ -325,10 +325,7 @@ public final class ResolveService {
     private final class RepositoryContext
             implements DependencyMetadataSource,
                     ResolverMetricsSink,
-                    LockfileAssemblyContext,
-                    ArtifactLoadMetricsSink,
-                    RawPomLoadMetricsSink,
-                    EffectivePomLoadMetricsSink {
+                    LockfileAssemblyContext {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
@@ -352,28 +349,7 @@ public final class ResolveService {
                         importedBomDependencyManagementExpander);
         private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
         private Map<PackageId, ManagedVersion> projectManagedVersions;
-        private int downloadCount;
-        private int pomCacheHits;
-        private int pomCacheMisses;
-        private int jarCacheHits;
-        private int jarCacheMisses;
-        private int artifactCacheHits;
-        private int artifactCacheMisses;
-        private int rawPomCacheHits;
-        private int rawPomCacheMisses;
-        private int effectivePomCacheHits;
-        private int effectivePomCacheMisses;
-        private long pomCacheHitNanos;
-        private long pomDownloadNanos;
-        private long jarCacheHitNanos;
-        private long jarDownloadNanos;
-        private long artifactCacheHitNanos;
-        private long artifactDownloadNanos;
-        private long rawPomParseNanos;
-        private long effectivePomBuildNanos;
-        private long graphTraversalNanos;
-        private long versionSelectionNanos;
-        private long lockfileAssemblyNanos;
+        private final ResolverMetricsCollector metricsCollector = new ResolverMetricsCollector();
         private final LocalOverlayMaterializer localOverlayMaterializer;
 
         RepositoryContext(ProjectConfig config, LocalArtifactCache cache, ResolveOptions options) {
@@ -386,7 +362,7 @@ public final class ResolveService {
 
         @Override
         public EffectiveRawPom load(Coordinate coordinate) {
-            return effectivePomMetadataLoader.load(coordinate, List.of(), this::rawPom, this);
+            return effectivePomMetadataLoader.load(coordinate, List.of(), this::rawPom, metricsCollector);
         }
 
         @Override
@@ -401,15 +377,15 @@ public final class ResolveService {
 
         @Override
         public CachedArtifact getPom(Coordinate coordinate) {
-            return artifactMaterializer.getPom(coordinate, this::fetchPom, this);
+            return artifactMaterializer.getPom(coordinate, this::fetchPom, metricsCollector);
         }
 
         CachedArtifact getJar(Coordinate coordinate) {
-            return artifactMaterializer.getJar(coordinate, this::fetchJar, this);
+            return artifactMaterializer.getJar(coordinate, this::fetchJar, metricsCollector);
         }
 
         CachedArtifact getArtifact(ArtifactDescriptor descriptor) {
-            return artifactMaterializer.getArtifact(descriptor, this::fetchArtifact, this);
+            return artifactMaterializer.getArtifact(descriptor, this::fetchArtifact, metricsCollector);
         }
 
         @Override
@@ -422,119 +398,27 @@ public final class ResolveService {
             return artifactBatchMaterializer.materialize(descriptors, cache.downloadConcurrency(), this::getArtifact);
         }
 
-        @Override
-        public synchronized void recordPomCacheHit(long elapsedNanos) {
-            pomCacheHits++;
-            pomCacheHitNanos += elapsedNanos;
-        }
-
-        @Override
-        public synchronized void recordPomDownload(long elapsedNanos) {
-            pomCacheMisses++;
-            pomDownloadNanos += elapsedNanos;
-            downloadCount++;
-        }
-
-        @Override
-        public synchronized void recordJarCacheHit(long elapsedNanos) {
-            jarCacheHits++;
-            jarCacheHitNanos += elapsedNanos;
-        }
-
-        @Override
-        public synchronized void recordJarDownload(long elapsedNanos) {
-            jarCacheMisses++;
-            jarDownloadNanos += elapsedNanos;
-            downloadCount++;
-        }
-
-        @Override
-        public synchronized void recordArtifactCacheHit(long elapsedNanos) {
-            artifactCacheHits++;
-            artifactCacheHitNanos += elapsedNanos;
-        }
-
-        @Override
-        public synchronized void recordArtifactDownload(long elapsedNanos) {
-            artifactCacheMisses++;
-            artifactDownloadNanos += elapsedNanos;
-            downloadCount++;
-        }
-
-        @Override
-        public synchronized void recordRawPomCacheHit() {
-            rawPomCacheHits++;
-        }
-
-        @Override
-        public synchronized void recordRawPomCacheMiss() {
-            rawPomCacheMisses++;
-        }
-
-        @Override
-        public synchronized void recordRawPomParse(long elapsedNanos) {
-            rawPomParseNanos += elapsedNanos;
-        }
-
-        @Override
-        public synchronized void recordEffectivePomCacheHit() {
-            effectivePomCacheHits++;
-        }
-
-        @Override
-        public synchronized void recordEffectivePomCacheMiss() {
-            effectivePomCacheMisses++;
-        }
-
-        @Override
-        public synchronized void recordEffectivePomBuild(long elapsedNanos) {
-            effectivePomBuildNanos += elapsedNanos;
-        }
-
         int downloadCount() {
-            return downloadCount;
+            return metricsCollector.downloadCount();
         }
 
-        synchronized ResolveMetrics metrics() {
-            return new ResolveMetrics(
-                    pomCacheHits,
-                    pomCacheMisses,
-                    jarCacheHits,
-                    jarCacheMisses,
-                    artifactCacheHits,
-                    artifactCacheMisses,
-                    rawPomCacheHits,
-                    rawPomCacheMisses,
-                    effectivePomCacheHits,
-                    effectivePomCacheMisses,
-                    pomCacheHitNanos,
-                    pomDownloadNanos,
-                    jarCacheHitNanos,
-                    jarDownloadNanos,
-                    artifactCacheHitNanos,
-                    artifactDownloadNanos,
-                    rawPomParseNanos,
-                    effectivePomBuildNanos,
-                    graphTraversalNanos,
-                    versionSelectionNanos,
-                    lockfileAssemblyNanos,
-                    0L,
-                    0L);
+        ResolveMetrics metrics() {
+            return metricsCollector.metrics();
         }
 
         @Override
         public void addGraphTraversalNanos(long nanos) {
-            graphTraversalNanos += nanos;
+            metricsCollector.addGraphTraversalNanos(nanos);
         }
 
         @Override
         public void addVersionSelectionNanos(long nanos) {
-            versionSelectionNanos += nanos;
+            metricsCollector.addVersionSelectionNanos(nanos);
         }
 
         @Override
         public void addLockfileAssemblyNanos(long nanos) {
-            lockfileAssemblyNanos += nanos;
+            metricsCollector.addLockfileAssemblyNanos(nanos);
         }
 
         Map<PackageId, String> projectManagedVersions() {
@@ -562,7 +446,7 @@ public final class ResolveService {
         }
 
         private RawPom rawPom(Coordinate coordinate) {
-            return rawPomMetadataLoader.load(coordinate, this::getPom, this);
+            return rawPomMetadataLoader.load(coordinate, this::getPom, metricsCollector);
         }
 
         private com.zolt.maven.RepositoryArtifact fetchPom(Coordinate coordinate) {
