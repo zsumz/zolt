@@ -1,8 +1,11 @@
 package com.zolt.cli.command;
 
+import com.zolt.project.ProjectConfigWriteException;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
+import com.zolt.toml.ZoltConfigException;
+import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -30,11 +33,22 @@ public final class InitCommand implements Runnable {
     private CommandSpec spec;
 
     public InitCommand() {
-        this(new ProjectInitializer());
+        this(projectInitializer());
     }
 
     InitCommand(ProjectInitializer projectInitializer) {
         this.projectInitializer = projectInitializer;
+    }
+
+    private static ProjectInitializer projectInitializer() {
+        ZoltTomlWriter writer = new ZoltTomlWriter();
+        return new ProjectInitializer((path, config) -> {
+            try {
+                writer.write(path, config);
+            } catch (ZoltConfigException exception) {
+                throw new ProjectConfigWriteException(exception.getMessage(), exception);
+            }
+        });
     }
 
     @Override

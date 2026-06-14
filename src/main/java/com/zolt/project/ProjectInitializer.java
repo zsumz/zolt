@@ -1,20 +1,14 @@
 package com.zolt.project;
 
-import com.zolt.toml.ZoltConfigException;
-import com.zolt.toml.ZoltTomlWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
 public final class ProjectInitializer {
-    private final ZoltTomlWriter writer;
+    private final ProjectConfigWriter writer;
 
-    public ProjectInitializer() {
-        this(new ZoltTomlWriter());
-    }
-
-    ProjectInitializer(ZoltTomlWriter writer) {
+    public ProjectInitializer(ProjectConfigWriter writer) {
         this.writer = writer;
     }
 
@@ -51,7 +45,7 @@ public final class ProjectInitializer {
             Files.writeString(mainSource, mainSource(name, group));
             Files.writeString(testSource, testSource(group));
             Files.writeString(projectDirectory.resolve(".gitignore"), gitignore());
-        } catch (IOException | ZoltConfigException exception) {
+        } catch (IOException | ProjectConfigWriteException exception) {
             throw new ProjectInitException(
                     "Could not create Zolt project at " + projectDirectory + ". Check filesystem permissions.");
         }

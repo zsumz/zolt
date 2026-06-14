@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.toml.ZoltTomlParser;
+import com.zolt.toml.ZoltTomlWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class ProjectInitializerTest {
-    private final ProjectInitializer initializer = new ProjectInitializer();
     private final ZoltTomlParser parser = new ZoltTomlParser();
+    private final ProjectInitializer initializer = new ProjectInitializer(new ZoltTomlWriter()::write);
 
     @TempDir
     private Path tempDir;

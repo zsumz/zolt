@@ -39,7 +39,6 @@ final class ArchitectureBoundaryTest {
     private static final Set<PackageEdge> FORBIDDEN_IMPORTS = Set.of(
             new PackageEdge("com.zolt.build", "com.zolt.quarkus"),
             new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"),
-            new PackageEdge("com.zolt.project", "com.zolt.toml"),
             new PackageEdge("com.zolt.resolve", "com.zolt.quarkus"));
 
     @Test
@@ -145,14 +144,12 @@ final class ArchitectureBoundaryTest {
         Map<Set<String>, String> cycles = new LinkedHashMap<>();
         cycles.put(sortedSet("com.zolt.build", "com.zolt.junit"), "");
         cycles.put(sortedSet("com.zolt.classpath", "com.zolt.lockfile", "com.zolt.resolve"), "/");
-        cycles.put(sortedSet("com.zolt.project", "com.zolt.toml"), "");
         return Map.copyOf(cycles);
     }
 
     private static Map<PackageEdge, String> allowedForbiddenImports() {
         Map<PackageEdge, String> imports = new LinkedHashMap<>();
         imports.put(new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"), "/");
-        imports.put(new PackageEdge("com.zolt.project", "com.zolt.toml"), "");
         return Map.copyOf(imports);
     }
 
