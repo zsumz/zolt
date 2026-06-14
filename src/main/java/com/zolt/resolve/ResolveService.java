@@ -12,10 +12,7 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
-import com.zolt.maven.PomInterpolationException;
-import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomParser;
 import com.zolt.maven.RepositoryMissingArtifactException;
 import com.zolt.project.DependencyMetadata;
@@ -344,12 +341,13 @@ public final class ResolveService {
                 new ProjectPlatformMetadataPlanner(coordinateParser);
         private final EffectivePomInheritanceBuilder effectivePomInheritanceBuilder =
                 new EffectivePomInheritanceBuilder();
+        private final ImportedBomDependencyManagementExpander importedBomDependencyManagementExpander =
+                new ImportedBomDependencyManagementExpander();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<RawPom>> rawPomLoads = new ConcurrentHashMap<>();
         private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
-        private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
         private Map<PackageId, ManagedVersion> projectManagedVersions;
         private int downloadCount;
         private int pomCacheHits;
@@ -690,7 +688,10 @@ public final class ResolveService {
                         base.groupId(),
                         base.version(),
                         base.properties(),
-                        expandedDependencyManagement(base, nextStack));
+                        importedBomDependencyManagementExpander.expand(
+                                base,
+                                nextStack,
+                                this::effectivePom));
                 metadata.put(key, effective);
                 pending.complete(effective);
                 return effective;
@@ -790,62 +791,6 @@ public final class ResolveService {
 
         private List<RepositoryAccess> repositoryAccesses() {
             return repositoryAccessPlanner.plan(config);
-        }
-
-        private List<RawPomDependency> expandedDependencyManagement(EffectiveRawPom pom, List<String> importStack) {
-            List<RawPomDependency> dependencies = new ArrayList<>();
-            for (RawPomDependency dependency : pom.dependencyManagement()) {
-                if (dependency.classifier().isPresent()) {
-                    dependencies.add(dependency);
-                    continue;
-                }
-                if (isImportedBom(dependency)) {
-                    RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
-                    Coordinate bomCoordinate = new Coordinate(
-                            interpolated.groupId(),
-                            interpolated.artifactId(),
-                            Optional.of(interpolated.version().orElseThrow(() -> new ResolveException(
-                                    "Imported BOM "
-                                            + interpolated.groupId()
-                                            + ":"
-                                            + interpolated.artifactId()
-                                            + " in "
-                                            + pom.groupId()
-                                            + ":"
-                                            + pom.rawPom().artifactId()
-                                            + " is missing a version. Add a version before resolving."))));
-                    EffectiveRawPom imported = effectivePom(bomCoordinate, importStack);
-                    for (RawPomDependency importedDependency : imported.dependencyManagement()) {
-                        if (importedDependency.classifier().isPresent()) {
-                            dependencies.add(importedDependency);
-                            continue;
-                        }
-                        interpolateImportedManagedDependency(importedDependency, imported)
-                                .ifPresent(dependencies::add);
-                    }
-                } else {
-                    dependencies.add(dependency);
-                }
-            }
-            return dependencies;
-        }
-
-        private static boolean isImportedBom(RawPomDependency dependency) {
-            return dependency.type().filter("pom"::equals).isPresent()
-                    && dependency.scope().filter("import"::equals).isPresent();
-        }
-
-        private Optional<RawPomDependency> interpolateImportedManagedDependency(
-                RawPomDependency dependency,
-                EffectiveRawPom imported) {
-            try {
-                return Optional.of(interpolator.interpolateDependency(dependency, imported));
-            } catch (PomInterpolationException exception) {
-                if (dependency.scope().map(scope -> scope.equals("test") || scope.equals("provided")).orElse(false)) {
-                    return Optional.empty();
-                }
-                throw exception;
-            }
         }
 
     }
