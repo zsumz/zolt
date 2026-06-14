@@ -26,6 +26,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class ArchitectureBoundaryTest {
     private static final Path MAIN_SOURCES = Path.of("src/main/java");
+    private static final Path CLI_COMMAND_SOURCES = Path.of("src/main/java/com/zolt/cli/command");
+    private static final Pattern RAW_COMMAND_ATTRIBUTE_KEY_PATTERN =
+            Pattern.compile("\\battributes\\.put\\s*\\(\\s*\"([^\"]+)\"");
 
     /*
      * Architecture tests are product guardrails: Zolt owns resolver, lockfile,
@@ -97,6 +100,16 @@ final class ArchitectureBoundaryTest {
     }
 
     @Test
+    void commandAttributeMapsUseNamedKeys() throws IOException {
+        List<RawCommandAttributeKey> violations = findRawCommandAttributeKeys(CLI_COMMAND_SOURCES);
+
+        assertTrue(
+                violations.isEmpty(),
+                () -> "Command attribute maps must use TimingAttributeKeys constants, not raw output key strings:\n"
+                        + describeRawCommandAttributeKeys(violations));
+    }
+
+    @Test
     void scannerBuildsPackageEdgesFromJavaImports(@TempDir Path tempDir) throws IOException {
         write(
                 tempDir.resolve("a/A.java"),
@@ -126,6 +139,36 @@ final class ArchitectureBoundaryTest {
                         new PackageEdge("com.zolt.alpha", "com.zolt.beta"),
                         new PackageEdge("com.zolt.alpha", "com.zolt.gamma")),
                 graph.edges());
+    }
+
+    @Test
+    void commandAttributeKeyScannerFindsRawPutKeys(@TempDir Path tempDir) throws IOException {
+        write(
+                tempDir.resolve("CommandAttributes.java"),
+                """
+                package com.zolt.cli.command;
+
+                import java.util.LinkedHashMap;
+                import java.util.Map;
+
+                final class CommandAttributes {
+                    Map<String, String> attributes() {
+                        Map<String, String> attributes = new LinkedHashMap<>();
+                        attributes.put(
+                                "jarDownloadNanos",
+                                "0");
+                        attributes.put(TimingAttributeKeys.RAW_POM_PARSE_NANOS, "0");
+                        return attributes;
+                    }
+                }
+                """);
+
+        assertEquals(
+                List.of(new RawCommandAttributeKey(
+                        tempDir.resolve("CommandAttributes.java"),
+                        9,
+                        "jarDownloadNanos")),
+                findRawCommandAttributeKeys(tempDir));
     }
 
     @Test
@@ -192,9 +235,57 @@ final class ArchitectureBoundaryTest {
         return Collections.unmodifiableSet(new TreeSet<>(List.of(values)));
     }
 
+    private static List<RawCommandAttributeKey> findRawCommandAttributeKeys(Path sourceRoot) throws IOException {
+        List<RawCommandAttributeKey> violations = new ArrayList<>();
+        try (Stream<Path> paths = Files.walk(sourceRoot)) {
+            List<Path> javaFiles = paths
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .sorted()
+                    .toList();
+            for (Path javaFile : javaFiles) {
+                String source = Files.readString(javaFile);
+                Matcher matcher = RAW_COMMAND_ATTRIBUTE_KEY_PATTERN.matcher(source);
+                while (matcher.find()) {
+                    violations.add(new RawCommandAttributeKey(
+                            javaFile,
+                            lineNumber(source, matcher.start()),
+                            matcher.group(1)));
+                }
+            }
+        }
+        return List.copyOf(violations);
+    }
+
+    private static int lineNumber(String source, int offset) {
+        int line = 1;
+        for (int index = 0; index < offset; index++) {
+            if (source.charAt(index) == '\n') {
+                line++;
+            }
+        }
+        return line;
+    }
+
+    private static String describeRawCommandAttributeKeys(List<RawCommandAttributeKey> violations) {
+        StringBuilder description = new StringBuilder();
+        for (RawCommandAttributeKey violation : violations) {
+            description.append("- ")
+                    .append(violation.path())
+                    .append(':')
+                    .append(violation.line())
+                    .append(" key=")
+                    .append(violation.key())
+                    .append('\n');
+        }
+        return description.toString();
+    }
+
     private static void write(Path path, String contents) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, contents);
+    }
+
+    private record RawCommandAttributeKey(Path path, int line, String key) {
     }
 
     private record PackageEdge(String source, String target) implements Comparable<PackageEdge> {
