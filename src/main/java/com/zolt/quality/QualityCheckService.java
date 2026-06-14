@@ -252,6 +252,7 @@ public final class QualityCheckService {
                         config,
                         request.context(),
                         request.reportsDir(),
+                        request.coverageDir(),
                         request.requirePublishDryRun()));
                 case LOCKFILE -> results.add(checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.addAll(checkProjectModel(Optional.empty(), request.projectRoot(), config));
@@ -323,6 +324,12 @@ public final class QualityCheckService {
                                             : request.reportsDir().resolve(member.path()),
                                     request.reportsDir(),
                                     request.context()));
+                            results.addAll(checkCoverageReports(
+                                    Optional.of(member.path()),
+                                    member.directory(),
+                                    request.coverageDir(),
+                                    request.coverageDir(),
+                                    request.context()));
                             results.addAll(checkPublishDryRun(
                                     Optional.of(member.path()),
                                     member.directory(),
@@ -391,6 +398,7 @@ public final class QualityCheckService {
             ProjectConfig config,
             QualityCheckContext context,
             Path reportsDir,
+            Path coverageDir,
             boolean requirePublishDryRun) {
         List<QualityCheckResult> results = new ArrayList<>();
         results.addAll(checkExecutionContext(member, root, context));
@@ -398,6 +406,7 @@ public final class QualityCheckService {
         results.addAll(checkPublishCredentialPolicy(member, root, config, context));
         results.addAll(checkResourceTokenInputs(member, config, context));
         results.addAll(checkTestReports(member, root, reportsDir, reportsDir, context));
+        results.addAll(checkCoverageReports(member, root, coverageDir, coverageDir, context));
         results.addAll(checkPublishDryRun(member, root, context, requirePublishDryRun));
         return List.copyOf(results);
     }
@@ -966,6 +975,123 @@ public final class QualityCheckService {
     private static boolean isJUnitXmlReport(Path path) {
         String fileName = path.getFileName().toString();
         return fileName.startsWith("TEST-") && fileName.endsWith(".xml");
+    }
+
+    private List<QualityCheckResult> checkCoverageReports(
+            Optional<String> member,
+            Path projectRoot,
+            Path coverageDir,
+            Path commandCoverageDir,
+            QualityCheckContext context) {
+        if (context != QualityCheckContext.CI || coverageDir == null) {
+            return List.of();
+        }
+        Path root = ProjectPaths.root(projectRoot);
+        Path absoluteCoverageDir;
+        try {
+            absoluteCoverageDir = ProjectPaths.output(root, "--coverage-dir", coverageDir.toString());
+        } catch (ProjectPathException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "--coverage-dir",
+                    exception.getMessage(),
+                    "Use a path such as `target/coverage`."));
+        }
+        if (!Files.isDirectory(absoluteCoverageDir)) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteCoverageDir),
+                    "CI context expected coverage reports, but the coverage directory is missing.",
+                    coverageReportsNextStep(member, commandCoverageDir)));
+        }
+        try {
+            Path execFile = absoluteCoverageDir.resolve("jacoco.exec");
+            if (!ProjectPaths.isRegularFileInsideProject(root, "--coverage-dir", execFile)) {
+                return List.of(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        displayPath(projectRoot, execFile),
+                        "CI context expected Jacoco execution data, but jacoco.exec is missing.",
+                        coverageReportsNextStep(member, commandCoverageDir)));
+            }
+            CoverageReportCounts counts = countCoverageReports(root, absoluteCoverageDir);
+            if (counts.xmlReports() == 0 && counts.htmlReports() == 0) {
+                return List.of(QualityCheckResult.failed(
+                        EXECUTION_CONTEXT,
+                        member,
+                        displayPath(projectRoot, absoluteCoverageDir),
+                        "CI context expected coverage XML or HTML reports, but none were found.",
+                        coverageReportsNextStep(member, commandCoverageDir)));
+            }
+            return List.of(QualityCheckResult.passed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    "coverage-reports",
+                    "CI coverage preflight found Jacoco execution data, "
+                            + counts.xmlReports()
+                            + " XML "
+                            + plural(counts.xmlReports(), "report", "reports")
+                            + ", and "
+                            + counts.htmlReports()
+                            + " HTML "
+                            + plural(counts.htmlReports(), "report", "reports")
+                            + "."));
+        } catch (java.io.IOException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteCoverageDir),
+                    "Could not inspect coverage reports: " + exception.getMessage(),
+                    "Check coverage directory permissions, then rerun `zolt check --context ci --coverage-dir " + commandCoverageDir + "`."));
+        } catch (ProjectPathException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    displayPath(projectRoot, absoluteCoverageDir),
+                    exception.getMessage(),
+                    "Remove symlinked coverage entries that escape the project, then rerun `zolt check --context ci --coverage-dir " + commandCoverageDir + "`."));
+        }
+    }
+
+    private static String coverageReportsNextStep(Optional<String> member, Path commandCoverageDir) {
+        if (member.isPresent()) {
+            return "Run `zolt coverage` from each selected member so coverage evidence exists under "
+                    + commandCoverageDir
+                    + ", then rerun `zolt check --workspace --context ci --coverage-dir "
+                    + commandCoverageDir
+                    + "`.";
+        }
+        return "Run `zolt coverage` so coverage evidence exists under "
+                + commandCoverageDir
+                + ", then rerun `zolt check --context ci --coverage-dir "
+                + commandCoverageDir
+                + "`.";
+    }
+
+    private static CoverageReportCounts countCoverageReports(Path projectRoot, Path coverageDir) throws java.io.IOException {
+        long xmlReports;
+        long htmlReports;
+        try (Stream<Path> paths = Files.walk(coverageDir)) {
+            List<Path> files = paths
+                    .filter(path -> ProjectPaths.isRegularFileInsideProject(projectRoot, "--coverage-dir", path))
+                    .toList();
+            xmlReports = files.stream().filter(QualityCheckService::isCoverageXmlReport).count();
+            htmlReports = files.stream().filter(QualityCheckService::isCoverageHtmlReport).count();
+        }
+        return new CoverageReportCounts(xmlReports, htmlReports);
+    }
+
+    private static boolean isCoverageXmlReport(Path path) {
+        return path.getFileName().toString().endsWith(".xml");
+    }
+
+    private static boolean isCoverageHtmlReport(Path path) {
+        return path.getFileName().toString().endsWith(".html");
+    }
+
+    private record CoverageReportCounts(long xmlReports, long htmlReports) {
     }
 
     private List<QualityCheckResult> checkPublishDryRun(

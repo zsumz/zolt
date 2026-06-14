@@ -12,6 +12,7 @@ public record QualityCheckRequest(
         List<String> checks,
         QualityCheckContext context,
         Path reportsDir,
+        Path coverageDir,
         boolean requirePackage,
         boolean requirePublishDryRun,
         boolean requireOfflineReady,

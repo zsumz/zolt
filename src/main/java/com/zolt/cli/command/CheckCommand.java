@@ -37,6 +37,9 @@ public final class CheckCommand implements Callable<Integer> {
     @Option(names = "--reports-dir", description = "Validate project-relative JUnit XML report output for CI context.")
     private Path reportsDir;
 
+    @Option(names = "--coverage-dir", description = "Validate project-relative coverage report output for CI context.")
+    private Path coverageDir;
+
     @Option(names = "--require-package", description = "Require the configured package artifact and package evidence during CI context checks.")
     private boolean requirePackage;
 
@@ -97,6 +100,7 @@ public final class CheckCommand implements Callable<Integer> {
                         checks,
                         context,
                         reportsDir,
+                        coverageDir,
                         requirePackage,
                         requirePublishDryRun,
                         requireOfflineReady,
