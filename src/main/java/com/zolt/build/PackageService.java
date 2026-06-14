@@ -48,6 +48,7 @@ public final class PackageService {
     private final WarLayoutAssembler warLayoutAssembler;
     private final SpringBootJarLayoutAssembler springBootJarLayoutAssembler;
     private final SpringBootWarLayoutAssembler springBootWarLayoutAssembler;
+    private final QuarkusFastJarLayoutAssembler quarkusFastJarLayoutAssembler;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -135,6 +136,7 @@ public final class PackageService {
         this.warLayoutAssembler = new WarLayoutAssembler(manifestGenerator);
         this.springBootJarLayoutAssembler = new SpringBootJarLayoutAssembler();
         this.springBootWarLayoutAssembler = new SpringBootWarLayoutAssembler();
+        this.quarkusFastJarLayoutAssembler = new QuarkusFastJarLayoutAssembler();
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -398,32 +400,12 @@ public final class PackageService {
                 cacheRoot);
         FrameworkPackageResult packageResult = result.orElseThrow(() -> new PackageException(
                 frameworkPackageAugmenter.missingPackageResultMessage(mode)));
-        Path runnerJar = packageResult.runnerJar();
-        if (!Files.isRegularFile(runnerJar)) {
-            throw new PackageException(frameworkPackageAugmenter.missingRunnerJarMessage(mode, runnerJar));
-        }
-        if (packageResult.mode() != mode) {
-            throw new PackageException(
-                    "Framework package mode `"
-                            + mode.configValue()
-                            + "` returned package mode `"
-                            + packageResult.mode().configValue()
-                            + "`. Check the framework package adapter.");
-        }
-        try {
-            return new PackageResult(
-                    buildResult,
-                    packageResult.mode(),
-                    runnerJar,
-                    Optional.empty(),
-                    compiledFiles(packageResult.packageDirectory()).size(),
-                    true)
-                    .withApplicationLayout(packageResult.applicationLayout());
-        } catch (IOException exception) {
-            throw new PackageException(
-                    frameworkPackageAugmenter.inspectPackageDirectoryMessage(mode, packageResult.packageDirectory()),
-                    exception);
-        }
+        return quarkusFastJarLayoutAssembler.assemble(
+                buildResult,
+                mode,
+                packageResult,
+                frameworkPackageAugmenter.missingRunnerJarMessage(mode, packageResult.runnerJar()),
+                frameworkPackageAugmenter.inspectPackageDirectoryMessage(mode, packageResult.packageDirectory()));
     }
 
     private static void ensureSupportedPackageMode(PackageMode mode) {
