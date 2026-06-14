@@ -324,7 +324,8 @@ public final class ResolveService {
         DependencyGraphTraverser create(DependencyMetadataSource source, DependencyPolicySettings dependencyPolicy);
     }
 
-    private final class RepositoryContext implements DependencyMetadataSource, ResolverMetricsSink, LockfileAssemblyContext {
+    private final class RepositoryContext
+            implements DependencyMetadataSource, ResolverMetricsSink, LockfileAssemblyContext, RawPomLoadMetricsSink {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
@@ -339,10 +340,9 @@ public final class ResolveService {
         private final ImportedBomDependencyManagementExpander importedBomDependencyManagementExpander =
                 new ImportedBomDependencyManagementExpander();
         private final ParentPomChainLoader parentPomChainLoader = new ParentPomChainLoader();
+        private final RawPomMetadataLoader rawPomMetadataLoader = new RawPomMetadataLoader(rawPomParser);
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
-        private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
-        private final Map<String, CompletableFuture<RawPom>> rawPomLoads = new ConcurrentHashMap<>();
         private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
         private Map<PackageId, ManagedVersion> projectManagedVersions;
         private int downloadCount;
@@ -516,15 +516,18 @@ public final class ResolveService {
             downloadCount++;
         }
 
-        private synchronized void recordRawPomCacheHit() {
+        @Override
+        public synchronized void recordRawPomCacheHit() {
             rawPomCacheHits++;
         }
 
-        private synchronized void recordRawPomCacheMiss() {
+        @Override
+        public synchronized void recordRawPomCacheMiss() {
             rawPomCacheMisses++;
         }
 
-        private synchronized void recordRawPomParse(long elapsedNanos) {
+        @Override
+        public synchronized void recordRawPomParse(long elapsedNanos) {
             rawPomParseNanos += elapsedNanos;
         }
 
@@ -542,10 +545,6 @@ public final class ResolveService {
 
         private EffectiveRawPom awaitEffectivePom(String key, CompletableFuture<EffectiveRawPom> future) {
             return awaitPomFuture("effective POM", key, future);
-        }
-
-        private RawPom awaitRawPom(String key, CompletableFuture<RawPom> future) {
-            return awaitPomFuture("raw POM", key, future);
         }
 
         private <T> T awaitPomFuture(String kind, String key, CompletableFuture<T> future) {
@@ -704,36 +703,7 @@ public final class ResolveService {
         }
 
         private RawPom rawPom(Coordinate coordinate) {
-            String key = coordinate.toString();
-            RawPom cached = rawPoms.get(key);
-            if (cached != null) {
-                recordRawPomCacheHit();
-                return cached;
-            }
-            CompletableFuture<RawPom> pending = new CompletableFuture<>();
-            CompletableFuture<RawPom> existing = rawPomLoads.putIfAbsent(key, pending);
-            if (existing != null) {
-                recordRawPomCacheHit();
-                return awaitRawPom(key, existing);
-            }
-            recordRawPomCacheMiss();
-            try {
-                CachedArtifact pomArtifact = getPom(coordinate);
-                long started = System.nanoTime();
-                RawPom parsed = rawPomParser.parse(pomArtifact.bytes());
-                recordRawPomParse(elapsedSince(started));
-                rawPoms.put(key, parsed);
-                pending.complete(parsed);
-                return parsed;
-            } catch (RuntimeException exception) {
-                pending.completeExceptionally(exception);
-                throw exception;
-            } catch (Error error) {
-                pending.completeExceptionally(error);
-                throw error;
-            } finally {
-                rawPomLoads.remove(key, pending);
-            }
+            return rawPomMetadataLoader.load(coordinate, this::getPom, this);
         }
 
         private com.zolt.maven.RepositoryArtifact fetchPom(Coordinate coordinate) {
