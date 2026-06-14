@@ -1,7 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.resolve.ResolvedClasspathPackage;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import java.util.List;
 
 public record BuildResultWithClasspaths(

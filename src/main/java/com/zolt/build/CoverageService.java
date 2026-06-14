@@ -10,7 +10,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
-import com.zolt.resolve.ResolvedClasspathPackage;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestSelection;
 import java.io.IOException;

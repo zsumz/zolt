@@ -13,7 +13,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
-import com.zolt.resolve.ResolvedClasspathPackage;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import java.io.IOException;

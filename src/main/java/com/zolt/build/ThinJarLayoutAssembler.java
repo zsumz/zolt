@@ -7,7 +7,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
-import com.zolt.resolve.ResolvedClasspathPackage;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
