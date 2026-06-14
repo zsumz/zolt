@@ -8,6 +8,7 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
@@ -144,7 +145,7 @@ public final class CoverageService {
 
     private List<ResolvedClasspathPackage> coveragePackages(Path projectDirectory, Path cacheRoot) {
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        List<ResolvedClasspathPackage> packages = lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        List<ResolvedClasspathPackage> packages = LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot).stream()
                 .filter(dependency -> dependency.scope() == DependencyScope.TOOL_COVERAGE)
                 .toList();
         if (packages.isEmpty()) {

@@ -8,6 +8,7 @@ import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +53,7 @@ public final class NativeBuildService {
                 cacheRoot);
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot).stream()
+        ClasspathSet classpaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot).stream()
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList());
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());

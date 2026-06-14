@@ -6,6 +6,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -96,7 +97,7 @@ public final class WorkspaceClasspathService {
                 lockfile.version(),
                 compileClasspathPackagesFor(lockfile.packages(), memberPath, dependencyClosure),
                 List.of());
-        ClasspathSet compileClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+        ClasspathSet compileClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
                 compileLockfile,
                 cacheRoot,
                 workspace.root()));
@@ -127,11 +128,11 @@ public final class WorkspaceClasspathService {
                 lockfile.version(),
                 runtimeClasspathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
                 List.of());
-        ClasspathSet compileClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+        ClasspathSet compileClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
                 compileLockfile,
                 cacheRoot,
                 workspace.root()));
-        ClasspathSet runtimeClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(
+        ClasspathSet runtimeClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
                 runtimeLockfile,
                 cacheRoot,
                 workspace.root()));

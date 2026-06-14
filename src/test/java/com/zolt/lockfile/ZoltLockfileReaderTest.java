@@ -7,20 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
-import com.zolt.resolve.ResolvedClasspathPackage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 final class ZoltLockfileReaderTest {
     private final ZoltLockfileReader reader = new ZoltLockfileReader();
-
-    @TempDir
-    private Path tempDir;
 
     @Test
     void readsCurrentLockfileVersion() throws IOException {
@@ -246,85 +239,6 @@ final class ZoltLockfileReaderTest {
                 "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties",
                 lockPackage.artifact().orElseThrow());
         assertEquals("properties-checksum", lockPackage.artifactSha256().orElseThrow());
-        assertEquals(List.of(), reader.classpathPackages(lockfile));
-    }
-
-    @Test
-    void reconstructsWorkspaceClasspathInputsUnderWorkspaceRoot() throws IOException {
-        Path workspaceRoot = tempDir.resolve("workspace");
-        Files.createDirectories(workspaceRoot.resolve("modules/core"));
-        ZoltLockfile lockfile = reader.read("""
-                version = 1
-
-                [[package]]
-                id = "com.acme:core"
-                version = "0.1.0"
-                source = "workspace"
-                scope = "compile"
-                direct = true
-                workspace = "modules/core"
-                workspaceOutput = "target/classes"
-                dependencies = []
-                """);
-
-        List<ResolvedClasspathPackage> packages = reader.classpathPackages(
-                lockfile,
-                tempDir.resolve("cache"),
-                workspaceRoot);
-
-        assertEquals(
-                workspaceRoot.resolve("modules/core/target/classes"),
-                packages.getFirst().resolvedPackage().jarPath());
-    }
-
-    @Test
-    void rejectsWorkspaceClasspathMemberThatEscapesWorkspaceRoot() {
-        ZoltLockfile lockfile = reader.read("""
-                version = 1
-
-                [[package]]
-                id = "com.acme:core"
-                version = "0.1.0"
-                source = "workspace"
-                scope = "compile"
-                direct = true
-                workspace = "../outside"
-                workspaceOutput = "target/classes"
-                dependencies = []
-                """);
-
-        LockfileReadException exception = assertThrows(
-                LockfileReadException.class,
-                () -> reader.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir.resolve("workspace")));
-
-        assertTrue(exception.getMessage().contains("workspace"));
-        assertTrue(exception.getMessage().contains("../outside"));
-    }
-
-    @Test
-    void rejectsWorkspaceClasspathOutputThatEscapesMemberRoot() throws IOException {
-        Path workspaceRoot = tempDir.resolve("workspace");
-        Files.createDirectories(workspaceRoot.resolve("modules/core"));
-        ZoltLockfile lockfile = reader.read("""
-                version = 1
-
-                [[package]]
-                id = "com.acme:core"
-                version = "0.1.0"
-                source = "workspace"
-                scope = "compile"
-                direct = true
-                workspace = "modules/core"
-                workspaceOutput = "../classes"
-                dependencies = []
-                """);
-
-        LockfileReadException exception = assertThrows(
-                LockfileReadException.class,
-                () -> reader.classpathPackages(lockfile, tempDir.resolve("cache"), workspaceRoot));
-
-        assertTrue(exception.getMessage().contains("workspaceOutput"));
-        assertTrue(exception.getMessage().contains("../classes"));
     }
 
     @Test
@@ -364,46 +278,6 @@ final class ZoltLockfileReaderTest {
                         """));
 
         assertEquals("Missing required string field `source` in zolt.lock.", exception.getMessage());
-    }
-
-    @Test
-    void reconstructsClasspathInputsFromLockfileData() throws IOException {
-        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read(golden()));
-
-        assertEquals(3, packages.size());
-        ResolvedClasspathPackage guava = packages.stream()
-                .filter(candidate -> candidate.resolvedPackage().packageId().equals(new PackageId("com.google.guava", "guava")))
-                .findFirst()
-                .orElseThrow();
-        assertEquals(DependencyScope.COMPILE, guava.scope());
-        assertEquals("guava-33.4.0-jre.jar", guava.resolvedPackage().jarPath().getFileName().toString());
-        assertEquals("guava-33.4.0-jre.pom", guava.resolvedPackage().pomPath().getFileName().toString());
-    }
-
-    @Test
-    void reconstructsClasspathInputsUnderCacheRoot() {
-        List<ResolvedClasspathPackage> packages = reader.classpathPackages(reader.read("""
-                version = 1
-
-                [[package]]
-                id = "com.google.guava:guava"
-                version = "33.4.0-jre"
-                source = "maven-central"
-                scope = "compile"
-                direct = true
-                jar = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"
-                pom = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom"
-                dependencies = []
-                """), java.nio.file.Path.of("cache"));
-
-        ResolvedClasspathPackage guava = packages.stream()
-                .filter(candidate -> candidate.resolvedPackage().packageId().equals(new PackageId("com.google.guava", "guava")))
-                .findFirst()
-                .orElseThrow();
-
-        assertEquals(
-                java.nio.file.Path.of("cache/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"),
-                guava.resolvedPackage().jarPath());
     }
 
     private static String golden() throws IOException {

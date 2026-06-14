@@ -11,6 +11,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
@@ -121,7 +122,7 @@ final class WorkspaceResolveServiceTest {
                         && lockPackage.direct()
                         && lockPackage.members().equals(List.of("apps/api", "modules/core"))));
 
-        assertTrue(lockfileReader.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir).stream()
+        assertTrue(LockfileClasspathPackageConverter.classpathPackages(lockfile, tempDir.resolve("cache"), tempDir).stream()
                 .anyMatch(classpathPackage -> classpathPackage.resolvedPackage().jarPath()
                         .equals(tempDir.resolve("modules/core/target/classes"))));
     }

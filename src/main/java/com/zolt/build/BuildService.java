@@ -12,6 +12,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -139,7 +140,7 @@ public final class BuildService {
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        List<ResolvedClasspathPackage> classpathPackages = lockfileReader.classpathPackages(lockfile, cacheRoot);
+        List<ResolvedClasspathPackage> classpathPackages = LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
         ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
         openApiGeneratedSourceService.generateMain(projectDirectory, config, classpathPackages);
         return new BuildResultWithClasspaths(

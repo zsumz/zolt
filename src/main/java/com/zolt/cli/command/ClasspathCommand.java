@@ -9,6 +9,7 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -129,7 +130,7 @@ public final class ClasspathCommand implements Runnable {
                         "`zolt classpath --format json` is supported for `audit` only. "
                                 + "Use `zolt classpath audit --format json`.");
             }
-            ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+            ClasspathSet classpaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
             String output = classpathFormatter.format(switch (parsedKind) {
                 case COMPILE -> classpaths.compile();
                 case RUNTIME -> classpaths.runtime();

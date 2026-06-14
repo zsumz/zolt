@@ -33,6 +33,7 @@ import com.zolt.publish.PublishException;
 import com.zolt.publish.PublishRepositorySettings;
 import com.zolt.publish.PublishSettings;
 import com.zolt.publish.PublishSettingsReader;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -462,7 +463,7 @@ public final class QualityCheckService {
         }
         try {
             ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-            lockfileReader.classpathPackages(lockfile, cacheRoot);
+            LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
             return QualityCheckResult.passed(
                     CACHE_INTEGRITY,
                     member,

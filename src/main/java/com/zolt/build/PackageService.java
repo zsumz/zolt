@@ -10,6 +10,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
@@ -374,7 +375,7 @@ public final class PackageService {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path warPath = archivePath(projectDirectory, config, "war");
         List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
-                .orElseGet(() -> lockfileReader.classpathPackages(
+                .orElseGet(() -> LockfileClasspathPackageConverter.classpathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
         List<PackageRuntimeJar> providedJars = providedJars(resolvedPackages);
@@ -725,7 +726,7 @@ public final class PackageService {
     }
 
     private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
-        return packagedClasspathPackages(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        return packagedClasspathPackages(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
     }
 
     private List<ResolvedClasspathPackage> packagedClasspathPackages(List<ResolvedClasspathPackage> classpathPackages) {

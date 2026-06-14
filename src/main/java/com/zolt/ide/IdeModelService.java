@@ -20,6 +20,7 @@ import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.quarkus.QuarkusAugmentationState;
@@ -704,7 +705,7 @@ public final class IdeModelService {
         }
         try {
             ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-            ClasspathSet dependencyClasspaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+            ClasspathSet dependencyClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
             Path mainOutput = outputPath(root, "[build].output", config.build().output(), diagnostics);
             Path testOutput = outputPath(root, "[build].testOutput", config.build().testOutput(), diagnostics);
             return new IdeModel.ClasspathInfo(

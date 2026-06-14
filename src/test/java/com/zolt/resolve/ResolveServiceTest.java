@@ -1446,7 +1446,7 @@ final class ResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.PROVIDED
                         && lockPackage.direct()));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertEquals(List.of(
                 cacheRoot.resolve("jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar")),
                 classpaths.compile().entries());
@@ -1495,7 +1495,7 @@ final class ResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.DEV
                         && !lockPackage.direct()));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertEquals(List.of(), classpaths.compile().entries());
         assertEquals(List.of(
                 cacheRoot.resolve("com/example/dev-helper/1.0.0/dev-helper-1.0.0.jar"),
@@ -1819,7 +1819,7 @@ final class ResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.PROCESSOR
                         && !lockPackage.direct()));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertEquals(List.of(), classpaths.compile().entries());
         assertEquals(List.of(), classpaths.runtime().entries());
         assertEquals(List.of(), classpaths.test().entries());
@@ -1870,7 +1870,7 @@ final class ResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.TOOL_OPENAPI
                         && !lockPackage.direct()));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertEquals(List.of(), classpaths.compile().entries());
         assertEquals(List.of(), classpaths.runtime().entries());
         assertEquals(List.of(), classpaths.test().entries());
@@ -1962,7 +1962,7 @@ final class ResolveServiceTest {
                         && lockPackage.scope() == DependencyScope.QUARKUS_DEPLOYMENT
                         && !lockPackage.direct()));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertEquals(List.of(
                 cacheRoot.resolve("io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar")),
                 classpaths.compile().entries());
@@ -2118,7 +2118,7 @@ final class ResolveServiceTest {
                 "io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties",
                 properties.artifact().orElseThrow());
         assertEquals(List.of(), new ClasspathBuilder()
-                .build(lockfileReader.classpathPackages(lockfile, cacheRoot))
+                .build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot))
                 .quarkusDeployment()
                 .entries());
     }
@@ -2273,7 +2273,7 @@ final class ResolveServiceTest {
                         && lockPackage.version().equals("2.0.0")
                         && lockPackage.scope() == DependencyScope.PROCESSOR));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertTrue(classpaths.processor().entries().contains(
                 cacheRoot.resolve("com/example/shared/2.0.0/shared-2.0.0.jar")));
     }
@@ -2364,7 +2364,7 @@ final class ResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "helper"))
                         && lockPackage.version().equals("1.0.0")));
 
-        ClasspathSet classpaths = new ClasspathBuilder().build(lockfileReader.classpathPackages(lockfile, cacheRoot));
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
         assertTrue(classpaths.compile().entries().contains(
                 cacheRoot.resolve("com/example/helper/2.0.0/helper-2.0.0.jar")));
     }

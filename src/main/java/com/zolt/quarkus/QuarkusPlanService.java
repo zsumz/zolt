@@ -9,6 +9,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.LockfileClasspathPackageConverter;
 import com.zolt.resolve.PackageId;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +64,7 @@ public final class QuarkusPlanService {
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path cache = cacheRoot.toAbsolutePath().normalize();
         Path applicationClasses = outputPath(root, "[build].output", config.build().output());
-        ClasspathSet classpaths = classpathBuilder.build(lockfileReader.classpathPackages(lockfile, cache));
+        ClasspathSet classpaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cache));
         String fingerprint = inputFingerprint.fingerprint(applicationClasses, lockfile);
         return new QuarkusPlan(
                 root,

@@ -1,12 +1,8 @@
 package com.zolt.lockfile;
 
-import com.zolt.project.ProjectPathException;
-import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
-import com.zolt.resolve.ResolvedClasspathPackage;
-import com.zolt.resolve.ResolvedPackage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,16 +16,6 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class ZoltLockfileReader {
-    private final ArtifactIntegrityVerifier artifactIntegrityVerifier;
-
-    public ZoltLockfileReader() {
-        this(new ArtifactIntegrityVerifier());
-    }
-
-    ZoltLockfileReader(ArtifactIntegrityVerifier artifactIntegrityVerifier) {
-        this.artifactIntegrityVerifier = artifactIntegrityVerifier;
-    }
-
     public ZoltLockfile read(Path path) {
         try {
             return read(Toml.parse(path));
@@ -42,64 +28,6 @@ public final class ZoltLockfileReader {
 
     public ZoltLockfile read(String content) {
         return read(Toml.parse(content));
-    }
-
-    public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile) {
-        return toClasspathPackages(lockfile, Path.of(""));
-    }
-
-    public List<ResolvedClasspathPackage> classpathPackages(ZoltLockfile lockfile, Path cacheRoot) {
-        artifactIntegrityVerifier.verify(lockfile, cacheRoot);
-        return toClasspathPackages(lockfile, cacheRoot);
-    }
-
-    private static List<ResolvedClasspathPackage> toClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
-        return lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.jar().isPresent())
-                .map(lockPackage -> new ResolvedClasspathPackage(
-                        new ResolvedPackage(
-                                lockPackage.packageId(),
-                                lockPackage.version(),
-                                lockPackage.direct(),
-                                lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
-                                cacheRoot.resolve(lockPackage.jar().orElseThrow())),
-                        lockPackage.scope()))
-                .toList();
-    }
-
-    public List<ResolvedClasspathPackage> classpathPackages(
-            ZoltLockfile lockfile,
-            Path cacheRoot,
-            Path workspaceRoot) {
-        artifactIntegrityVerifier.verify(lockfile, cacheRoot);
-        return lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.jar().isPresent()
-                        || (lockPackage.workspace().isPresent() && lockPackage.workspaceOutput().isPresent()))
-                .map(lockPackage -> {
-                    Path classpathPath = lockPackage.workspace().isPresent()
-                            ? workspaceClasspathPath(workspaceRoot, lockPackage)
-                            : cacheRoot.resolve(lockPackage.jar().orElseThrow());
-                    return new ResolvedClasspathPackage(
-                            new ResolvedPackage(
-                                    lockPackage.packageId(),
-                                    lockPackage.version(),
-                                    lockPackage.direct(),
-                                    lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
-                                    classpathPath),
-                            lockPackage.scope());
-                })
-                .toList();
-    }
-
-    private static Path workspaceClasspathPath(Path workspaceRoot, LockPackage lockPackage) {
-        try {
-            Path root = ProjectPaths.root(workspaceRoot);
-            String workspace = lockPackage.workspace().orElseThrow();
-            Path memberRoot = ProjectPaths.existingRoot(root, "workspace", workspace);
-            return ProjectPaths.output(memberRoot, "workspaceOutput", lockPackage.workspaceOutput().orElseThrow());
-        } catch (ProjectPathException exception) {
-            throw new LockfileReadException(exception.getMessage(), exception);
-        }
     }
 
     private ZoltLockfile read(TomlParseResult result) {
