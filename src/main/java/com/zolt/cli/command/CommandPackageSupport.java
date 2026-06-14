@@ -55,6 +55,52 @@ final class CommandPackageSupport {
                 + extension;
     }
 
+    static Optional<String> runInstruction(PackageResult result) {
+        return switch (result.mode()) {
+            case SPRING_BOOT -> Optional.of("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
+            case SPRING_BOOT_WAR -> Optional.of("Run with Zolt: zolt run-package --mode spring-boot-war -- [args]");
+            case QUARKUS -> Optional.of("Run with Zolt: zolt run");
+            case THIN, UBER -> Optional.of("Run with dependencies: zolt run-package -- [args]");
+            case WAR -> Optional.empty();
+        };
+    }
+
+    static Optional<String> noMainClassDetail(PackageResult result) {
+        return switch (result.mode()) {
+            case WAR -> Optional.of("WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.");
+            default -> Optional.empty();
+        };
+    }
+
+    static PackageModeDetail packageModeDetail(PackageResult result) {
+        return switch (result.mode()) {
+            case SPRING_BOOT -> new PackageModeDetail(
+                    "Spring Boot jar: dependencies are nested under BOOT-INF/lib.",
+                    Optional.empty());
+            case WAR -> new PackageModeDetail(
+                    "WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.",
+                    Optional.empty());
+            case SPRING_BOOT_WAR -> new PackageModeDetail(
+                    "Spring Boot WAR: runtime dependencies are under WEB-INF/lib and provided dependencies are under WEB-INF/lib-provided.",
+                    Optional.empty());
+            case QUARKUS -> new PackageModeDetail(
+                    "Quarkus fast-jar: deploy the whole target/quarkus-app directory.",
+                    Optional.empty());
+            default -> new PackageModeDetail(
+                    "Thin jar: dependencies are not bundled.",
+                    result.runtimeClasspathPath().map(path -> "Wrote runtime classpath to " + path));
+        };
+    }
+
+    record PackageModeDetail(String message, Optional<String> secondaryMessage) {
+        PackageModeDetail {
+            if (message == null || message.isBlank()) {
+                throw new PackageException("Package mode detail message is required.");
+            }
+            secondaryMessage = secondaryMessage == null ? Optional.empty() : secondaryMessage;
+        }
+    }
+
     enum PlanOutputFormat {
         TEXT,
         JSON

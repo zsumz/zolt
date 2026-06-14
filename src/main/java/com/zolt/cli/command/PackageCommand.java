@@ -237,20 +237,16 @@ public final class PackageCommand implements Runnable {
                     : "Included Main-Class manifest entry" + suffix);
             if (suffix.isBlank()) {
                 spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
-                if (result.mode() == PackageMode.SPRING_BOOT) {
-                    spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
-                } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
-                    spec.commandLine().getOut().println("Run with Zolt: zolt run-package --mode spring-boot-war -- [args]");
-                } else if (result.mode() == PackageMode.QUARKUS) {
-                    spec.commandLine().getOut().println("Run with Zolt: zolt run");
-                } else {
-                    spec.commandLine().getOut().println("Run with dependencies: zolt run-package -- [args]");
-                }
+                CommandPackageSupport.runInstruction(result)
+                        .ifPresent(instruction -> spec.commandLine().getOut().println(instruction));
             }
-        } else if (suffix.isBlank() && result.mode() == PackageMode.WAR) {
-            spec.commandLine().getOut().println("WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.");
         } else if (suffix.isBlank()) {
-            spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
+            Optional<String> noMainClassDetail = CommandPackageSupport.noMainClassDetail(result);
+            if (noMainClassDetail.isPresent()) {
+                spec.commandLine().getOut().println(noMainClassDetail.orElseThrow());
+            } else {
+                spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
+            }
         }
         if (suffix.isBlank()) {
             printPackageModeDetail(result);
@@ -268,18 +264,8 @@ public final class PackageCommand implements Runnable {
     }
 
     private void printPackageModeDetail(PackageResult result) {
-        if (result.mode() == PackageMode.SPRING_BOOT) {
-            spec.commandLine().getOut().println("Spring Boot jar: dependencies are nested under BOOT-INF/lib.");
-        } else if (result.mode() == PackageMode.WAR) {
-            spec.commandLine().getOut().println("WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.");
-        } else if (result.mode() == PackageMode.SPRING_BOOT_WAR) {
-            spec.commandLine().getOut().println("Spring Boot WAR: runtime dependencies are under WEB-INF/lib and provided dependencies are under WEB-INF/lib-provided.");
-        } else if (result.mode() == PackageMode.QUARKUS) {
-            spec.commandLine().getOut().println("Quarkus fast-jar: deploy the whole target/quarkus-app directory.");
-        } else {
-            spec.commandLine().getOut().println("Thin jar: dependencies are not bundled.");
-            result.runtimeClasspathPath().ifPresent(path ->
-                    spec.commandLine().getOut().println("Wrote runtime classpath to " + path));
-        }
+        CommandPackageSupport.PackageModeDetail detail = CommandPackageSupport.packageModeDetail(result);
+        spec.commandLine().getOut().println(detail.message());
+        detail.secondaryMessage().ifPresent(message -> spec.commandLine().getOut().println(message));
     }
 }
