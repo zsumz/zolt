@@ -38,15 +38,30 @@ public final class RunPackageService {
     }
 
     public RunPackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+        this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public RunPackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
     }
 
     public RunPackageService(
             JdkChecker jdkDetector,
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public RunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
         this(
-                new PackageService(resolveService, frameworkPackageAugmenter),
+                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService),
                 new BuildService(jdkDetector, resolveService),
                 new ClasspathBuilder(),
                 jdkDetector,

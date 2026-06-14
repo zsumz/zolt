@@ -7311,6 +7311,57 @@ final class ZoltCliTest {
     }
 
     @Test
+    void packagePlanPrintsQuarkusDependencyDispositions() throws IOException {
+        Path projectDir = tempDir.resolve("package-plan-quarkus");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("package-plan-quarkus") + """
+
+                [package]
+                mode = "quarkus"
+
+                [framework.quarkus]
+                enabled = true
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "io.quarkus:quarkus-rest-deployment"
+                version = "3.33.0"
+                source = "maven-central"
+                scope = "quarkus-deployment"
+                direct = false
+                jar = "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--plan",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Mode: quarkus"));
+        assertTrue(result.stdout().contains(
+                "Archive: " + projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
+        assertTrue(result.stdout().contains("Application layout: target/quarkus-app/app"));
+        assertTrue(result.stdout().contains(
+                "io.quarkus:quarkus-rest:3.33.0 [runtime] included -> target/quarkus-app/lib/quarkus-rest-3.33.0.jar rule=quarkus-runtime-lib"));
+        assertTrue(result.stdout().contains(
+                "io.quarkus:quarkus-rest-deployment:3.33.0 [quarkus-deployment] omitted rule=quarkus-deployment-omitted"));
+        assertFalse(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
+    }
+
+    @Test
     void packagePlanJsonUsesStableShapeForThinJar() throws IOException {
         Path projectDir = tempDir.resolve("package-plan-json");
         Files.createDirectories(projectDir);

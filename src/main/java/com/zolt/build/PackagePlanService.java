@@ -1,5 +1,7 @@
 package com.zolt.build;
 
+import com.zolt.framework.FrameworkPackagePlanDependency;
+import com.zolt.framework.FrameworkPackagePlanRules;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -22,13 +24,23 @@ public final class PackagePlanService {
             "spring-boot-loader");
 
     private final ZoltLockfileReader lockfileReader;
+    private final List<FrameworkPackagePlanRules> packagePlanRules;
 
     public PackagePlanService() {
-        this(new ZoltLockfileReader());
+        this(List.of());
+    }
+
+    public PackagePlanService(List<FrameworkPackagePlanRules> packagePlanRules) {
+        this(new ZoltLockfileReader(), packagePlanRules);
     }
 
     PackagePlanService(ZoltLockfileReader lockfileReader) {
+        this(lockfileReader, List.of());
+    }
+
+    PackagePlanService(ZoltLockfileReader lockfileReader, List<FrameworkPackagePlanRules> packagePlanRules) {
         this.lockfileReader = lockfileReader;
+        this.packagePlanRules = packagePlanRules == null ? List.of() : List.copyOf(packagePlanRules);
     }
 
     public PackagePlan plan(Path projectDirectory, ProjectConfig config) {
@@ -41,20 +53,27 @@ public final class PackagePlanService {
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath.toAbsolutePath().normalize());
         PackageMode mode = config.packageSettings().mode();
         Set<PackageId> providedPackageIds = providedPackageIds(lockfile);
+        Optional<FrameworkPackagePlanRules> modeRules = packagePlanRules(mode);
         List<PackagePlanDependency> dependencies = lockfile.packages().stream()
                 .filter(lockPackage -> lockPackage.jar().isPresent())
                 .sorted(Comparator.comparing(PackagePlanService::sortKey))
-                .map(lockPackage -> dependency(mode, lockPackage, providedPackageIds))
+                .map(lockPackage -> dependency(mode, lockPackage, providedPackageIds, modeRules))
                 .toList();
         return new PackagePlan(
                 projectRoot,
                 mode,
-                archivePath(projectRoot, config, mode),
+                archivePath(projectRoot, config, mode, modeRules),
                 projectRoot.resolve(config.build().output()).normalize(),
-                applicationLayout(mode),
+                applicationLayout(mode, modeRules),
                 runtimeClasspathPath(projectRoot, config, mode),
                 dependencies,
                 warnings(mode, dependencies));
+    }
+
+    private Optional<FrameworkPackagePlanRules> packagePlanRules(PackageMode mode) {
+        return packagePlanRules.stream()
+                .filter(rules -> rules.supports(mode))
+                .findFirst();
     }
 
     private static Set<PackageId> providedPackageIds(ZoltLockfile lockfile) {
@@ -70,26 +89,17 @@ public final class PackagePlanService {
     private static PackagePlanDependency dependency(
             PackageMode mode,
             LockPackage lockPackage,
-            Set<PackageId> providedPackageIds) {
+            Set<PackageId> providedPackageIds,
+            Optional<FrameworkPackagePlanRules> packagePlanRules) {
         String nestedJar = nestedJarName(lockPackage);
         return switch (mode) {
             case THIN -> thinDependency(lockPackage);
             case SPRING_BOOT -> springBootDependency(lockPackage, nestedJar);
             case WAR -> warDependency(lockPackage, nestedJar, providedPackageIds);
             case SPRING_BOOT_WAR -> springBootWarDependency(lockPackage, nestedJar, providedPackageIds);
-            case QUARKUS -> new PackagePlanDependency(
-                    coordinate(lockPackage),
-                    lockPackage.version(),
-                    lockPackage.scope(),
-                    lockPackage.scope().entersMainRuntimeClasspath() ? "included" : "omitted",
-                    lockPackage.scope().entersMainRuntimeClasspath()
-                            ? "quarkus-runtime-lib"
-                            : omissionRule(lockPackage.scope(), false),
-                    lockPackage.scope().entersMainRuntimeClasspath() ? "target/quarkus-app/lib/" + nestedJar : "",
-                    lockPackage.scope().entersMainRuntimeClasspath()
-                            ? "main runtime dependency for Quarkus augmentation output"
-                            : "scope `" + lockPackage.scope().lockfileName() + "` does not enter Quarkus runtime packaging",
-                    lockPackage.policies());
+            case QUARKUS -> packagePlanRules
+                    .map(rules -> dependency(rules.dependency(lockPackage)))
+                    .orElseGet(() -> unsupportedFrameworkDependency(mode, lockPackage));
             case UBER -> new PackagePlanDependency(
                     coordinate(lockPackage),
                     lockPackage.version(),
@@ -100,6 +110,33 @@ public final class PackagePlanService {
                     "package mode `uber` is not implemented yet",
                     lockPackage.policies());
         };
+    }
+
+    private static PackagePlanDependency dependency(FrameworkPackagePlanDependency dependency) {
+        return new PackagePlanDependency(
+                dependency.coordinate(),
+                dependency.version(),
+                dependency.scope(),
+                dependency.lanes(),
+                dependency.packageDefault(),
+                dependency.laneDisposition(),
+                dependency.disposition(),
+                dependency.ruleName(),
+                dependency.location(),
+                dependency.reason(),
+                dependency.policies());
+    }
+
+    private static PackagePlanDependency unsupportedFrameworkDependency(PackageMode mode, LockPackage lockPackage) {
+        return new PackagePlanDependency(
+                coordinate(lockPackage),
+                lockPackage.version(),
+                lockPackage.scope(),
+                "unsupported",
+                "framework-package-plan-rules-missing",
+                "",
+                "package mode `" + mode.configValue() + "` requires framework package plan rules",
+                lockPackage.policies());
     }
 
     private static PackagePlanDependency thinDependency(LockPackage lockPackage) {
@@ -295,13 +332,23 @@ public final class PackagePlanService {
         };
     }
 
-    private static Path archivePath(Path projectRoot, ProjectConfig config, PackageMode mode) {
+    private static Path archivePath(
+            Path projectRoot,
+            ProjectConfig config,
+            PackageMode mode,
+            Optional<FrameworkPackagePlanRules> packagePlanRules) {
+        if (packagePlanRules.isPresent()) {
+            return packagePlanRules.orElseThrow().archivePath(projectRoot, config);
+        }
         return switch (mode) {
             case WAR, SPRING_BOOT_WAR -> ProjectPaths.output(
                     projectRoot,
                     "package archive",
                     "target/" + artifactBaseName(config) + ".war");
-            case QUARKUS -> ProjectPaths.output(projectRoot, "package archive", "target/quarkus-app/quarkus-run.jar");
+            case QUARKUS -> ProjectPaths.output(
+                    projectRoot,
+                    "package archive",
+                    "target/" + artifactBaseName(config) + ".jar");
             default -> ProjectPaths.output(
                     projectRoot,
                     "package archive",
@@ -325,12 +372,15 @@ public final class PackagePlanService {
                 + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
-    private static String applicationLayout(PackageMode mode) {
+    private static String applicationLayout(PackageMode mode, Optional<FrameworkPackagePlanRules> packagePlanRules) {
+        if (packagePlanRules.isPresent()) {
+            return packagePlanRules.orElseThrow().applicationLayout();
+        }
         return switch (mode) {
             case THIN, UBER -> "archive root";
             case SPRING_BOOT -> "BOOT-INF/classes";
             case WAR, SPRING_BOOT_WAR -> "WEB-INF/classes";
-            case QUARKUS -> "target/quarkus-app/app";
+            case QUARKUS -> "framework package output";
         };
     }
 

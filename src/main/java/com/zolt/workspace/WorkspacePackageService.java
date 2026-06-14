@@ -1,5 +1,6 @@
 package com.zolt.workspace;
 
+import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -24,7 +25,14 @@ public final class WorkspacePackageService {
     }
 
     public WorkspacePackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+        this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public WorkspacePackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
     }
 
     WorkspacePackageService(JdkChecker jdkDetector) {
@@ -35,9 +43,17 @@ public final class WorkspacePackageService {
             JdkChecker jdkDetector,
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    WorkspacePackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
         this(
                 new WorkspaceBuildService(jdkDetector, resolveService),
-                new PackageService(resolveService, frameworkPackageAugmenter));
+                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService));
     }
 
     WorkspacePackageService(

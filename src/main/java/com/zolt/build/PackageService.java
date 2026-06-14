@@ -67,6 +67,7 @@ public final class PackageService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final FrameworkPackageAugmenter frameworkPackageAugmenter;
+    private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
 
     public PackageService() {
@@ -78,13 +79,21 @@ public final class PackageService {
     }
 
     public PackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public PackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
         this(
                 new BuildService(resolveService),
                 resolveService,
                 new ManifestGenerator(),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
-                frameworkPackageAugmenter);
+                frameworkPackageAugmenter,
+                packagePlanService);
     }
 
     PackageService(
@@ -101,6 +110,25 @@ public final class PackageService {
                 lockfileReader,
                 classpathBuilder,
                 frameworkPackageAugmenter,
+                new PackagePlanService());
+    }
+
+    PackageService(
+            BuildService buildService,
+            ResolveService resolveService,
+            ManifestGenerator manifestGenerator,
+            ZoltLockfileReader lockfileReader,
+            ClasspathBuilder classpathBuilder,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(
+                buildService,
+                resolveService,
+                manifestGenerator,
+                lockfileReader,
+                classpathBuilder,
+                frameworkPackageAugmenter,
+                packagePlanService,
                 new PackageEvidenceManifestWriter());
     }
 
@@ -111,6 +139,7 @@ public final class PackageService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
             PackageEvidenceManifestWriter evidenceManifestWriter) {
         this.buildService = buildService;
         this.resolveService = resolveService;
@@ -118,6 +147,7 @@ public final class PackageService {
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.frameworkPackageAugmenter = frameworkPackageAugmenter;
+        this.packagePlanService = packagePlanService == null ? new PackagePlanService() : packagePlanService;
         this.evidenceManifestWriter = evidenceManifestWriter;
     }
 
@@ -303,7 +333,7 @@ public final class PackageService {
             PackageResult result) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         if (Files.isRegularFile(projectRoot.resolve("zolt.lock"))) {
-            return new PackagePlanService().plan(projectRoot, config);
+            return packagePlanService.plan(projectRoot, config);
         }
         return new PackagePlan(
                 projectRoot,

@@ -84,7 +84,7 @@ public final class PackageCommand implements Runnable {
     public PackageCommand() {
         this(
                 new ZoltTomlParser(),
-                new PackagePlanService(),
+                CommandFrameworkServices.packagePlanService(),
                 new PackagePlanFormatter(),
                 CommandFrameworkServices.packageService(),
                 CommandFrameworkServices.buildService(),

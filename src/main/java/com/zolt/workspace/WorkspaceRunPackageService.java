@@ -2,6 +2,7 @@ package com.zolt.workspace;
 
 import com.zolt.build.JavaRunResult;
 import com.zolt.build.JavaRunner;
+import com.zolt.build.PackagePlanService;
 import com.zolt.build.RunPackageException;
 import com.zolt.build.RunPackageResult;
 import com.zolt.doctor.JdkChecker;
@@ -28,7 +29,14 @@ public final class WorkspaceRunPackageService {
     }
 
     public WorkspaceRunPackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        this(new JdkDetector(), resolveService, frameworkPackageAugmenter);
+        this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public WorkspaceRunPackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
     }
 
     WorkspaceRunPackageService(JdkChecker jdkDetector) {
@@ -39,8 +47,16 @@ public final class WorkspaceRunPackageService {
             JdkChecker jdkDetector,
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    WorkspaceRunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
         this(
-                new WorkspacePackageService(jdkDetector, resolveService, frameworkPackageAugmenter),
+                new WorkspacePackageService(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService),
                 jdkDetector,
                 new JavaRunner());
     }
