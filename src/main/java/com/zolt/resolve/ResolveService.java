@@ -313,10 +313,13 @@ public final class ResolveService {
             List<DependencyRequest> directRequests) {
         long started = System.nanoTime();
         try {
-            Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
+            Map<PackageId, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
+                    graph,
+                    selection,
+                    directRequests);
             List<LockPackagePlan> packagePlans = selection.selectedNodes().stream()
                     .flatMap(node -> selectedScopes
-                            .getOrDefault(node.packageId(), List.of(new SelectedScope(DependencyScope.COMPILE, false)))
+                            .getOrDefault(node.packageId(), List.of(new SelectedDependencyScope(DependencyScope.COMPILE, false)))
                             .stream()
                             .map(scope -> lockPackagePlan(node, scope)))
                     .toList();
@@ -415,14 +418,17 @@ public final class ResolveService {
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests,
             Map<PackageId, String> managedVersions) {
-        Map<PackageId, List<SelectedScope>> selectedScopes = selectedScopes(graph, selection, directRequests);
+        Map<PackageId, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
+                graph,
+                selection,
+                directRequests);
         List<FrameworkDependencyCandidate> candidates = selection.selectedNodes().stream()
                 .sorted(Comparator.comparing(node -> node.packageId() + ":" + node.selectedVersion()))
                 .map(node -> new FrameworkDependencyCandidate(
                         node.packageId(),
                         node.selectedVersion(),
                         selectedScopes.getOrDefault(node.packageId(), List.of()).stream()
-                                .map(SelectedScope::scope)
+                                .map(SelectedDependencyScope::scope)
                                 .toList()))
                 .toList();
         Map<PackageId, String> versions = new LinkedHashMap<>();
@@ -438,34 +444,7 @@ public final class ResolveService {
                 context::projectPlatformPropertiesRequests);
     }
 
-    private Map<PackageId, List<SelectedScope>> selectedScopes(
-            ResolutionGraph graph,
-            VersionSelectionResult selection,
-            List<DependencyRequest> directRequests) {
-        Map<PackageId, List<SelectedScope>> requests = new LinkedHashMap<>();
-        List<DependencyRequest> allRequests = new ArrayList<>();
-        allRequests.addAll(directRequests);
-        allRequests.addAll(graph.edges().stream().map(ResolutionEdge::request).toList());
-        for (PackageNode node : selection.selectedNodes()) {
-            Map<DependencyScope, SelectedScope> scopesByScope = new LinkedHashMap<>();
-            allRequests.stream()
-                    .filter(request -> request.packageId().equals(node.packageId()))
-                    .forEach(request -> scopesByScope.merge(
-                            request.scope(),
-                            new SelectedScope(request.scope(), request.direct(), request.artifactDescriptor()),
-                            SelectedScope::merge));
-            List<SelectedScope> scopes = scopesByScope.values()
-                    .stream()
-                    .sorted(Comparator.comparing(selectedScope -> selectedScope.scope().lockfileName()))
-                    .toList();
-            if (!scopes.isEmpty()) {
-                requests.put(node.packageId(), scopes);
-            }
-        }
-        return requests;
-    }
-
-    private static LockPackagePlan lockPackagePlan(PackageNode node, SelectedScope selectedScope) {
+    private static LockPackagePlan lockPackagePlan(PackageNode node, SelectedDependencyScope selectedScope) {
         Coordinate coordinate = new Coordinate(
                 node.packageId().groupId(),
                 node.packageId().artifactId(),
@@ -485,7 +464,7 @@ public final class ResolveService {
             Map<String, DependencyMetadata> dependencyMetadata,
             List<DependencyPolicyEffect> policyEffects) {
         PackageNode node = plan.node();
-        SelectedScope selectedScope = plan.selectedScope();
+        SelectedDependencyScope selectedScope = plan.selectedScope();
         ArtifactDescriptor descriptor = plan.artifactDescriptor();
         CachedArtifact pom = context.getPom(descriptor.coordinate());
         boolean jarArtifact = "jar".equals(descriptor.extension());
@@ -523,7 +502,7 @@ public final class ResolveService {
 
     private static List<String> policiesFor(
             PackageNode node,
-            SelectedScope selectedScope,
+            SelectedDependencyScope selectedScope,
             Map<String, DependencyConstraint> constraints,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
             Map<PackageId, ManagedVersion> managedVersions,
@@ -572,7 +551,7 @@ public final class ResolveService {
 
     private static List<String> versionRefPolicies(
             PackageNode node,
-            SelectedScope selectedScope,
+            SelectedDependencyScope selectedScope,
             Map<String, DependencyMetadata> dependencyMetadata) {
         return dependencyMetadata.values().stream()
                 .filter(metadata -> metadata.versionRef() != null)
@@ -722,29 +701,9 @@ public final class ResolveService {
         return cause.getMessage();
     }
 
-    private record SelectedScope(
-            DependencyScope scope,
-            boolean direct,
-            Optional<ArtifactDescriptor> artifactDescriptor) {
-        SelectedScope(DependencyScope scope, boolean direct) {
-            this(scope, direct, Optional.empty());
-        }
-
-        SelectedScope {
-            artifactDescriptor = artifactDescriptor == null ? Optional.empty() : artifactDescriptor;
-        }
-
-        SelectedScope merge(SelectedScope other) {
-            return new SelectedScope(
-                    scope,
-                    direct || other.direct,
-                    artifactDescriptor.isPresent() ? artifactDescriptor : other.artifactDescriptor);
-        }
-    }
-
     private record LockPackagePlan(
             PackageNode node,
-            SelectedScope selectedScope,
+            SelectedDependencyScope selectedScope,
             ArtifactDescriptor artifactDescriptor) {
     }
 
