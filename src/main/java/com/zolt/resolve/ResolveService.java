@@ -14,7 +14,6 @@ import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.MavenRepositoryClient;
 import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomParser;
-import com.zolt.maven.RepositoryMissingArtifactException;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.ProjectConfig;
@@ -321,11 +320,6 @@ public final class ResolveService {
     }
 
     @FunctionalInterface
-    private interface RepositoryFetchAction {
-        com.zolt.maven.RepositoryArtifact fetch(RepositoryAccess access);
-    }
-
-    @FunctionalInterface
     interface DependencyGraphTraverserFactory {
         DependencyGraphTraverser create(DependencyMetadataSource source, DependencyPolicySettings dependencyPolicy);
     }
@@ -335,6 +329,7 @@ public final class ResolveService {
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
         private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
+        private final RepositoryFetchCoordinator repositoryFetchCoordinator = new RepositoryFetchCoordinator();
         private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
         private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
         private final ProjectPlatformMetadataPlanner projectPlatformMetadataPlanner =
@@ -757,20 +752,7 @@ public final class ResolveService {
         }
 
         private com.zolt.maven.RepositoryArtifact fetchFromRepositories(RepositoryFetchAction action) {
-            List<RepositoryAccess> repositories = repositoryAccesses();
-            RepositoryMissingArtifactException lastMissing = null;
-            for (RepositoryAccess repository : repositories) {
-                try {
-                    return action.fetch(repository);
-                } catch (RepositoryMissingArtifactException exception) {
-                    lastMissing = exception;
-                }
-            }
-            if (lastMissing != null) {
-                throw lastMissing;
-            }
-            throw new ResolveException(
-                    "No repositories are configured in zolt.toml. Add [repositories] with at least one Maven-compatible repository URL.");
+            return repositoryFetchCoordinator.fetch(repositoryAccesses(), action::fetch);
         }
 
         private List<RepositoryAccess> repositoryAccesses() {
