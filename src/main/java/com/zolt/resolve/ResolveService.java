@@ -6,7 +6,6 @@ import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.LockfileFreshnessSummary;
 import com.zolt.lockfile.LockPackage;
-import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.lockfile.ZoltLockfileWriter;
@@ -352,7 +351,7 @@ public final class ResolveService {
                     ProjectResolutionFingerprint.inputFingerprints(context.config),
                     packages,
                     conflicts,
-                    lockPolicyEffects(graph.policyEffects()));
+                    LockfilePolicyPlanner.lockPolicyEffects(graph.policyEffects()));
         } finally {
             context.addLockfileAssemblyNanos(elapsedSince(started));
         }
@@ -482,7 +481,7 @@ public final class ResolveService {
                 jarArtifact ? Optional.empty() : Optional.of(descriptor.extension()),
                 jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
                 dependenciesFor(node, graph),
-                policiesFor(
+                LockfilePolicyPlanner.policiesFor(
                         node,
                         selectedScope,
                         context.config.dependencyPolicy().constraints(),
@@ -497,109 +496,6 @@ public final class ResolveService {
                 .filter(edge -> edge.from().equals(node))
                 .map(edge -> edge.to().packageId() + ":" + edge.to().selectedVersion())
                 .sorted()
-                .toList();
-    }
-
-    private static List<String> policiesFor(
-            PackageNode node,
-            SelectedDependencyScope selectedScope,
-            Map<String, DependencyConstraint> constraints,
-            Map<PackageId, List<DependencyScope>> managedDirectScopes,
-            Map<PackageId, ManagedVersion> managedVersions,
-            Map<String, DependencyMetadata> dependencyMetadata,
-            List<DependencyPolicyEffect> policyEffects) {
-        List<String> policies = new ArrayList<>();
-        if (selectedScope.direct()) {
-            policies.addAll(versionRefPolicies(node, selectedScope, dependencyMetadata));
-        }
-        if (selectedScope.direct()
-                && managedDirectScopes.getOrDefault(node.packageId(), List.of()).contains(selectedScope.scope())) {
-            ManagedVersion managedVersion = managedVersions.get(node.packageId());
-            if (managedVersion != null && managedVersion.version().equals(node.selectedVersion())) {
-                policies.add("managed-version: "
-                        + node.packageId()
-                        + " -> "
-                        + managedVersion.version()
-                        + " from "
-                        + managedVersion.platform());
-            }
-        }
-        if (selectedScope.direct()) {
-            return policies;
-        }
-        DependencyConstraint constraint = constraints.get(node.packageId().toString());
-        if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
-            return policies;
-        }
-        List<String> strictPolicies = policyEffects.stream()
-                .filter(effect -> "strict-version".equals(effect.kind()))
-                .filter(effect -> effect.packageId().equals(node.packageId()))
-                .map(DependencyPolicyEffect::policy)
-                .distinct()
-                .sorted()
-                .toList();
-        if (strictPolicies.isEmpty()) {
-            String policy = "strict-version: " + node.packageId() + " -> " + constraint.version();
-            policies.add(constraint.reason()
-                    .map(reason -> policy + " (" + reason + ")")
-                    .orElse(policy));
-        } else {
-            policies.addAll(strictPolicies);
-        }
-        return List.copyOf(policies);
-    }
-
-    private static List<String> versionRefPolicies(
-            PackageNode node,
-            SelectedDependencyScope selectedScope,
-            Map<String, DependencyMetadata> dependencyMetadata) {
-        return dependencyMetadata.values().stream()
-                .filter(metadata -> metadata.versionRef() != null)
-                .filter(metadata -> metadata.coordinate().equals(node.packageId().toString()))
-                .filter(metadata -> node.selectedVersion().equals(metadata.version()))
-                .filter(metadata -> metadataScope(metadata.section()) == selectedScope.scope())
-                .map(metadata -> "version-ref: "
-                        + node.packageId()
-                        + " -> "
-                        + node.selectedVersion()
-                        + " from [versions]."
-                        + metadata.versionRef())
-                .distinct()
-                .sorted()
-                .toList();
-    }
-
-    private static DependencyScope metadataScope(String section) {
-        return switch (section) {
-            case "api.dependencies", "dependencies" -> DependencyScope.COMPILE;
-            case "runtime.dependencies" -> DependencyScope.RUNTIME;
-            case "provided.dependencies" -> DependencyScope.PROVIDED;
-            case "dev.dependencies" -> DependencyScope.DEV;
-            case "test.dependencies" -> DependencyScope.TEST;
-            case "annotationProcessors" -> DependencyScope.PROCESSOR;
-            case "test.annotationProcessors" -> DependencyScope.TEST_PROCESSOR;
-            default -> null;
-        };
-    }
-
-    private static List<LockPolicyEffect> lockPolicyEffects(List<DependencyPolicyEffect> policyEffects) {
-        return policyEffects.stream()
-                .map(effect -> new LockPolicyEffect(
-                        effect.kind(),
-                        effect.packageId(),
-                        effect.requestedVersion(),
-                        effect.source(),
-                        effect.policy()))
-                .distinct()
-                .sorted(Comparator.comparing(effect -> effect.kind()
-                        + ":"
-                        + effect.packageId()
-                        + ":"
-                        + effect.requestedVersion().orElse("")
-                        + ":"
-                        + effect.source().orElse("")
-                        + ":"
-                        + effect.policy()))
                 .toList();
     }
 
@@ -705,9 +601,6 @@ public final class ResolveService {
             PackageNode node,
             SelectedDependencyScope selectedScope,
             ArtifactDescriptor artifactDescriptor) {
-    }
-
-    private record ManagedVersion(String version, String platform) {
     }
 
     private record ArtifactDownloadFailure(String artifactKey, String message) {
