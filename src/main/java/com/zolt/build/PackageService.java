@@ -196,15 +196,6 @@ public final class PackageService {
         return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
     }
 
-    private static String applicationLayout(PackageMode mode) {
-        return switch (mode) {
-            case THIN, UBER -> "archive root";
-            case SPRING_BOOT -> "BOOT-INF/classes";
-            case WAR, SPRING_BOOT_WAR -> "WEB-INF/classes";
-            case QUARKUS -> "target/quarkus-app/app";
-        };
-    }
-
     public PackageResult packageJar(
             Path projectDirectory,
             ProjectConfig config,
@@ -340,7 +331,7 @@ public final class PackageService {
                 result.mode(),
                 result.jarPath(),
                 result.buildResult().outputDirectory(),
-                applicationLayout(result.mode()),
+                result.applicationLayout(),
                 result.runtimeClasspathPath(),
                 List.of(),
                 List.of());
@@ -608,7 +599,8 @@ public final class PackageService {
                     runnerJar,
                     Optional.empty(),
                     compiledFiles(packageResult.packageDirectory()).size(),
-                    true);
+                    true)
+                    .withApplicationLayout(packageResult.applicationLayout());
         } catch (IOException exception) {
             throw new PackageException(
                     frameworkPackageAugmenter.inspectPackageDirectoryMessage(mode, packageResult.packageDirectory()),

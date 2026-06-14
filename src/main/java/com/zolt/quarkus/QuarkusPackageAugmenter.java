@@ -27,7 +27,8 @@ public final class QuarkusPackageAugmenter implements FrameworkPackageAugmenter 
                 .map(result -> new FrameworkPackageResult(
                         PackageMode.QUARKUS,
                         result.workerResult().packageDirectory(),
-                        result.workerResult().runnerJar()));
+                        result.workerResult().runnerJar(),
+                        "target/quarkus-app/app"));
     }
 
     @Override

@@ -893,7 +893,11 @@ final class PackageServiceTest {
                 new ClasspathBuilder(),
                 (projectDirectory, config, cacheRoot) -> {
                     augmented[0] = true;
-                    return Optional.of(new FrameworkPackageResult(PackageMode.QUARKUS, packageDirectory, runnerJar));
+                    return Optional.of(new FrameworkPackageResult(
+                            PackageMode.QUARKUS,
+                            packageDirectory,
+                            runnerJar,
+                            "target/quarkus-app/app"));
                 });
         ProjectConfig config = config(Optional.empty())
                 .withPackageSettings(new PackageSettings(PackageMode.QUARKUS))
@@ -903,6 +907,7 @@ final class PackageServiceTest {
 
         assertEquals(PackageMode.QUARKUS, result.mode());
         assertEquals(runnerJar, result.jarPath());
+        assertEquals("target/quarkus-app/app", result.applicationLayout());
         assertEquals(2, result.entryCount());
         assertTrue(result.hasMainClass());
         assertTrue(augmented[0]);

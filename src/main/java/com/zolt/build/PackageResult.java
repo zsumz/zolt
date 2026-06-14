@@ -13,11 +13,15 @@ public record PackageResult(
         Optional<Path> evidenceManifestPath,
         int entryCount,
         boolean hasMainClass,
+        String applicationLayout,
         List<PackageArtifact> artifacts) {
     public PackageResult {
         mode = mode == null ? PackageMode.THIN : mode;
         runtimeClasspathPath = runtimeClasspathPath == null ? Optional.empty() : runtimeClasspathPath;
         evidenceManifestPath = evidenceManifestPath == null ? Optional.empty() : evidenceManifestPath;
+        applicationLayout = applicationLayout == null || applicationLayout.isBlank()
+                ? defaultApplicationLayout(mode)
+                : applicationLayout;
         artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
     }
 
@@ -32,6 +36,41 @@ public record PackageResult(
                 evidenceManifestPath,
                 entryCount,
                 hasMainClass,
+                applicationLayout,
+                artifacts);
+    }
+
+    public PackageResult withApplicationLayout(String applicationLayout) {
+        return new PackageResult(
+                buildResult,
+                mode,
+                jarPath,
+                runtimeClasspathPath,
+                evidenceManifestPath,
+                entryCount,
+                hasMainClass,
+                applicationLayout,
+                artifacts);
+    }
+
+    public PackageResult(
+            BuildResult buildResult,
+            PackageMode mode,
+            Path jarPath,
+            Optional<Path> runtimeClasspathPath,
+            Optional<Path> evidenceManifestPath,
+            int entryCount,
+            boolean hasMainClass,
+            List<PackageArtifact> artifacts) {
+        this(
+                buildResult,
+                mode,
+                jarPath,
+                runtimeClasspathPath,
+                evidenceManifestPath,
+                entryCount,
+                hasMainClass,
+                defaultApplicationLayout(mode),
                 artifacts);
     }
 
@@ -60,5 +99,14 @@ public record PackageResult(
             int entryCount,
             boolean hasMainClass) {
         this(buildResult, PackageMode.THIN, jarPath, Optional.empty(), entryCount, hasMainClass);
+    }
+
+    private static String defaultApplicationLayout(PackageMode mode) {
+        return switch (mode == null ? PackageMode.THIN : mode) {
+            case THIN, UBER -> "archive root";
+            case SPRING_BOOT -> "BOOT-INF/classes";
+            case WAR, SPRING_BOOT_WAR -> "WEB-INF/classes";
+            case QUARKUS -> "framework package output";
+        };
     }
 }
