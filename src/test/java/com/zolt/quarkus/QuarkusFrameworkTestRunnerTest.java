@@ -50,6 +50,17 @@ final class QuarkusFrameworkTestRunnerTest {
     }
 
     @Test
+    void exposesQuarkusTestRunnerOwnershipAndCliMetadata() {
+        QuarkusFrameworkTestRunner runner = runner(false, "unused");
+
+        assertTrue(runner.isEnabled(quarkusConfig()));
+        assertFalse(runner.isEnabled(disabledConfig()));
+        assertEquals("quarkus-test-worker", runner.testRunnerName());
+        assertTrue(runner.unsupportedReportsMessage().orElseThrow().contains(
+                "JUnit XML reports are not supported by the Quarkus plain-JUnit worker path yet."));
+    }
+
+    @Test
     void enabledQuarkusConfigWritesDescriptorAndRunsWorker() {
         List<QuarkusTestRunnerRequest> descriptorRequests = new ArrayList<>();
         List<List<Path>> workerClasspaths = new ArrayList<>();

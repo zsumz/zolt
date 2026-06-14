@@ -31,7 +31,6 @@ public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
     private static final String JUNIT_CONSOLE_RUNNER = "junit-console";
     private static final String PLAIN_JUNIT_WORKER_RUNNER = "zolt-junit-worker";
-    private static final String QUARKUS_TEST_WORKER_RUNNER = "quarkus-test-worker";
     private static final String JBOSS_LOG_MANAGER_PROPERTY =
             "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
@@ -336,11 +335,12 @@ public final class TestRunService {
             throw new BuildException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
         List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
-        if (config.frameworkSettings().quarkus().enabled()) {
+        if (frameworkTestRunner.isEnabled(config)) {
             if (reportsDirectory.isPresent()) {
-                throw new TestRunException(
-                        "JUnit XML reports are not supported by the Quarkus plain-JUnit worker path yet. "
-                                + "Run without --reports-dir or use the JUnit Console path for this project.");
+                frameworkTestRunner.unsupportedReportsMessage()
+                        .ifPresent(message -> {
+                            throw new TestRunException(message);
+                        });
             }
             FrameworkTestRunResult frameworkResult = frameworkTestRunner.runIfEnabled(new FrameworkTestRunRequest(
                             projectDirectory,
@@ -358,7 +358,7 @@ public final class TestRunService {
             return new TestRunResult(
                     compileResult,
                     output,
-                    QUARKUS_TEST_WORKER_RUNNER,
+                    frameworkTestRunner.testRunnerName(),
                     runnerClasspath.size(),
                     frameworkResult.workerClasspathEntries(),
                     frameworkResult.discoveryScanRoots(),

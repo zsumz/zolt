@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -652,14 +653,14 @@ final class TestRunServiceTest {
                     javaCommands.add(command);
                     return new JavaRunner.ProcessResult(0, "direct java should not run\n");
                 },
-                (FrameworkTestRunner) request -> {
+                enabledFrameworkTestRunner(request -> {
                     frameworkRequests.add(request);
                     return Optional.of(new FrameworkTestRunResult(
                             "Worker tests successful\n",
                             false,
                             1,
                             1));
-                });
+                }));
 
         TestRunResult result = service.runTests(projectDir, quarkusConfig(), projectDir.resolve("cache"));
 
@@ -685,15 +686,43 @@ final class TestRunServiceTest {
         source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
-                (FrameworkTestRunner) request -> {
+                enabledFrameworkTestRunner(request -> {
                     throw new TestRunException("worker failed");
-                });
+                }));
 
         TestRunException exception = assertThrows(
                 TestRunException.class,
                 () -> service.runTests(projectDir, quarkusConfig(), projectDir.resolve("cache")));
 
         assertTrue(exception.getMessage().contains("worker failed"));
+    }
+
+    @Test
+    void frameworkRunnerCanRejectReportsDirectoryBeforeRunning() throws IOException {
+        writeConsoleLockfile();
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        TestRunService service = service(
+                (command, outputConsumer) -> {
+                    throw new AssertionError("direct Java runner should not run for an enabled framework.");
+                },
+                enabledFrameworkTestRunner(
+                        request -> {
+                            throw new AssertionError("framework runner should reject reports before running.");
+                        },
+                        "framework reports are not supported yet"));
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> service.runTests(
+                        projectDir,
+                        quarkusConfig(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.reportsDirectory(Path.of("target/test-reports"))));
+
+        assertTrue(exception.getMessage().contains("framework reports are not supported yet"));
     }
 
     private TestRunService service(JavaRunner.ProcessRunner processRunner) {
@@ -749,6 +778,37 @@ final class TestRunServiceTest {
                 processRunner,
                 new JdkDetector(),
                 frameworkTestRunner);
+    }
+
+    private static FrameworkTestRunner enabledFrameworkTestRunner(
+            Function<FrameworkTestRunRequest, Optional<FrameworkTestRunResult>> runner) {
+        return enabledFrameworkTestRunner(runner, null);
+    }
+
+    private static FrameworkTestRunner enabledFrameworkTestRunner(
+            Function<FrameworkTestRunRequest, Optional<FrameworkTestRunResult>> runner,
+            String unsupportedReportsMessage) {
+        return new FrameworkTestRunner() {
+            @Override
+            public Optional<FrameworkTestRunResult> runIfEnabled(FrameworkTestRunRequest request) {
+                return runner.apply(request);
+            }
+
+            @Override
+            public boolean isEnabled(ProjectConfig config) {
+                return true;
+            }
+
+            @Override
+            public String testRunnerName() {
+                return "quarkus-test-worker";
+            }
+
+            @Override
+            public Optional<String> unsupportedReportsMessage() {
+                return Optional.ofNullable(unsupportedReportsMessage);
+            }
+        };
     }
 
     private void writeConsoleLockfile() throws IOException {

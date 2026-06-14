@@ -57,6 +57,23 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
     }
 
     @Override
+    public boolean isEnabled(ProjectConfig config) {
+        return config.frameworkSettings().quarkus().enabled();
+    }
+
+    @Override
+    public String testRunnerName() {
+        return "quarkus-test-worker";
+    }
+
+    @Override
+    public Optional<String> unsupportedReportsMessage() {
+        return Optional.of(
+                "JUnit XML reports are not supported by the Quarkus plain-JUnit worker path yet. "
+                        + "Run without --reports-dir or use the JUnit Console path for this project.");
+    }
+
+    @Override
     public Optional<FrameworkTestRunResult> runIfEnabled(FrameworkTestRunRequest request) {
         if (!request.config().frameworkSettings().quarkus().enabled()) {
             return Optional.empty();
