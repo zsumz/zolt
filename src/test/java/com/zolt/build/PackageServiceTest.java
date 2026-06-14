@@ -893,7 +893,7 @@ final class PackageServiceTest {
                 new ClasspathBuilder(),
                 (projectDirectory, config, cacheRoot) -> {
                     augmented[0] = true;
-                    return Optional.of(new FrameworkPackageResult(packageDirectory, runnerJar));
+                    return Optional.of(new FrameworkPackageResult(PackageMode.QUARKUS, packageDirectory, runnerJar));
                 });
         ProjectConfig config = config(Optional.empty())
                 .withPackageSettings(new PackageSettings(PackageMode.QUARKUS))
@@ -933,8 +933,8 @@ final class PackageServiceTest {
                 PackageException.class,
                 () -> service.packageJar(projectDir, config, projectDir.resolve("cache")));
 
-        assertTrue(exception.getMessage().contains("[framework.quarkus] enabled = true"));
-        assertTrue(exception.getMessage().contains("zolt package --mode quarkus"));
+        assertTrue(exception.getMessage().contains("Framework package mode `quarkus` requires a matching framework adapter"));
+        assertTrue(exception.getMessage().contains("Enable the framework in zolt.toml"));
     }
 
     @Test

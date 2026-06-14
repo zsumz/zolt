@@ -273,12 +273,17 @@ public final class PackageService {
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot-war` for now; workspace Spring Boot WAR packaging is not wired yet.")),
                     classpathPackages);
-            case QUARKUS -> packageQuarkusFastJar(
+            case QUARKUS -> packageFrameworkJar(
                     projectDirectory,
                     config,
                     buildResult,
+                    mode,
                     cacheRoot.orElseThrow(() -> new PackageException(
-                            "Quarkus package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode quarkus` for now; workspace Quarkus packaging is not wired yet.")));
+                            "Framework package mode `"
+                                    + mode.configValue()
+                                    + "` requires dependency jar access from zolt.lock. Use single-project `zolt package --mode "
+                                    + mode.configValue()
+                                    + "` for now; workspace framework packaging is not wired yet.")));
             case UBER -> throw unsupportedPackageMode(mode);
         };
         List<PackageArtifact> artifacts = packageSupplementalArtifacts(
@@ -542,38 +547,41 @@ public final class PackageService {
         }
     }
 
-    private PackageResult packageQuarkusFastJar(
+    private PackageResult packageFrameworkJar(
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
+            PackageMode mode,
             Path cacheRoot) {
         Optional<FrameworkPackageResult> result = frameworkPackageAugmenter.augmentIfEnabled(
                 projectDirectory,
                 config,
                 cacheRoot);
         FrameworkPackageResult packageResult = result.orElseThrow(() -> new PackageException(
-                "Quarkus package mode requires [framework.quarkus] enabled = true in zolt.toml. "
-                        + "Enable Quarkus, run `zolt resolve`, then retry `zolt package --mode quarkus`."));
+                frameworkPackageAugmenter.missingPackageResultMessage(mode)));
         Path runnerJar = packageResult.runnerJar();
         if (!Files.isRegularFile(runnerJar)) {
+            throw new PackageException(frameworkPackageAugmenter.missingRunnerJarMessage(mode, runnerJar));
+        }
+        if (packageResult.mode() != mode) {
             throw new PackageException(
-                    "Quarkus package mode expected a runner jar at "
-                            + runnerJar
-                            + ". Run `zolt build` and check the Quarkus augmentation output.");
+                    "Framework package mode `"
+                            + mode.configValue()
+                            + "` returned package mode `"
+                            + packageResult.mode().configValue()
+                            + "`. Check the framework package adapter.");
         }
         try {
             return new PackageResult(
                     buildResult,
-                    PackageMode.QUARKUS,
+                    packageResult.mode(),
                     runnerJar,
                     Optional.empty(),
                     compiledFiles(packageResult.packageDirectory()).size(),
                     true);
         } catch (IOException exception) {
             throw new PackageException(
-                    "Could not inspect Quarkus package directory at "
-                            + packageResult.packageDirectory()
-                            + ". Check that target/quarkus-app is readable and retry.",
+                    frameworkPackageAugmenter.inspectPackageDirectoryMessage(mode, packageResult.packageDirectory()),
                     exception);
         }
     }

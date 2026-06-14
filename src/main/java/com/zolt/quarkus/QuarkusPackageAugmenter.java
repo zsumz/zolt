@@ -2,6 +2,7 @@ package com.zolt.quarkus;
 
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkPackageResult;
+import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -24,7 +25,28 @@ public final class QuarkusPackageAugmenter implements FrameworkPackageAugmenter 
             Path cacheRoot) {
         return augmentationService.augmentIfEnabled(projectDirectory, config, cacheRoot)
                 .map(result -> new FrameworkPackageResult(
+                        PackageMode.QUARKUS,
                         result.workerResult().packageDirectory(),
                         result.workerResult().runnerJar()));
+    }
+
+    @Override
+    public String missingPackageResultMessage(PackageMode mode) {
+        return "Quarkus package mode requires [framework.quarkus] enabled = true in zolt.toml. "
+                + "Enable Quarkus, run `zolt resolve`, then retry `zolt package --mode quarkus`.";
+    }
+
+    @Override
+    public String missingRunnerJarMessage(PackageMode mode, Path runnerJar) {
+        return "Quarkus package mode expected a runner jar at "
+                + runnerJar
+                + ". Run `zolt build` and check the Quarkus augmentation output.";
+    }
+
+    @Override
+    public String inspectPackageDirectoryMessage(PackageMode mode, Path packageDirectory) {
+        return "Could not inspect Quarkus package directory at "
+                + packageDirectory
+                + ". Check that target/quarkus-app is readable and retry.";
     }
 }
