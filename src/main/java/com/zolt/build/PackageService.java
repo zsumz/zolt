@@ -15,7 +15,6 @@ import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolveService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,14 +29,10 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32;
-import java.util.zip.ZipException;
 
 public final class PackageService {
-    private static final long DETERMINISTIC_ENTRY_TIME = 0L;
     private static final String BOOT_CLASSES_PREFIX = "BOOT-INF/classes/";
     private static final String BOOT_LIB_PREFIX = "BOOT-INF/lib/";
     private static final String WEB_INF_PREFIX = "WEB-INF/";
@@ -351,11 +346,10 @@ public final class PackageService {
         try {
             Files.createDirectories(jarPath.getParent());
             List<Path> files = compiledFiles(outputDirectory);
-            try (OutputStream fileOutput = Files.newOutputStream(jarPath);
-                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
-                writeEntry(jarOutput, manifest.path(), manifest.content());
+            try (PackageArchiveWriter archive = PackageArchiveWriter.open(jarPath)) {
+                archive.writeEntry(manifest.path(), manifest.content());
                 for (Path file : files) {
-                    writeEntry(jarOutput, entryName(outputDirectory, file), Files.readAllBytes(file));
+                    archive.writeFile(entryName(outputDirectory, file), file);
                 }
             }
             Optional<Path> writtenRuntimeClasspathPath = Optional.empty();
@@ -401,28 +395,25 @@ public final class PackageService {
         try {
             Files.createDirectories(jarPath.getParent());
             List<Path> files = compiledFiles(outputDirectory);
-            try (OutputStream fileOutput = Files.newOutputStream(jarPath);
-                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
-                writeEntry(jarOutput, GeneratedManifest.DEFAULT_PATH, springBootManifest(startClass, loader));
-                Set<String> directoryEntries = new LinkedHashSet<>();
-                writeDirectoryEntry(jarOutput, directoryEntries, "BOOT-INF/");
-                writeDirectoryEntry(jarOutput, directoryEntries, BOOT_CLASSES_PREFIX);
-                writeDirectoryEntry(jarOutput, directoryEntries, BOOT_LIB_PREFIX);
+            try (PackageArchiveWriter archive = PackageArchiveWriter.open(jarPath)) {
+                archive.writeEntry(GeneratedManifest.DEFAULT_PATH, springBootManifest(startClass, loader));
+                archive.writeDirectory("BOOT-INF/");
+                archive.writeDirectory(BOOT_CLASSES_PREFIX);
+                archive.writeDirectory(BOOT_LIB_PREFIX);
                 for (Map.Entry<String, byte[]> entry : loader.entries().entrySet()) {
-                    writeParentDirectoryEntries(jarOutput, directoryEntries, entry.getKey());
-                    writeEntry(jarOutput, entry.getKey(), entry.getValue());
+                    archive.writeParentDirectories(entry.getKey());
+                    archive.writeEntry(entry.getKey(), entry.getValue());
                 }
                 for (Path file : files) {
                     String bootEntryName = BOOT_CLASSES_PREFIX + entryName(outputDirectory, file);
-                    writeParentDirectoryEntries(jarOutput, directoryEntries, bootEntryName);
-                    writeEntry(jarOutput, bootEntryName, Files.readAllBytes(file));
+                    archive.writeParentDirectories(bootEntryName);
+                    archive.writeFile(bootEntryName, file);
                 }
                 for (RuntimeJar runtimeJar : runtimeJars) {
                     if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
                         continue;
                     }
-                    writeStoredEntry(
-                            jarOutput,
+                    archive.writeStoredEntry(
                             BOOT_LIB_PREFIX + nestedJarName(runtimeJar),
                             readRuntimeJar(runtimeJar));
                 }
@@ -461,21 +452,18 @@ public final class PackageService {
         try {
             Files.createDirectories(warPath.getParent());
             List<Path> files = compiledFiles(outputDirectory);
-            try (OutputStream fileOutput = Files.newOutputStream(warPath);
-                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
-                writeEntry(jarOutput, manifest.path(), manifest.content());
-                Set<String> directoryEntries = new LinkedHashSet<>();
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_PREFIX);
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_CLASSES_PREFIX);
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PREFIX);
+            try (PackageArchiveWriter archive = PackageArchiveWriter.open(warPath)) {
+                archive.writeEntry(manifest.path(), manifest.content());
+                archive.writeDirectory(WEB_INF_PREFIX);
+                archive.writeDirectory(WEB_INF_CLASSES_PREFIX);
+                archive.writeDirectory(WEB_INF_LIB_PREFIX);
                 for (Path file : files) {
                     String warEntryName = WEB_INF_CLASSES_PREFIX + entryName(outputDirectory, file);
-                    writeParentDirectoryEntries(jarOutput, directoryEntries, warEntryName);
-                    writeEntry(jarOutput, warEntryName, Files.readAllBytes(file));
+                    archive.writeParentDirectories(warEntryName);
+                    archive.writeFile(warEntryName, file);
                 }
                 for (RuntimeJar runtimeJar : runtimeJars) {
-                    writeStoredEntry(
-                            jarOutput,
+                    archive.writeStoredEntry(
                             WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
                             readRuntimeJar(runtimeJar));
                 }
@@ -517,37 +505,33 @@ public final class PackageService {
         try {
             Files.createDirectories(warPath.getParent());
             List<Path> files = compiledFiles(outputDirectory);
-            try (OutputStream fileOutput = Files.newOutputStream(warPath);
-                    JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
-                writeEntry(jarOutput, GeneratedManifest.DEFAULT_PATH, springBootWarManifest(startClass, loader));
-                Set<String> directoryEntries = new LinkedHashSet<>();
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_PREFIX);
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_CLASSES_PREFIX);
-                writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PREFIX);
+            try (PackageArchiveWriter archive = PackageArchiveWriter.open(warPath)) {
+                archive.writeEntry(GeneratedManifest.DEFAULT_PATH, springBootWarManifest(startClass, loader));
+                archive.writeDirectory(WEB_INF_PREFIX);
+                archive.writeDirectory(WEB_INF_CLASSES_PREFIX);
+                archive.writeDirectory(WEB_INF_LIB_PREFIX);
                 if (!providedJars.isEmpty()) {
-                    writeDirectoryEntry(jarOutput, directoryEntries, WEB_INF_LIB_PROVIDED_PREFIX);
+                    archive.writeDirectory(WEB_INF_LIB_PROVIDED_PREFIX);
                 }
                 for (Map.Entry<String, byte[]> entry : loader.entries().entrySet()) {
-                    writeParentDirectoryEntries(jarOutput, directoryEntries, entry.getKey());
-                    writeEntry(jarOutput, entry.getKey(), entry.getValue());
+                    archive.writeParentDirectories(entry.getKey());
+                    archive.writeEntry(entry.getKey(), entry.getValue());
                 }
                 for (Path file : files) {
                     String warEntryName = WEB_INF_CLASSES_PREFIX + entryName(outputDirectory, file);
-                    writeParentDirectoryEntries(jarOutput, directoryEntries, warEntryName);
-                    writeEntry(jarOutput, warEntryName, Files.readAllBytes(file));
+                    archive.writeParentDirectories(warEntryName);
+                    archive.writeFile(warEntryName, file);
                 }
                 for (RuntimeJar runtimeJar : runtimeJars) {
                     if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
                         continue;
                     }
-                    writeStoredEntry(
-                            jarOutput,
+                    archive.writeStoredEntry(
                             WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
                             readRuntimeJar(runtimeJar));
                 }
                 for (RuntimeJar providedJar : providedJars) {
-                    writeStoredEntry(
-                            jarOutput,
+                    archive.writeStoredEntry(
                             WEB_INF_LIB_PROVIDED_PREFIX + nestedJarName(providedJar),
                             readRuntimeJar(providedJar));
                 }
@@ -619,10 +603,32 @@ public final class PackageService {
         return new PackageException(
                 "Package mode `"
                         + mode.configValue()
-                        + "` is not implemented yet. Use `zolt package --mode thin`, `zolt package --mode spring-boot`, or `zolt package --mode quarkus` "
-                        + "until uber jar support lands"
+                        + "` is not implemented yet. Supported package modes are: "
+                        + supportedPackageModes()
+                        + ". Intentionally unsupported package modes are: "
+                        + unsupportedPackageModes()
+                        + ". Use one of the supported modes until uber jar support lands"
                         + ".");
     }
+
+    private static String supportedPackageModes() {
+        return List.of(
+                        PackageMode.THIN,
+                        PackageMode.SPRING_BOOT,
+                        PackageMode.WAR,
+                        PackageMode.SPRING_BOOT_WAR,
+                        PackageMode.QUARKUS)
+                .stream()
+                .map(PackageMode::configValue)
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String unsupportedPackageModes() {
+        return List.of(PackageMode.UBER).stream()
+                .map(PackageMode::configValue)
+                .collect(Collectors.joining(", "));
+    }
+
     private Path requireOutputDirectory(BuildResult buildResult) {
         Path outputDirectory = buildResult.outputDirectory();
         if (!Files.isDirectory(outputDirectory)) {
@@ -683,7 +689,7 @@ public final class PackageService {
         try {
             Files.createDirectories(jarPath.getParent());
             List<Path> files = sourceFiles(sourceRoot);
-            writeJarFromFiles(jarPath, sourceRoot, files);
+            PackageArchiveWriter.writeJarFromFiles(jarPath, sourceRoot, files);
             return new PackageArtifact("sources", jarPath, files.size());
         } catch (IOException exception) {
             throw new PackageException(
@@ -717,7 +723,7 @@ public final class PackageService {
                         javadocClasspath(buildResult, classpathPackages, classpaths));
             }
             List<Path> files = regularFiles(javadocDirectory);
-            writeJarFromFiles(jarPath, javadocDirectory, files);
+            PackageArchiveWriter.writeJarFromFiles(jarPath, javadocDirectory, files);
             return new PackageArtifact("javadoc", jarPath, files.size());
         } catch (IOException exception) {
             throw new PackageException(
@@ -740,7 +746,7 @@ public final class PackageService {
         try {
             Files.createDirectories(jarPath.getParent());
             List<Path> files = compiledFiles(testOutput);
-            writeJarFromFiles(jarPath, testOutput, files);
+            PackageArchiveWriter.writeJarFromFiles(jarPath, testOutput, files);
             return new PackageArtifact("tests", jarPath, files.size());
         } catch (IOException exception) {
             throw new PackageException(
@@ -817,15 +823,6 @@ public final class PackageService {
 
     private static String executable(String name) {
         return System.getProperty("os.name", "").toLowerCase().contains("win") ? name + ".exe" : name;
-    }
-
-    private static void writeJarFromFiles(Path jarPath, Path root, List<Path> files) throws IOException {
-        try (OutputStream fileOutput = Files.newOutputStream(jarPath);
-                JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
-            for (Path file : files) {
-                writeEntry(jarOutput, entryName(root, file), Files.readAllBytes(file));
-            }
-        }
     }
 
     private static List<Path> sourceFiles(Path sourceRoot) throws IOException {
@@ -1117,76 +1114,6 @@ public final class PackageService {
                     .filter(path -> !LOCAL_BUILD_FINGERPRINTS.contains(path.getFileName().toString()))
                     .sorted(Comparator.comparing(path -> entryName(outputDirectory, path)))
                     .toList();
-        }
-    }
-
-    private static void writeEntry(JarOutputStream output, String name, byte[] content) throws IOException {
-        try {
-            JarEntry entry = new JarEntry(name);
-            entry.setTime(DETERMINISTIC_ENTRY_TIME);
-            output.putNextEntry(entry);
-            output.write(content);
-            output.closeEntry();
-        } catch (ZipException exception) {
-            throw new PackageException(
-                    "Duplicate jar entry `"
-                            + name
-                            + "`. Remove or rename the duplicate resource and try packaging again.",
-                    exception);
-        }
-    }
-
-    private static void writeParentDirectoryEntries(
-            JarOutputStream output,
-            Set<String> writtenDirectories,
-            String entryName) throws IOException {
-        int slash = entryName.indexOf('/');
-        while (slash >= 0) {
-            writeDirectoryEntry(output, writtenDirectories, entryName.substring(0, slash + 1));
-            slash = entryName.indexOf('/', slash + 1);
-        }
-    }
-
-    private static void writeDirectoryEntry(
-            JarOutputStream output,
-            Set<String> writtenDirectories,
-            String name) throws IOException {
-        if (!writtenDirectories.add(name)) {
-            return;
-        }
-        try {
-            JarEntry entry = new JarEntry(name);
-            entry.setTime(DETERMINISTIC_ENTRY_TIME);
-            output.putNextEntry(entry);
-            output.closeEntry();
-        } catch (ZipException exception) {
-            throw new PackageException(
-                    "Duplicate jar entry `"
-                            + name
-                            + "`. Check the package layout and try again.",
-                    exception);
-        }
-    }
-
-    private static void writeStoredEntry(JarOutputStream output, String name, byte[] content) throws IOException {
-        try {
-            JarEntry entry = new JarEntry(name);
-            entry.setTime(DETERMINISTIC_ENTRY_TIME);
-            entry.setMethod(JarEntry.STORED);
-            entry.setSize(content.length);
-            entry.setCompressedSize(content.length);
-            CRC32 crc = new CRC32();
-            crc.update(content);
-            entry.setCrc(crc.getValue());
-            output.putNextEntry(entry);
-            output.write(content);
-            output.closeEntry();
-        } catch (ZipException exception) {
-            throw new PackageException(
-                    "Duplicate jar entry `"
-                            + name
-                            + "`. Remove or rename the duplicate dependency and try packaging again.",
-                    exception);
         }
     }
 

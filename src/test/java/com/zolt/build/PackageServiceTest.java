@@ -864,7 +864,9 @@ final class PackageServiceTest {
                 () -> packageService.packageJar(projectDir, config, projectDir.resolve("cache")));
 
         assertTrue(exception.getMessage().contains("Package mode `uber` is not implemented yet"));
-        assertTrue(exception.getMessage().contains("Use `zolt package --mode thin`"));
+        assertTrue(exception.getMessage().contains(
+                "Supported package modes are: thin, spring-boot, war, spring-boot-war, quarkus"));
+        assertTrue(exception.getMessage().contains("Intentionally unsupported package modes are: uber"));
         assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
