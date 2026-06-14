@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.dependency;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

@@ -1,4 +1,4 @@
-package com.zolt.resolve;
+package com.zolt.dependency;
 
 import java.util.ArrayList;
 import java.util.Comparator;

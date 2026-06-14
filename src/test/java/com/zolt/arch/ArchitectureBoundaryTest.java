@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -184,9 +183,7 @@ final class ArchitectureBoundaryTest {
     }
 
     private static Map<Set<String>, String> allowedCycles() {
-        Map<Set<String>, String> cycles = new LinkedHashMap<>();
-        cycles.put(sortedSet("com.zolt.lockfile", "com.zolt.resolve"), "");
-        return Map.copyOf(cycles);
+        return Map.of();
     }
 
     private static Map<PackageEdge, String> allowedForbiddenImports() {
@@ -229,10 +226,6 @@ final class ArchitectureBoundaryTest {
                         .append(entry.getValue())
                         .append("]\n"));
         return description.toString();
-    }
-
-    private static Set<String> sortedSet(String... values) {
-        return Collections.unmodifiableSet(new TreeSet<>(List.of(values)));
     }
 
     private static List<RawCommandAttributeKey> findRawCommandAttributeKeys(Path sourceRoot) throws IOException {

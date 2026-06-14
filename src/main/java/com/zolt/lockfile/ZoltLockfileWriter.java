@@ -1,7 +1,7 @@
 package com.zolt.lockfile;
 
 import com.zolt.dependency.ConflictSelectionReason;
-import com.zolt.resolve.VersionComparator;
+import com.zolt.dependency.VersionComparator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

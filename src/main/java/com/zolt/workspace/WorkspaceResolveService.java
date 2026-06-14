@@ -20,7 +20,7 @@ import com.zolt.resolve.ResolveMetrics;
 import com.zolt.resolve.ResolveOutput;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
-import com.zolt.resolve.VersionComparator;
+import com.zolt.dependency.VersionComparator;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

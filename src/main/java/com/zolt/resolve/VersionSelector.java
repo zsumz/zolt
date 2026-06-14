@@ -2,6 +2,7 @@ package com.zolt.resolve;
 
 import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.dependency.PackageId;
+import com.zolt.dependency.VersionComparator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
