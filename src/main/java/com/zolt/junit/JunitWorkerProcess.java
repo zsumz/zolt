@@ -1,6 +1,6 @@
 package com.zolt.junit;
 
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;

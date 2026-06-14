@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.JavacRunner;
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.resolve.Classpath;

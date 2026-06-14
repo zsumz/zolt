@@ -1,8 +1,8 @@
 package com.zolt.quarkus;
 
-import com.zolt.build.TestSelection;
-import com.zolt.build.TestSelectionCodec;
-import com.zolt.build.TestSelectionException;
+import com.zolt.test.TestSelection;
+import com.zolt.test.TestSelectionCodec;
+import com.zolt.test.TestSelectionException;
 import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestRunException;
 import java.io.IOException;

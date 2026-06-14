@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.test;
 
 public final class TestSelectionException extends RuntimeException {
     public TestSelectionException(String message) {

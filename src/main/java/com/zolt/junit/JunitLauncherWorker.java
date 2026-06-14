@@ -1,6 +1,6 @@
 package com.zolt.junit;
 
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;

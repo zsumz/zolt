@@ -133,7 +133,7 @@ final class QuarkusPlainJunitWorkerRunnerTest {
                         Path.of("/repo/target/test-classes"),
                         Path.of("/repo/target/classes"),
                         Path.of("/cache/junit-platform-console.jar")),
-                com.zolt.build.TestSelection.empty(),
+                com.zolt.test.TestSelection.empty(),
                 jvmArguments);
     }
 }

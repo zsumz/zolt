@@ -1,6 +1,6 @@
 package com.zolt.quarkus;
 
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

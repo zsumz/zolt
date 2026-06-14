@@ -142,7 +142,6 @@ final class ArchitectureBoundaryTest {
 
     private static Map<Set<String>, String> allowedCycles() {
         Map<Set<String>, String> cycles = new LinkedHashMap<>();
-        cycles.put(sortedSet("com.zolt.build", "com.zolt.junit"), "");
         cycles.put(sortedSet("com.zolt.lockfile", "com.zolt.resolve"), "");
         return Map.copyOf(cycles);
     }

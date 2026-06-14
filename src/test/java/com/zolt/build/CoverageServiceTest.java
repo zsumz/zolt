@@ -9,6 +9,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

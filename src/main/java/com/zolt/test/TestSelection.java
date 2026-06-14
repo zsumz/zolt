@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.test;
 
 import java.util.ArrayList;
 import java.util.List;

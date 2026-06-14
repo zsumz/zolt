@@ -1,6 +1,5 @@
 package com.zolt.workspace;
 
-import com.zolt.build.TestSelection;
 import com.zolt.build.TestJvmArguments;
 import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunService;
@@ -8,6 +7,7 @@ import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.resolve.ResolveService;
+import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

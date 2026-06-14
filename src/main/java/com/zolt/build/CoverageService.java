@@ -11,6 +11,7 @@ import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
 import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
+import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

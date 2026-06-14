@@ -1,8 +1,8 @@
 package com.zolt.junit;
 
-import com.zolt.build.TestSelection;
-import com.zolt.build.TestSelectionCodec;
-import com.zolt.build.TestSelectionException;
+import com.zolt.test.TestSelection;
+import com.zolt.test.TestSelectionCodec;
+import com.zolt.test.TestSelectionException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;

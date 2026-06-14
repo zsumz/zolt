@@ -1,6 +1,6 @@
 package com.zolt.quarkus;
 
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import com.zolt.build.TestJvmArguments;
 import java.nio.file.Path;
 import java.util.Collections;

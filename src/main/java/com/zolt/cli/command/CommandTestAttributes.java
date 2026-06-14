@@ -4,7 +4,7 @@ import com.zolt.build.BuildResult;
 import com.zolt.build.CompileDiagnostics;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestRunResult;
-import com.zolt.build.TestSelection;
+import com.zolt.test.TestSelection;
 import com.zolt.workspace.WorkspaceTestResult;
 import java.util.LinkedHashMap;
 import java.util.Map;

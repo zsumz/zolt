@@ -1,6 +1,6 @@
 package com.zolt.quarkus;
 
-import com.zolt.build.TestSelectionCodec;
+import com.zolt.test.TestSelectionCodec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
