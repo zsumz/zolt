@@ -80,7 +80,7 @@ public final class ResolveService {
                 DependencyGraphTraverser::new,
                 new VersionSelector(),
                 new ZoltLockfileWriter(),
-                new ToolingDependencyContributor(coordinateParser),
+                defaultDependencyRequestPlanner(coordinateParser),
                 frameworkDependencyRequestPlanner);
     }
 
@@ -91,17 +91,25 @@ public final class ResolveService {
             DependencyGraphTraverserFactory graphTraverserFactory,
             VersionSelector versionSelector,
             ZoltLockfileWriter lockfileWriter,
-            ToolingDependencyContributor toolingDependencyContributor,
+            DependencyRequestPlanner dependencyRequestPlanner,
             FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner) {
         this.coordinateParser = coordinateParser;
         this.repositoryClient = repositoryClient;
         this.rawPomParser = rawPomParser;
         this.lockfileWriter = lockfileWriter;
         this.graphResolver = new DependencyGraphResolver(graphTraverserFactory, versionSelector);
-        this.dependencyRequestPlanner = new DependencyRequestPlanner(coordinateParser, toolingDependencyContributor);
+        this.dependencyRequestPlanner = dependencyRequestPlanner == null
+                ? defaultDependencyRequestPlanner(coordinateParser)
+                : dependencyRequestPlanner;
         this.frameworkDependencyRequestPlanner = frameworkDependencyRequestPlanner == null
                 ? FrameworkDependencyRequestPlanner.none()
                 : frameworkDependencyRequestPlanner;
+    }
+
+    private static DependencyRequestPlanner defaultDependencyRequestPlanner(CoordinateParser coordinateParser) {
+        return new DependencyRequestPlanner(
+                coordinateParser,
+                new ToolingDependencyContributor(coordinateParser));
     }
 
     public ResolveResult resolve(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
