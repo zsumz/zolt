@@ -51,8 +51,8 @@ final class WarLayoutAssembler {
                 }
                 for (PackageRuntimeJar runtimeJar : runtimeJars) {
                     archive.writeStoredEntry(
-                            WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
-                            readRuntimeJar(runtimeJar));
+                            WEB_INF_LIB_PREFIX + PackageRuntimeJars.nestedJarName(runtimeJar),
+                            PackageRuntimeJars.read(runtimeJar));
                 }
             }
             return new PackageResult(
@@ -85,23 +85,4 @@ final class WarLayoutAssembler {
         return outputDirectory.relativize(file).normalize().toString().replace('\\', '/');
     }
 
-    private static String nestedJarName(PackageRuntimeJar runtimeJar) {
-        Path fileName = runtimeJar.jarPath().getFileName();
-        if (fileName != null && !fileName.toString().isBlank()) {
-            return fileName.toString();
-        }
-        return runtimeJar.packageId().toString().replace(':', '-') + "-" + runtimeJar.version() + ".jar";
-    }
-
-    private static byte[] readRuntimeJar(PackageRuntimeJar runtimeJar) throws IOException {
-        if (!Files.isRegularFile(runtimeJar.jarPath())) {
-            throw new PackageException(
-                    "Runtime dependency jar for "
-                            + runtimeJar.packageId()
-                            + " is missing at "
-                            + runtimeJar.jarPath()
-                            + ". Run `zolt resolve` to refresh the artifact cache and retry.");
-        }
-        return Files.readAllBytes(runtimeJar.jarPath());
-    }
 }
