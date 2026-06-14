@@ -1,11 +1,11 @@
 package com.zolt.lockfile;
 
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.ConflictSelectionReason;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolvedPackage;
 import java.io.IOException;
 import java.nio.file.Path;

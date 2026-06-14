@@ -1,13 +1,13 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
 import java.io.IOException;
 import java.nio.file.Files;

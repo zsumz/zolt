@@ -1,7 +1,4 @@
-package com.zolt.classpath;
-
-import com.zolt.resolve.DependencyScope;
-import com.zolt.resolve.ResolvedPackage;
+package com.zolt.resolve;
 
 public record ResolvedClasspathPackage(
         ResolvedPackage resolvedPackage,

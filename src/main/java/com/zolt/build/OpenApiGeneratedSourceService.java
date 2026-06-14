@@ -1,6 +1,5 @@
 package com.zolt.build;
 
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -9,6 +8,7 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

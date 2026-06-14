@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolvedPackage;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;

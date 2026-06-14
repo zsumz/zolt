@@ -2,7 +2,6 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -13,6 +12,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.Classpath;
 import com.zolt.resolve.DependencyScope;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
 import java.io.IOException;

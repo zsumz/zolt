@@ -2,7 +2,6 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.ZoltLockfile;
@@ -12,6 +11,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.DependencyScope;
 import com.zolt.resolve.PackageId;
+import com.zolt.resolve.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

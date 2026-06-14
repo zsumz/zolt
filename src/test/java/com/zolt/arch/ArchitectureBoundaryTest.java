@@ -143,14 +143,12 @@ final class ArchitectureBoundaryTest {
     private static Map<Set<String>, String> allowedCycles() {
         Map<Set<String>, String> cycles = new LinkedHashMap<>();
         cycles.put(sortedSet("com.zolt.build", "com.zolt.junit"), "");
-        cycles.put(sortedSet("com.zolt.classpath", "com.zolt.lockfile", "com.zolt.resolve"), "/");
+        cycles.put(sortedSet("com.zolt.lockfile", "com.zolt.resolve"), "");
         return Map.copyOf(cycles);
     }
 
     private static Map<PackageEdge, String> allowedForbiddenImports() {
-        Map<PackageEdge, String> imports = new LinkedHashMap<>();
-        imports.put(new PackageEdge("com.zolt.lockfile", "com.zolt.classpath"), "/");
-        return Map.copyOf(imports);
+        return Map.of();
     }
 
     private static String describeCycles(PackageGraph graph, List<Set<String>> cycles) {
