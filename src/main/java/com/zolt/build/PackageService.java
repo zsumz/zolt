@@ -65,6 +65,7 @@ public final class PackageService {
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
     private final ThinJarLayoutAssembler thinJarLayoutAssembler;
+    private final WarLayoutAssembler warLayoutAssembler;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -149,6 +150,7 @@ public final class PackageService {
                 manifestGenerator,
                 lockfileReader,
                 classpathBuilder);
+        this.warLayoutAssembler = new WarLayoutAssembler(manifestGenerator);
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -353,7 +355,7 @@ public final class PackageService {
                 "Spring Boot package mode requires [project].main in zolt.toml. Add the application main class and retry."));
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path jarPath = jarPath(projectDirectory, config);
-        List<RuntimeJar> runtimeJars = classpathPackages
+        List<PackageRuntimeJar> runtimeJars = classpathPackages
                 .map(this::runtimeJars)
                 .orElseGet(() -> runtimeJars(lockfileReader.read(projectDirectory.resolve("zolt.lock")), cacheRoot));
         SpringBootLoader loader = springBootLoader(runtimeJars);
@@ -375,7 +377,7 @@ public final class PackageService {
                     archive.writeParentDirectories(bootEntryName);
                     archive.writeFile(bootEntryName, file);
                 }
-                for (RuntimeJar runtimeJar : runtimeJars) {
+                for (PackageRuntimeJar runtimeJar : runtimeJars) {
                     if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
                         continue;
                     }
@@ -412,42 +414,8 @@ public final class PackageService {
                 .orElseGet(() -> packagedClasspathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        List<RuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
-        GeneratedManifest manifest = manifestGenerator.generateWithoutMain(config);
-
-        try {
-            Files.createDirectories(warPath.getParent());
-            List<Path> files = compiledFiles(outputDirectory);
-            try (PackageArchiveWriter archive = PackageArchiveWriter.open(warPath)) {
-                archive.writeEntry(manifest.path(), manifest.content());
-                archive.writeDirectory(WEB_INF_PREFIX);
-                archive.writeDirectory(WEB_INF_CLASSES_PREFIX);
-                archive.writeDirectory(WEB_INF_LIB_PREFIX);
-                for (Path file : files) {
-                    String warEntryName = WEB_INF_CLASSES_PREFIX + entryName(outputDirectory, file);
-                    archive.writeParentDirectories(warEntryName);
-                    archive.writeFile(warEntryName, file);
-                }
-                for (RuntimeJar runtimeJar : runtimeJars) {
-                    archive.writeStoredEntry(
-                            WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
-                            readRuntimeJar(runtimeJar));
-                }
-            }
-            return new PackageResult(
-                    buildResult,
-                    PackageMode.WAR,
-                    warPath,
-                    Optional.empty(),
-                    files.size(),
-                    false);
-        } catch (IOException exception) {
-            throw new PackageException(
-                    "Could not package WAR at "
-                            + warPath
-                            + ". Check that target/ is writable and try again.",
-                    exception);
-        }
+        List<PackageRuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
+        return warLayoutAssembler.assemble(config, buildResult, outputDirectory, warPath, runtimeJars);
     }
 
     private PackageResult packageSpringBootWar(
@@ -464,8 +432,8 @@ public final class PackageService {
                 .orElseGet(() -> lockfileReader.classpathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        List<RuntimeJar> providedJars = providedJars(resolvedPackages);
-        List<RuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
+        List<PackageRuntimeJar> providedJars = providedJars(resolvedPackages);
+        List<PackageRuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         SpringBootLoader loader = springBootWarLoader(runtimeJars);
 
         try {
@@ -488,7 +456,7 @@ public final class PackageService {
                     archive.writeParentDirectories(warEntryName);
                     archive.writeFile(warEntryName, file);
                 }
-                for (RuntimeJar runtimeJar : runtimeJars) {
+                for (PackageRuntimeJar runtimeJar : runtimeJars) {
                     if (runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE)) {
                         continue;
                     }
@@ -496,7 +464,7 @@ public final class PackageService {
                             WEB_INF_LIB_PREFIX + nestedJarName(runtimeJar),
                             readRuntimeJar(runtimeJar));
                 }
-                for (RuntimeJar providedJar : providedJars) {
+                for (PackageRuntimeJar providedJar : providedJars) {
                     archive.writeStoredEntry(
                             WEB_INF_LIB_PROVIDED_PREFIX + nestedJarName(providedJar),
                             readRuntimeJar(providedJar));
@@ -828,16 +796,16 @@ public final class PackageService {
         }
     }
 
-    private List<RuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
+    private List<PackageRuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
         return runtimeJars(packagedClasspathPackages(lockfile, cacheRoot));
     }
 
-    private List<RuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
-        Map<String, RuntimeJar> runtimeJars = new LinkedHashMap<>();
+    private List<PackageRuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
+        Map<String, PackageRuntimeJar> runtimeJars = new LinkedHashMap<>();
         packagedClasspathPackages(classpathPackages).stream()
                 .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
                 .sorted(Comparator.comparing(PackageService::classpathSortKey))
-                .map(dependency -> new RuntimeJar(
+                .map(dependency -> new PackageRuntimeJar(
                         dependency.resolvedPackage().packageId(),
                         dependency.resolvedPackage().selectedVersion(),
                         dependency.resolvedPackage().jarPath()))
@@ -845,19 +813,19 @@ public final class PackageService {
         return List.copyOf(runtimeJars.values());
     }
 
-    private List<RuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
+    private List<PackageRuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
         Set<PackageId> providedPackageIds = providedPackageIds(classpathPackages);
         return runtimeJars(classpathPackages).stream()
                 .filter(runtimeJar -> !providedPackageIds.contains(runtimeJar.packageId()))
                 .toList();
     }
 
-    private List<RuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
-        Map<String, RuntimeJar> providedJars = new LinkedHashMap<>();
+    private List<PackageRuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
+        Map<String, PackageRuntimeJar> providedJars = new LinkedHashMap<>();
         classpathPackages.stream()
                 .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
                 .sorted(Comparator.comparing(PackageService::classpathSortKey))
-                .map(dependency -> new RuntimeJar(
+                .map(dependency -> new PackageRuntimeJar(
                         dependency.resolvedPackage().packageId(),
                         dependency.resolvedPackage().selectedVersion(),
                         dependency.resolvedPackage().jarPath()))
@@ -892,20 +860,20 @@ public final class PackageService {
                 + dependency.scope();
     }
 
-    private static String runtimeJarKey(RuntimeJar runtimeJar) {
+    private static String runtimeJarKey(PackageRuntimeJar runtimeJar) {
         return runtimeJar.packageId() + ":" + runtimeJar.version() + ":" + runtimeJar.jarPath();
     }
 
-    private static SpringBootLoader springBootLoader(List<RuntimeJar> runtimeJars) {
+    private static SpringBootLoader springBootLoader(List<PackageRuntimeJar> runtimeJars) {
         return springBootLoader(runtimeJars, false);
     }
 
-    private static SpringBootLoader springBootWarLoader(List<RuntimeJar> runtimeJars) {
+    private static SpringBootLoader springBootWarLoader(List<PackageRuntimeJar> runtimeJars) {
         return springBootLoader(runtimeJars, true);
     }
 
-    private static SpringBootLoader springBootLoader(List<RuntimeJar> runtimeJars, boolean war) {
-        RuntimeJar loaderJar = runtimeJars.stream()
+    private static SpringBootLoader springBootLoader(List<PackageRuntimeJar> runtimeJars, boolean war) {
+        PackageRuntimeJar loaderJar = runtimeJars.stream()
                 .filter(runtimeJar -> runtimeJar.packageId().equals(SPRING_BOOT_LOADER_PACKAGE))
                 .findFirst()
                 .orElseThrow(() -> new PackageException(missingSpringBootLoaderMessage(runtimeJars)));
@@ -931,10 +899,10 @@ public final class PackageService {
         return new SpringBootLoader(loaderJar, launcherClass, entries);
     }
 
-    private static String missingSpringBootLoaderMessage(List<RuntimeJar> runtimeJars) {
+    private static String missingSpringBootLoaderMessage(List<PackageRuntimeJar> runtimeJars) {
         String versionHint = runtimeJars.stream()
                 .filter(runtimeJar -> runtimeJar.packageId().equals(SPRING_BOOT_PACKAGE))
-                .map(RuntimeJar::version)
+                .map(PackageRuntimeJar::version)
                 .findFirst()
                 .map(version -> " The resolved Spring Boot version appears to be " + version + ".")
                 .orElse("");
@@ -1024,7 +992,7 @@ public final class PackageService {
         return className.replace('.', '/') + ".class";
     }
 
-    private static String nestedJarName(RuntimeJar runtimeJar) {
+    private static String nestedJarName(PackageRuntimeJar runtimeJar) {
         Path fileName = runtimeJar.jarPath().getFileName();
         if (fileName != null && !fileName.toString().isBlank()) {
             return fileName.toString();
@@ -1032,7 +1000,7 @@ public final class PackageService {
         return runtimeJar.packageId().toString().replace(':', '-') + "-" + runtimeJar.version() + ".jar";
     }
 
-    private static byte[] readRuntimeJar(RuntimeJar runtimeJar) throws IOException {
+    private static byte[] readRuntimeJar(PackageRuntimeJar runtimeJar) throws IOException {
         if (!Files.isRegularFile(runtimeJar.jarPath())) {
             throw new PackageException(
                     "Runtime dependency jar for "
@@ -1058,9 +1026,6 @@ public final class PackageService {
         return outputDirectory.relativize(file).normalize().toString().replace('\\', '/');
     }
 
-    private record RuntimeJar(PackageId packageId, String version, Path jarPath) {
-    }
-
-    private record SpringBootLoader(RuntimeJar jar, String launcherClass, Map<String, byte[]> entries) {
+    private record SpringBootLoader(PackageRuntimeJar jar, String launcherClass, Map<String, byte[]> entries) {
     }
 }
