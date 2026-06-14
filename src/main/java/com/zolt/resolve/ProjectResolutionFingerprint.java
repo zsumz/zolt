@@ -69,8 +69,7 @@ public final class ProjectResolutionFingerprint {
         generatedSourceInputs(inputs, "generatedMain", config.build().generatedMainSources());
         generatedSourceInputs(inputs, "generatedTest", config.build().generatedTestSources());
         line(inputs, "package", "mode", config.packageSettings().mode().configValue());
-        line(inputs, "framework.quarkus", "enabled", Boolean.toString(config.frameworkSettings().quarkus().enabled()));
-        line(inputs, "framework.quarkus", "package", config.frameworkSettings().quarkus().packageMode().configValue());
+        inputs.addAll(config.frameworkSettings().resolutionFingerprintInputs());
         return List.copyOf(inputs);
     }
 
