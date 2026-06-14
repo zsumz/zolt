@@ -343,6 +343,7 @@ public final class ResolveService {
                 new EffectivePomInheritanceBuilder();
         private final ImportedBomDependencyManagementExpander importedBomDependencyManagementExpander =
                 new ImportedBomDependencyManagementExpander();
+        private final ParentPomChainLoader parentPomChainLoader = new ParentPomChainLoader();
         private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
         private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
         private final Map<String, RawPom> rawPoms = new ConcurrentHashMap<>();
@@ -678,7 +679,7 @@ public final class ResolveService {
             long started = System.nanoTime();
             try {
                 RawPom rawPom = rawPom(coordinate);
-                List<RawPom> parents = loadParents(rawPom);
+                List<RawPom> parents = parentPomChainLoader.load(rawPom, this::rawPom);
                 EffectiveRawPom base = effectivePomInheritanceBuilder.build(coordinate, rawPom, parents);
                 List<String> nextStack = new ArrayList<>(importStack);
                 nextStack.add(key);
@@ -705,23 +706,6 @@ public final class ResolveService {
                 metadataLoads.remove(key, pending);
                 recordEffectivePomBuild(elapsedSince(started));
             }
-        }
-
-        private List<RawPom> loadParents(RawPom rawPom) {
-            List<RawPom> nearestFirst = new ArrayList<>();
-            RawPom current = rawPom;
-            while (current.parent().isPresent()) {
-                var parent = current.parent().orElseThrow();
-                Coordinate parentCoordinate = new Coordinate(parent.groupId(), parent.artifactId(), Optional.of(parent.version()));
-                RawPom parentPom = rawPom(parentCoordinate);
-                nearestFirst.add(parentPom);
-                current = parentPom;
-            }
-            List<RawPom> rootFirst = new ArrayList<>();
-            for (int index = nearestFirst.size() - 1; index >= 0; index--) {
-                rootFirst.add(nearestFirst.get(index));
-            }
-            return rootFirst;
         }
 
         private RawPom rawPom(Coordinate coordinate) {
