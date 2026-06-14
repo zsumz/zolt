@@ -26,9 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 
 public final class ResolveService {
     private final CoordinateParser coordinateParser;
@@ -325,7 +323,11 @@ public final class ResolveService {
     }
 
     private final class RepositoryContext
-            implements DependencyMetadataSource, ResolverMetricsSink, LockfileAssemblyContext, RawPomLoadMetricsSink {
+            implements DependencyMetadataSource,
+                    ResolverMetricsSink,
+                    LockfileAssemblyContext,
+                    RawPomLoadMetricsSink,
+                    EffectivePomLoadMetricsSink {
         private final ProjectConfig config;
         private final LocalArtifactCache cache;
         private final ResolveOptions options;
@@ -341,8 +343,11 @@ public final class ResolveService {
                 new ImportedBomDependencyManagementExpander();
         private final ParentPomChainLoader parentPomChainLoader = new ParentPomChainLoader();
         private final RawPomMetadataLoader rawPomMetadataLoader = new RawPomMetadataLoader(rawPomParser);
-        private final Map<String, EffectiveRawPom> metadata = new ConcurrentHashMap<>();
-        private final Map<String, CompletableFuture<EffectiveRawPom>> metadataLoads = new ConcurrentHashMap<>();
+        private final EffectivePomMetadataLoader effectivePomMetadataLoader =
+                new EffectivePomMetadataLoader(
+                        parentPomChainLoader,
+                        effectivePomInheritanceBuilder,
+                        importedBomDependencyManagementExpander);
         private final Map<String, String> artifactSources = new ConcurrentHashMap<>();
         private Map<PackageId, ManagedVersion> projectManagedVersions;
         private int downloadCount;
@@ -378,7 +383,7 @@ public final class ResolveService {
 
         @Override
         public EffectiveRawPom load(Coordinate coordinate) {
-            return effectivePom(coordinate, List.of());
+            return effectivePomMetadataLoader.load(coordinate, List.of(), this::rawPom, this);
         }
 
         @Override
@@ -531,50 +536,19 @@ public final class ResolveService {
             rawPomParseNanos += elapsedNanos;
         }
 
-        private synchronized void recordEffectivePomCacheHit() {
+        @Override
+        public synchronized void recordEffectivePomCacheHit() {
             effectivePomCacheHits++;
         }
 
-        private synchronized void recordEffectivePomCacheMiss() {
+        @Override
+        public synchronized void recordEffectivePomCacheMiss() {
             effectivePomCacheMisses++;
         }
 
-        private synchronized void recordEffectivePomBuild(long elapsedNanos) {
+        @Override
+        public synchronized void recordEffectivePomBuild(long elapsedNanos) {
             effectivePomBuildNanos += elapsedNanos;
-        }
-
-        private EffectiveRawPom awaitEffectivePom(String key, CompletableFuture<EffectiveRawPom> future) {
-            return awaitPomFuture("effective POM", key, future);
-        }
-
-        private <T> T awaitPomFuture(String kind, String key, CompletableFuture<T> future) {
-            try {
-                return future.get();
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new ResolveException(
-                        "Interrupted while waiting for in-flight "
-                                + kind
-                                + " metadata "
-                                + key
-                                + ". Try again.",
-                        exception);
-            } catch (ExecutionException exception) {
-                Throwable cause = exception.getCause();
-                if (cause instanceof RuntimeException runtimeException) {
-                    throw runtimeException;
-                }
-                if (cause instanceof Error error) {
-                    throw error;
-                }
-                throw new ResolveException(
-                        "Could not load in-flight "
-                                + kind
-                                + " metadata "
-                                + key
-                                + ". Try again.",
-                        cause);
-            }
         }
 
         int downloadCount() {
@@ -637,69 +611,14 @@ public final class ResolveService {
             }
             projectManagedVersions = projectPlatformMetadataPlanner.managedVersions(
                     config,
-                    coordinate -> effectivePom(coordinate, List.of()));
+                    this::load);
             return projectManagedVersions;
         }
 
         List<DependencyRequest> projectPlatformPropertiesRequests() {
             return projectPlatformMetadataPlanner.propertiesRequests(
                     config,
-                    coordinate -> effectivePom(coordinate, List.of()));
-        }
-
-        private EffectiveRawPom effectivePom(Coordinate coordinate, List<String> importStack) {
-            String key = coordinate.toString();
-            EffectiveRawPom cached = metadata.get(key);
-            if (cached != null) {
-                recordEffectivePomCacheHit();
-                return cached;
-            }
-            if (importStack.contains(key)) {
-                throw new ResolveException(
-                        "Imported BOM cycle detected: "
-                                + String.join(" -> ", importStack)
-                                + " -> "
-                                + key
-                                + ". Remove one of the import-scoped dependencyManagement entries.");
-            }
-
-            CompletableFuture<EffectiveRawPom> pending = new CompletableFuture<>();
-            CompletableFuture<EffectiveRawPom> existing = metadataLoads.putIfAbsent(key, pending);
-            if (existing != null) {
-                recordEffectivePomCacheHit();
-                return awaitEffectivePom(key, existing);
-            }
-            recordEffectivePomCacheMiss();
-            long started = System.nanoTime();
-            try {
-                RawPom rawPom = rawPom(coordinate);
-                List<RawPom> parents = parentPomChainLoader.load(rawPom, this::rawPom);
-                EffectiveRawPom base = effectivePomInheritanceBuilder.build(coordinate, rawPom, parents);
-                List<String> nextStack = new ArrayList<>(importStack);
-                nextStack.add(key);
-                EffectiveRawPom effective = new EffectiveRawPom(
-                        rawPom,
-                        parents,
-                        base.groupId(),
-                        base.version(),
-                        base.properties(),
-                        importedBomDependencyManagementExpander.expand(
-                                base,
-                                nextStack,
-                                this::effectivePom));
-                metadata.put(key, effective);
-                pending.complete(effective);
-                return effective;
-            } catch (RuntimeException exception) {
-                pending.completeExceptionally(exception);
-                throw exception;
-            } catch (Error error) {
-                pending.completeExceptionally(error);
-                throw error;
-            } finally {
-                metadataLoads.remove(key, pending);
-                recordEffectivePomBuild(elapsedSince(started));
-            }
+                    this::load);
         }
 
         private RawPom rawPom(Coordinate coordinate) {
