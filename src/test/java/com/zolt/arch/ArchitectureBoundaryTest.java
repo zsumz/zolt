@@ -25,6 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class ArchitectureBoundaryTest {
     private static final Path MAIN_SOURCES = Path.of("src/main/java");
+    private static final Path ARCHITECTURE_DOC = Path.of("docs/architecture.md");
     private static final Path CLI_COMMAND_SOURCES = Path.of("src/main/java/com/zolt/cli/command");
     private static final Pattern RAW_COMMAND_ATTRIBUTE_KEY_PATTERN =
             Pattern.compile("\\battributes\\.put\\s*\\(\\s*\"([^\"]+)\"");
@@ -97,6 +98,21 @@ final class ArchitectureBoundaryTest {
                             .append(describeAllowedForbiddenImports());
                     return message.toString();
                 });
+    }
+
+    @Test
+    void architectureDocListsProductionPackages() throws IOException {
+        PackageGraph graph = PackageGraph.scan(MAIN_SOURCES);
+        String architectureDoc = Files.readString(ARCHITECTURE_DOC);
+        List<String> missingPackages = graph.packages().stream()
+                .filter(packageName -> !architectureDoc.contains(packageName))
+                .toList();
+
+        assertTrue(
+                missingPackages.isEmpty(),
+                () -> ARCHITECTURE_DOC
+                        + " must name every top-level production package:\n"
+                        + describeMissingPackages(missingPackages));
     }
 
     @Test
@@ -226,6 +242,14 @@ final class ArchitectureBoundaryTest {
                         .append(" [")
                         .append(entry.getValue())
                         .append("]\n"));
+        return description.toString();
+    }
+
+    private static String describeMissingPackages(List<String> packageNames) {
+        StringBuilder description = new StringBuilder();
+        for (String packageName : packageNames) {
+            description.append("- ").append(packageName).append('\n');
+        }
         return description.toString();
     }
 
@@ -367,6 +391,10 @@ final class ArchitectureBoundaryTest {
                 }
             }
             return new PackageGraph(edges);
+        }
+
+        private Set<String> packages() {
+            return edges.keySet();
         }
 
         private Set<PackageEdge> edges() {
