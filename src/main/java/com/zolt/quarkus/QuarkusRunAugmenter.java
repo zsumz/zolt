@@ -1,6 +1,7 @@
 package com.zolt.quarkus;
 
 import com.zolt.framework.FrameworkRunAugmenter;
+import com.zolt.framework.FrameworkRunException;
 import com.zolt.framework.FrameworkRunResult;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;
@@ -22,9 +23,13 @@ public final class QuarkusRunAugmenter implements FrameworkRunAugmenter {
             Path projectDirectory,
             ProjectConfig config,
             Path cacheRoot) {
-        return augmentationService.augmentIfEnabled(projectDirectory, config, cacheRoot)
-                .map(result -> new FrameworkRunResult(
-                        result.workerResult().runnerJar(),
-                        "Quarkus runner " + result.workerResult().runnerJar()));
+        try {
+            return augmentationService.augmentIfEnabled(projectDirectory, config, cacheRoot)
+                    .map(result -> new FrameworkRunResult(
+                            result.workerResult().runnerJar(),
+                            "Quarkus runner " + result.workerResult().runnerJar()));
+        } catch (QuarkusAugmentationException | QuarkusPlanException exception) {
+            throw new FrameworkRunException(exception.getMessage(), exception);
+        }
     }
 }

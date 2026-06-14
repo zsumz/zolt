@@ -11,11 +11,10 @@ import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.ZoltCli;
+import com.zolt.framework.FrameworkRunException;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -156,8 +155,7 @@ public final class RunCommand implements Runnable {
                 | GroovyCompileException
                 | ResourceCopyException
                 | RunException
-                | QuarkusAugmentationException
-                | QuarkusPlanException
+                | FrameworkRunException
                 | SourceDiscoveryException
                 | LockfileReadException
                 | ResolveException
