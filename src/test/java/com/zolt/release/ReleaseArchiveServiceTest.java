@@ -85,6 +85,23 @@ final class ReleaseArchiveServiceTest {
     }
 
     @Test
+    void acceptsAbsoluteReleaseBinaryInsideProject() throws IOException {
+        writeProjectFiles();
+        writeBinary("target/native/zolt");
+        Path binary = projectDir.resolve("target/native/zolt").toAbsolutePath().normalize();
+
+        ReleaseArchiveResult result = service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+
+        assertEquals(projectDir.resolve("dist/zolt-0.1.0-linux-x64.tar.gz"), result.archivePath());
+        assertTrue(tarEntries(result.archivePath()).contains("zolt-0.1.0-linux-x64/bin/zolt"));
+    }
+
+    @Test
     void skipsLicenseWhenItDoesNotExist() throws IOException {
         Files.writeString(projectDir.resolve("README.md"), "# Demo\n");
         Path binary = writeBinary("target/native/zolt");
@@ -249,6 +266,25 @@ final class ReleaseArchiveServiceTest {
 
         assertTrue(exception.getMessage().contains("--binary"));
         assertTrue(exception.getMessage().contains("outside-binary"));
+    }
+
+    @Test
+    void rejectsAbsoluteReleaseBinaryOutsideProject() throws IOException {
+        Path outside = Files.createTempFile(projectDir.getParent(), "outside-binary-", "");
+        Files.writeString(outside, "native");
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(),
+                        ReleaseTarget.LINUX_X64,
+                        outside.toAbsolutePath().normalize(),
+                        Path.of("dist")));
+
+        assertTrue(exception.getMessage().contains("--binary"));
+        assertTrue(exception.getMessage().contains("outside-binary"));
+        assertTrue(exception.getMessage().contains("project-relative path or an absolute path under"));
     }
 
     @Test

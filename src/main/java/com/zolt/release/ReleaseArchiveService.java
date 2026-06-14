@@ -26,7 +26,7 @@ public final class ReleaseArchiveService {
             Path binaryPath,
             Path outputDirectory) {
         Path projectRoot = ProjectPaths.root(projectDirectory);
-        Path binary = releaseInput(projectRoot, "--binary", binaryPath.toString());
+        Path binary = releaseBinaryInput(projectRoot, "--binary", binaryPath);
         if (!Files.isRegularFile(binary)) {
             throw new ReleaseArchiveException(
                     "Release archive requires native binary at " + binary
@@ -67,6 +67,24 @@ public final class ReleaseArchiveService {
         }
     }
 
+    private static Path releaseBinaryInput(Path projectRoot, String key, Path configuredPath) {
+        if (!configuredPath.isAbsolute()) {
+            return releaseInput(projectRoot, key, configuredPath.toString());
+        }
+        Path binary = configuredPath.normalize();
+        if (!binary.startsWith(projectRoot)) {
+            throw invalidReleaseBinaryPath(projectRoot, key, configuredPath.toString(), binary);
+        }
+        if (Files.exists(binary)) {
+            try {
+                ProjectPaths.requireExistingInsideProject(projectRoot, key, configuredPath.toString(), binary);
+            } catch (ProjectPathException exception) {
+                throw new ReleaseArchiveException(exception.getMessage(), exception);
+            }
+        }
+        return binary;
+    }
+
     private static Path releaseInput(Path projectRoot, String key, String configuredPath) {
         try {
             return ProjectPaths.input(projectRoot, key, configuredPath);
@@ -81,6 +99,23 @@ public final class ReleaseArchiveService {
         } catch (ProjectPathException exception) {
             throw new ReleaseArchiveException(exception.getMessage(), exception);
         }
+    }
+
+    private static ReleaseArchiveException invalidReleaseBinaryPath(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            Path resolvedPath) {
+        return new ReleaseArchiveException(
+                "Invalid "
+                        + key
+                        + " path `"
+                        + configuredPath
+                        + "` resolved to "
+                        + resolvedPath
+                        + ". Use a project-relative path or an absolute path under "
+                        + projectRoot
+                        + ".");
     }
 
     private static String releaseBaseName(ProjectConfig config) {
