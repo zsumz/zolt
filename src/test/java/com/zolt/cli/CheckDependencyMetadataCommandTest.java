@@ -17,6 +17,57 @@ final class CheckDependencyMetadataCommandTest {
     private Path tempDir;
 
     @Test
+    void checkDependencyMetadataPassesForOptionalPublishOnlyAndExclusions() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("org.example", "lib", "1.0.0", """
+                    <project>
+                      <groupId>org.example</groupId>
+                      <artifactId>lib</artifactId>
+                      <version>1.0.0</version>
+                      <dependencies>
+                        <dependency>
+                          <groupId>org.example</groupId>
+                          <artifactId>excluded</artifactId>
+                          <version>1.0.0</version>
+                        </dependency>
+                        <dependency>
+                          <groupId>org.example</groupId>
+                          <artifactId>kept</artifactId>
+                          <version>1.0.0</version>
+                        </dependency>
+                      </dependencies>
+                    </project>
+                    """);
+            repository.addArtifact("org.example", "kept", "1.0.0", pom("org.example", "kept", "1.0.0"));
+            Path projectDir = tempDir.resolve("check-dependency-metadata");
+            Files.createDirectories(projectDir);
+            Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-dependency-metadata") + """
+
+                    [repositories]
+                    test = "%s"
+
+                    [dependencies]
+                    "org.example:lib" = { version = "1.0.0", optional = true, exclusions = [{ group = "org.example", artifact = "excluded" }] }
+                    "org.example:publish-only" = { version = "1.0.0", publishOnly = true }
+                    """.formatted(repository.baseUri()));
+            Path cacheRoot = tempDir.resolve("cache");
+            CommandResult resolve = execute("resolve", "--cwd", projectDir.toString(), "--cache-root", cacheRoot.toString());
+            assertEquals(0, resolve.exitCode());
+
+            CommandResult result = execute(
+                    "check",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString(),
+                    "--check", "dependency-metadata");
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("ok dependency-metadata org.example:lib Dependency metadata for `org.example:lib` is represented in zolt.lock."));
+            assertTrue(result.stdout().contains("ok dependency-metadata org.example:publish-only Publish-only dependency `org.example:publish-only` is kept out of zolt.lock classpaths."));
+            assertEquals("", result.stderr());
+        }
+    }
+
+    @Test
     void checkDependencyMetadataReportsPublishOnlyLeakage() throws IOException {
         Path projectDir = tempDir.resolve("check-publish-only-leak");
         Files.createDirectories(projectDir);
@@ -110,5 +161,15 @@ final class CheckDependencyMetadataCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("ok dependency-metadata binding com.example:api Workspace API dependency `com.example:api` is exported through zolt.lock."));
         assertEquals("", result.stderr());
+    }
+
+    private static String pom(String groupId, String artifactId, String version) {
+        return """
+                <project>
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <version>%s</version>
+                </project>
+                """.formatted(groupId, artifactId, version);
     }
 }
