@@ -51,6 +51,7 @@ public final class NativeSmokeService {
         run("help", workRoot, resolvedBinary, List.of("help"));
 
         Path releaseDirectory = workRoot.resolve("release");
+        String releaseOutput = projectRelativePath(root, "--output", releaseDirectory);
         run("release archive", workRoot, resolvedBinary, List.of(
                 "release-archive",
                 "--cwd",
@@ -58,7 +59,7 @@ public final class NativeSmokeService {
                 "--binary",
                 resolvedBinary.toString(),
                 "--output",
-                releaseDirectory.toString()));
+                releaseOutput));
         Path archive = singleReleaseArchive(releaseDirectory, config);
         run("release verify", workRoot, resolvedBinary, List.of(
                 "release-verify",
@@ -188,6 +189,15 @@ public final class NativeSmokeService {
         command.add(binary.toString());
         command.addAll(arguments);
         return List.copyOf(command);
+    }
+
+    private static String projectRelativePath(Path projectRoot, String key, Path path) {
+        Path normalized = path.toAbsolutePath().normalize();
+        if (!normalized.startsWith(projectRoot)) {
+            throw new NativeSmokeException(
+                    "Native smoke " + key + " path " + normalized + " must be under project directory " + projectRoot + ".");
+        }
+        return projectRoot.relativize(normalized).toString();
     }
 
     private static Path singleReleaseArchive(Path releaseDirectory, ProjectConfig config) {

@@ -28,7 +28,11 @@ final class NativeSmokeServiceTest {
         NativeSmokeService service = new NativeSmokeService((command, directory) -> {
             commands.add(command);
             if (command.contains("release-archive")) {
-                Path outputDirectory = Path.of(command.get(command.indexOf("--output") + 1));
+                Path projectDirectory = Path.of(command.get(command.indexOf("--cwd") + 1));
+                Path output = Path.of(command.get(command.indexOf("--output") + 1));
+                Path outputDirectory = output.isAbsolute()
+                        ? output
+                        : projectDirectory.resolve(output).normalize();
                 try {
                     Files.createDirectories(outputDirectory);
                     Files.writeString(outputDirectory.resolve("zolt-0.1.0-linux-x64.tar.gz"), "archive");
@@ -86,6 +90,15 @@ final class NativeSmokeServiceTest {
         assertEquals(tempDir.resolve("target/native-smoke/hello-native"), result.projectDirectory());
         assertEquals(List.of(binary.toString(), "--version"), commands.getFirst());
         assertEquals(List.of(binary.toString(), "help"), commands.get(1));
+        assertEquals(List.of(
+                binary.toString(),
+                "release-archive",
+                "--cwd",
+                tempDir.toString(),
+                "--binary",
+                binary.toString(),
+                "--output",
+                Path.of("target/native-smoke/release").toString()), commands.get(2));
         assertEquals(List.of(
                 binary.toString(),
                 "version",
