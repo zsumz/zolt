@@ -20,11 +20,6 @@ import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.project.PublicationMetadata;
-import com.zolt.quarkus.QuarkusAugmentationState;
-import com.zolt.quarkus.QuarkusOutputLayout;
-import com.zolt.quarkus.QuarkusPlan;
-import com.zolt.quarkus.QuarkusPlanException;
-import com.zolt.quarkus.QuarkusPlanService;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
@@ -42,9 +37,9 @@ public final class IdeModelService {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
     private final ResolveService resolveService;
-    private final QuarkusPlanService quarkusPlanService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final IdeDependencyModelBuilder dependencyModelBuilder;
+    private final IdeFrameworkModelBuilder frameworkModelBuilder;
 
     public IdeModelService() {
         this(
@@ -52,9 +47,9 @@ public final class IdeModelService {
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new ResolveService(),
-                new QuarkusPlanService(),
                 new GeneratedSourceEvidenceService(),
-                new IdeDependencyModelBuilder());
+                new IdeDependencyModelBuilder(),
+                new IdeFrameworkModelBuilder());
     }
 
     IdeModelService(
@@ -62,16 +57,16 @@ public final class IdeModelService {
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder,
             ResolveService resolveService,
-            QuarkusPlanService quarkusPlanService,
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
-            IdeDependencyModelBuilder dependencyModelBuilder) {
+            IdeDependencyModelBuilder dependencyModelBuilder,
+            IdeFrameworkModelBuilder frameworkModelBuilder) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
         this.resolveService = resolveService;
-        this.quarkusPlanService = quarkusPlanService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
         this.dependencyModelBuilder = dependencyModelBuilder;
+        this.frameworkModelBuilder = frameworkModelBuilder;
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot) {
@@ -109,7 +104,7 @@ public final class IdeModelService {
         }
         IdeModel.FrameworkInfo frameworkInfo = recorder.measure(
                 "build ide framework model",
-                () -> frameworkInfo(root, normalizedCacheRoot, config, diagnostics));
+                () -> frameworkModelBuilder.build(root, normalizedCacheRoot, config, diagnostics));
 
         return recorder.measure(
                 "assemble ide model",
@@ -170,7 +165,7 @@ public final class IdeModelService {
                 outputInfo(root, config, modelDiagnostics),
                 dependencyModelBuilder.build(config),
                 classpaths,
-                frameworkInfo(root, null, config, modelDiagnostics),
+                frameworkModelBuilder.build(root, null, config, modelDiagnostics),
                 modelDiagnostics);
     }
 
@@ -621,109 +616,6 @@ public final class IdeModelService {
         return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
-    private IdeModel.FrameworkInfo frameworkInfo(
-            Path root,
-            Path cacheRoot,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        return new IdeModel.FrameworkInfo(quarkusInfo(root, cacheRoot, config, diagnostics));
-    }
-
-    private IdeModel.QuarkusInfo quarkusInfo(
-            Path root,
-            Path cacheRoot,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (config == null || !config.frameworkSettings().quarkus().enabled()) {
-            return new IdeModel.QuarkusInfo(
-                    false,
-                    null,
-                    "disabled",
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    List.of());
-        }
-
-        QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(root);
-        if (cacheRoot == null) {
-            return quarkusInfoWithoutPlan(root, config, outputLayout, "unknown");
-        }
-
-        try {
-            QuarkusPlan plan = quarkusPlanService.plan(root, config, cacheRoot);
-            quarkusDiagnostics(plan, diagnostics);
-            return new IdeModel.QuarkusInfo(
-                    true,
-                    plan.packageMode().configValue(),
-                    plan.augmentationState().status().label(),
-                    plan.inputFingerprint(),
-                    plan.augmentationState().recordedInputFingerprint().orElse(null),
-                    plan.augmentationState().metadataPath(),
-                    plan.outputLayout().augmentationDirectory(),
-                    plan.outputLayout().packageDirectory(),
-                    plan.outputLayout().packageDirectory().resolve("quarkus-run.jar").normalize(),
-                    plan.outputLayout().packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
-                    plan.outputLayout().packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
-                    absolutePaths(plan.deploymentClasspath()));
-        } catch (LockfileReadException | QuarkusPlanException exception) {
-            diagnostics.add(new IdeModel.Diagnostic(
-                    "warning",
-                    "QUARKUS_MODEL_UNAVAILABLE",
-                    exception.getMessage(),
-                    root.resolve("zolt.lock").normalize(),
-                    "Run zolt resolve, then run zolt build."));
-            return quarkusInfoWithoutPlan(root, config, outputLayout, "unknown");
-        }
-    }
-
-    private static IdeModel.QuarkusInfo quarkusInfoWithoutPlan(
-            Path root,
-            ProjectConfig config,
-            QuarkusOutputLayout outputLayout,
-            String status) {
-        Path metadataPath = root.resolve("target/quarkus/zolt-augmentation.properties").normalize();
-        return new IdeModel.QuarkusInfo(
-                true,
-                config.frameworkSettings().quarkus().packageMode().configValue(),
-                status,
-                null,
-                null,
-                metadataPath,
-                outputLayout.augmentationDirectory(),
-                outputLayout.packageDirectory(),
-                outputLayout.packageDirectory().resolve("quarkus-run.jar").normalize(),
-                outputLayout.packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
-                outputLayout.packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
-                List.of());
-    }
-
-    private static void quarkusDiagnostics(
-            QuarkusPlan plan,
-            List<IdeModel.Diagnostic> diagnostics) {
-        QuarkusAugmentationState state = plan.augmentationState();
-        if (state.status() == QuarkusAugmentationState.Status.CURRENT) {
-            return;
-        }
-        String code = state.status() == QuarkusAugmentationState.Status.MISSING
-                ? "QUARKUS_AUGMENTATION_MISSING"
-                : "QUARKUS_AUGMENTATION_STALE";
-        String message = state.status() == QuarkusAugmentationState.Status.MISSING
-                ? "Quarkus augmentation output is missing."
-                : "Quarkus augmentation output is stale.";
-        diagnostics.add(new IdeModel.Diagnostic(
-                "warning",
-                code,
-                message,
-                state.metadataPath(),
-                "Run zolt build."));
-    }
-
     private static Path inputPath(
             Path root,
             String key,
@@ -791,12 +683,6 @@ public final class IdeModelService {
                 exception.getMessage(),
                 root.resolve("zolt.toml").normalize(),
                 "Fix the unsafe path in zolt.toml and run zolt ide model --format json again."));
-    }
-
-    private static List<Path> absolutePaths(List<Path> paths) {
-        return paths.stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .toList();
     }
 
     private static List<Path> nonNullPaths(Path... paths) {

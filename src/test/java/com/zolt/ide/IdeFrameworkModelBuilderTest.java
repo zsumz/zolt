@@ -1,0 +1,123 @@
+package com.zolt.ide;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusAugmentationMetadataWriter;
+import com.zolt.toml.ZoltTomlParser;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class IdeFrameworkModelBuilderTest {
+    private final IdeFrameworkModelBuilder builder = new IdeFrameworkModelBuilder();
+
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void exportsQuarkusFrameworkStateWithMissingAugmentationDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-missing");
+        ProjectConfig config = quarkusProject(projectDir);
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(
+                projectDir.toAbsolutePath().normalize(),
+                tempDir.resolve("cache"),
+                config,
+                diagnostics);
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        IdeModel.QuarkusInfo quarkus = frameworks.quarkus();
+        assertTrue(quarkus.enabled());
+        assertEquals("fast-jar", quarkus.packageMode());
+        assertEquals("missing", quarkus.augmentationStatus());
+        assertEquals(root.resolve("target/quarkus"), quarkus.augmentationDirectory());
+        assertEquals(root.resolve("target/quarkus-app"), quarkus.packageDirectory());
+        assertEquals(root.resolve("target/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
+        assertEquals(root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"), quarkus.generatedBytecodeJar());
+        assertEquals(root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"), quarkus.transformedBytecodeJar());
+        assertEquals(List.of(), quarkus.deploymentClasspath());
+        assertEquals("QUARKUS_AUGMENTATION_MISSING", diagnostics.getFirst().code());
+
+        String json = new IdeModelJsonWriter().write(modelWith(frameworks, diagnostics));
+        assertTrue(json.contains("\"frameworks\": {"));
+        assertTrue(json.contains("\"quarkus\": {"));
+        assertTrue(json.contains("\"augmentationStatus\": \"missing\""));
+        assertTrue(json.contains("\"generatedBytecodeJar\": \""));
+        assertTrue(json.contains("\"deploymentClasspath\": []"));
+    }
+
+    @Test
+    void exportsCurrentQuarkusFrameworkStateWithoutAugmentationDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-current");
+        ProjectConfig config = quarkusProject(projectDir);
+        Path root = projectDir.toAbsolutePath().normalize();
+        List<IdeModel.Diagnostic> missingDiagnostics = new ArrayList<>();
+        IdeModel.FrameworkInfo missingFrameworks = builder.build(root, tempDir.resolve("cache"), config, missingDiagnostics);
+        new QuarkusAugmentationMetadataWriter().write(
+                root,
+                missingFrameworks.quarkus().inputFingerprint());
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(root, tempDir.resolve("cache"), config, diagnostics);
+
+        assertEquals("current", frameworks.quarkus().augmentationStatus());
+        assertEquals(
+                frameworks.quarkus().inputFingerprint(),
+                frameworks.quarkus().recordedInputFingerprint());
+        assertEquals(List.of(), diagnostics);
+    }
+
+    private ProjectConfig quarkusProject(Path projectDir) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "quarkus"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
+    }
+
+    private IdeModel modelWith(IdeModel.FrameworkInfo frameworks, List<IdeModel.Diagnostic> diagnostics) {
+        return new IdeModel(
+                1,
+                new IdeModel.ProjectInfo("quarkus", "com.example", "0.1.0", null),
+                new IdeModel.JavaInfo("21", null, null),
+                new IdeModel.CompilerInfo(null, null, null, List.of(), List.of(), null, null),
+                new IdeModel.TestRuntimeInfo(List.of(), Map.of(), Map.of(), List.of()),
+                new IdeModel.PackageInfo(
+                        null,
+                        false,
+                        false,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new IdeModel.PublicationInfo(null, null, null, null, List.of(), null, null),
+                        Map.of()),
+                new IdeModel.PathInfo(tempDir, tempDir.resolve("zolt.toml"), tempDir.resolve("zolt.lock")),
+                List.of(),
+                List.of(),
+                List.of(),
+                new IdeModel.OutputInfo(null, null, null),
+                new IdeModel.DependencyInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
+                new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
+                frameworks,
+                diagnostics);
+    }
+}

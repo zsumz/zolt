@@ -1,0 +1,132 @@
+package com.zolt.ide;
+
+import com.zolt.lockfile.LockfileReadException;
+import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.QuarkusAugmentationState;
+import com.zolt.quarkus.QuarkusOutputLayout;
+import com.zolt.quarkus.QuarkusPlan;
+import com.zolt.quarkus.QuarkusPlanException;
+import com.zolt.quarkus.QuarkusPlanService;
+import java.nio.file.Path;
+import java.util.List;
+
+final class IdeFrameworkModelBuilder {
+    private final QuarkusPlanService quarkusPlanService;
+
+    IdeFrameworkModelBuilder() {
+        this(new QuarkusPlanService());
+    }
+
+    IdeFrameworkModelBuilder(QuarkusPlanService quarkusPlanService) {
+        this.quarkusPlanService = quarkusPlanService;
+    }
+
+    IdeModel.FrameworkInfo build(
+            Path root,
+            Path cacheRoot,
+            ProjectConfig config,
+            List<IdeModel.Diagnostic> diagnostics) {
+        return new IdeModel.FrameworkInfo(quarkusInfo(root, cacheRoot, config, diagnostics));
+    }
+
+    private IdeModel.QuarkusInfo quarkusInfo(
+            Path root,
+            Path cacheRoot,
+            ProjectConfig config,
+            List<IdeModel.Diagnostic> diagnostics) {
+        if (config == null || !config.frameworkSettings().quarkus().enabled()) {
+            return new IdeModel.QuarkusInfo(
+                    false,
+                    null,
+                    "disabled",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of());
+        }
+
+        QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(root);
+        if (cacheRoot == null) {
+            return quarkusInfoWithoutPlan(root, config, outputLayout, "unknown");
+        }
+
+        try {
+            QuarkusPlan plan = quarkusPlanService.plan(root, config, cacheRoot);
+            quarkusDiagnostics(plan, diagnostics);
+            return new IdeModel.QuarkusInfo(
+                    true,
+                    plan.packageMode().configValue(),
+                    plan.augmentationState().status().label(),
+                    plan.inputFingerprint(),
+                    plan.augmentationState().recordedInputFingerprint().orElse(null),
+                    plan.augmentationState().metadataPath(),
+                    plan.outputLayout().augmentationDirectory(),
+                    plan.outputLayout().packageDirectory(),
+                    plan.outputLayout().packageDirectory().resolve("quarkus-run.jar").normalize(),
+                    plan.outputLayout().packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
+                    plan.outputLayout().packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
+                    absolutePaths(plan.deploymentClasspath()));
+        } catch (LockfileReadException | QuarkusPlanException exception) {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "warning",
+                    "QUARKUS_MODEL_UNAVAILABLE",
+                    exception.getMessage(),
+                    root.resolve("zolt.lock").normalize(),
+                    "Run zolt resolve, then run zolt build."));
+            return quarkusInfoWithoutPlan(root, config, outputLayout, "unknown");
+        }
+    }
+
+    private static IdeModel.QuarkusInfo quarkusInfoWithoutPlan(
+            Path root,
+            ProjectConfig config,
+            QuarkusOutputLayout outputLayout,
+            String status) {
+        Path metadataPath = root.resolve("target/quarkus/zolt-augmentation.properties").normalize();
+        return new IdeModel.QuarkusInfo(
+                true,
+                config.frameworkSettings().quarkus().packageMode().configValue(),
+                status,
+                null,
+                null,
+                metadataPath,
+                outputLayout.augmentationDirectory(),
+                outputLayout.packageDirectory(),
+                outputLayout.packageDirectory().resolve("quarkus-run.jar").normalize(),
+                outputLayout.packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
+                outputLayout.packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
+                List.of());
+    }
+
+    private static void quarkusDiagnostics(
+            QuarkusPlan plan,
+            List<IdeModel.Diagnostic> diagnostics) {
+        QuarkusAugmentationState state = plan.augmentationState();
+        if (state.status() == QuarkusAugmentationState.Status.CURRENT) {
+            return;
+        }
+        String code = state.status() == QuarkusAugmentationState.Status.MISSING
+                ? "QUARKUS_AUGMENTATION_MISSING"
+                : "QUARKUS_AUGMENTATION_STALE";
+        String message = state.status() == QuarkusAugmentationState.Status.MISSING
+                ? "Quarkus augmentation output is missing."
+                : "Quarkus augmentation output is stale.";
+        diagnostics.add(new IdeModel.Diagnostic(
+                "warning",
+                code,
+                message,
+                state.metadataPath(),
+                "Run zolt build."));
+    }
+
+    private static List<Path> absolutePaths(List<Path> paths) {
+        return paths.stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .toList();
+    }
+}
