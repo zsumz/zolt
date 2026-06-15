@@ -1,5 +1,7 @@
 package com.zolt.build;
 
+import static com.zolt.build.OpenApiGeneratedSourcePaths.safeProjectPath;
+
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
@@ -341,24 +343,6 @@ public final class OpenApiGeneratedSourceService {
                 .append(fileHash(projectRoot.resolve(value).normalize()))
                 .append('\n'));
         return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static Path safeProjectPath(Path projectRoot, String configuredPath, String scope, String id, String field) {
-        Path configured = Path.of(configuredPath);
-        Path path = projectRoot.resolve(configured).normalize();
-        if (configured.isAbsolute() || !path.startsWith(projectRoot) || path.equals(projectRoot)) {
-            throw new BuildException(
-                    "Invalid OpenAPI "
-                            + field
-                            + " path `"
-                            + configuredPath
-                            + "` for [generated."
-                            + scope
-                            + "."
-                            + id
-                            + "]. Use a project-relative path under the project directory.");
-        }
-        return path;
     }
 
     private static void deleteOutput(Path output) {
