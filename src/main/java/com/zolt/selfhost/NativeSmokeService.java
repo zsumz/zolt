@@ -51,13 +51,14 @@ public final class NativeSmokeService {
         run("help", workRoot, resolvedBinary, List.of("help"));
 
         Path releaseDirectory = workRoot.resolve("release");
+        String releaseBinary = projectRelativePath(root, "--binary", resolvedBinary);
         String releaseOutput = projectRelativePath(root, "--output", releaseDirectory);
         run("release archive", workRoot, resolvedBinary, List.of(
                 "release-archive",
                 "--cwd",
                 root.toString(),
                 "--binary",
-                resolvedBinary.toString(),
+                releaseBinary,
                 "--output",
                 releaseOutput));
         Path archive = singleReleaseArchive(releaseDirectory, config);

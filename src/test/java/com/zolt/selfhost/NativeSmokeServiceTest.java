@@ -45,7 +45,7 @@ final class NativeSmokeServiceTest {
                 "--cwd",
                 tempDir.toString(),
                 "--binary",
-                binary.toString(),
+                Path.of("target/native/zolt").toString(),
                 "--output",
                 Path.of("target/native-smoke/release").toString()), commands.get(2));
         assertEquals(List.of(
@@ -87,6 +87,9 @@ final class NativeSmokeServiceTest {
                 tempDir.resolve("target/native-smoke").toAbsolutePath().normalize());
 
         List<String> releaseArchive = commands.get(2);
+        assertEquals(
+                Path.of("target/native/zolt").toString(),
+                releaseArchive.get(releaseArchive.indexOf("--binary") + 1));
         assertEquals(
                 Path.of("target/native-smoke/release").toString(),
                 releaseArchive.get(releaseArchive.indexOf("--output") + 1));
