@@ -77,6 +77,7 @@ final class DownloadCoordinatorTest {
 
     @Test
     void concurrencyCanBeConfiguredFromEnvironment() {
+        assertEquals(8, DownloadCoordinator.DEFAULT_CONCURRENCY);
         assertEquals(1, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "1")));
         assertEquals(8, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "8")));
         assertEquals(1, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "0")));
@@ -84,6 +85,13 @@ final class DownloadCoordinatorTest {
         assertEquals(
                 DownloadCoordinator.DEFAULT_CONCURRENCY,
                 DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "not-a-number")));
+    }
+
+    @Test
+    void defaultExecutionLaneIsPlatformThreads() {
+        DownloadCoordinator coordinator = new DownloadCoordinator(DownloadCoordinator.DEFAULT_CONCURRENCY);
+
+        assertEquals(RepositoryExecutionLane.PLATFORM, coordinator.executionLane());
     }
 
     @Test

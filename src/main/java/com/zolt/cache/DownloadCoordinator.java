@@ -15,7 +15,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
 public final class DownloadCoordinator {
-    public static final int DEFAULT_CONCURRENCY = 4;
+    public static final int DEFAULT_CONCURRENCY = 8;
     public static final String CONCURRENCY_ENV = "ZOLT_DOWNLOAD_CONCURRENCY";
 
     private final int concurrency;
