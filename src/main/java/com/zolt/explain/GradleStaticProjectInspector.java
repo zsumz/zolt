@@ -18,22 +18,10 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class GradleStaticProjectInspector {
-    private static final List<String> DEPENDENCY_CONFIGURATIONS = List.of(
-            "api",
-            "implementation",
-            "compileOnly",
-            "runtimeOnly",
-            "testImplementation",
-            "testCompileOnly",
-            "testRuntimeOnly",
-            "annotationProcessor",
-            "testAnnotationProcessor");
     private static final Pattern INCLUDE_PATTERN = Pattern.compile("\\binclude\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
     private static final Pattern INCLUDE_BUILD_PATTERN = Pattern.compile("\\bincludeBuild\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
-    private static final Pattern ID_PLUGIN_PATTERN = Pattern.compile("\\bid\\s*(?:\\(\\s*)?['\"]([^'\"]+)['\"]\\s*\\)?(?:\\s*version\\s*['\"]([^'\"]+)['\"])?");
-    private static final Pattern GROOVY_PLUGIN_PATTERN = Pattern.compile("(?m)^\\s*([A-Za-z][A-Za-z0-9_-]*)\\s*$");
-    private static final Pattern REPOSITORY_URL_PATTERN = Pattern.compile("\\burl\\s*(?:=\\s*)?(?:uri\\s*\\(\\s*)?['\"]([^'\"]+)['\"]");
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
+    private final GradleBuildFileParser buildFileParser = new GradleBuildFileParser();
 
     public GradleInspectionResult inspect(Path root) {
         Path normalizedRoot = root.toAbsolutePath().normalize();
@@ -103,8 +91,8 @@ public final class GradleStaticProjectInspector {
         String content = stripComments(read(buildFile));
         Path relativePath = relativePath(root, projectDirectory);
         String project = path(relativePath);
-        List<GradlePluginInspection> plugins = parsePlugins(content);
-        List<GradleDependencyInspection> dependencies = parseDependencies(content, versionCatalog);
+        List<GradlePluginInspection> plugins = buildFileParser.plugins(content);
+        List<GradleDependencyInspection> dependencies = buildFileParser.dependencies(content, versionCatalog);
         for (GradlePluginInspection plugin : plugins) {
             if (isConventionPlugin(plugin.id())) {
                 signals.add(ExplainSignals.GRADLE_PLUGIN_CONVENTION.signal(
@@ -121,12 +109,12 @@ public final class GradleStaticProjectInspector {
                 relativePath.toString().equals(".") ? projectDirectory.getFileName().toString() : projectDirectory.getFileName().toString(),
                 buildFile.getFileName().toString(),
                 buildFile.getFileName().toString().endsWith(".kts") ? "kotlin" : "groovy",
-                javaVersion(content),
+                buildFileParser.javaVersion(content),
                 plugins,
-                parseRepositories(content),
+                buildFileParser.repositories(content),
                 dependencies,
-                parseSourceRoots(content, "main", "src/main/java"),
-                parseSourceRoots(content, "test", "src/test/java"));
+                buildFileParser.sourceRoots(content, "main", "src/main/java"),
+                buildFileParser.sourceRoots(content, "test", "src/test/java"));
     }
 
     private static List<String> parseIncludedProjects(String content) {
@@ -156,123 +144,6 @@ public final class GradleStaticProjectInspector {
             }
         }
         return signals;
-    }
-
-    private static List<GradlePluginInspection> parsePlugins(String content) {
-        String block = block(content, "plugins").orElse("");
-        List<GradlePluginInspection> plugins = new ArrayList<>();
-        Matcher idMatcher = ID_PLUGIN_PATTERN.matcher(block);
-        while (idMatcher.find()) {
-            plugins.add(new GradlePluginInspection(idMatcher.group(1), nullToEmpty(idMatcher.group(2))));
-        }
-        Matcher groovyMatcher = GROOVY_PLUGIN_PATTERN.matcher(block);
-        while (groovyMatcher.find()) {
-            String id = groovyMatcher.group(1);
-            if (!"id".equals(id) && plugins.stream().noneMatch(plugin -> plugin.id().equals(id))) {
-                plugins.add(new GradlePluginInspection(id, ""));
-            }
-        }
-        plugins.sort(Comparator.comparing(GradlePluginInspection::id).thenComparing(GradlePluginInspection::version));
-        return plugins;
-    }
-
-    private static List<GradleRepositoryInspection> parseRepositories(String content) {
-        List<GradleRepositoryInspection> repositories = new ArrayList<>();
-        if (content.contains("mavenCentral()")) {
-            repositories.add(new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2"));
-        }
-        if (content.contains("gradlePluginPortal()")) {
-            repositories.add(new GradleRepositoryInspection("gradlePluginPortal", "https://plugins.gradle.org/m2"));
-        }
-        if (content.contains("google()")) {
-            repositories.add(new GradleRepositoryInspection("google", "https://dl.google.com/dl/android/maven2"));
-        }
-        if (content.contains("mavenLocal()")) {
-            repositories.add(new GradleRepositoryInspection("mavenLocal", "~/.m2/repository"));
-        }
-        Matcher urlMatcher = REPOSITORY_URL_PATTERN.matcher(content);
-        while (urlMatcher.find()) {
-            repositories.add(new GradleRepositoryInspection("maven", urlMatcher.group(1)));
-        }
-        repositories.sort(Comparator.comparing(GradleRepositoryInspection::kind).thenComparing(GradleRepositoryInspection::url));
-        return repositories;
-    }
-
-    private static List<GradleDependencyInspection> parseDependencies(
-            String content,
-            Map<String, String> versionCatalog) {
-        String block = block(content, "dependencies").orElse("");
-        List<GradleDependencyInspection> dependencies = new ArrayList<>();
-        for (String configuration : DEPENDENCY_CONFIGURATIONS) {
-            Pattern pattern = Pattern.compile("\\b" + Pattern.quote(configuration) + "\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
-            Matcher matcher = pattern.matcher(block);
-            while (matcher.find()) {
-                String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();
-                dependencies.add(dependency(configuration, expression, versionCatalog));
-            }
-        }
-        dependencies.sort(Comparator
-                .comparing(GradleDependencyInspection::configuration)
-                .thenComparing(GradleDependencyInspection::notation)
-                .thenComparing(GradleDependencyInspection::resolvedCoordinate));
-        return dependencies;
-    }
-
-    private static GradleDependencyInspection dependency(
-            String configuration,
-            String expression,
-            Map<String, String> versionCatalog) {
-        String notation = expression.replaceAll("\\s+", " ").strip();
-        Optional<String> mapNotation = mapNotation(notation);
-        if (mapNotation.isPresent()) {
-            return new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), "");
-        }
-        Optional<String> quoted = firstQuoted(notation);
-        if (quoted.isPresent()) {
-            return new GradleDependencyInspection(configuration, quoted.orElseThrow(), quoted.orElseThrow(), "");
-        }
-        Optional<String> alias = catalogAlias(notation);
-        if (alias.isPresent()) {
-            String key = alias.orElseThrow();
-            return new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key);
-        }
-        return new GradleDependencyInspection(configuration, notation, "", "");
-    }
-
-    private static String javaVersion(String content) {
-        for (Pattern pattern : List.of(
-                Pattern.compile("\\blanguageVersion\\s*=\\s*JavaLanguageVersion\\.of\\((\\d+)\\)"),
-                Pattern.compile("\\bsourceCompatibility\\s*=\\s*JavaVersion\\.VERSION_(\\d+)"),
-                Pattern.compile("\\btargetCompatibility\\s*=\\s*JavaVersion\\.VERSION_(\\d+)"),
-                Pattern.compile("\\bsourceCompatibility\\s*=\\s*['\"]([^'\"]+)['\"]"),
-                Pattern.compile("\\btargetCompatibility\\s*=\\s*['\"]([^'\"]+)['\"]"))) {
-            Matcher matcher = pattern.matcher(content);
-            if (matcher.find()) {
-                return matcher.group(1).replace('_', '.');
-            }
-        }
-        return "unknown";
-    }
-
-    private static List<String> parseSourceRoots(String content, String sourceSet, String defaultRoot) {
-        Optional<String> sourceSets = block(content, "sourceSets");
-        if (sourceSets.isEmpty()) {
-            return List.of(defaultRoot);
-        }
-        Optional<String> sourceSetBlock = block(sourceSets.orElseThrow(), sourceSet);
-        if (sourceSetBlock.isEmpty()) {
-            return List.of(defaultRoot);
-        }
-        List<String> roots = new ArrayList<>();
-        if (containsAny(sourceSetBlock.orElseThrow(), "srcDirs +=", "srcDir(")) {
-            roots.add(defaultRoot);
-        }
-        Matcher srcDirs = Pattern.compile("\\bsrcDirs?\\s*(?:=\\s*)?(?:\\[([^]]*)]|([^\\n]+))").matcher(sourceSetBlock.orElseThrow());
-        while (srcDirs.find()) {
-            String value = srcDirs.group(1) == null ? srcDirs.group(2) : srcDirs.group(1);
-            roots.addAll(quotedValues(value));
-        }
-        return roots.isEmpty() ? List.of(defaultRoot) : roots.stream().distinct().sorted().toList();
     }
 
     private static List<ExplainSignal> dynamicSignals(String project, String content) {
@@ -551,31 +422,6 @@ public final class GradleStaticProjectInspector {
             }
         }
         return values;
-    }
-
-    private static Optional<String> firstQuoted(String value) {
-        Matcher matcher = QUOTED_PATTERN.matcher(value);
-        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
-    }
-
-    private static Optional<String> mapNotation(String value) {
-        String group = namedArgument(value, "group");
-        String name = namedArgument(value, "name");
-        String version = namedArgument(value, "version");
-        if (group.isBlank() || name.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(version.isBlank() ? group + ":" + name : group + ":" + name + ":" + version);
-    }
-
-    private static String namedArgument(String expression, String name) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(name) + "\\s*(?::|=)\\s*['\"]([^'\"]+)['\"]").matcher(expression);
-        return matcher.find() ? matcher.group(1) : "";
-    }
-
-    private static Optional<String> catalogAlias(String expression) {
-        Matcher matcher = Pattern.compile("\\blibs\\.([A-Za-z0-9_.-]+)").matcher(expression);
-        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
     }
 
     private static boolean isConventionPlugin(String id) {
