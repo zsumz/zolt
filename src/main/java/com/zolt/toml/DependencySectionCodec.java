@@ -1,5 +1,7 @@
 package com.zolt.toml;
 
+import static com.zolt.toml.DependencySectionDuplicateValidator.validateNoDuplicateMainDependencyCoordinates;
+
 import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.ProjectConfig;
@@ -275,47 +277,6 @@ final class DependencySectionCodec {
                     invalidDependencyDeclarationMessage(section, key, allowWorkspace));
         }
         return new DependencyDeclarations(versioned, Set.copyOf(managed), workspace);
-    }
-
-    private static void validateNoDuplicateMainDependencyCoordinates(
-            DependencyDeclarations apiDependencies,
-            DependencyDeclarations implementationDependencies,
-            DependencyDeclarations runtimeDependencies,
-            DependencyDeclarations providedDependencies,
-            DependencyDeclarations devDependencies) {
-        Map<String, String> sections = new LinkedHashMap<>();
-        addCoordinates(sections, apiDependencies, "api.dependencies");
-        addCoordinates(sections, implementationDependencies, "dependencies");
-        addCoordinates(sections, runtimeDependencies, "runtime.dependencies");
-        addCoordinates(sections, providedDependencies, "provided.dependencies");
-        addCoordinates(sections, devDependencies, "dev.dependencies");
-    }
-
-    private static void addCoordinates(
-            Map<String, String> sections,
-            DependencyDeclarations declarations,
-            String section) {
-        for (String coordinate : allCoordinates(declarations)) {
-            String existing = sections.putIfAbsent(coordinate, section);
-            if (existing != null) {
-                throw new ZoltConfigException(
-                        "Dependency "
-                                + coordinate
-                                + " is declared in both ["
-                                + existing
-                                + "] and ["
-                                + section
-                                + "]. Keep it in one section.");
-            }
-        }
-    }
-
-    private static Set<String> allCoordinates(DependencyDeclarations declarations) {
-        LinkedHashSet<String> coordinates = new LinkedHashSet<>();
-        coordinates.addAll(declarations.versioned().keySet());
-        coordinates.addAll(declarations.managed());
-        coordinates.addAll(declarations.workspace().keySet());
-        return Set.copyOf(coordinates);
     }
 
     private static String invalidDependencyDeclarationMessage(String section, String key, boolean allowWorkspace) {
