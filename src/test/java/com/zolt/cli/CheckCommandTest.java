@@ -52,6 +52,71 @@ final class CheckCommandTest {
     }
 
     @Test
+    void checkRefusesArbitraryHookNames() throws IOException {
+        Path projectDir = tempDir.resolve("check-hook");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-hook"));
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "mvn verify");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error unsupported-check mvn verify Unsupported quality check `mvn verify`."));
+        assertTrue(result.stdout().contains("Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkReportsMalformedConfigAsFailedCheck() throws IOException {
+        Path projectDir = tempDir.resolve("check-malformed");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-malformed") + """
+
+                [check]
+                command = "mvn verify"
+                """);
+
+        CommandResult result = execute("check", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error command-surface zolt.toml Unknown top-level section [check] in zolt.toml."));
+        assertTrue(result.stdout().contains("next: Fix zolt.toml, then run `zolt check` again."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceUsesMemberSelectionModel() throws IOException {
+        WorkspaceCommandFixture.WorkspaceApplicationFixture fixture =
+                WorkspaceCommandFixture.create(tempDir, "check-workspace");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--cwd", fixture.workspaceDir().toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok command-surface check-workspace zolt check selected 2 workspace members"));
+        assertTrue(result.stdout().contains("no Maven, Gradle, or shell hooks are run."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkPrintsTimingsWhenRequested() throws IOException {
+        Path projectDir = tempDir.resolve("check-timings");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-timings"));
+
+        CommandResult result = execute("check", "--timings", "--timings-format", "json", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok command-surface check-timings"));
+        assertTrue(result.stderr().contains("\"command\":\"check\""));
+        assertTrue(result.stderr().contains("\"phase\":\"run quality checks\""));
+        assertTrue(result.stderr().contains("\"checks\":\"1\""));
+        assertTrue(result.stderr().contains("\"passed\":\"1\""));
+    }
+
+    @Test
     void checkCacheIntegrityReportsCorruptedLockedArtifact() throws IOException {
         Path projectDir = tempDir.resolve("check-cache-integrity");
         Path cacheRoot = tempDir.resolve("cache-integrity-cache");
