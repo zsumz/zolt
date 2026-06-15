@@ -11,23 +11,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class BuildFingerprintService {
     private static final String VERSION = "1";
-    private static final String STATE_VERSION = "1";
     private static final String MAIN_FILE_NAME = ".zolt-build-main.fingerprint";
     private static final String TEST_FILE_NAME = ".zolt-build-test.fingerprint";
     private static final String STATE_SUFFIX = ".state";
@@ -189,7 +185,7 @@ public final class BuildFingerprintService {
         }
         try {
             String existing = Files.readString(fingerprintPath);
-            Optional<FingerprintState> state = readState(fingerprintPath);
+            Optional<BuildFingerprintState> state = readState(fingerprintPath);
             if (state.isPresent() && state.orElseThrow().matchesFingerprint(existing)) {
                 try {
                     return existing.equals(fingerprint(
@@ -208,7 +204,7 @@ public final class BuildFingerprintService {
                             generatedSourcesDirectory,
                             state.orElseThrow(),
                             null));
-                } catch (FingerprintStateMiss ignored) {
+                } catch (BuildFingerprintStateMiss ignored) {
                     // Fall back to the full content-hash path below.
                 }
             }
@@ -255,7 +251,7 @@ public final class BuildFingerprintService {
         Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
         try {
             Files.createDirectories(fingerprintPath.getParent());
-            Map<Path, CachedFileHash> state = new LinkedHashMap<>();
+            Map<Path, BuildFingerprintCachedFileHash> state = new LinkedHashMap<>();
             String content = fingerprint(
                     projectDirectory,
                     config,
@@ -305,8 +301,8 @@ public final class BuildFingerprintService {
             Path outputDirectory,
             String outputDirectoryName,
             Path generatedSourcesDirectory,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
         line(content, "version", VERSION);
@@ -329,8 +325,8 @@ public final class BuildFingerprintService {
 
     private static List<String> classpathEntries(
             Classpath classpath,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
@@ -340,8 +336,8 @@ public final class BuildFingerprintService {
 
     private static String classpathHash(
             Path path,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         Path normalized = path.toAbsolutePath().normalize();
         if (Files.isDirectory(normalized)) {
             Optional<String> abiHash = zoltOutputAbiHash(normalized);
@@ -373,8 +369,8 @@ public final class BuildFingerprintService {
     private static List<String> fileEntries(
             Path projectRoot,
             List<Path> files,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         return files.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
@@ -387,8 +383,8 @@ public final class BuildFingerprintService {
             List<String> configuredRoots,
             String resourceRootKey,
             BuildSettings settings,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         List<Path> resources = new ArrayList<>();
         Path mainOutput = outputPath(projectRoot, "[build].output", settings.output());
         Path testOutput = outputPath(projectRoot, "[build].testOutput", settings.testOutput());
@@ -419,8 +415,8 @@ public final class BuildFingerprintService {
     private static List<String> generatedSourceInputEntries(
             Path projectRoot,
             List<GeneratedSourceStep> steps,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         return steps.stream()
                 .flatMap(step -> step.inputs().stream()
                         .map(input -> inputPath(projectRoot, "[generated." + step.id() + "].inputs", input)))
@@ -433,8 +429,8 @@ public final class BuildFingerprintService {
     private static List<String> generatedSourceEntries(
             Path projectRoot,
             Path generatedSourcesDirectory,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         if (!Files.isDirectory(generatedSourcesDirectory)) {
             return List.of();
         }
@@ -574,8 +570,8 @@ public final class BuildFingerprintService {
 
     private static String fileHash(
             Path path,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         Path normalized = path.toAbsolutePath().normalize();
         if (Files.isDirectory(normalized)) {
             return directoryHash(normalized, cachedState, collectedState);
@@ -585,12 +581,12 @@ public final class BuildFingerprintService {
         }
         if (cachedState != null) {
             return cachedState.hashIfCurrent(normalized)
-                    .orElseThrow(FingerprintStateMiss::new);
+                    .orElseThrow(BuildFingerprintStateMiss::new);
         }
         try {
             String hash = sha256(Files.readAllBytes(normalized));
             if (collectedState != null) {
-                collectedState.put(normalized, CachedFileHash.read(normalized, hash));
+                collectedState.put(normalized, BuildFingerprintCachedFileHash.read(normalized, hash));
             }
             return hash;
         } catch (IOException exception) {
@@ -604,8 +600,8 @@ public final class BuildFingerprintService {
 
     private static String directoryHash(
             Path directory,
-            FingerprintState cachedState,
-            Map<Path, CachedFileHash> collectedState) {
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         try (Stream<Path> paths = Files.walk(directory)) {
             StringBuilder content = new StringBuilder();
             paths.filter(Files::isRegularFile)
@@ -641,13 +637,13 @@ public final class BuildFingerprintService {
                 && OUTPUT_DIRECTORY_NAMES.contains(relativePath.getName(0).toString());
     }
 
-    private static Optional<FingerprintState> readState(Path fingerprintPath) {
+    private static Optional<BuildFingerprintState> readState(Path fingerprintPath) {
         Path statePath = statePath(fingerprintPath);
         if (!Files.isRegularFile(statePath)) {
             return Optional.empty();
         }
         try {
-            return FingerprintState.parse(Files.readAllLines(statePath, StandardCharsets.UTF_8));
+            return BuildFingerprintState.parse(Files.readAllLines(statePath, StandardCharsets.UTF_8));
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not read build fingerprint state at "
@@ -657,12 +653,15 @@ public final class BuildFingerprintService {
         }
     }
 
-    private static void writeState(Path fingerprintPath, String fingerprint, Map<Path, CachedFileHash> collectedState) {
+    private static void writeState(
+            Path fingerprintPath,
+            String fingerprint,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         Path statePath = statePath(fingerprintPath);
         try {
             Files.writeString(
                     statePath,
-                    FingerprintState.format(fingerprint, collectedState),
+                    BuildFingerprintState.format(fingerprint, collectedState),
                     StandardCharsets.UTF_8);
         } catch (IOException exception) {
             throw new BuildException(
@@ -673,106 +672,4 @@ public final class BuildFingerprintService {
         }
     }
 
-    private record CachedFileHash(
-            Path path,
-            long size,
-            long lastModifiedNanos,
-            String hash) {
-        static CachedFileHash read(Path path, String hash) throws IOException {
-            Path normalized = path.toAbsolutePath().normalize();
-            BasicFileAttributes attributes = Files.readAttributes(normalized, BasicFileAttributes.class);
-            return new CachedFileHash(
-                    normalized,
-                    attributes.size(),
-                    attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS),
-                    hash);
-        }
-
-        boolean isCurrent() {
-            try {
-                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
-                return attributes.isRegularFile()
-                        && attributes.size() == size
-                        && attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS) == lastModifiedNanos;
-            } catch (IOException exception) {
-                return false;
-            }
-        }
-    }
-
-    private record FingerprintState(
-            String fingerprintSha256,
-            Map<Path, CachedFileHash> files) {
-        static Optional<FingerprintState> parse(List<String> lines) {
-            if (lines.size() < 2 || !("version=" + STATE_VERSION).equals(lines.get(0))) {
-                return Optional.empty();
-            }
-            String fingerprintSha256 = value(lines.get(1), "fingerprintSha256=");
-            if (fingerprintSha256 == null || fingerprintSha256.isBlank()) {
-                return Optional.empty();
-            }
-            Map<Path, CachedFileHash> files = new LinkedHashMap<>();
-            for (int index = 2; index < lines.size(); index++) {
-                String line = lines.get(index);
-                if (line.isBlank()) {
-                    continue;
-                }
-                String[] parts = line.split("\t", -1);
-                if (parts.length != 5 || !"file".equals(parts[0])) {
-                    return Optional.empty();
-                }
-                try {
-                    Path path = Path.of(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8))
-                            .toAbsolutePath()
-                            .normalize();
-                    long size = Long.parseLong(parts[2]);
-                    long lastModifiedNanos = Long.parseLong(parts[3]);
-                    files.put(path, new CachedFileHash(path, size, lastModifiedNanos, parts[4]));
-                } catch (IllegalArgumentException exception) {
-                    return Optional.empty();
-                }
-            }
-            return Optional.of(new FingerprintState(fingerprintSha256, Map.copyOf(files)));
-        }
-
-        static String format(String fingerprint, Map<Path, CachedFileHash> files) {
-            StringBuilder content = new StringBuilder();
-            line(content, "version", STATE_VERSION);
-            line(content, "fingerprintSha256", sha256(fingerprint.getBytes(StandardCharsets.UTF_8)));
-            files.values().stream()
-                    .sorted(Comparator.comparing(cached -> cached.path().toString()))
-                    .forEach(cached -> content
-                            .append("file")
-                            .append('\t')
-                            .append(Base64.getUrlEncoder().withoutPadding().encodeToString(
-                                    cached.path().toString().getBytes(StandardCharsets.UTF_8)))
-                            .append('\t')
-                            .append(cached.size())
-                            .append('\t')
-                            .append(cached.lastModifiedNanos())
-                            .append('\t')
-                            .append(cached.hash())
-                            .append('\n'));
-            return content.toString();
-        }
-
-        boolean matchesFingerprint(String fingerprint) {
-            return fingerprintSha256.equals(sha256(fingerprint.getBytes(StandardCharsets.UTF_8)));
-        }
-
-        Optional<String> hashIfCurrent(Path path) {
-            CachedFileHash file = files.get(path.toAbsolutePath().normalize());
-            if (file == null || !file.isCurrent()) {
-                return Optional.empty();
-            }
-            return Optional.of(file.hash());
-        }
-
-        private static String value(String line, String prefix) {
-            return line.startsWith(prefix) ? line.substring(prefix.length()) : null;
-        }
-    }
-
-    private static final class FingerprintStateMiss extends RuntimeException {
-    }
 }
