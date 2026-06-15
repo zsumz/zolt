@@ -4,20 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -28,7 +20,7 @@ final class ZoltCliTest {
 
     @Test
     void checkContextCiRequireOfflineReadyPassesWithSeededCache() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -60,7 +52,7 @@ final class ZoltCliTest {
 
     @Test
     void checkContextCiRequireOfflineReadyReportsMissingCache() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -94,7 +86,7 @@ final class ZoltCliTest {
 
     @Test
     void checkDependencyMetadataPassesForOptionalPublishOnlyAndExclusions() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("org.example", "lib", "1.0.0", """
                     <project>
                       <groupId>org.example</groupId>
@@ -144,168 +136,8 @@ final class ZoltCliTest {
     }
 
     @Test
-    void resolveReadsConfigWritesLockfileAndPrintsSummary() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
-            repository.addArtifact("com.example", "app", "1.0.0", """
-                    <project>
-                      <groupId>com.example</groupId>
-                      <artifactId>app</artifactId>
-                      <version>1.0.0</version>
-                    </project>
-                    """);
-            Path projectDir = tempDir.resolve("demo");
-            Files.createDirectories(projectDir);
-            Files.writeString(projectDir.resolve("zolt.toml"), """
-                    [project]
-                    name = "demo"
-                    version = "0.1.0"
-                    group = "com.example"
-                    java = "21"
-                    main = "com.example.Main"
-
-                    [repositories]
-                    test = "%s"
-
-                    [dependencies]
-                    "com.example:app" = "1.0.0"
-                    """.formatted(repository.baseUri()));
-
-            CommandResult result = execute(
-                    "resolve",
-                    "--cwd", projectDir.toString(),
-                    "--cache-root", tempDir.resolve("cache").toString());
-
-            assertEquals(0, result.exitCode());
-            assertTrue(result.stdout().contains("Resolved 1 packages"));
-            assertTrue(result.stdout().contains("Downloaded 2 artifacts"));
-            assertTrue(result.stdout().contains("Conflicts 0"));
-            assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
-            assertEquals("", result.stderr());
-            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
-        }
-    }
-
-    @Test
-    void resolvePrintsTextTimingsWhenRequested() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
-            repository.addArtifact("com.example", "app", "1.0.0", """
-                    <project>
-                      <groupId>com.example</groupId>
-                      <artifactId>app</artifactId>
-                      <version>1.0.0</version>
-                    </project>
-                    """);
-            Path projectDir = tempDir.resolve("demo");
-            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
-
-            CommandResult result = execute(
-                    "resolve",
-                    "--timings",
-                    "--cwd", projectDir.toString(),
-                    "--cache-root", tempDir.resolve("cache").toString());
-
-            assertEquals(0, result.exitCode());
-            assertTrue(result.stdout().contains("Resolved 1 packages"));
-            assertTrue(result.stderr().contains("Timings for zolt resolve"));
-            assertTrue(result.stderr().contains("config read:"));
-            assertTrue(result.stderr().contains("resolve graph:"));
-            assertTrue(result.stderr().contains("resolvedPackages=1"));
-            assertTrue(result.stderr().contains("downloadedArtifacts=2"));
-        }
-    }
-
-    @Test
-    void resolvePrintsJsonTimingsWhenRequested() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
-            repository.addArtifact("com.example", "app", "1.0.0", """
-                    <project>
-                      <groupId>com.example</groupId>
-                      <artifactId>app</artifactId>
-                      <version>1.0.0</version>
-                    </project>
-                    """);
-            Path projectDir = tempDir.resolve("demo");
-            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
-
-            CommandResult result = execute(
-                    "resolve",
-                    "--timings",
-                    "--timings-format", "json",
-                    "--cwd", projectDir.toString(),
-                    "--cache-root", tempDir.resolve("cache").toString());
-
-            assertEquals(0, result.exitCode());
-            assertTrue(result.stdout().contains("Resolved 1 packages"));
-            String[] lines = result.stderr().lines().toArray(String[]::new);
-            assertEquals(2, lines.length);
-            assertTrue(lines[0].startsWith("{\"command\":\"resolve\""));
-            assertTrue(lines[0].contains("\"phase\":\"config read\""));
-            assertTrue(lines[0].contains("\"projectRoot\":\"" + jsonPath(projectDir.toAbsolutePath().normalize()) + "\""));
-            assertTrue(lines[1].contains("\"phase\":\"resolve graph\""));
-            assertTrue(lines[1].contains("\"durationNanos\":"));
-            assertTrue(lines[1].contains("\"conflicts\":\"0\""));
-            assertTrue(lines[1].contains("\"downloadedArtifacts\":\"2\""));
-            assertTrue(lines[1].contains("\"resolvedPackages\":\"1\""));
-            assertTrue(lines[1].contains("\"pomCacheMisses\""));
-            assertTrue(lines[1].contains("\"rawPomCacheHits\""));
-            assertTrue(lines[1].contains("\"pomDownloadMillis\""));
-            assertTrue(lines[1].contains("\"jarDownloadMillis\""));
-            assertTrue(lines[1].contains("\"pomDownloadNanos\""));
-            assertTrue(lines[1].contains("\"jarDownloadNanos\""));
-            assertTrue(lines[1].contains("\"rawPomParseNanos\""));
-            assertTrue(lines[1].contains("\"effectivePomBuildNanos\""));
-            assertTrue(lines[1].contains("\"graphTraversalNanos\""));
-            assertTrue(lines[1].contains("\"lockfileAssemblyNanos\""));
-            assertTrue(lines[1].contains("\"lockfileWriteNanos\""));
-        }
-    }
-
-    @Test
-    void resolveLockedVerifiesExistingLockfile() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
-            repository.addArtifact("com.example", "app", "1.0.0", """
-                    <project>
-                      <groupId>com.example</groupId>
-                      <artifactId>app</artifactId>
-                      <version>1.0.0</version>
-                    </project>
-                    """);
-            Path projectDir = tempDir.resolve("demo");
-            Files.createDirectories(projectDir);
-            Files.writeString(projectDir.resolve("zolt.toml"), """
-                    [project]
-                    name = "demo"
-                    version = "0.1.0"
-                    group = "com.example"
-                    java = "21"
-                    main = "com.example.Main"
-
-                    [repositories]
-                    test = "%s"
-
-                    [dependencies]
-                    "com.example:app" = "1.0.0"
-                    """.formatted(repository.baseUri()));
-            CommandResult unlocked = execute(
-                    "resolve",
-                    "--cwd", projectDir.toString(),
-                    "--cache-root", tempDir.resolve("cache").toString());
-
-            CommandResult locked = execute(
-                    "resolve",
-                    "--locked",
-                    "--cwd", projectDir.toString(),
-                    "--cache-root", tempDir.resolve("cache").toString());
-
-            assertEquals(0, unlocked.exitCode());
-            assertEquals(0, locked.exitCode());
-            assertTrue(locked.stdout().contains("Verified " + projectDir.resolve("zolt.lock")));
-        }
-    }
-
-    @Test
     void buildRejectsStaleExistingLockfileBeforeCompiling() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -354,7 +186,7 @@ final class ZoltCliTest {
 
     @Test
     void classpathRejectsStaleExistingLockfileWhenProjectConfigExists() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -396,7 +228,7 @@ final class ZoltCliTest {
 
     @Test
     void addRefreshesLockfileByDefault() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -423,7 +255,7 @@ final class ZoltCliTest {
 
     @Test
     void removeDeletesDependencyAndPrunesUnusedTransitivesFromLockfile() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -476,7 +308,7 @@ final class ZoltCliTest {
 
     @Test
     void removeDeletesDependencyFromRequestedSectionOnly() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "tool", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -509,7 +341,7 @@ final class ZoltCliTest {
 
     @Test
     void removeDeletesProcessorDependencyFromRequestedSection() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "processor", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -564,7 +396,7 @@ final class ZoltCliTest {
 
     @Test
     void platformAddRefreshesLockfileByDefault() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -601,7 +433,7 @@ final class ZoltCliTest {
 
     @Test
     void ideModelCheckLockReportsFreshLockfileWithoutDiagnostics() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -636,7 +468,7 @@ final class ZoltCliTest {
 
     @Test
     void ideModelReportsStaleLockfileWithoutRewritingItByDefault() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -686,7 +518,7 @@ final class ZoltCliTest {
 
     @Test
     void ideModelWorkspaceReportsStaleRootLockfileByDefault() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -745,7 +577,7 @@ final class ZoltCliTest {
 
     @Test
     void buildWorkspaceRejectsStaleGeneratedRootLockfileBeforeCompiling() throws IOException {
-        try (TestRepository repository = TestRepository.start()) {
+        try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
                     <project>
                       <groupId>com.example</groupId>
@@ -875,30 +707,6 @@ final class ZoltCliTest {
         Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
     }
 
-    private static void writeProjectConfigWithoutMain(Path projectDir, String repositoryUrl) throws IOException {
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), """
-                [project]
-                name = "demo"
-                version = "0.1.0"
-                group = "com.example"
-                java = "%s"
-
-                [repositories]
-                test = "%s"
-
-                [dependencies]
-
-                [test.dependencies]
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """.formatted(currentJavaMajorVersion(), repositoryUrl));
-    }
-
     private static void appendDependencies(StringBuilder config, Map<String, String> dependencies) {
         dependencies.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
@@ -935,15 +743,6 @@ final class ZoltCliTest {
         Files.writeString(source, content);
     }
 
-    private static void createJarWithTextEntry(Path jar, String entryName, String text) throws IOException {
-        Files.createDirectories(jar.getParent());
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(text.getBytes(StandardCharsets.UTF_8));
-            output.closeEntry();
-        }
-    }
-
     private static String currentJavaMajorVersion() {
         String version = System.getProperty("java.version");
         String[] parts = version.split("[._+-]", -1);
@@ -963,80 +762,4 @@ final class ZoltCliTest {
         return count;
     }
 
-    private static String jsonPath(Path path) {
-        return path.toString().replace('\\', '/');
-    }
-
-    private static final class TestRepository implements AutoCloseable {
-        private final HttpServer server;
-        private final Map<String, byte[]> responses = new HashMap<>();
-        private final Map<String, byte[]> uploads = new HashMap<>();
-        private final URI baseUri;
-
-        private TestRepository(HttpServer server) {
-            this.server = server;
-            this.baseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/");
-        }
-
-        static TestRepository start() throws IOException {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            TestRepository repository = new TestRepository(server);
-            server.createContext("/", repository::handle);
-            server.start();
-            return repository;
-        }
-
-        URI baseUri() {
-            return baseUri;
-        }
-
-        void addArtifact(String groupId, String artifactId, String version, String pom) {
-            String base = "/maven2/"
-                    + groupId.replace('.', '/')
-                    + "/"
-                    + artifactId
-                    + "/"
-                    + version
-                    + "/"
-                    + artifactId
-                    + "-"
-                    + version;
-            responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
-            responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
-        }
-
-        byte[] uploaded(String path) {
-            byte[] bytes = uploads.get(path);
-            if (bytes == null) {
-                throw new AssertionError("No upload recorded for " + path);
-            }
-            return bytes.clone();
-        }
-
-        private void handle(HttpExchange exchange) throws IOException {
-            if ("PUT".equals(exchange.getRequestMethod())) {
-                uploads.put(exchange.getRequestURI().getPath(), exchange.getRequestBody().readAllBytes());
-                respond(exchange, 201, "created".getBytes(StandardCharsets.UTF_8));
-                return;
-            }
-            byte[] body = responses.get(exchange.getRequestURI().getPath());
-            if (body == null) {
-                respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
-                return;
-            }
-            respond(exchange, 200, body);
-        }
-
-        private static void respond(HttpExchange exchange, int statusCode, byte[] body) throws IOException {
-            try (exchange) {
-                exchange.sendResponseHeaders(statusCode, body.length);
-                exchange.getResponseBody().write(body);
-            }
-        }
-
-        @Override
-        public void close() {
-            server.stop(0);
-        }
-    }
 }
