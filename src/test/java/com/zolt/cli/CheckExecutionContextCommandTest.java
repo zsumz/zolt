@@ -1,0 +1,290 @@
+package com.zolt.cli;
+
+import static com.zolt.cli.CliTestSupport.execute;
+import static com.zolt.cli.CliTestSupport.memberConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.cli.CliTestSupport.CommandResult;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class CheckExecutionContextCommandTest {
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void checkContextCiRunsBuiltInReproducibilityChecks() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci"));
+        CommandResult resolveResult = execute("resolve", "--cwd", projectDir.toString());
+
+        CommandResult result = execute("check", "--context", "ci", "--cwd", projectDir.toString());
+
+        assertEquals(0, resolveResult.exitCode());
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context ci CI context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in ci context"));
+        assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml."));
+        assertTrue(result.stdout().contains("ok project-model check-context-ci Project model is valid"));
+        assertTrue(result.stdout().contains("ok dependency-policy check-context-ci Dependency policy baseline is explainable"));
+        assertTrue(result.stdout().contains("ok generated-sources check-context-ci No declared generated-source steps require validation."));
+        assertTrue(result.stdout().contains("ok package-contents check-context-ci Package mode `thin` has 0 dependency dispositions."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextLocalReportsDeveloperPolicyWithoutLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-local");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-local"));
+
+        CommandResult result = execute("check", "--context", "local", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in local context"));
+        assertTrue(result.stdout().contains("Local overlays are allowed"));
+        assertFalse(result.stdout().contains("lockfile zolt.lock"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextLocalPrependsPolicyToExplicitChecks() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-local-explicit-check");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-local-explicit-check"));
+
+        CommandResult result = execute(
+                "check",
+                "--context", "local",
+                "--check", "project-model",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context local Local context policy is active"));
+        assertTrue(result.stdout().contains("Policy source: built-in local context"));
+        assertTrue(result.stdout().contains("ok project-model check-context-local-explicit-check Project model is valid"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkRejectsMalformedContext() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-malformed");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-malformed"));
+
+        CommandResult result = execute("check", "--context", "profile-dev", "--cwd", projectDir.toString());
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Invalid value for option '--context': expected one of [LOCAL, CI]"));
+    }
+
+    @Test
+    void checkContextCiRejectsLocalOverlayOrigins() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-local-overlay");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-local-overlay"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:local-lib"
+                version = "1.0.0"
+                source = "local-overlay:maven-local"
+                scope = "compile"
+                direct = true
+                jar = "overlays/maven-local/com/example/local-lib/1.0.0/local-lib-1.0.0.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context com.example:local-lib:1.0.0 CI context rejects local repository overlay origin `local-overlay:maven-local`."));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve --locked --no-local-overlays`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsMissingRepositoryCredentialEnvironment() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-credentials") + """
+
+                [repositories]
+                company = { url = "https://repo.example.test/maven", credentials = "company-artifactory" }
+
+                [repositoryCredentials.company-artifactory]
+                usernameEnv = "ZOLT_TEST_MISSING_CHECK_CONTEXT_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_CHECK_CONTEXT_PASSWORD"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositoryCredentials.company-artifactory] CI context requires environment variables ZOLT_TEST_MISSING_CHECK_CONTEXT_USERNAME, ZOLT_TEST_MISSING_CHECK_CONTEXT_PASSWORD"));
+        assertTrue(result.stdout().contains("repository `company` credentials `company-artifactory`"));
+        assertTrue(result.stdout().contains("Secret values are never printed"));
+        assertFalse(result.stdout().contains("repo.example.test/maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsMissingPublishCredentialEnvironment() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-publish-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-publish-credentials") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                credentials = "publish-creds"
+
+                [repositoryCredentials.publish-creds]
+                usernameEnv = "ZOLT_TEST_MISSING_PUBLISH_CHECK_USERNAME"
+                passwordEnv = "ZOLT_TEST_MISSING_PUBLISH_CHECK_PASSWORD"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositoryCredentials.publish-creds] CI context requires environment variables ZOLT_TEST_MISSING_PUBLISH_CHECK_USERNAME, ZOLT_TEST_MISSING_PUBLISH_CHECK_PASSWORD"));
+        assertTrue(result.stdout().contains("publish repository `company-releases` credentials `publish-creds`"));
+        assertTrue(result.stdout().contains("Secret values are never printed"));
+        assertFalse(result.stdout().contains("repo.example.test/releases"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsEmbeddedRepositoryCredentials() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-embedded-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-embedded-credentials") + """
+
+                [repositories]
+                company = "https://user:super-secret-token@repo.example.test/maven"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [repositories.company] CI context rejects embedded credentials in repository `company` URL."));
+        assertTrue(result.stdout().contains("Move credentials to [repositoryCredentials] environment references"));
+        assertFalse(result.stdout().contains("user:super-secret-token"));
+        assertFalse(result.stdout().contains("repo.example.test/maven"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsEmbeddedPublishCredentials() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-embedded-publish-credentials");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-embedded-publish-credentials") + """
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://publish-user:super-secret-token@repo.example.test/releases"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [publish.repositories.company-releases] CI context rejects embedded credentials in publish repository `company-releases` URL."));
+        assertTrue(result.stdout().contains("Move publish credentials to [repositoryCredentials] environment references"));
+        assertFalse(result.stdout().contains("publish-user"));
+        assertFalse(result.stdout().contains("super-secret-token"));
+        assertFalse(result.stdout().contains("repo.example.test/releases"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsMissingResourceTokenEnvironment() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-resource-token-env");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-resource-token-env") + """
+
+                [resources.filtering]
+                enabled = true
+                includes = ["**/*.properties"]
+
+                [resources.tokens]
+                buildNumber = { env = "ZOLT_TEST_MISSING_RESOURCE_TOKEN" }
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context [resources.tokens.buildNumber] CI context requires environment variable ZOLT_TEST_MISSING_RESOURCE_TOKEN"));
+        assertTrue(result.stdout().contains("resource token `buildNumber` before resource copying"));
+        assertTrue(result.stdout().contains("Values are never printed"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiReportsResourceTokenProvenance() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-resource-token-provenance");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-resource-token-provenance") + """
+
+                [resources.filtering]
+                enabled = true
+                includes = ["**/*.properties"]
+
+                [resources.tokens]
+                appName = { value = "demo" }
+                projectVersion = { project = "version" }
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context resource-token-inputs CI resource token preflight passed for 2 tokens: env=0, project=1, literal=1."));
+        assertFalse(result.stdout().contains("demo"));
+        assertEquals("", result.stderr());
+    }
+}
