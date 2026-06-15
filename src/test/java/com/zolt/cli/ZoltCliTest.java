@@ -144,32 +144,6 @@ final class ZoltCliTest {
     }
 
     @Test
-    void packageReportsConfigErrorsCleanly() {
-        CommandResult result = execute("package", "--cwd", tempDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
-    }
-
-    @Test
-    void initCreatesProjectAndPrintsNextCommand() {
-        CommandResult result = execute("init", "--cwd", tempDir.toString(), "hello");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Created Zolt project at"));
-        assertTrue(result.stdout().contains("Next: cd hello"));
-        assertTrue(Files.exists(tempDir.resolve("hello/zolt.toml")));
-    }
-
-    @Test
-    void resolveReportsConfigErrorsCleanly() {
-        CommandResult result = execute("resolve", "--cwd", tempDir.toString(), "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
-    }
-
-    @Test
     void resolveReadsConfigWritesLockfileAndPrintsSummary() throws IOException {
         try (TestRepository repository = TestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
@@ -284,17 +258,6 @@ final class ZoltCliTest {
             assertTrue(lines[1].contains("\"lockfileAssemblyNanos\""));
             assertTrue(lines[1].contains("\"lockfileWriteNanos\""));
         }
-    }
-
-    @Test
-    void failedCommandStillPrintsTimingsWhenRequested() {
-        CommandResult result = execute("resolve", "--timings", "--cwd", tempDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
-        assertTrue(result.stderr().contains("Timings for zolt resolve"));
-        assertTrue(result.stderr().contains("config read:"));
-        assertTrue(result.stderr().contains("status=failed"));
     }
 
     @Test

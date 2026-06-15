@@ -5,10 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class CliSurfaceTest {
+    @TempDir
+    private Path tempDir;
+
     @Test
     void updateExplainsFutureSelfUpdatePath() {
         CommandResult result = execute("update");
@@ -31,6 +37,43 @@ final class CliSurfaceTest {
         assertTrue(result.stdout().contains("check"));
         assertTrue(result.stdout().contains("build"));
         assertTrue(result.stdout().contains("doctor"));
+    }
+
+    @Test
+    void initCreatesProjectAndPrintsNextCommand() {
+        CommandResult result = execute("init", "--cwd", tempDir.toString(), "hello");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Created Zolt project at"));
+        assertTrue(result.stdout().contains("Next: cd hello"));
+        assertTrue(Files.exists(tempDir.resolve("hello/zolt.toml")));
+    }
+
+    @Test
+    void packageReportsConfigErrorsCleanly() {
+        CommandResult result = execute("package", "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+    }
+
+    @Test
+    void resolveReportsConfigErrorsCleanly() {
+        CommandResult result = execute("resolve", "--cwd", tempDir.toString(), "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+    }
+
+    @Test
+    void failedCommandStillPrintsTimingsWhenRequested() {
+        CommandResult result = execute("resolve", "--timings", "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+        assertTrue(result.stderr().contains("Timings for zolt resolve"));
+        assertTrue(result.stderr().contains("config read:"));
+        assertTrue(result.stderr().contains("status=failed"));
     }
 
     @Test
