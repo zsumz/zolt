@@ -19,12 +19,13 @@ final class NativeImageRunnerTest {
     @Test
     void passesJarRuntimeDependenciesMainClassAndOutputToNativeImage() throws IOException {
         List<List<String>> commands = new ArrayList<>();
-        NativeImageRunner runner = new NativeImageRunner(":", command -> {
-            commands.add(command);
-            return new NativeImageRunner.ProcessResult(0, "native ok\n");
-        });
         Path outputBinary = tempDir.resolve("target/native/demo");
         Path logFile = tempDir.resolve("target/native/native-image.log");
+        NativeImageRunner runner = new NativeImageRunner(":", command -> {
+            commands.add(command);
+            writeNativeBinary(outputBinary, "native");
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
 
         NativeImageResult result = runner.build(new NativeImageRequest(
                 Path.of("native-image"),
@@ -39,6 +40,7 @@ final class NativeImageRunnerTest {
         assertEquals(logFile, result.logFile());
         assertEquals("native ok\n", result.output());
         assertEquals("native ok\n", Files.readString(logFile));
+        assertEquals("native", Files.readString(outputBinary));
         assertEquals(List.of(
                 "native-image",
                 "--no-fallback",
@@ -53,8 +55,10 @@ final class NativeImageRunnerTest {
     @Test
     void nullExecutableUsesNativeImageFromPath() {
         List<List<String>> commands = new ArrayList<>();
+        Path outputBinary = tempDir.resolve("demo");
         NativeImageRunner runner = new NativeImageRunner(":", command -> {
             commands.add(command);
+            writeNativeBinary(outputBinary, "native");
             return new NativeImageRunner.ProcessResult(0, "");
         });
 
@@ -63,11 +67,57 @@ final class NativeImageRunnerTest {
                 Path.of("target/demo.jar"),
                 List.of(),
                 "com.example.Main",
-                tempDir.resolve("demo"),
+                outputBinary,
                 tempDir.resolve("native-image.log"),
                 List.of()));
 
         assertEquals("native-image", commands.getFirst().getFirst());
+    }
+
+    @Test
+    void removesExistingOutputBinaryBeforeNativeImageRuns() throws IOException {
+        Path outputBinary = tempDir.resolve("target/native/demo");
+        Files.createDirectories(outputBinary.getParent());
+        Files.writeString(outputBinary, "stale");
+        NativeImageRunner runner = new NativeImageRunner(":", command -> {
+            assertTrue(Files.notExists(outputBinary));
+            writeNativeBinary(outputBinary, "fresh");
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        runner.build(new NativeImageRequest(
+                Path.of("native-image"),
+                Path.of("target/demo.jar"),
+                List.of(),
+                "com.example.Main",
+                outputBinary,
+                tempDir.resolve("target/native/native-image.log"),
+                List.of()));
+
+        assertEquals("fresh", Files.readString(outputBinary));
+    }
+
+    @Test
+    void successfulNativeImageMustCreateExpectedOutputBinary() throws IOException {
+        NativeImageRunner runner = new NativeImageRunner(":", command ->
+                new NativeImageRunner.ProcessResult(0, "native ok\n"));
+        Path outputBinary = tempDir.resolve("target/native/demo");
+        Path logFile = tempDir.resolve("target/native/native-image.log");
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> runner.build(new NativeImageRequest(
+                        Path.of("native-image"),
+                        Path.of("target/demo.jar"),
+                        List.of(),
+                        "com.example.Main",
+                        outputBinary,
+                        logFile,
+                        List.of("--no-fallback"))));
+
+        assertTrue(exception.getMessage().contains("did not create expected binary"));
+        assertTrue(exception.getMessage().contains(outputBinary.toString()));
+        assertEquals("native ok\n", Files.readString(logFile));
     }
 
     @Test
@@ -111,5 +161,13 @@ final class NativeImageRunnerTest {
                         List.of())));
 
         assertTrue(exception.getMessage().contains("Add [project].main"));
+    }
+
+    private static void writeNativeBinary(Path outputBinary, String content) {
+        try {
+            Files.writeString(outputBinary, content);
+        } catch (IOException exception) {
+            throw new AssertionError(exception);
+        }
     }
 }

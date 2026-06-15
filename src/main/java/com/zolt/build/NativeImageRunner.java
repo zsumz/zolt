@@ -24,6 +24,7 @@ public final class NativeImageRunner {
     public NativeImageResult build(NativeImageRequest request) {
         validate(request);
         createDirectories(request.outputBinary(), request.logFile());
+        removeExistingOutputBinary(request.outputBinary());
         List<String> command = command(request);
         ProcessResult result = processRunner.run(command);
         writeLog(request.logFile(), result.output());
@@ -36,6 +37,7 @@ public final class NativeImageRunner {
                             + ", fix the Native Image errors, and try again.\n"
                             + result.output().stripTrailing());
         }
+        requireOutputBinary(request.outputBinary());
         return new NativeImageResult(request.outputBinary(), request.logFile(), result.output());
     }
 
@@ -87,6 +89,27 @@ public final class NativeImageRunner {
             throw new NativeImageException(
                     "Could not create Native Image output directories. Check that the project directory is writable.",
                     exception);
+        }
+    }
+
+    private static void removeExistingOutputBinary(Path outputBinary) {
+        try {
+            Files.deleteIfExists(outputBinary);
+        } catch (IOException exception) {
+            throw new NativeImageException(
+                    "Could not remove existing Native Image output binary at "
+                            + outputBinary
+                            + ". Check filesystem permissions and retry.",
+                    exception);
+        }
+    }
+
+    private static void requireOutputBinary(Path outputBinary) {
+        if (!Files.isRegularFile(outputBinary)) {
+            throw new NativeImageException(
+                    "Native Image completed but did not create expected binary at "
+                            + outputBinary
+                            + ". Review the native-image output and retry.");
         }
     }
 

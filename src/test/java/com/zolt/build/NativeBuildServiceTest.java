@@ -87,9 +87,12 @@ final class NativeBuildServiceTest {
                     }
                 }
                 """);
-        NativeBuildService service = service(command -> new NativeImageRunner.ProcessResult(
-                0,
-                "Warning: unsupported reflection configuration\n"));
+        NativeBuildService service = service(command -> {
+            writeNativeBinary(Path.of(command.getLast()));
+            return new NativeImageRunner.ProcessResult(
+                    0,
+                    "Warning: unsupported reflection configuration\n");
+        });
 
         NativeImageException exception = assertThrows(
                 NativeImageException.class,
