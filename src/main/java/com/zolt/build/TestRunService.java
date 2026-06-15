@@ -28,8 +28,6 @@ public final class TestRunService {
     private static final String CONSOLE_MAIN_CLASS = "org.junit.platform.console.ConsoleLauncher";
     private static final String JUNIT_CONSOLE_RUNNER = "junit-console";
     private static final String PLAIN_JUNIT_WORKER_RUNNER = "zolt-junit-worker";
-    private static final String JBOSS_LOG_MANAGER_PROPERTY =
-            "-Djava.util.logging.manager=org.jboss.logmanager.LogManager";
 
     private final TestCompileService testCompileService;
     private final JdkChecker jdkDetector;
@@ -39,6 +37,7 @@ public final class TestRunService {
     private final PlainJunitWorkerRunner plainJunitWorkerRunner;
     private final JunitConsoleArguments junitConsoleArguments;
     private final TestRuntimeInputBuilder testRuntimeInputBuilder = new TestRuntimeInputBuilder();
+    private final JunitLauncherClasspath junitLauncherClasspath = new JunitLauncherClasspath();
     private final boolean plainJunitWorkerEnabled;
 
     public TestRunService() {
@@ -321,7 +320,7 @@ public final class TestRunService {
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
         runnerClasspath.addAll(classpaths.test().entries());
         runnerClasspath = absolutePaths(runnerClasspath);
-        if (runnerClasspath.stream().noneMatch(TestRunService::isConsoleJar)) {
+        if (!junitLauncherClasspath.hasConsoleJar(runnerClasspath)) {
             throw new TestRunException(
                     "JUnit Platform Console is not present on the test classpath. "
                             + "Run `zolt resolve` to refresh Zolt's test runner tooling. "
@@ -332,7 +331,7 @@ public final class TestRunService {
         if (!jdkStatus.ok()) {
             throw new BuildException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
         }
-        List<Path> launcherClasspath = junitLauncherClasspath(runnerClasspath);
+        List<Path> launcherClasspath = junitLauncherClasspath.launcherClasspath(runnerClasspath);
         if (frameworkTestRunner.isEnabled(config)) {
             if (reportsDirectory.isPresent()) {
                 frameworkTestRunner.unsupportedReportsMessage()
@@ -405,7 +404,7 @@ public final class TestRunService {
                     jdkStatus.java().orElseThrow(),
                     new Classpath(launcherClasspath),
                     CONSOLE_MAIN_CLASS,
-                    jvmArguments(projectDirectory, runnerClasspath, testJvmArguments),
+                    junitLauncherClasspath.jvmArguments(projectDirectory, runnerClasspath, testJvmArguments),
                     junitConsoleArguments.arguments(
                             runnerClasspath,
                             compileResult.outputDirectory(),
@@ -492,65 +491,6 @@ public final class TestRunService {
         } catch (JunitWorkerClientException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }
-    }
-
-    private static boolean isConsoleJar(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return name.startsWith("junit-platform-console") && name.endsWith(".jar");
-    }
-
-    private static List<Path> junitLauncherClasspath(List<Path> runnerClasspath) {
-        List<Path> launcherClasspath = new ArrayList<>();
-        boolean hasStandaloneConsole = runnerClasspath.stream().anyMatch(TestRunService::isStandaloneConsoleJar);
-        for (Path entry : runnerClasspath) {
-            if (hasStandaloneConsole) {
-                if (isStandaloneConsoleJar(entry) || isJbossLogManagerJar(entry)) {
-                    launcherClasspath.add(entry);
-                }
-            } else if (isJunitPlatformRuntimeJar(entry)
-                    || isJunitPlatformSupportJar(entry)
-                    || isJbossLogManagerJar(entry)) {
-                launcherClasspath.add(entry);
-            }
-        }
-        return List.copyOf(launcherClasspath);
-    }
-
-    private static boolean isStandaloneConsoleJar(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return name.startsWith("junit-platform-console-standalone-") && name.endsWith(".jar");
-    }
-
-    private static boolean isJunitPlatformRuntimeJar(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return name.startsWith("junit-platform-console-")
-                || name.startsWith("junit-platform-reporting-")
-                || name.startsWith("junit-platform-launcher-")
-                || name.startsWith("junit-platform-engine-")
-                || name.startsWith("junit-platform-commons-");
-    }
-
-    private static boolean isJunitPlatformSupportJar(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return name.startsWith("apiguardian-api-") || name.startsWith("opentest4j-");
-    }
-
-    private List<String> jvmArguments(
-            Path projectDirectory,
-            List<Path> runnerClasspath,
-            TestJvmArguments testJvmArguments) {
-        List<String> arguments = new ArrayList<>();
-        arguments.addAll(testJvmArguments.values());
-        arguments.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
-        if (runnerClasspath.stream().anyMatch(TestRunService::isJbossLogManagerJar)) {
-            arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
-        }
-        return List.copyOf(arguments);
-    }
-
-    private static boolean isJbossLogManagerJar(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString();
-        return name.startsWith("jboss-logmanager-") && name.endsWith(".jar");
     }
 
     private static List<Path> currentWorkerClasspath() {
