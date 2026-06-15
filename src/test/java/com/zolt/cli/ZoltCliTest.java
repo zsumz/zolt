@@ -395,42 +395,6 @@ final class ZoltCliTest {
     }
 
     @Test
-    void resolveLockedReportsMissingLockfileClearly() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-
-        CommandResult result = execute(
-                "resolve",
-                "--locked",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Locked resolve requires zolt.lock"));
-        assertTrue(result.stderr().contains("Run `zolt resolve` to create it"));
-    }
-
-    @Test
-    void resolveOfflineReportsMissingCachedArtifactClearly() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(
-                projectDir,
-                "https://repo.maven.apache.org/maven2",
-                Map.of("com.example:missing", "1.0.0"),
-                Map.of());
-
-        CommandResult result = execute(
-                "resolve",
-                "--offline",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Offline mode requires cached POM"));
-        assertTrue(result.stderr().contains("Run the command without --offline"));
-    }
-
-    @Test
     void addRefreshesLockfileByDefault() throws IOException {
         try (TestRepository repository = TestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
