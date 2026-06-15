@@ -4,10 +4,7 @@ import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectPathException;
-import com.zolt.project.ProjectPaths;
 import com.zolt.project.ResourceFilteringSettings;
-import com.zolt.project.ResourceTokenSettings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -18,21 +15,23 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 public final class PackageEvidenceManifestWriter {
     private static final String SCHEMA = "zolt.package-evidence.v1";
 
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final PackageResourceEvidence packageResourceEvidence;
 
     public PackageEvidenceManifestWriter() {
-        this(new GeneratedSourceEvidenceService());
+        this(new GeneratedSourceEvidenceService(), new PackageResourceEvidence());
     }
 
-    PackageEvidenceManifestWriter(GeneratedSourceEvidenceService generatedSourceEvidenceService) {
+    PackageEvidenceManifestWriter(
+            GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            PackageResourceEvidence packageResourceEvidence) {
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.packageResourceEvidence = packageResourceEvidence;
     }
 
     public Path write(
@@ -82,7 +81,7 @@ public final class PackageEvidenceManifestWriter {
         json.append(",\n");
         generatedSources(json, projectRoot, config);
         json.append(",\n");
-        resourceFiltering(json, projectRoot, config);
+        resourceFiltering(json, projectRoot, packageResourceEvidence.collect(projectRoot, config.build()));
         json.append("\n}\n");
         return json.toString();
     }
@@ -227,35 +226,33 @@ public final class PackageEvidenceManifestWriter {
     private static void resourceFiltering(
             StringBuilder json,
             Path projectRoot,
-            ProjectConfig config) {
-        ResourceFilteringSettings filtering = config.build().resourceFiltering();
-        List<Path> resources = resourceInputs(projectRoot, config);
+            PackageResourceEvidence.ResourceEvidence evidence) {
+        ResourceFilteringSettings filtering = evidence.filtering();
         indent(json, 1).append("\"resourceFiltering\": {\n");
         booleanField(json, 2, "enabled", filtering.enabled(), true);
         booleanField(json, 2, "testEnabled", filtering.testEnabled(), true);
         stringField(json, 2, "missing", filtering.missing().configValue(), true);
         stringArrayField(json, 2, "includes", filtering.includes(), true);
-        tokenSources(json, filtering.tokens());
+        tokenSources(json, evidence.tokenSources());
         json.append(",\n");
-        stringField(json, 2, "fingerprint", resourceFingerprint(projectRoot, filtering, resources), true);
-        fingerprintedPaths(json, 2, "inputs", projectRoot, resources, false);
+        stringField(json, 2, "fingerprint", evidence.fingerprint(), true);
+        fingerprintedPaths(json, 2, "inputs", projectRoot, evidence.inputs(), false);
         indent(json, 1).append("}");
     }
 
-    private static void tokenSources(StringBuilder json, Map<String, ResourceTokenSettings> tokens) {
+    private static void tokenSources(
+            StringBuilder json,
+            List<PackageResourceEvidence.TokenSource> tokens) {
         indent(json, 2).append("\"tokenSources\": [");
         if (!tokens.isEmpty()) {
             json.append('\n');
-            List<Map.Entry<String, ResourceTokenSettings>> entries = tokens.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .toList();
-            for (int index = 0; index < entries.size(); index++) {
-                Map.Entry<String, ResourceTokenSettings> entry = entries.get(index);
+            for (int index = 0; index < tokens.size(); index++) {
+                PackageResourceEvidence.TokenSource token = tokens.get(index);
                 indent(json, 3).append("{\n");
-                stringField(json, 4, "name", entry.getKey(), true);
-                stringField(json, 4, "source", tokenSource(entry.getValue()), false);
+                stringField(json, 4, "name", token.name(), true);
+                stringField(json, 4, "source", token.source(), false);
                 indent(json, 3).append("}");
-                if (index + 1 < entries.size()) {
+                if (index + 1 < tokens.size()) {
                     json.append(',');
                 }
                 json.append('\n');
@@ -263,78 +260,6 @@ public final class PackageEvidenceManifestWriter {
             indent(json, 2);
         }
         json.append("]");
-    }
-
-    private static String tokenSource(ResourceTokenSettings token) {
-        if (token.value().isPresent()) {
-            return "literal";
-        }
-        if (token.env().isPresent()) {
-            return "env";
-        }
-        return "project";
-    }
-
-    private static List<Path> resourceInputs(Path projectRoot, ProjectConfig config) {
-        List<Path> resources = new ArrayList<>();
-        for (String configuredRoot : config.build().resourceRoots()) {
-            Path resourceRoot = resourceRoot(projectRoot, configuredRoot);
-            if (!Files.isDirectory(resourceRoot)) {
-                continue;
-            }
-            try (Stream<Path> paths = Files.walk(resourceRoot)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(path -> !path.getFileName().toString().endsWith(".java"))
-                        .sorted(Comparator.comparing(path -> displayPath(projectRoot, path)))
-                        .forEach(resources::add);
-            } catch (IOException exception) {
-                throw new PackageException(
-                        "Could not fingerprint resources under "
-                                + resourceRoot
-                                + ". Check that resource files are readable and retry.",
-                        exception);
-            }
-        }
-        return List.copyOf(resources);
-    }
-
-    private static Path resourceRoot(Path projectRoot, String configuredRoot) {
-        try {
-            return ProjectPaths.existingRoot(projectRoot, "[resources].main", configuredRoot);
-        } catch (ProjectPathException exception) {
-            throw new PackageException(exception.getMessage(), exception);
-        }
-    }
-
-    private static String resourceFingerprint(
-            Path projectRoot,
-            ResourceFilteringSettings filtering,
-            List<Path> resources) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            updateText(digest, "zolt-resource-filtering-v1\n");
-            updateText(digest, "enabled=" + filtering.enabled() + "\n");
-            updateText(digest, "testEnabled=" + filtering.testEnabled() + "\n");
-            updateText(digest, "missing=" + filtering.missing().configValue() + "\n");
-            for (String include : filtering.includes().stream().sorted().toList()) {
-                updateText(digest, "include=" + include + "\n");
-            }
-            filtering.tokens().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(entry -> updateText(digest, "token=" + entry.getKey() + ":" + tokenSource(entry.getValue()) + "\n"));
-            for (Path resource : resources) {
-                updateText(digest, "resource=" + displayPath(projectRoot, resource) + "\n");
-                digest.update(Files.readAllBytes(resource));
-                updateText(digest, "\n");
-            }
-            return "sha256:" + HexFormat.of().formatHex(digest.digest());
-        } catch (IOException exception) {
-            throw new PackageException(
-                    "Could not fingerprint package resource inputs. Check that resource files are readable and retry.",
-                    exception);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new PackageException("Could not fingerprint package resources because SHA-256 is unavailable.", exception);
-        }
     }
 
     private static void fingerprintedPaths(
