@@ -7,14 +7,10 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.BuildSettings;
-import com.zolt.project.CompilerSettings;
 import com.zolt.project.GeneratedSourceStep;
-import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
-import com.zolt.project.PublicationMetadata;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
@@ -32,6 +28,7 @@ public final class IdeModelService {
     private final ZoltLockfileReader lockfileReader;
     private final ResolveService resolveService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final IdeProjectModelBuilder projectModelBuilder;
     private final IdeClasspathModelBuilder classpathModelBuilder;
     private final IdeDependencyModelBuilder dependencyModelBuilder;
     private final IdeFrameworkModelBuilder frameworkModelBuilder;
@@ -42,6 +39,7 @@ public final class IdeModelService {
                 new ZoltLockfileReader(),
                 new ResolveService(),
                 new GeneratedSourceEvidenceService(),
+                new IdeProjectModelBuilder(),
                 new IdeClasspathModelBuilder(),
                 new IdeDependencyModelBuilder(),
                 new IdeFrameworkModelBuilder());
@@ -52,6 +50,7 @@ public final class IdeModelService {
             ZoltLockfileReader lockfileReader,
             ResolveService resolveService,
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            IdeProjectModelBuilder projectModelBuilder,
             IdeClasspathModelBuilder classpathModelBuilder,
             IdeDependencyModelBuilder dependencyModelBuilder,
             IdeFrameworkModelBuilder frameworkModelBuilder) {
@@ -59,6 +58,7 @@ public final class IdeModelService {
         this.lockfileReader = lockfileReader;
         this.resolveService = resolveService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.projectModelBuilder = projectModelBuilder;
         this.classpathModelBuilder = classpathModelBuilder;
         this.dependencyModelBuilder = dependencyModelBuilder;
         this.frameworkModelBuilder = frameworkModelBuilder;
@@ -105,16 +105,16 @@ public final class IdeModelService {
                 "assemble ide model",
                 () -> new IdeModel(
                         SCHEMA_VERSION,
-                        projectInfo(config),
-                        javaInfo(config),
-                        compilerInfo(root, config, diagnostics),
-                        testRuntimeInfo(config),
-                        packageInfo(root, config, diagnostics),
+                        projectModelBuilder.projectInfo(config),
+                        projectModelBuilder.javaInfo(config),
+                        projectModelBuilder.compilerInfo(root, config, diagnostics),
+                        projectModelBuilder.testRuntimeInfo(config),
+                        projectModelBuilder.packageInfo(root, config, diagnostics),
                         new IdeModel.PathInfo(root, configPath, lockfilePath),
                         sourceRoots(root, config, diagnostics),
                         generatedSources(root, config, diagnostics),
                         resourceRoots(root, config, diagnostics),
-                        outputInfo(root, config, diagnostics),
+                        projectModelBuilder.outputInfo(root, config, diagnostics),
                         dependencyModelBuilder.build(config),
                         classpaths,
                         frameworkInfo,
@@ -148,16 +148,16 @@ public final class IdeModelService {
 
         return new IdeModel(
                 SCHEMA_VERSION,
-                projectInfo(config),
-                javaInfo(config),
-                compilerInfo(root, config, modelDiagnostics),
-                testRuntimeInfo(config),
-                packageInfo(root, config, modelDiagnostics),
+                projectModelBuilder.projectInfo(config),
+                projectModelBuilder.javaInfo(config),
+                projectModelBuilder.compilerInfo(root, config, modelDiagnostics),
+                projectModelBuilder.testRuntimeInfo(config),
+                projectModelBuilder.packageInfo(root, config, modelDiagnostics),
                 new IdeModel.PathInfo(root, configPath, lockfilePath.toAbsolutePath().normalize()),
                 sourceRoots(root, config, modelDiagnostics),
                 generatedSources(root, config, modelDiagnostics),
                 resourceRoots(root, config, modelDiagnostics),
-                outputInfo(root, config, modelDiagnostics),
+                projectModelBuilder.outputInfo(root, config, modelDiagnostics),
                 dependencyModelBuilder.build(config),
                 classpaths,
                 frameworkModelBuilder.build(root, null, config, modelDiagnostics),
@@ -219,125 +219,6 @@ public final class IdeModelService {
                     "Fix zolt.toml and run zolt ide model --format json again."));
             return null;
         }
-    }
-
-    private IdeModel.ProjectInfo projectInfo(ProjectConfig config) {
-        if (config == null) {
-            return new IdeModel.ProjectInfo(null, null, null, null);
-        }
-        ProjectMetadata project = config.project();
-        return new IdeModel.ProjectInfo(
-                project.name(),
-                project.group(),
-                project.version(),
-                project.main().orElse(null));
-    }
-
-    private IdeModel.JavaInfo javaInfo(ProjectConfig config) {
-        return new IdeModel.JavaInfo(config == null ? null : config.project().java(), null, null);
-    }
-
-    private IdeModel.CompilerInfo compilerInfo(
-            Path root,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (config == null) {
-            return new IdeModel.CompilerInfo(null, null, null, List.of(), List.of(), null, null);
-        }
-        CompilerSettings compiler = config.compilerSettings();
-        String release = compiler.release().isBlank() ? null : compiler.release();
-        String encoding = compiler.encoding().isBlank() ? null : compiler.encoding();
-        return new IdeModel.CompilerInfo(
-                release,
-                release == null ? config.project().java() : release,
-                encoding,
-                compiler.args(),
-                compiler.testArgs(),
-                outputPath(root, "[compiler].generatedSources", compiler.generatedSources(), diagnostics),
-                outputPath(root, "[compiler].generatedTestSources", compiler.generatedTestSources(), diagnostics));
-    }
-
-    private IdeModel.PackageInfo packageInfo(
-            Path root,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (config == null) {
-            return new IdeModel.PackageInfo(
-                    null,
-                    false,
-                    false,
-                    false,
-                    null,
-                    null,
-                    null,
-                    null,
-                    new IdeModel.PublicationInfo(null, null, null, null, List.of(), null, null),
-                    Map.of());
-        }
-        PackageSettings settings = config.packageSettings();
-        String artifactBaseName = artifactBaseName(root, config, diagnostics);
-        Path mainJar = artifactPath(root, artifactBaseName, "", diagnostics);
-        return new IdeModel.PackageInfo(
-                settings.mode().configValue(),
-                settings.sources(),
-                settings.javadoc(),
-                settings.tests(),
-                mainJar,
-                settings.sources() ? artifactPath(root, artifactBaseName, "sources", diagnostics) : null,
-                settings.javadoc() ? artifactPath(root, artifactBaseName, "javadoc", diagnostics) : null,
-                settings.tests() ? artifactPath(root, artifactBaseName, "tests", diagnostics) : null,
-                publicationInfo(settings.metadata()),
-                settings.manifestAttributes());
-    }
-
-    private IdeModel.TestRuntimeInfo testRuntimeInfo(ProjectConfig config) {
-        if (config == null) {
-            return new IdeModel.TestRuntimeInfo(List.of(), Map.of(), Map.of(), List.of());
-        }
-        return new IdeModel.TestRuntimeInfo(
-                config.build().testRuntime().jvmArgs(),
-                config.build().testRuntime().systemProperties(),
-                config.build().testRuntime().redactedEnvironment(),
-                config.build().testRuntime().events());
-    }
-
-    private static IdeModel.PublicationInfo publicationInfo(PublicationMetadata metadata) {
-        return new IdeModel.PublicationInfo(
-                blankToNull(metadata.name()),
-                blankToNull(metadata.description()),
-                blankToNull(metadata.url()),
-                blankToNull(metadata.license()),
-                metadata.developers(),
-                blankToNull(metadata.scm()),
-                blankToNull(metadata.issues()));
-    }
-
-    private static String artifactBaseName(
-            Path root,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        String name = filenameComponent(root, "[project].name", config.project().name(), diagnostics);
-        String version = filenameComponent(root, "[project].version", config.project().version(), diagnostics);
-        if (name == null || version == null) {
-            return null;
-        }
-        return name + "-" + version;
-    }
-
-    private static Path artifactPath(
-            Path root,
-            String artifactBaseName,
-            String classifier,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (artifactBaseName == null) {
-            return null;
-        }
-        String suffix = classifier == null || classifier.isBlank() ? "" : "-" + classifier;
-        return outputPath(root, "package artifact", "target/" + artifactBaseName + suffix + ".jar", diagnostics);
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
     }
 
     private List<IdeModel.SourceRoot> sourceRoots(
@@ -546,20 +427,6 @@ public final class IdeModelService {
         }
     }
 
-    private IdeModel.OutputInfo outputInfo(
-            Path root,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (config == null) {
-            return new IdeModel.OutputInfo(null, null, null);
-        }
-        String artifactBaseName = artifactBaseName(root, config, diagnostics);
-        return new IdeModel.OutputInfo(
-                outputPath(root, "[build].output", config.build().output(), diagnostics),
-                outputPath(root, "[build].testOutput", config.build().testOutput(), diagnostics),
-                artifactPath(root, artifactBaseName, "", diagnostics));
-    }
-
     private static Path inputPath(
             Path root,
             String key,
@@ -593,19 +460,6 @@ public final class IdeModelService {
             List<IdeModel.Diagnostic> diagnostics) {
         try {
             return ProjectPaths.output(root, key, configuredPath);
-        } catch (ProjectPathException exception) {
-            pathDiagnostic(root, exception, diagnostics);
-            return null;
-        }
-    }
-
-    private static String filenameComponent(
-            Path root,
-            String key,
-            String value,
-            List<IdeModel.Diagnostic> diagnostics) {
-        try {
-            return ProjectPaths.filenameComponent(key, value);
         } catch (ProjectPathException exception) {
             pathDiagnostic(root, exception, diagnostics);
             return null;
