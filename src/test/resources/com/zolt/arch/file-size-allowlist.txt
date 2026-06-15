@@ -1,5 +1,5 @@
 # path|maxLines|followUp
-src/main/java/com/zolt/project/ProjectConfig.java|852|
+src/main/java/com/zolt/project/ProjectConfig.java|660|
 src/main/java/com/zolt/build/BuildFingerprintService.java|778|
 src/main/java/com/zolt/build/TestRunService.java|743|
 src/main/java/com/zolt/quarkus/QuarkusAnnotationProgrammaticRunner.java|715|
