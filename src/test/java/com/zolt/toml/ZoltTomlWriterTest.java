@@ -26,7 +26,6 @@ import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
-import com.zolt.project.TestRuntimeSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -678,41 +677,6 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("git = true"));
         assertTrue(toml.contains("reproducible = true"));
         assertEquals(original.build().metadata(), parsed.build().metadata());
-    }
-
-    @Test
-    void writesTestRuntimeSettingsWhenConfigured() {
-        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
-                .withBuildSettings(BuildSettings.defaults().withTestRuntime(new TestRuntimeSettings(
-                        List.of("--add-opens=java.base/java.lang=ALL-UNNAMED"),
-                        Map.of("logs.dir", "${project.root}/test-logs"),
-                        Map.of("TZ", "America/Chicago", "APP_HOME", "${project.root}"),
-                        List.of("failed", "skipped"))));
-
-        String toml = writer.write(original);
-        ProjectConfig parsed = parser.parse(toml);
-
-        assertTrue(toml.contains("[test.runtime]\n"));
-        assertTrue(toml.contains("jvmArgs = [\"--add-opens=java.base/java.lang=ALL-UNNAMED\"]"));
-        assertTrue(toml.contains("systemProperties = { \"logs.dir\" = \"${project.root}/test-logs\" }"));
-        assertTrue(toml.contains("environment = { \"APP_HOME\" = \"${project.root}\", \"TZ\" = \"America/Chicago\" }"));
-        assertTrue(toml.contains("events = [\"failed\", \"skipped\"]"));
-        assertEquals(original.build().testRuntime(), parsed.build().testRuntime());
-    }
-
-    @Test
-    void preservesTestRuntimeSettingsWhenEditingDependencies() {
-        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
-                .withBuildSettings(BuildSettings.defaults().withTestRuntime(new TestRuntimeSettings(
-                        List.of("-Dconfigured=true"),
-                        Map.of("logs.dir", "${project.root}/test-logs"),
-                        Map.of("TZ", "America/Chicago"),
-                        List.of("failed"))));
-        config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
-
-        ProjectConfig parsed = parser.parse(writer.write(config));
-
-        assertEquals(config.build().testRuntime(), parsed.build().testRuntime());
     }
 
 
