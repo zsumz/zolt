@@ -4969,6 +4969,57 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkWorkspaceDependencyPolicyPassesForSelectedMemberWithoutPolicy() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-dependency-policy-empty");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-dependency-policy-empty"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--check", "dependency-policy",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok dependency-policy apps/api api Dependency policy baseline is explainable: 0 platforms, 0 constraints, 0 exclusions, and 0 direct explicit versions."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceDependencyPolicyReportsSelectedMemberConflicts() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-dependency-policy-direct-conflict");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        writePolicyProject(apiDir);
+        writePolicyLockfile(workspaceDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-dependency-policy-direct-conflict"
+                members = ["apps/api"]
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--check", "dependency-policy",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("ok dependency-policy apps/api demo Dependency policy baseline is explainable: 1 platform, 2 constraints, 3 exclusions, and 1 direct explicit version."));
+        assertTrue(result.stdout().contains("error dependency-policy apps/api [dependencyPolicy].exclude com.example:direct-lib Dependency policy excludes `com.example:direct-lib`, but that package is still a direct dependency."));
+        assertTrue(result.stdout().contains("next: Remove the direct dependency, or remove the exclusion if the dependency is intentional."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void conflictsPrintsConflictSummaryFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);
