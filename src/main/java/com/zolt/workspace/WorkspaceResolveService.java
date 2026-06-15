@@ -14,13 +14,11 @@ import com.zolt.project.ProjectPaths;
 import com.zolt.project.RepositorySettings;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveMetrics;
 import com.zolt.resolve.ResolveOutput;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
-import com.zolt.dependency.VersionComparator;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,8 +35,6 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class WorkspaceResolveService {
-    private static final VersionComparator VERSION_COMPARATOR = new VersionComparator();
-
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final ResolveService resolveService;
     private final ZoltLockfileWriter lockfileWriter;
@@ -252,7 +248,7 @@ public final class WorkspaceResolveService {
             }
         }
 
-        GlobalExternalSelection globalSelection = selectGlobalExternalPackages(externalCandidates);
+        WorkspaceExternalSelection globalSelection = new WorkspaceExternalPackageSelector().select(externalCandidates);
         for (LockPackage lockPackage : globalSelection.packages()) {
             String key = packageKey(lockPackage);
             LockPackage existingPackage = packages.get(key);
@@ -329,134 +325,6 @@ public final class WorkspaceResolveService {
         }
     }
 
-    private static GlobalExternalSelection selectGlobalExternalPackages(List<LockPackage> candidates) {
-        Map<PackageId, List<LockPackage>> candidatesByPackage = new LinkedHashMap<>();
-        candidates.stream()
-                .sorted(Comparator.comparing(lockPackage -> lockPackage.packageId()
-                        + ":"
-                        + lockPackage.version()
-                        + ":"
-                        + lockPackage.scope().lockfileName()))
-                .forEach(lockPackage -> candidatesByPackage
-                        .computeIfAbsent(lockPackage.packageId(), ignored -> new ArrayList<>())
-                        .add(lockPackage));
-
-        Map<PackageId, String> selectedVersions = new LinkedHashMap<>();
-        Map<PackageId, ConflictSelectionReason> selectedReasons = new LinkedHashMap<>();
-        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
-            VersionSelection selection = selectVersion(entry.getValue());
-            selectedVersions.put(entry.getKey(), selection.version());
-            selectedReasons.put(entry.getKey(), selection.reason());
-        }
-
-        List<LockPackage> packages = new ArrayList<>();
-        List<LockConflict> conflicts = new ArrayList<>();
-        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
-            PackageId packageId = entry.getKey();
-            List<LockPackage> packageCandidates = entry.getValue();
-            String selectedVersion = selectedVersions.get(packageId);
-            List<DependencyScope> scopes = packageCandidates.stream()
-                    .map(LockPackage::scope)
-                    .distinct()
-                    .sorted(Comparator.comparing(DependencyScope::lockfileName))
-                    .toList();
-            for (DependencyScope scope : scopes) {
-                packages.add(selectedPackage(packageCandidates, selectedVersion, scope, selectedVersions));
-            }
-
-            List<String> requestedVersions = packageCandidates.stream()
-                    .map(LockPackage::version)
-                    .distinct()
-                    .sorted(VERSION_COMPARATOR.thenComparing(Comparator.naturalOrder()))
-                    .toList();
-            if (requestedVersions.size() > 1) {
-                conflicts.add(new LockConflict(
-                        packageId,
-                        selectedVersion,
-                        requestedVersions,
-                        selectedReasons.get(packageId)));
-            }
-        }
-        return new GlobalExternalSelection(packages, conflicts);
-    }
-
-    private static VersionSelection selectVersion(List<LockPackage> candidates) {
-        List<LockPackage> directCandidates = candidates.stream()
-                .filter(LockPackage::direct)
-                .toList();
-        if (!directCandidates.isEmpty()) {
-            return new VersionSelection(newestVersion(directCandidates), ConflictSelectionReason.DIRECT_DEPENDENCY);
-        }
-        return new VersionSelection(newestVersion(candidates), ConflictSelectionReason.NEWEST_VERSION);
-    }
-
-    private static String newestVersion(List<LockPackage> candidates) {
-        return candidates.stream()
-                .map(LockPackage::version)
-                .max(VERSION_COMPARATOR)
-                .orElseThrow();
-    }
-
-    private static LockPackage selectedPackage(
-            List<LockPackage> packageCandidates,
-            String selectedVersion,
-            DependencyScope scope,
-            Map<PackageId, String> selectedVersions) {
-        LockPackage selectedTemplate = packageCandidates.stream()
-                .filter(lockPackage -> lockPackage.version().equals(selectedVersion))
-                .findFirst()
-                .orElseThrow();
-        List<LockPackage> scopeCandidates = packageCandidates.stream()
-                .filter(lockPackage -> lockPackage.scope() == scope)
-                .toList();
-        boolean direct = scopeCandidates.stream().anyMatch(LockPackage::direct);
-        Set<String> members = new LinkedHashSet<>();
-        Set<String> exportedBy = new LinkedHashSet<>();
-        for (LockPackage candidate : scopeCandidates) {
-            members.addAll(candidate.members());
-            exportedBy.addAll(candidate.exportedBy());
-        }
-        return new LockPackage(
-                selectedTemplate.packageId(),
-                selectedVersion,
-                selectedTemplate.source(),
-                scope,
-                direct,
-                selectedTemplate.jar(),
-                selectedTemplate.pom(),
-                selectedTemplate.jarSha256(),
-                selectedTemplate.pomSha256(),
-                selectedTemplate.workspace(),
-                selectedTemplate.workspaceOutput(),
-                rewriteDependencies(selectedTemplate.dependencies(), selectedVersions),
-                List.copyOf(members),
-                List.copyOf(exportedBy));
-    }
-
-    private static List<String> rewriteDependencies(
-            List<String> dependencies,
-            Map<PackageId, String> selectedVersions) {
-        return dependencies.stream()
-                .map(dependency -> rewriteDependency(dependency, selectedVersions))
-                .sorted()
-                .toList();
-    }
-
-    private static String rewriteDependency(
-            String dependency,
-            Map<PackageId, String> selectedVersions) {
-        String[] parts = dependency.split(":", -1);
-        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank()) {
-            return dependency;
-        }
-        PackageId packageId = new PackageId(parts[0], parts[1]);
-        String selectedVersion = selectedVersions.get(packageId);
-        if (selectedVersion == null) {
-            return dependency;
-        }
-        return packageId + ":" + selectedVersion;
-    }
-
     private static List<LockPackage> workspacePackages(Workspace workspace) {
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<LockPackage> packages = new ArrayList<>();
@@ -472,11 +340,15 @@ public final class WorkspaceResolveService {
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
                     Optional.of(edge.to()),
                     Optional.of(workspaceOutput(workspace.root(), target)),
                     List.of(),
                     List.of(edge.from()),
-                    edge.exported() ? List.of(edge.from()) : List.of()));
+                    edge.exported() ? List.of(edge.from()) : List.of(),
+                    List.of()));
         }
         return packages;
     }
@@ -537,11 +409,15 @@ public final class WorkspaceResolveService {
                 firstPresent(left.pom(), right.pom()),
                 firstPresent(left.jarSha256(), right.jarSha256()),
                 firstPresent(left.pomSha256(), right.pomSha256()),
+                firstPresent(left.artifact(), right.artifact()),
+                firstPresent(left.artifactType(), right.artifactType()),
+                firstPresent(left.artifactSha256(), right.artifactSha256()),
                 firstPresent(left.workspace(), right.workspace()),
                 firstPresent(left.workspaceOutput(), right.workspaceOutput()),
                 List.copyOf(dependencies),
                 List.copyOf(members),
-                List.copyOf(exportedBy));
+                List.copyOf(exportedBy),
+                merged(left.policies(), right.policies()));
     }
 
     private static LockPackage withMember(LockPackage lockPackage, String member, Set<PackageId> exportedPackageIds) {
@@ -561,11 +437,21 @@ public final class WorkspaceResolveService {
                 lockPackage.pom(),
                 lockPackage.jarSha256(),
                 lockPackage.pomSha256(),
+                lockPackage.artifact(),
+                lockPackage.artifactType(),
+                lockPackage.artifactSha256(),
                 lockPackage.workspace(),
                 lockPackage.workspaceOutput(),
                 lockPackage.dependencies(),
                 List.copyOf(members),
-                List.copyOf(exportedBy));
+                List.copyOf(exportedBy),
+                lockPackage.policies());
+    }
+
+    private static List<String> merged(List<String> left, List<String> right) {
+        Set<String> values = new LinkedHashSet<>(left);
+        values.addAll(right);
+        return List.copyOf(values);
     }
 
     private static Optional<String> firstPresent(Optional<String> left, Optional<String> right) {
@@ -610,19 +496,5 @@ public final class WorkspaceResolveService {
             String member,
             ZoltLockfile lockfile,
             Set<PackageId> exportedPackageIds) {
-    }
-
-    private record GlobalExternalSelection(
-            List<LockPackage> packages,
-            List<LockConflict> conflicts) {
-        private GlobalExternalSelection {
-            packages = List.copyOf(packages);
-            conflicts = List.copyOf(conflicts);
-        }
-    }
-
-    private record VersionSelection(
-            String version,
-            ConflictSelectionReason reason) {
     }
 }
