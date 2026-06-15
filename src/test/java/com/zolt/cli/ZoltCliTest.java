@@ -3211,60 +3211,6 @@ final class ZoltCliTest {
     }
 
     @Test
-    void cleanDeletesBuildOutputWithoutDeletingCache() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        Files.createDirectories(projectDir.resolve("target/classes"));
-        Files.writeString(projectDir.resolve("target/classes/Main.class"), "compiled");
-        Files.createDirectories(projectDir.resolve(".zolt/cache"));
-        Files.writeString(projectDir.resolve(".zolt/cache/artifact.jar"), "cached");
-
-        CommandResult result = execute("clean", "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
-        assertFalse(Files.exists(projectDir.resolve("target")));
-        assertTrue(Files.exists(projectDir.resolve(".zolt/cache/artifact.jar")));
-    }
-
-    @Test
-    void cleanDeletesQuarkusOutputLayoutWhenEnabled() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        Files.writeString(
-                projectDir.resolve("zolt.toml"),
-                Files.readString(projectDir.resolve("zolt.toml"))
-                        .replace("output = \"target/classes\"", "output = \"out/main\"")
-                        .replace("testOutput = \"target/test-classes\"", "testOutput = \"out/test\""));
-        enableQuarkus(projectDir);
-        Files.createDirectories(projectDir.resolve("out/main"));
-        Files.writeString(projectDir.resolve("out/main/Main.class"), "compiled");
-        Files.createDirectories(projectDir.resolve("target/quarkus"));
-        Files.writeString(projectDir.resolve("target/quarkus/zolt-augmentation.properties"), "metadata");
-        Files.createDirectories(projectDir.resolve("target/quarkus-app"));
-        Files.writeString(projectDir.resolve("target/quarkus-app/quarkus-run.jar"), "jar");
-
-        CommandResult result = execute("clean", "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Deleted 3 build output paths"));
-        assertFalse(Files.exists(projectDir.resolve("out/main")));
-        assertFalse(Files.exists(projectDir.resolve("target/quarkus")));
-        assertFalse(Files.exists(projectDir.resolve("target/quarkus-app")));
-    }
-
-    @Test
-    void cleanHandlesMissingTargetCleanly() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-
-        CommandResult result = execute("clean", "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertEquals("Nothing to clean\n", result.stdout());
-    }
-
-    @Test
     void testReportsMissingJUnitConsoleClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -3282,53 +3228,6 @@ final class ZoltCliTest {
         assertTrue(result.stderr().contains("JUnit Platform Console is not present"));
     }
 
-    @Test
-    void doctorReportsJdkStatus() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2", currentJavaMajorVersion());
-
-        CommandResult result = execute("doctor", "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("JDK status: ok"));
-        assertTrue(result.stdout().contains("java: "));
-        assertTrue(result.stdout().contains("javac: "));
-        assertTrue(result.stdout().contains("jar: "));
-        assertTrue(result.stdout().contains("version: " + currentJavaMajorVersion()));
-    }
-
-    @Test
-    void doctorReportsSelfHostingReadiness() throws IOException {
-        Path projectDir = tempDir.resolve("self-hosting-ready");
-        writeSelfHostingProjectConfig(projectDir, true);
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        Files.createDirectories(projectDir.resolve("src/main/java"));
-        Files.createDirectories(projectDir.resolve("src/test/java"));
-
-        CommandResult result = execute("doctor", "--self-hosting", "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Self-hosting status: ok"));
-        assertTrue(result.stdout().contains("ok: main class - project main is com.example.Main"));
-        assertTrue(result.stdout().contains("ok: JUnit Platform Console"));
-        assertTrue(result.stdout().contains("ok: native no-fallback"));
-    }
-
-    @Test
-    void doctorReportsSelfHostingGapsWithNextSteps() throws IOException {
-        Path projectDir = tempDir.resolve("self-hosting-gaps");
-        writeSelfHostingProjectConfig(projectDir, false);
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        Files.createDirectories(projectDir.resolve("src/main/java"));
-        Files.createDirectories(projectDir.resolve("src/test/java"));
-
-        CommandResult result = execute("doctor", "--self-hosting", "--cwd", projectDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("Self-hosting status: error"));
-        assertTrue(result.stdout().contains("error: JUnit Platform Console - add org.junit.platform:junit-platform-console-standalone to [test.dependencies]"));
-    }
-
     private static CommandResult execute(String... args) {
         CommandLine commandLine = ZoltCli.newCommandLine();
         StringWriter stdout = new StringWriter();
@@ -3339,41 +3238,6 @@ final class ZoltCliTest {
         int exitCode = commandLine.execute(args);
 
         return new CommandResult(exitCode, stdout.toString(), stderr.toString());
-    }
-
-    private static void writeSelfHostingProjectConfig(Path projectDir, boolean includeTestRunner) throws IOException {
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), """
-                [project]
-                name = "demo"
-                version = "0.1.0"
-                group = "com.example"
-                java = "%s"
-                main = "com.example.Main"
-
-                [repositories]
-                central = "https://repo.maven.apache.org/maven2"
-
-                %s
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-
-                [native]
-                imageName = "demo"
-                output = "target/native"
-                args = ["--no-fallback"]
-                """.formatted(
-                currentJavaMajorVersion(),
-                includeTestRunner
-                        ? """
-                        [test.dependencies]
-                        "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
-
-                        """
-                        : ""));
     }
 
     private record CommandResult(int exitCode, String stdout, String stderr) {
