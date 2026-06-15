@@ -102,6 +102,25 @@ final class ReleaseArchiveServiceTest {
     }
 
     @Test
+    void acceptsAbsoluteReleaseOutputInsideProject() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+        Path output = projectDir.resolve("target/native-smoke/release").toAbsolutePath().normalize();
+
+        ReleaseArchiveResult result = service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                output);
+
+        assertEquals(output.resolve("zolt-0.1.0-linux-x64.tar.gz"), result.archivePath());
+        assertEquals(output.resolve("zolt-0.1.0-linux-x64.tar.gz.sha256"), result.checksumPath());
+        assertEquals(output.resolve("release-manifest.json"), result.manifestPath());
+        assertTrue(tarEntries(result.archivePath()).contains("zolt-0.1.0-linux-x64/bin/zolt"));
+    }
+
+    @Test
     void skipsLicenseWhenItDoesNotExist() throws IOException {
         Files.writeString(projectDir.resolve("README.md"), "# Demo\n");
         Path binary = writeBinary("target/native/zolt");
@@ -248,6 +267,26 @@ final class ReleaseArchiveServiceTest {
 
         assertTrue(exception.getMessage().contains("--output"));
         assertTrue(exception.getMessage().contains("../dist"));
+    }
+
+    @Test
+    void rejectsAbsoluteReleaseOutputOutsideProject() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-dist-");
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(),
+                        ReleaseTarget.LINUX_X64,
+                        binary,
+                        outside.toAbsolutePath().normalize()));
+
+        assertTrue(exception.getMessage().contains("--output"));
+        assertTrue(exception.getMessage().contains("outside-dist"));
+        assertTrue(exception.getMessage().contains("project-relative path or an absolute path under"));
     }
 
     @Test

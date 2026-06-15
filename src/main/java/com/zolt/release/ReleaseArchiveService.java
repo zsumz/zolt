@@ -94,6 +94,19 @@ public final class ReleaseArchiveService {
     }
 
     private static Path releaseOutput(Path projectRoot, String key, String configuredPath) {
+        Path configured = Path.of(configuredPath);
+        if (configured.isAbsolute()) {
+            Path output = configured.normalize();
+            if (!output.startsWith(projectRoot) || output.equals(projectRoot)) {
+                throw invalidReleaseOutputPath(projectRoot, key, configuredPath, output);
+            }
+            if (Files.exists(output)) {
+                requireExistingReleaseOutputInsideProject(projectRoot, key, configuredPath, output);
+            } else {
+                requireExistingReleaseOutputAncestorInsideProject(projectRoot, key, configuredPath, output);
+            }
+            return output;
+        }
         try {
             return ProjectPaths.output(projectRoot, key, configuredPath);
         } catch (ProjectPathException exception) {
@@ -101,7 +114,50 @@ public final class ReleaseArchiveService {
         }
     }
 
+    private static void requireExistingReleaseOutputAncestorInsideProject(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            Path output) {
+        Path ancestor = output.getParent();
+        while (ancestor != null && !Files.exists(ancestor)) {
+            ancestor = ancestor.getParent();
+        }
+        if (ancestor != null) {
+            requireExistingReleaseOutputInsideProject(projectRoot, key, configuredPath, ancestor);
+        }
+    }
+
+    private static void requireExistingReleaseOutputInsideProject(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            Path output) {
+        try {
+            ProjectPaths.requireExistingInsideProject(projectRoot, key, configuredPath, output);
+        } catch (ProjectPathException exception) {
+            throw new ReleaseArchiveException(exception.getMessage(), exception);
+        }
+    }
+
     private static ReleaseArchiveException invalidReleaseBinaryPath(
+            Path projectRoot,
+            String key,
+            String configuredPath,
+            Path resolvedPath) {
+        return new ReleaseArchiveException(
+                "Invalid "
+                        + key
+                        + " path `"
+                        + configuredPath
+                        + "` resolved to "
+                        + resolvedPath
+                        + ". Use a project-relative path or an absolute path under "
+                        + projectRoot
+                        + ".");
+    }
+
+    private static ReleaseArchiveException invalidReleaseOutputPath(
             Path projectRoot,
             String key,
             String configuredPath,
