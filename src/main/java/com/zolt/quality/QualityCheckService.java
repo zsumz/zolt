@@ -9,7 +9,6 @@ import com.zolt.build.PackageEvidenceManifestReader;
 import com.zolt.build.PackageEvidenceManifestWriter;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackagePlanDependency;
-import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockfileReadException;
@@ -117,7 +116,7 @@ public final class QualityCheckService {
     private final ZoltLockfileReader lockfileReader;
     private final PackagePlanService packagePlanService;
     private final DependencyPolicyReportService dependencyPolicyReportService;
-    private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final GeneratedSourceQualityCheck generatedSourceQualityCheck;
     private final PackageEvidenceManifestReader packageEvidenceManifestReader;
     private final PublishDryRunService publishDryRunService;
     private final PublishSettingsReader publishSettingsReader;
@@ -179,7 +178,7 @@ public final class QualityCheckService {
         this.lockfileReader = lockfileReader;
         this.packagePlanService = packagePlanService;
         this.dependencyPolicyReportService = dependencyPolicyReportService;
-        this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.generatedSourceQualityCheck = new GeneratedSourceQualityCheck(generatedSourceEvidenceService);
         this.packageEvidenceManifestReader = packageEvidenceManifestReader;
         this.publishDryRunService = publishDryRunService;
         this.publishSettingsReader = publishSettingsReader;
@@ -291,7 +290,7 @@ public final class QualityCheckService {
                 case MANIFEST_METADATA -> results.add(checkManifestMetadata(
                         Optional.empty(),
                         config));
-                case GENERATED_SOURCES -> results.addAll(checkGeneratedSources(
+                case GENERATED_SOURCES -> results.addAll(generatedSourceQualityCheck.check(
                         Optional.empty(),
                         request.projectRoot(),
                         config));
@@ -408,7 +407,7 @@ public final class QualityCheckService {
                 case GENERATED_SOURCES -> {
                     for (String memberPath : selection.includedMembers()) {
                         WorkspaceMember member = members.get(memberPath);
-                        results.addAll(checkGeneratedSources(
+                        results.addAll(generatedSourceQualityCheck.check(
                                 Optional.of(member.path()),
                                 member.directory(),
                                 member.config()));
@@ -1825,193 +1824,6 @@ public final class QualityCheckService {
         return fileName.endsWith(".java") || fileName.endsWith(".groovy");
     }
 
-    private List<QualityCheckResult> checkGeneratedSources(
-            Optional<String> member,
-            Path projectRoot,
-            ProjectConfig config) {
-        List<GeneratedSourceCheckStep> steps = generatedSourceSteps(config.build());
-        if (steps.isEmpty()) {
-            return List.of(QualityCheckResult.passed(
-                    GENERATED_SOURCES,
-                    member,
-                    config.project().name(),
-                    "No declared generated-source steps require validation."));
-        }
-
-        List<QualityCheckResult> results = new ArrayList<>();
-        Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
-        Map<String, GeneratedSourceEvidence> evidenceByKey = generatedSourceEvidenceByKey(normalizedRoot, config);
-        for (GeneratedSourceCheckStep checkStep : steps) {
-            GeneratedSourceStep step = checkStep.step();
-            Optional<QualityCheckResult> invalid = invalidGeneratedSourceStep(member, normalizedRoot, checkStep);
-            if (invalid.isPresent()) {
-                results.add(invalid.orElseThrow());
-                continue;
-            }
-
-            String subject = generatedSection(checkStep);
-            GeneratedSourceEvidence evidence = evidenceByKey.get(generatedSourceKey(checkStep.scope(), step.id()));
-            Optional<String> missingInput = firstMissingGeneratedInput(step, evidence);
-            if (missingInput.isPresent()) {
-                results.add(QualityCheckResult.failed(
-                        GENERATED_SOURCES,
-                        member,
-                        subject,
-                        "Generated source input `" + missingInput.orElseThrow() + "` is missing.",
-                        "Create the input file or update " + subject + ".inputs."));
-                continue;
-            }
-            if (!evidence.outputExists()) {
-                if (step.required()) {
-                    results.add(QualityCheckResult.failed(
-                            GENERATED_SOURCES,
-                            member,
-                            subject,
-                            "Generated source root `" + step.output() + "` is missing.",
-                            "Run the generator that produces it, commit the generated sources, or remove "
-                                    + subject
-                                    + " until Zolt supports that generator."));
-                    continue;
-                }
-                results.add(QualityCheckResult.skipped(
-                        GENERATED_SOURCES,
-                        member,
-                        subject,
-                        "Optional generated source root `" + step.output() + "` is missing.",
-                        "Generate it when needed, or set required = true if the root must exist for builds."));
-                continue;
-            }
-            if ("stale".equals(evidence.freshness())) {
-                results.add(QualityCheckResult.failed(
-                        GENERATED_SOURCES,
-                        member,
-                        subject,
-                        "Generated source root `" + step.output() + "` is stale; one or more declared inputs are newer.",
-                        "Regenerate the source root or update " + subject + ".inputs."));
-                continue;
-            }
-
-            results.add(QualityCheckResult.passed(
-                    GENERATED_SOURCES,
-                    member,
-                    subject,
-                    "Generated source root `"
-                            + step.output()
-                            + "` is declared and exported as IDE source root `generated-"
-                            + checkStep.scope()
-                            + "-"
-                            + step.id()
-                            + "` with ownership `"
-                            + evidence.ownership()
-                            + "` and freshness `"
-                            + evidence.freshness()
-                            + "`."));
-        }
-        return List.copyOf(results);
-    }
-
-    private Map<String, GeneratedSourceEvidence> generatedSourceEvidenceByKey(Path projectRoot, ProjectConfig config) {
-        Map<String, GeneratedSourceEvidence> evidence = new LinkedHashMap<>();
-        for (GeneratedSourceEvidence generatedSource : generatedSourceEvidenceService.evidence(projectRoot, config.build())) {
-            evidence.put(generatedSourceKey(generatedSource.scope(), generatedSource.step().id()), generatedSource);
-        }
-        return Map.copyOf(evidence);
-    }
-
-    private static String generatedSourceKey(String scope, String id) {
-        return scope + ":" + id;
-    }
-
-    private static Optional<String> firstMissingGeneratedInput(
-            GeneratedSourceStep step,
-            GeneratedSourceEvidence evidence) {
-        for (int index = 0; index < step.inputs().size(); index++) {
-            if (!Files.exists(evidence.inputs().get(index))) {
-                return Optional.of(step.inputs().get(index));
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static List<GeneratedSourceCheckStep> generatedSourceSteps(BuildSettings build) {
-        List<GeneratedSourceCheckStep> steps = new ArrayList<>();
-        for (GeneratedSourceStep step : build.generatedMainSources()) {
-            steps.add(new GeneratedSourceCheckStep("main", step));
-        }
-        for (GeneratedSourceStep step : build.generatedTestSources()) {
-            steps.add(new GeneratedSourceCheckStep("test", step));
-        }
-        return List.copyOf(steps);
-    }
-
-    private static Optional<QualityCheckResult> invalidGeneratedSourceStep(
-            Optional<String> member,
-            Path projectRoot,
-            GeneratedSourceCheckStep checkStep) {
-        GeneratedSourceStep step = checkStep.step();
-        String subject = generatedSection(checkStep);
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
-            return Optional.of(QualityCheckResult.failed(
-                    GENERATED_SOURCES,
-                    member,
-                    subject,
-                    "Unsupported generated source kind `" + step.kind().configValue() + "`.",
-                    "Use declared-root for already generated Java sources."));
-        }
-        if (!"java".equals(step.language())) {
-            return Optional.of(QualityCheckResult.failed(
-                    GENERATED_SOURCES,
-                    member,
-                    subject,
-                    "Unsupported generated source language `" + step.language() + "`.",
-                    "Use language = \"java\" for MVP generated-source steps."));
-        }
-        Optional<QualityCheckResult> invalidOutput = invalidGeneratedPath(
-                member,
-                projectRoot,
-                checkStep,
-                "output",
-                step.output());
-        if (invalidOutput.isPresent()) {
-            return invalidOutput;
-        }
-        for (String input : step.inputs()) {
-            Optional<QualityCheckResult> invalidInput = invalidGeneratedPath(
-                    member,
-                    projectRoot,
-                    checkStep,
-                    "inputs",
-                    input);
-            if (invalidInput.isPresent()) {
-                return invalidInput;
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static Optional<QualityCheckResult> invalidGeneratedPath(
-            Optional<String> member,
-            Path projectRoot,
-            GeneratedSourceCheckStep checkStep,
-            String field,
-            String configuredPath) {
-        Path configured = Path.of(configuredPath);
-        Path resolved = projectRoot.resolve(configured).normalize();
-        if (configured.isAbsolute() || !resolved.startsWith(projectRoot) || resolved.equals(projectRoot)) {
-            return Optional.of(QualityCheckResult.failed(
-                    GENERATED_SOURCES,
-                    member,
-                    generatedSection(checkStep) + "." + field,
-                    "Invalid generated source " + field + " path `" + configuredPath + "`.",
-                    "Use a project-relative path under the project directory."));
-        }
-        return Optional.empty();
-    }
-
-    private static String generatedSection(GeneratedSourceCheckStep checkStep) {
-        return "[generated." + checkStep.scope() + "." + checkStep.step().id() + "]";
-    }
-
     private List<QualityCheckResult> checkProjectDependencyMetadata(
             Optional<String> member,
             Path root,
@@ -2449,6 +2261,4 @@ public final class QualityCheckService {
     private record PathField(String name, String value) {
     }
 
-    private record GeneratedSourceCheckStep(String scope, GeneratedSourceStep step) {
-    }
 }
