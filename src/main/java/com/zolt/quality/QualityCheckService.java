@@ -480,27 +480,48 @@ public final class QualityCheckService {
     }
 
     private QualityCheckResult checkProjectCacheIntegrity(QualityCheckRequest request) {
-        return checkCacheIntegrity(Optional.empty(), request.projectRoot().resolve("zolt.lock"), request.cacheRoot());
+        return checkCacheIntegrity(
+                Optional.empty(),
+                request.projectRoot().resolve("zolt.lock"),
+                request.cacheRoot(),
+                false);
     }
 
     private QualityCheckResult checkWorkspaceCacheIntegrity(QualityCheckRequest request, Workspace workspace) {
-        return checkCacheIntegrity(Optional.empty(), workspace.root().resolve("zolt.lock"), request.cacheRoot());
+        return checkCacheIntegrity(
+                Optional.empty(),
+                workspace.root().resolve("zolt.lock"),
+                request.cacheRoot(),
+                true);
     }
 
     private QualityCheckResult checkCacheIntegrity(
             Optional<String> member,
             Path lockfilePath,
-            Path cacheRoot) {
+            Path cacheRoot,
+            boolean workspaceLockfile) {
         if (!Files.isRegularFile(lockfilePath)) {
             return QualityCheckResult.failed(
                     CACHE_INTEGRITY,
                     member,
                     "zolt.lock",
                     "zolt.lock is missing.",
-                    "Run `zolt resolve`.");
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`.");
+        }
+        ZoltLockfile lockfile;
+        try {
+            lockfile = lockfileReader.read(lockfilePath);
+        } catch (LockfileReadException exception) {
+            return QualityCheckResult.failed(
+                    CACHE_INTEGRITY,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    workspaceLockfile
+                            ? "Run `zolt resolve --workspace` to regenerate zolt.lock."
+                            : "Run `zolt resolve` to regenerate zolt.lock.");
         }
         try {
-            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
             LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
             return QualityCheckResult.passed(
                     CACHE_INTEGRITY,
@@ -513,7 +534,9 @@ public final class QualityCheckService {
                     member,
                     "zolt.lock",
                     exception.getMessage(),
-                    "Remove the cache entry or run `zolt resolve`.");
+                    workspaceLockfile
+                            ? "Remove the cache entry or run `zolt resolve --workspace`."
+                            : "Remove the cache entry or run `zolt resolve`.");
         }
     }
 

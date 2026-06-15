@@ -759,6 +759,87 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkCacheIntegrityMalformedLockfileUsesLockfileRemediation() throws IOException {
+        Path projectDir = tempDir.resolve("check-cache-integrity-malformed-lockfile");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-cache-integrity-malformed-lockfile"));
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = 42
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--check", "cache-integrity",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error cache-integrity zolt.lock Invalid value type in zolt.lock"));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve` to regenerate zolt.lock."));
+        assertFalse(result.stdout().contains("Remove the cache entry"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceCacheIntegrityMissingLockfileUsesWorkspaceRemediation() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-missing-lockfile");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-cache-integrity-missing-lockfile"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--check", "cache-integrity",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error cache-integrity zolt.lock zolt.lock is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve --workspace`."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkWorkspaceCacheIntegrityMalformedLockfileUsesWorkspaceRemediation() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-malformed-lockfile");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-cache-integrity-malformed-lockfile"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = 42
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--check", "cache-integrity",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error cache-integrity zolt.lock Invalid value type in zolt.lock"));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve --workspace` to regenerate zolt.lock."));
+        assertFalse(result.stdout().contains("Remove the cache entry"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiRunsBuiltInReproducibilityChecks() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci");
         Files.createDirectories(projectDir);
