@@ -1,0 +1,25 @@
+package com.zolt.quality;
+
+import java.nio.file.Path;
+
+final class QualityCheckText {
+    private QualityCheckText() {
+    }
+
+    static String displayPath(Path root, Path path) {
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        Path normalized = path.toAbsolutePath().normalize();
+        if (normalized.startsWith(normalizedRoot)) {
+            return normalizedRoot.relativize(normalized).toString();
+        }
+        return normalized.toString();
+    }
+
+    static String plural(long count, String singular, String plural) {
+        return count == 1 ? singular : plural;
+    }
+
+    static String verb(long count, String singular, String plural) {
+        return count == 1 ? singular : plural;
+    }
+}

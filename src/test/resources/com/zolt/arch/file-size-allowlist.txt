@@ -1,5 +1,4 @@
 # path|maxLines|followUp
-src/main/java/com/zolt/quality/QualityCheckService.java|2264|
 src/main/java/com/zolt/ide/IdeModelService.java|938|
 src/main/java/com/zolt/project/ProjectConfig.java|906|
 src/main/java/com/zolt/build/BuildFingerprintService.java|778|
