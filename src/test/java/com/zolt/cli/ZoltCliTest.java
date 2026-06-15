@@ -5020,6 +5020,32 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkWorkspaceDependencyPolicyMalformedLockfileUsesWorkspaceRemediation() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-workspace-dependency-policy-malformed-lockfile");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-workspace-dependency-policy-malformed-lockfile"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = \n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--check", "dependency-policy",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error dependency-policy apps/api zolt.lock"));
+        assertTrue(result.stdout().contains("next: Run `zolt resolve --workspace` to refresh dependency policy evidence."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void conflictsPrintsConflictSummaryFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);

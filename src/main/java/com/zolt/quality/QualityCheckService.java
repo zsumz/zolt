@@ -276,7 +276,8 @@ public final class QualityCheckService {
                         Optional.empty(),
                         request.projectRoot(),
                         config,
-                        request.projectRoot().resolve("zolt.lock")));
+                        request.projectRoot().resolve("zolt.lock"),
+                        false));
                 case PACKAGE_METADATA -> results.add(checkPackageMetadata(
                         Optional.empty(),
                         request.projectRoot(),
@@ -372,7 +373,8 @@ public final class QualityCheckService {
                                 Optional.of(member.path()),
                                 member.directory(),
                                 member.config(),
-                                workspace.root().resolve("zolt.lock")));
+                                workspace.root().resolve("zolt.lock"),
+                                true));
                     }
                 }
                 case PACKAGE_METADATA -> {
@@ -2067,16 +2069,15 @@ public final class QualityCheckService {
             Optional<String> member,
             Path root,
             ProjectConfig config,
-            Path lockfilePath) {
+            Path lockfilePath,
+            boolean workspaceLockfile) {
         if (!Files.isRegularFile(lockfilePath)) {
             return List.of(QualityCheckResult.failed(
                     DEPENDENCY_POLICY,
                     member,
                     "zolt.lock",
                     "Dependency policy diagnostics require zolt.lock.",
-                    lockfilePath.getFileName().toString().equals("zolt.lock") && !lockfilePath.getParent().equals(root)
-                            ? "Run `zolt resolve --workspace`."
-                            : "Run `zolt resolve`."));
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
         }
 
         ZoltLockfile lockfile;
@@ -2088,7 +2089,9 @@ public final class QualityCheckService {
                     member,
                     "zolt.lock",
                     exception.getMessage(),
-                    "Run `zolt resolve` to refresh dependency policy evidence."));
+                    workspaceLockfile
+                            ? "Run `zolt resolve --workspace` to refresh dependency policy evidence."
+                            : "Run `zolt resolve` to refresh dependency policy evidence."));
         }
 
         try {
