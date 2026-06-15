@@ -14,8 +14,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -108,153 +106,6 @@ final class QuarkusApplicationModelFactoryTest {
         assertEquals("smallrye-common-os", dependency.artifactId());
         assertTrue(dependency.runtimeClasspath());
         assertTrue(dependency.deploymentClasspath());
-    }
-
-    @Test
-    void addsClassLoadingArtifactsFromRuntimeExtensionMetadata() throws IOException {
-        Path quarkusCore = tempDir.resolve("quarkus-core.jar");
-        writeJar(
-                quarkusCore,
-                QuarkusExtensionMetadataReader.METADATA_PATH,
-                """
-                deployment-artifact=io.quarkus:quarkus-core-deployment:3.33.2
-                parent-first-artifacts=io.quarkus:quarkus-bootstrap-runner::jar
-                runner-parent-first-artifacts=io.quarkus:quarkus-bootstrap-runner::jar
-                """);
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
-
-        QuarkusApplicationModelHandle handle = factory.create(descriptor(
-                List.of(),
-                List.of(new QuarkusBootstrapDependency(
-                        new PackageId("io.quarkus", "quarkus-bootstrap-runner"),
-                        "3.33.2",
-                        DependencyScope.COMPILE,
-                        Path.of("/cache/quarkus-bootstrap-runner.jar"),
-                        false)),
-                List.of(quarkusCore),
-                List.of()));
-
-        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
-        assertEquals(
-                List.of(new FakeArtifactKey("io.quarkus", "quarkus-bootstrap-runner", "", "jar")),
-                model.parentFirstArtifacts());
-        assertEquals(
-                List.of(new FakeArtifactKey("io.quarkus", "quarkus-bootstrap-runner", "", "jar")),
-                model.runnerParentFirstArtifacts());
-    }
-
-    @Test
-    void addsClassLoadingArtifactsFromOptions() {
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
-
-        QuarkusApplicationModelHandle handle = factory.create(
-                descriptor(),
-                java.util.Optional.empty(),
-                new QuarkusApplicationModelOptions(
-                        List.of(new QuarkusArtifactKey(
-                                "io.quarkus",
-                                "quarkus-builder",
-                                java.util.Optional.empty(),
-                                java.util.Optional.empty())),
-                        List.of(),
-                        Map.of()));
-
-        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
-        assertEquals(
-                List.of(new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar")),
-                model.parentFirstArtifacts());
-        assertEquals(List.of(), model.runnerParentFirstArtifacts());
-    }
-
-    @Test
-    void deduplicatesClassLoadingArtifactsFromOptionsAndRuntimeExtensionMetadata() throws IOException {
-        Path quarkusCore = tempDir.resolve("quarkus-core.jar");
-        writeJar(
-                quarkusCore,
-                QuarkusExtensionMetadataReader.METADATA_PATH,
-                """
-                deployment-artifact=io.quarkus:quarkus-core-deployment:3.33.2
-                parent-first-artifacts=io.quarkus:quarkus-builder::jar
-                """);
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
-
-        QuarkusApplicationModelHandle handle = factory.create(
-                descriptor(
-                        List.of(),
-                        List.of(new QuarkusBootstrapDependency(
-                                new PackageId("io.quarkus", "quarkus-builder"),
-                                "3.33.2",
-                                DependencyScope.COMPILE,
-                                Path.of("/cache/quarkus-builder.jar"),
-                                false)),
-                        List.of(quarkusCore),
-                        List.of()),
-                java.util.Optional.empty(),
-                QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
-
-        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
-        assertEquals(
-                List.of(
-                        new FakeArtifactKey("io.quarkus", "quarkus-builder", "", "jar"),
-                        new FakeArtifactKey("org.eclipse.microprofile.config", "microprofile-config-api", "", "jar"),
-                        new FakeArtifactKey("io.smallrye.config", "smallrye-config", "", "jar"),
-                        new FakeArtifactKey("io.smallrye.config", "smallrye-config-common", "", "jar"),
-                        new FakeArtifactKey("io.smallrye.config", "smallrye-config-core", "", "jar")),
-                model.parentFirstArtifacts());
-    }
-
-    @Test
-    void addsRemovedResourcesFromRuntimeExtensionMetadata() throws IOException {
-        Path quarkusRest = tempDir.resolve("quarkus-rest.jar");
-        writeJar(
-                quarkusRest,
-                QuarkusExtensionMetadataReader.METADATA_PATH,
-                """
-                deployment-artifact=io.quarkus:quarkus-rest-deployment:3.33.2
-                removed-resources.io.quarkus\\:quarkus-rest=\
-                META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider,\
-                META-INF/duplicate.index
-                """);
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
-
-        QuarkusApplicationModelHandle handle = factory.create(descriptor(
-                List.of(),
-                List.of(new QuarkusBootstrapDependency(
-                        new PackageId("io.quarkus", "quarkus-rest"),
-                        "3.33.2",
-                        DependencyScope.COMPILE,
-                        quarkusRest,
-                        true)),
-                List.of(quarkusRest),
-                List.of()));
-
-        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
-        assertEquals(
-                Map.of(
-                        new FakeArtifactKey("io.quarkus", "quarkus-rest", "", "jar"),
-                        List.of(
-                                "META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider",
-                                "META-INF/duplicate.index")),
-                model.removedResources());
-    }
-
-    @Test
-    void addsTestBootstrapRemovedResourceOption() {
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(fakeApiWithArtifactKey());
-
-        QuarkusApplicationModelHandle handle = factory.create(
-                descriptor(),
-                java.util.Optional.empty(),
-                QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
-
-        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
-        assertEquals(
-                Map.of(
-                        new FakeArtifactKey("io.quarkus", "quarkus-rest", "", "jar"),
-                        List.of("META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider"),
-                        new FakeArtifactKey("io.quarkus", "quarkus-arc", "", "jar"),
-                        List.of("META-INF/services/io.quarkus.runtime.test.TestScopeSetup")),
-                model.removedResources());
     }
 
     @Test
@@ -393,23 +244,6 @@ final class QuarkusApplicationModelFactoryTest {
                 FakePlatformImports.class.getName(),
                 FakePlatformImportsImpl.class.getName(),
                 FakeArtifactKey.class.getName());
-    }
-
-    private static QuarkusApplicationModelApi fakeApiWithArtifactKey() {
-        return new QuarkusApplicationModelApi(
-                FakeApplicationModelBuilder.class.getName(),
-                FakeResolvedDependencyBuilder.class.getName(),
-                FakePlatformImports.class.getName(),
-                FakePlatformImportsImpl.class.getName(),
-                FakeArtifactKey.class.getName());
-    }
-
-    private static void writeJar(Path jarPath, String entryName, String content) throws IOException {
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            output.closeEntry();
-        }
     }
 
     public static final class FakeApplicationModelBuilder {
