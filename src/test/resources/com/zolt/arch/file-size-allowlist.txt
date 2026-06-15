@@ -14,7 +14,6 @@ src/main/java/com/zolt/build/OpenApiGeneratedSourceService.java|508|
 src/test/java/com/zolt/build/PackageServiceTest.java|1390|
 src/test/java/com/zolt/build/TestRunServiceTest.java|1039|
 src/test/java/com/zolt/build/BuildServiceTest.java|873|
-src/test/java/com/zolt/ide/IdeModelServiceTest.java|869|
 src/test/java/com/zolt/build/TestCompileServiceTest.java|866|
 src/test/java/com/zolt/workspace/WorkspaceBuildServiceTest.java|786|
 src/test/java/com/zolt/workspace/WorkspaceResolveServiceTest.java|714|
