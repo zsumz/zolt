@@ -3,115 +3,11 @@ package com.zolt.project;
 import java.util.Map;
 import java.util.Set;
 
-public record ProjectConfig(
-        ProjectMetadata project,
-        Map<String, String> repositories,
-        Map<String, RepositorySettings> repositorySettings,
-        Map<String, RepositoryCredentialSettings> repositoryCredentials,
-        Map<String, String> versionAliases,
-        Map<String, String> platforms,
-        Map<String, String> apiDependencies,
-        Set<String> managedApiDependencies,
-        Map<String, String> workspaceApiDependencies,
-        Map<String, String> dependencies,
-        Set<String> managedDependencies,
-        Map<String, String> workspaceDependencies,
-        Map<String, String> runtimeDependencies,
-        Set<String> managedRuntimeDependencies,
-        Map<String, String> providedDependencies,
-        Set<String> managedProvidedDependencies,
-        Map<String, String> devDependencies,
-        Set<String> managedDevDependencies,
-        Map<String, String> testDependencies,
-        Set<String> managedTestDependencies,
-        Map<String, String> workspaceTestDependencies,
-        Map<String, String> annotationProcessors,
-        Set<String> managedAnnotationProcessors,
-        Map<String, String> testAnnotationProcessors,
-        Set<String> managedTestAnnotationProcessors,
-        DependencyPolicySettings dependencyPolicy,
-        BuildSettings build,
-        NativeSettings nativeSettings,
-        CompilerSettings compilerSettings,
-        PackageSettings packageSettings,
-        FrameworkSettings frameworkSettings,
-        Map<String, DependencyMetadata> dependencyMetadata) {
-    public static final String MAVEN_CENTRAL = "https://repo.maven.apache.org/maven2";
-
-    public ProjectConfig {
-        repositorySettings = repositorySettings == null || repositorySettings.isEmpty()
-                ? repositorySettingsFromUrls(repositories)
-                : ProjectConfigNormalizer.orderedRepositorySettings(repositorySettings);
-        repositories = repositories == null || repositories.isEmpty()
-                ? repositoryUrls(repositorySettings)
-                : ProjectConfigNormalizer.orderedMap(repositories);
-        repositoryCredentials = ProjectConfigNormalizer.orderedRepositoryCredentials(repositoryCredentials);
-        versionAliases = ProjectConfigNormalizer.orderedMap(versionAliases);
-        platforms = ProjectConfigNormalizer.orderedMap(platforms);
-        apiDependencies = ProjectConfigNormalizer.orderedMap(apiDependencies);
-        managedApiDependencies = ProjectConfigNormalizer.orderedSet(managedApiDependencies);
-        workspaceApiDependencies = ProjectConfigNormalizer.orderedMap(workspaceApiDependencies);
-        dependencies = ProjectConfigNormalizer.orderedMap(dependencies);
-        managedDependencies = ProjectConfigNormalizer.orderedSet(managedDependencies);
-        workspaceDependencies = ProjectConfigNormalizer.orderedMap(workspaceDependencies);
-        runtimeDependencies = ProjectConfigNormalizer.orderedMap(runtimeDependencies);
-        managedRuntimeDependencies = ProjectConfigNormalizer.orderedSet(managedRuntimeDependencies);
-        providedDependencies = ProjectConfigNormalizer.orderedMap(providedDependencies);
-        managedProvidedDependencies = ProjectConfigNormalizer.orderedSet(managedProvidedDependencies);
-        devDependencies = ProjectConfigNormalizer.orderedMap(devDependencies);
-        managedDevDependencies = ProjectConfigNormalizer.orderedSet(managedDevDependencies);
-        testDependencies = ProjectConfigNormalizer.orderedMap(testDependencies);
-        managedTestDependencies = ProjectConfigNormalizer.orderedSet(managedTestDependencies);
-        workspaceTestDependencies = ProjectConfigNormalizer.orderedMap(workspaceTestDependencies);
-        annotationProcessors = ProjectConfigNormalizer.orderedMap(annotationProcessors);
-        managedAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedAnnotationProcessors);
-        testAnnotationProcessors = ProjectConfigNormalizer.orderedMap(testAnnotationProcessors);
-        managedTestAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedTestAnnotationProcessors);
-        dependencyPolicy = dependencyPolicy == null ? DependencyPolicySettings.defaults() : dependencyPolicy;
-        nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
-        compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
-        packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
-        frameworkSettings = frameworkSettings == null ? FrameworkSettings.defaults() : frameworkSettings;
-        dependencyMetadata = ProjectConfigNormalizer.orderedMetadataMap(dependencyMetadata);
+final class ProjectConfigConstruction {
+    private ProjectConfigConstruction() {
     }
 
-    private ProjectConfig(ProjectConfigArguments arguments) {
-        this(
-                arguments.project(),
-                arguments.repositories(),
-                arguments.repositorySettings(),
-                arguments.repositoryCredentials(),
-                arguments.versionAliases(),
-                arguments.platforms(),
-                arguments.apiDependencies(),
-                arguments.managedApiDependencies(),
-                arguments.workspaceApiDependencies(),
-                arguments.dependencies(),
-                arguments.managedDependencies(),
-                arguments.workspaceDependencies(),
-                arguments.runtimeDependencies(),
-                arguments.managedRuntimeDependencies(),
-                arguments.providedDependencies(),
-                arguments.managedProvidedDependencies(),
-                arguments.devDependencies(),
-                arguments.managedDevDependencies(),
-                arguments.testDependencies(),
-                arguments.managedTestDependencies(),
-                arguments.workspaceTestDependencies(),
-                arguments.annotationProcessors(),
-                arguments.managedAnnotationProcessors(),
-                arguments.testAnnotationProcessors(),
-                arguments.managedTestAnnotationProcessors(),
-                arguments.dependencyPolicy(),
-                arguments.build(),
-                arguments.nativeSettings(),
-                arguments.compilerSettings(),
-                arguments.packageSettings(),
-                arguments.frameworkSettings(),
-                arguments.dependencyMetadata());
-    }
-
-    public ProjectConfig(
+    static ProjectConfigArguments repositorySettings(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, RepositorySettings> repositorySettings,
@@ -142,11 +38,12 @@ public record ProjectConfig(
             PackageSettings packageSettings,
             FrameworkSettings frameworkSettings,
             Map<String, DependencyMetadata> dependencyMetadata) {
-        this(ProjectConfigConstruction.repositorySettings(
+        return full(
                 project,
                 repositories,
                 repositorySettings,
                 repositoryCredentials,
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -167,15 +64,16 @@ public record ProjectConfig(
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                DependencyPolicySettings.defaults(),
                 build,
                 nativeSettings,
                 compilerSettings,
                 packageSettings,
                 frameworkSettings,
-                dependencyMetadata));
+                dependencyMetadata);
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments fullWithPackage(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -202,9 +100,12 @@ public record ProjectConfig(
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings,
             PackageSettings packageSettings) {
-        this(ProjectConfigConstruction.fullWithPackage(
+        return full(
                 project,
                 repositories,
+                ProjectConfigNormalizer.repositorySettingsFromUrls(repositories),
+                Map.of(),
+                Map.of(),
                 platforms,
                 apiDependencies,
                 managedApiDependencies,
@@ -225,13 +126,16 @@ public record ProjectConfig(
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                DependencyPolicySettings.defaults(),
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings));
+                packageSettings,
+                FrameworkSettings.defaults(),
+                Map.of());
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments full(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -257,7 +161,7 @@ public record ProjectConfig(
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
-        this(ProjectConfigConstruction.full(
+        return fullWithPackage(
                 project,
                 repositories,
                 platforms,
@@ -282,10 +186,11 @@ public record ProjectConfig(
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                compilerSettings));
+                compilerSettings,
+                PackageSettings.defaults());
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments withoutDev(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -309,7 +214,7 @@ public record ProjectConfig(
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
-        this(ProjectConfigConstruction.withoutDev(
+        return full(
                 project,
                 repositories,
                 platforms,
@@ -323,6 +228,8 @@ public record ProjectConfig(
                 managedRuntimeDependencies,
                 providedDependencies,
                 managedProvidedDependencies,
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -332,10 +239,10 @@ public record ProjectConfig(
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                compilerSettings));
+                compilerSettings);
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments dependencySectionsWithPackage(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -356,7 +263,7 @@ public record ProjectConfig(
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings,
             PackageSettings packageSettings) {
-        this(ProjectConfigConstruction.dependencySectionsWithPackage(
+        return fullWithPackage(
                 project,
                 repositories,
                 platforms,
@@ -366,6 +273,12 @@ public record ProjectConfig(
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 testDependencies,
                 managedTestDependencies,
                 workspaceTestDependencies,
@@ -376,10 +289,10 @@ public record ProjectConfig(
                 build,
                 nativeSettings,
                 compilerSettings,
-                packageSettings));
+                packageSettings);
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments dependencySections(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -394,55 +307,30 @@ public record ProjectConfig(
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
-        this(ProjectConfigConstruction.dependencySections(
+        return dependencySectionsWithPackage(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
+                Map.of(),
                 testDependencies,
                 managedTestDependencies,
+                Map.of(),
                 annotationProcessors,
                 managedAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
                 build,
                 nativeSettings,
-                compilerSettings));
+                compilerSettings,
+                PackageSettings.defaults());
     }
 
-    public ProjectConfig(
-            ProjectMetadata project,
-            Map<String, String> repositories,
-            Map<String, String> platforms,
-            Map<String, String> dependencies,
-            Set<String> managedDependencies,
-            Map<String, String> testDependencies,
-            Set<String> managedTestDependencies,
-            Map<String, String> annotationProcessors,
-            Set<String> managedAnnotationProcessors,
-            Map<String, String> testAnnotationProcessors,
-            Set<String> managedTestAnnotationProcessors,
-            BuildSettings build,
-            NativeSettings nativeSettings) {
-        this(ProjectConfigConstruction.dependencySections(
-                project,
-                repositories,
-                platforms,
-                dependencies,
-                managedDependencies,
-                testDependencies,
-                managedTestDependencies,
-                annotationProcessors,
-                managedAnnotationProcessors,
-                testAnnotationProcessors,
-                managedTestAnnotationProcessors,
-                build,
-                nativeSettings,
-                CompilerSettings.defaults()));
-    }
-
-    public ProjectConfig(
+    static ProjectConfigArguments workspaceDependencySections(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -458,10 +346,13 @@ public record ProjectConfig(
             Set<String> managedTestAnnotationProcessors,
             BuildSettings build,
             NativeSettings nativeSettings) {
-        this(ProjectConfigConstruction.workspaceDependencySections(
+        return dependencySectionsWithPackage(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
                 workspaceDependencies,
@@ -473,10 +364,12 @@ public record ProjectConfig(
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
                 build,
-                nativeSettings));
+                nativeSettings,
+                CompilerSettings.defaults(),
+                PackageSettings.defaults());
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments runtimeDependencySections(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> platforms,
@@ -486,80 +379,118 @@ public record ProjectConfig(
             Set<String> managedTestDependencies,
             BuildSettings build,
             NativeSettings nativeSettings) {
-        this(ProjectConfigConstruction.runtimeDependencySections(
+        return dependencySectionsWithPackage(
                 project,
                 repositories,
                 platforms,
+                Map.of(),
+                Set.of(),
+                Map.of(),
                 dependencies,
                 managedDependencies,
+                Map.of(),
                 testDependencies,
                 managedTestDependencies,
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 build,
-                nativeSettings));
+                nativeSettings,
+                CompilerSettings.defaults(),
+                PackageSettings.defaults());
     }
 
-    public ProjectConfig(
+    static ProjectConfigArguments directDependencies(
             ProjectMetadata project,
             Map<String, String> repositories,
             Map<String, String> dependencies,
             Map<String, String> testDependencies,
             BuildSettings build,
             NativeSettings nativeSettings) {
-        this(ProjectConfigConstruction.directDependencies(
+        return dependencySections(
                 project,
                 repositories,
+                Map.of(),
                 dependencies,
+                Set.of(),
                 testDependencies,
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
                 build,
-                nativeSettings));
+                nativeSettings,
+                CompilerSettings.defaults());
     }
 
-    public ProjectConfig(
+    private static ProjectConfigArguments full(
             ProjectMetadata project,
             Map<String, String> repositories,
+            Map<String, RepositorySettings> repositorySettings,
+            Map<String, RepositoryCredentialSettings> repositoryCredentials,
+            Map<String, String> versionAliases,
+            Map<String, String> platforms,
+            Map<String, String> apiDependencies,
+            Set<String> managedApiDependencies,
+            Map<String, String> workspaceApiDependencies,
             Map<String, String> dependencies,
+            Set<String> managedDependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> runtimeDependencies,
+            Set<String> managedRuntimeDependencies,
+            Map<String, String> providedDependencies,
+            Set<String> managedProvidedDependencies,
+            Map<String, String> devDependencies,
+            Set<String> managedDevDependencies,
             Map<String, String> testDependencies,
-            BuildSettings build) {
-        this(project, repositories, dependencies, testDependencies, build, NativeSettings.defaults());
-    }
-
-    public static Map<String, String> defaultRepositories() {
-        return ProjectConfigNormalizer.defaultRepositories();
-    }
-
-    public static Map<String, RepositorySettings> defaultRepositorySettings() {
-        return ProjectConfigNormalizer.defaultRepositorySettings();
-    }
-
-    private static Map<String, RepositorySettings> repositorySettingsFromUrls(Map<String, String> repositories) {
-        return ProjectConfigNormalizer.repositorySettingsFromUrls(repositories);
-    }
-
-    private static Map<String, String> repositoryUrls(Map<String, RepositorySettings> repositorySettings) {
-        return ProjectConfigNormalizer.repositoryUrls(repositorySettings);
-    }
-
-    public ProjectConfig withBuildSettings(BuildSettings build) {
-        return ProjectConfigUpdater.withBuildSettings(this, build);
-    }
-
-    public ProjectConfig withVersionAliases(Map<String, String> versionAliases) {
-        return ProjectConfigUpdater.withVersionAliases(this, versionAliases);
-    }
-
-    public ProjectConfig withPackageSettings(PackageSettings packageSettings) {
-        return ProjectConfigUpdater.withPackageSettings(this, packageSettings);
-    }
-
-    public ProjectConfig withFrameworkSettings(FrameworkSettings frameworkSettings) {
-        return ProjectConfigUpdater.withFrameworkSettings(this, frameworkSettings);
-    }
-
-    public ProjectConfig withDependencyPolicy(DependencyPolicySettings dependencyPolicy) {
-        return ProjectConfigUpdater.withDependencyPolicy(this, dependencyPolicy);
-    }
-
-    public ProjectConfig withDependencyMetadata(Map<String, DependencyMetadata> dependencyMetadata) {
-        return ProjectConfigUpdater.withDependencyMetadata(this, dependencyMetadata);
+            Set<String> managedTestDependencies,
+            Map<String, String> workspaceTestDependencies,
+            Map<String, String> annotationProcessors,
+            Set<String> managedAnnotationProcessors,
+            Map<String, String> testAnnotationProcessors,
+            Set<String> managedTestAnnotationProcessors,
+            DependencyPolicySettings dependencyPolicy,
+            BuildSettings build,
+            NativeSettings nativeSettings,
+            CompilerSettings compilerSettings,
+            PackageSettings packageSettings,
+            FrameworkSettings frameworkSettings,
+            Map<String, DependencyMetadata> dependencyMetadata) {
+        return new ProjectConfigArguments(
+                project,
+                repositories,
+                repositorySettings,
+                repositoryCredentials,
+                versionAliases,
+                platforms,
+                apiDependencies,
+                managedApiDependencies,
+                workspaceApiDependencies,
+                dependencies,
+                managedDependencies,
+                workspaceDependencies,
+                runtimeDependencies,
+                managedRuntimeDependencies,
+                providedDependencies,
+                managedProvidedDependencies,
+                devDependencies,
+                managedDevDependencies,
+                testDependencies,
+                managedTestDependencies,
+                workspaceTestDependencies,
+                annotationProcessors,
+                managedAnnotationProcessors,
+                testAnnotationProcessors,
+                managedTestAnnotationProcessors,
+                dependencyPolicy,
+                build,
+                nativeSettings,
+                compilerSettings,
+                packageSettings,
+                frameworkSettings,
+                dependencyMetadata);
     }
 }
