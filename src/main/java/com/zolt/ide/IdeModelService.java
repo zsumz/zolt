@@ -1,14 +1,9 @@
 package com.zolt.ide;
 
 import com.zolt.cache.ArtifactCacheException;
-import com.zolt.classpath.Classpath;
-import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockfileReadException;
-import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.BuildSettings;
@@ -35,9 +30,9 @@ public final class IdeModelService {
 
     private final ZoltTomlParser tomlParser;
     private final ZoltLockfileReader lockfileReader;
-    private final ClasspathBuilder classpathBuilder;
     private final ResolveService resolveService;
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final IdeClasspathModelBuilder classpathModelBuilder;
     private final IdeDependencyModelBuilder dependencyModelBuilder;
     private final IdeFrameworkModelBuilder frameworkModelBuilder;
 
@@ -45,9 +40,9 @@ public final class IdeModelService {
         this(
                 new ZoltTomlParser(),
                 new ZoltLockfileReader(),
-                new ClasspathBuilder(),
                 new ResolveService(),
                 new GeneratedSourceEvidenceService(),
+                new IdeClasspathModelBuilder(),
                 new IdeDependencyModelBuilder(),
                 new IdeFrameworkModelBuilder());
     }
@@ -55,16 +50,16 @@ public final class IdeModelService {
     IdeModelService(
             ZoltTomlParser tomlParser,
             ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
             ResolveService resolveService,
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            IdeClasspathModelBuilder classpathModelBuilder,
             IdeDependencyModelBuilder dependencyModelBuilder,
             IdeFrameworkModelBuilder frameworkModelBuilder) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
         this.resolveService = resolveService;
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.classpathModelBuilder = classpathModelBuilder;
         this.dependencyModelBuilder = dependencyModelBuilder;
         this.frameworkModelBuilder = frameworkModelBuilder;
     }
@@ -95,7 +90,7 @@ public final class IdeModelService {
                 () -> readConfig(configPath, diagnostics));
         IdeModel.ClasspathInfo classpaths = recorder.measure(
                 "build ide classpaths",
-                () -> classpaths(lockfilePath, normalizedCacheRoot, root, config, diagnostics),
+                () -> classpathModelBuilder.build(lockfilePath, normalizedCacheRoot, root, config, diagnostics),
                 IdeModelService::ideClasspathAttributes);
         if (checkLock) {
             recorder.measure(
@@ -565,57 +560,6 @@ public final class IdeModelService {
                 artifactPath(root, artifactBaseName, "", diagnostics));
     }
 
-    private IdeModel.ClasspathInfo classpaths(
-            Path lockfilePath,
-            Path cacheRoot,
-            Path root,
-            ProjectConfig config,
-            List<IdeModel.Diagnostic> diagnostics) {
-        if (config == null) {
-            return emptyClasspaths();
-        }
-        if (!Files.exists(lockfilePath)) {
-            diagnostics.add(new IdeModel.Diagnostic(
-                    "error",
-                    "LOCKFILE_MISSING",
-                    "Could not find zolt.lock.",
-                    lockfilePath,
-                    "Run zolt resolve."));
-            return emptyClasspaths();
-        }
-        try {
-            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-            ClasspathSet dependencyClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
-            Path mainOutput = outputPath(root, "[build].output", config.build().output(), diagnostics);
-            Path testOutput = outputPath(root, "[build].testOutput", config.build().testOutput(), diagnostics);
-            return new IdeModel.ClasspathInfo(
-                    absoluteEntries(dependencyClasspaths.compile()),
-                    withOutputs(nonNullPaths(mainOutput), dependencyClasspaths.runtime()),
-                    withOutputs(nonNullPaths(mainOutput, testOutput), dependencyClasspaths.test()),
-                    absoluteEntries(dependencyClasspaths.processor()),
-                    absoluteEntries(dependencyClasspaths.testProcessor()),
-                    absoluteEntries(dependencyClasspaths.quarkusDeployment()));
-        } catch (LockfileReadException exception) {
-            diagnostics.add(new IdeModel.Diagnostic(
-                    "error",
-                    lockfileReadDiagnosticCode(exception),
-                    exception.getMessage(),
-                    lockfilePath,
-                    "Run zolt resolve."));
-            return emptyClasspaths();
-        }
-    }
-
-    private static String lockfileReadDiagnosticCode(LockfileReadException exception) {
-        return exception.getMessage().contains("integrity check failed")
-                ? "LOCKFILE_INTEGRITY_FAILED"
-                : "LOCKFILE_UNREADABLE";
-    }
-
-    private static IdeModel.ClasspathInfo emptyClasspaths() {
-        return new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-    }
-
     private static Path inputPath(
             Path root,
             String key,
@@ -685,25 +629,4 @@ public final class IdeModelService {
                 "Fix the unsafe path in zolt.toml and run zolt ide model --format json again."));
     }
 
-    private static List<Path> nonNullPaths(Path... paths) {
-        List<Path> values = new ArrayList<>();
-        for (Path path : paths) {
-            if (path != null) {
-                values.add(path);
-            }
-        }
-        return List.copyOf(values);
-    }
-
-    private static List<Path> withOutputs(List<Path> outputs, Classpath classpath) {
-        List<Path> entries = new ArrayList<>(outputs);
-        entries.addAll(absoluteEntries(classpath));
-        return entries;
-    }
-
-    private static List<Path> absoluteEntries(Classpath classpath) {
-        return classpath.entries().stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .toList();
-    }
 }
