@@ -1,7 +1,13 @@
 package com.zolt.cli;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import picocli.CommandLine;
 
 final class CliTestSupport {
@@ -45,6 +51,15 @@ final class CliTestSupport {
                 inputs = ["%s"]
                 required = %s
                 """.formatted(scope, id, output, input, required);
+    }
+
+    static String sha256(Path path) throws IOException {
+        try {
+            return "sha256:" + HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable.", exception);
+        }
     }
 
     private static String currentJavaMajorVersion() {
