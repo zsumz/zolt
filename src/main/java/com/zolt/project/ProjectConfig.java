@@ -1,10 +1,6 @@
 package com.zolt.project;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 public record ProjectConfig(
@@ -45,38 +41,38 @@ public record ProjectConfig(
     public ProjectConfig {
         repositorySettings = repositorySettings == null || repositorySettings.isEmpty()
                 ? repositorySettingsFromUrls(repositories)
-                : orderedRepositorySettings(repositorySettings);
+                : ProjectConfigNormalizer.orderedRepositorySettings(repositorySettings);
         repositories = repositories == null || repositories.isEmpty()
                 ? repositoryUrls(repositorySettings)
-                : orderedMap(repositories);
-        repositoryCredentials = orderedRepositoryCredentials(repositoryCredentials);
-        versionAliases = orderedMap(versionAliases);
-        platforms = orderedMap(platforms);
-        apiDependencies = orderedMap(apiDependencies);
-        managedApiDependencies = orderedSet(managedApiDependencies);
-        workspaceApiDependencies = orderedMap(workspaceApiDependencies);
-        dependencies = orderedMap(dependencies);
-        managedDependencies = orderedSet(managedDependencies);
-        workspaceDependencies = orderedMap(workspaceDependencies);
-        runtimeDependencies = orderedMap(runtimeDependencies);
-        managedRuntimeDependencies = orderedSet(managedRuntimeDependencies);
-        providedDependencies = orderedMap(providedDependencies);
-        managedProvidedDependencies = orderedSet(managedProvidedDependencies);
-        devDependencies = orderedMap(devDependencies);
-        managedDevDependencies = orderedSet(managedDevDependencies);
-        testDependencies = orderedMap(testDependencies);
-        managedTestDependencies = orderedSet(managedTestDependencies);
-        workspaceTestDependencies = orderedMap(workspaceTestDependencies);
-        annotationProcessors = orderedMap(annotationProcessors);
-        managedAnnotationProcessors = orderedSet(managedAnnotationProcessors);
-        testAnnotationProcessors = orderedMap(testAnnotationProcessors);
-        managedTestAnnotationProcessors = orderedSet(managedTestAnnotationProcessors);
+                : ProjectConfigNormalizer.orderedMap(repositories);
+        repositoryCredentials = ProjectConfigNormalizer.orderedRepositoryCredentials(repositoryCredentials);
+        versionAliases = ProjectConfigNormalizer.orderedMap(versionAliases);
+        platforms = ProjectConfigNormalizer.orderedMap(platforms);
+        apiDependencies = ProjectConfigNormalizer.orderedMap(apiDependencies);
+        managedApiDependencies = ProjectConfigNormalizer.orderedSet(managedApiDependencies);
+        workspaceApiDependencies = ProjectConfigNormalizer.orderedMap(workspaceApiDependencies);
+        dependencies = ProjectConfigNormalizer.orderedMap(dependencies);
+        managedDependencies = ProjectConfigNormalizer.orderedSet(managedDependencies);
+        workspaceDependencies = ProjectConfigNormalizer.orderedMap(workspaceDependencies);
+        runtimeDependencies = ProjectConfigNormalizer.orderedMap(runtimeDependencies);
+        managedRuntimeDependencies = ProjectConfigNormalizer.orderedSet(managedRuntimeDependencies);
+        providedDependencies = ProjectConfigNormalizer.orderedMap(providedDependencies);
+        managedProvidedDependencies = ProjectConfigNormalizer.orderedSet(managedProvidedDependencies);
+        devDependencies = ProjectConfigNormalizer.orderedMap(devDependencies);
+        managedDevDependencies = ProjectConfigNormalizer.orderedSet(managedDevDependencies);
+        testDependencies = ProjectConfigNormalizer.orderedMap(testDependencies);
+        managedTestDependencies = ProjectConfigNormalizer.orderedSet(managedTestDependencies);
+        workspaceTestDependencies = ProjectConfigNormalizer.orderedMap(workspaceTestDependencies);
+        annotationProcessors = ProjectConfigNormalizer.orderedMap(annotationProcessors);
+        managedAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedAnnotationProcessors);
+        testAnnotationProcessors = ProjectConfigNormalizer.orderedMap(testAnnotationProcessors);
+        managedTestAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedTestAnnotationProcessors);
         dependencyPolicy = dependencyPolicy == null ? DependencyPolicySettings.defaults() : dependencyPolicy;
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
         packageSettings = packageSettings == null ? PackageSettings.defaults() : packageSettings;
         frameworkSettings = frameworkSettings == null ? FrameworkSettings.defaults() : frameworkSettings;
-        dependencyMetadata = orderedMetadataMap(dependencyMetadata);
+        dependencyMetadata = ProjectConfigNormalizer.orderedMetadataMap(dependencyMetadata);
     }
 
     public ProjectConfig(
@@ -623,69 +619,19 @@ public record ProjectConfig(
     }
 
     public static Map<String, String> defaultRepositories() {
-        return Map.of("central", MAVEN_CENTRAL);
+        return ProjectConfigNormalizer.defaultRepositories();
     }
 
     public static Map<String, RepositorySettings> defaultRepositorySettings() {
-        return repositorySettingsFromUrls(defaultRepositories());
-    }
-
-    private static Map<String, String> orderedMap(Map<String, String> values) {
-        if (values == null) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
-    }
-
-    private static Map<String, RepositorySettings> orderedRepositorySettings(Map<String, RepositorySettings> values) {
-        if (values == null) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
-    }
-
-    private static Map<String, RepositoryCredentialSettings> orderedRepositoryCredentials(
-            Map<String, RepositoryCredentialSettings> values) {
-        if (values == null) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+        return ProjectConfigNormalizer.defaultRepositorySettings();
     }
 
     private static Map<String, RepositorySettings> repositorySettingsFromUrls(Map<String, String> repositories) {
-        if (repositories == null || repositories.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, RepositorySettings> settings = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : repositories.entrySet()) {
-            settings.put(entry.getKey(), new RepositorySettings(entry.getKey(), entry.getValue(), Optional.empty()));
-        }
-        return Collections.unmodifiableMap(settings);
+        return ProjectConfigNormalizer.repositorySettingsFromUrls(repositories);
     }
 
     private static Map<String, String> repositoryUrls(Map<String, RepositorySettings> repositorySettings) {
-        if (repositorySettings == null || repositorySettings.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> urls = new LinkedHashMap<>();
-        for (Map.Entry<String, RepositorySettings> entry : repositorySettings.entrySet()) {
-            urls.put(entry.getKey(), entry.getValue().url());
-        }
-        return Collections.unmodifiableMap(urls);
-    }
-
-    private static Set<String> orderedSet(Set<String> values) {
-        if (values == null) {
-            return Set.of();
-        }
-        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
-    }
-
-    private static Map<String, DependencyMetadata> orderedMetadataMap(Map<String, DependencyMetadata> values) {
-        if (values == null) {
-            return Map.of();
-        }
-        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+        return ProjectConfigNormalizer.repositoryUrls(repositorySettings);
     }
 
     public ProjectConfig withBuildSettings(BuildSettings build) {
