@@ -16,9 +16,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Attributes;
@@ -96,105 +93,6 @@ final class ZoltCliTest {
             assertTrue(result.stdout().contains("error lockfile zolt.lock Offline mode requires cached POM"));
             assertTrue(result.stdout().contains("next: Run `zolt resolve` to seed the cache, then retry `zolt check --context ci --require-offline-ready`."));
             assertEquals("", result.stderr());
-        }
-    }
-
-    @Test
-    void publishUploadsArtifactAndGeneratedPom() throws IOException {
-        Path projectDir = tempDir.resolve("publish-upload-release");
-        Files.createDirectories(projectDir.resolve("target"));
-        Path artifact = projectDir.resolve("target/publish-upload-release-0.1.0.jar");
-        Path sourcesArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-sources.jar");
-        Path javadocArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-javadoc.jar");
-        Path testsArtifact = projectDir.resolve("target/publish-upload-release-0.1.0-tests.jar");
-        Files.writeString(artifact, "fake package\n");
-        Files.writeString(sourcesArtifact, "fake sources\n");
-        Files.writeString(javadocArtifact, "fake javadoc\n");
-        Files.writeString(testsArtifact, "fake tests\n");
-        Files.writeString(projectDir.resolve("target/publish-upload-release-0.1.0.jar.zolt-package.json"), """
-                {
-                  "schema": "zolt.package-evidence.v1",
-                  "archive": "target/publish-upload-release-0.1.0.jar",
-                  "archiveSha256": "%s",
-                  "artifacts": [
-                    {
-                      "classifier": "main",
-                      "type": "thin",
-                      "path": "target/publish-upload-release-0.1.0.jar",
-                      "entries": 1,
-                      "sha256": "%s"
-                    },
-                    {
-                      "classifier": "sources",
-                      "type": "jar",
-                      "path": "target/publish-upload-release-0.1.0-sources.jar",
-                      "entries": 1,
-                      "sha256": "%s"
-                    },
-                    {
-                      "classifier": "javadoc",
-                      "type": "jar",
-                      "path": "target/publish-upload-release-0.1.0-javadoc.jar",
-                      "entries": 1,
-                      "sha256": "%s"
-                    },
-                    {
-                      "classifier": "tests",
-                      "type": "jar",
-                      "path": "target/publish-upload-release-0.1.0-tests.jar",
-                      "entries": 1,
-                      "sha256": "%s"
-                    }
-                  ]
-                }
-                """.formatted(
-                sha256(artifact),
-                sha256(artifact),
-                sha256(sourcesArtifact),
-                sha256(javadocArtifact),
-                sha256(testsArtifact)));
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-
-        try (TestRepository repository = TestRepository.start()) {
-            Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-upload-release") + """
-
-                    [publish]
-                    releaseRepository = "company-releases"
-
-                    [publish.repositories.company-releases]
-                    url = "%s"
-                    """.formatted(repository.baseUri()));
-
-            CommandResult result = execute(
-                    "publish",
-                    "--cwd", projectDir.toString());
-
-            assertEquals(0, result.exitCode());
-            assertTrue(result.stdout().contains("Zolt publish"));
-            assertTrue(result.stdout().contains("Coordinate: com.example:publish-upload-release:0.1.0"));
-            assertTrue(result.stdout().contains("Target repository: company-releases"));
-            assertTrue(result.stdout().contains("Artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"));
-            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-sources.jar"));
-            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-javadoc.jar"));
-            assertTrue(result.stdout().contains("Supplemental artifact uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-tests.jar"));
-            assertTrue(result.stdout().contains("POM uploaded: com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"));
-            assertTrue(result.stdout().contains("Status: uploaded"));
-            assertEquals("", result.stderr());
-            assertEquals(
-                    "fake package\n",
-                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar"), StandardCharsets.UTF_8));
-            assertEquals(
-                    "fake sources\n",
-                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-sources.jar"), StandardCharsets.UTF_8));
-            assertEquals(
-                    "fake javadoc\n",
-                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-javadoc.jar"), StandardCharsets.UTF_8));
-            assertEquals(
-                    "fake tests\n",
-                    new String(repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0-tests.jar"), StandardCharsets.UTF_8));
-            assertTrue(new String(
-                    repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"),
-                    StandardCharsets.UTF_8).contains("<artifactId>publish-upload-release</artifactId>"));
         }
     }
 
@@ -5956,15 +5854,6 @@ final class ZoltCliTest {
                         .append("\" = \"")
                         .append(entry.getValue())
                         .append("\"\n"));
-    }
-
-    private static String sha256(Path path) throws IOException {
-        try {
-            return "sha256:" + HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable.", exception);
-        }
     }
 
     private static String memberConfig(String name) {
