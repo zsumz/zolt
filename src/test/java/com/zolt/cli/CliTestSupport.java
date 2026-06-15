@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import picocli.CommandLine;
 
 final class CliTestSupport {
@@ -62,6 +64,52 @@ final class CliTestSupport {
         }
     }
 
+    static void writeFakeConsoleJar(Path jar) throws IOException {
+        Path workDir = jar.getParent().resolve("fake-console-work");
+        Path source = workDir.resolve("src/org/junit/platform/console/ConsoleLauncher.java");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, """
+                package org.junit.platform.console;
+
+                public final class ConsoleLauncher {
+                    private ConsoleLauncher() {
+                    }
+
+                    public static void main(String[] args) throws Exception {
+                        System.out.println("fake console");
+                        for (int index = 0; index + 1 < args.length; index++) {
+                            if ("--details".equals(args[index]) && "tree".equals(args[index + 1])) {
+                                System.out.println("fake console event output");
+                            }
+                        }
+                        for (int index = 0; index + 1 < args.length; index++) {
+                            if ("--reports-dir".equals(args[index])) {
+                                java.nio.file.Path reports = java.nio.file.Path.of(args[index + 1]);
+                                java.nio.file.Files.createDirectories(reports);
+                                java.nio.file.Files.writeString(
+                                        reports.resolve("TEST-fake-console.xml"),
+                                        "<testsuite name=\\"fake-console\\" tests=\\"1\\" failures=\\"0\\"></testsuite>\\n");
+                            }
+                        }
+                    }
+                }
+                """);
+        Path classes = workDir.resolve("classes");
+        new com.zolt.build.JavacRunner().compile(
+                currentJavac(),
+                java.util.List.of(source),
+                new com.zolt.classpath.Classpath(java.util.List.of()),
+                classes);
+
+        Files.createDirectories(jar.getParent());
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            JarEntry entry = new JarEntry("org/junit/platform/console/ConsoleLauncher.class");
+            output.putNextEntry(entry);
+            output.write(Files.readAllBytes(classes.resolve("org/junit/platform/console/ConsoleLauncher.class")));
+            output.closeEntry();
+        }
+    }
+
     private static String currentJavaMajorVersion() {
         String version = System.getProperty("java.version");
         String[] parts = version.split("[._+-]", -1);
@@ -69,6 +117,16 @@ final class CliTestSupport {
             return parts[1];
         }
         return parts[0];
+    }
+
+    private static Path currentJavac() {
+        return Path.of(System.getProperty("java.home")).resolve("bin").resolve(executable("javac"));
+    }
+
+    private static String executable(String name) {
+        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
+                ? name + ".exe"
+                : name;
     }
 
     record CommandResult(int exitCode, String stdout, String stderr) {

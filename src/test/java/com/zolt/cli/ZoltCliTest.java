@@ -1687,7 +1687,7 @@ final class ZoltCliTest {
         Path cacheRoot = tempDir.resolve("cache");
         Files.createDirectories(apiDir);
         Files.createDirectories(coreDir);
-        writeFakeConsoleJar(cacheRoot.resolve(
+        CliTestSupport.writeFakeConsoleJar(cacheRoot.resolve(
                 "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
         Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
                 [workspace]
@@ -1839,7 +1839,7 @@ final class ZoltCliTest {
         Files.createDirectories(apiDir);
         Files.createDirectories(coreDir);
         Files.createDirectories(workerDir);
-        writeFakeConsoleJar(cacheRoot.resolve(
+        CliTestSupport.writeFakeConsoleJar(cacheRoot.resolve(
                 "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
         Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
                 [workspace]
@@ -1960,195 +1960,6 @@ final class ZoltCliTest {
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
         assertFalse(Files.exists(workerDir.resolve("target/classes/com/example/worker/Worker.class")));
-    }
-
-    @Test
-    void testCommandWritesJUnitReportsWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("reports-demo");
-        Path cacheRoot = tempDir.resolve("cache");
-        writeFakeConsoleJar(cacheRoot.resolve(
-                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("reports-demo"));
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.junit.platform:junit-platform-console-standalone"
-                version = "1.11.4"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
-                dependencies = []
-                """);
-        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
-        Files.createDirectories(testSource.getParent());
-        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
-
-        CommandResult result = execute(
-                "test",
-                "--reports-dir", "target/test-reports",
-                "--cwd", projectDir.toString(),
-                "--cache-root", cacheRoot.toString());
-
-        Path report = projectDir.resolve("target/test-reports/TEST-fake-console.xml");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("Tests passed"));
-        assertTrue(result.stdout().contains("Wrote test reports to "
-                + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
-        assertTrue(Files.exists(report));
-        assertTrue(Files.readString(report).contains("testsuite"));
-    }
-
-    @Test
-    void testCommandPrintsRequestedEventOutput() throws IOException {
-        Path projectDir = tempDir.resolve("events-demo");
-        Path cacheRoot = tempDir.resolve("cache");
-        writeFakeConsoleJar(cacheRoot.resolve(
-                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("events-demo"));
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.junit.platform:junit-platform-console-standalone"
-                version = "1.11.4"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
-                dependencies = []
-                """);
-        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
-        Files.createDirectories(testSource.getParent());
-        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
-
-        CommandResult result = execute(
-                "test",
-                "--test-event", "failed",
-                "--cwd", projectDir.toString(),
-                "--cache-root", cacheRoot.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("fake console event output"));
-        assertTrue(result.stdout().contains("Tests passed"));
-    }
-
-    @Test
-    void testCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        Path cacheRoot = tempDir.resolve("cache");
-        writeFakeConsoleJar(cacheRoot.resolve(
-                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo"));
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.junit.platform:junit-platform-console-standalone"
-                version = "1.11.4"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
-                dependencies = []
-                """);
-        Path testSource = projectDir.resolve("src/test/java/com/example/DemoTest.java");
-        Files.createDirectories(testSource.getParent());
-        Files.writeString(testSource, "package com.example; public final class DemoTest {}\n");
-
-        CommandResult result = execute(
-                "test",
-                "--tests", "*DemoTest",
-                "--include-tag", "fast",
-                "--exclude-tag", "slow",
-                "--timings",
-                "--timings-format", "json",
-                "--cwd", projectDir.toString(),
-                "--cache-root", cacheRoot.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("Tests passed"));
-        String[] lines = result.stderr().lines().toArray(String[]::new);
-        assertEquals(6, lines.length);
-        assertTrue(lines[0].contains("\"phase\":\"config read\""));
-        assertTrue(lines[0].contains("\"depth\":0"));
-        assertTrue(lines[1].contains("\"phase\":\"build test inputs\""));
-        assertTrue(lines[1].contains("\"depth\":2"));
-        assertTrue(lines[1].contains("\"mainCompilationSkipped\""));
-        assertTrue(lines[1].contains("\"mainCompilationMode\""));
-        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\""));
-        assertTrue(lines[1].contains("\"mainSourcesRecompiled\""));
-        assertTrue(lines[1].contains("\"mainDependentSourcesRecompiled\""));
-        assertTrue(lines[1].contains("\"mainAbiChangedClasses\""));
-        assertTrue(lines[1].contains("\"mainFingerprintCheckNanos\""));
-        assertTrue(lines[1].contains("\"mainFingerprintWriteNanos\""));
-        assertTrue(lines[2].contains("\"phase\":\"compile test sources\""));
-        assertTrue(lines[2].contains("\"depth\":2"));
-        assertTrue(lines[2].contains("\"testSourceFiles\":\"1\""));
-        assertTrue(lines[2].contains("\"testCompilationSkipped\":\"false\""));
-        assertTrue(lines[2].contains("\"testCompilationMode\""));
-        assertTrue(lines[2].contains("\"testIncrementalFallbackReason\""));
-        assertTrue(lines[2].contains("\"testSourcesRecompiled\""));
-        assertTrue(lines[2].contains("\"testDependentSourcesRecompiled\""));
-        assertTrue(lines[2].contains("\"testAbiChangedClasses\""));
-        assertTrue(lines[2].contains("\"testFingerprintCheckNanos\""));
-        assertTrue(lines[2].contains("\"testFingerprintWriteNanos\""));
-        assertTrue(lines[3].contains("\"phase\":\"compile tests\""));
-        assertTrue(lines[3].contains("\"depth\":1"));
-        assertTrue(lines[3].contains("\"testSourceFiles\":\"1\""));
-        assertTrue(lines[3].contains("\"testCompilationSkipped\":\"false\""));
-        assertTrue(lines[3].contains("\"testCompilationMode\""));
-        assertTrue(lines[3].contains("\"testIncrementalFallbackReason\""));
-        assertTrue(lines[3].contains("\"testSourcesRecompiled\""));
-        assertTrue(lines[3].contains("\"testDependentSourcesRecompiled\""));
-        assertTrue(lines[3].contains("\"testAbiChangedClasses\""));
-        assertTrue(lines[3].contains("\"testFingerprintCheckNanos\""));
-        assertTrue(lines[3].contains("\"testFingerprintWriteNanos\""));
-        assertTrue(lines[4].contains("\"phase\":\"execute tests\""));
-        assertTrue(lines[4].contains("\"depth\":1"));
-        assertTrue(lines[4].contains("\"testRunner\":\"junit-console\""));
-        assertTrue(lines[4].contains("\"testRuntimeClasspathEntries\""));
-        assertTrue(lines[4].contains("\"testLauncherClasspathEntries\""));
-        assertTrue(lines[4].contains("\"testDiscoveryScanRoots\""));
-        assertTrue(lines[4].contains("\"testPatterns\":\"1\""));
-        assertTrue(lines[4].contains("\"testIncludedTags\":\"1\""));
-        assertTrue(lines[4].contains("\"testExcludedTags\":\"1\""));
-        assertTrue(lines[4].contains("\"outputBytes\""));
-        assertTrue(lines[5].contains("\"phase\":\"run tests\""));
-        assertTrue(lines[5].contains("\"depth\":0"));
-        assertTrue(lines[5].contains("\"testRunner\":\"junit-console\""));
-        assertTrue(lines[5].contains("\"testSourceFiles\":\"1\""));
-        assertTrue(lines[5].contains("\"testRuntimeClasspathEntries\""));
-        assertTrue(lines[5].contains("\"testLauncherClasspathEntries\""));
-        assertTrue(lines[5].contains("\"testDiscoveryScanRoots\""));
-        assertTrue(lines[5].contains("\"testPatterns\":\"1\""));
-        assertTrue(lines[5].contains("\"testIncludedTags\":\"1\""));
-        assertTrue(lines[5].contains("\"testExcludedTags\":\"1\""));
-    }
-
-    @Test
-    void testReportsMissingJUnitConsoleClearly() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
-        Path testSource = projectDir.resolve("src/test/java/com/example/MainTest.java");
-        Files.createDirectories(testSource.getParent());
-        Files.writeString(testSource, "package com.example; public final class MainTest {}\n");
-
-        CommandResult result = execute(
-                "test",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("JUnit Platform Console is not present"));
     }
 
     private static CommandResult execute(String... args) {
@@ -2279,52 +2090,6 @@ final class ZoltCliTest {
         Files.writeString(source, content);
     }
 
-    private static void writeFakeConsoleJar(Path jar) throws IOException {
-        Path workDir = jar.getParent().resolve("fake-console-work");
-        Path source = workDir.resolve("src/org/junit/platform/console/ConsoleLauncher.java");
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, """
-                package org.junit.platform.console;
-
-                public final class ConsoleLauncher {
-                    private ConsoleLauncher() {
-                    }
-
-                    public static void main(String[] args) throws Exception {
-                        System.out.println("fake console");
-                        for (int index = 0; index + 1 < args.length; index++) {
-                            if ("--details".equals(args[index]) && "tree".equals(args[index + 1])) {
-                                System.out.println("fake console event output");
-                            }
-                        }
-                        for (int index = 0; index + 1 < args.length; index++) {
-                            if ("--reports-dir".equals(args[index])) {
-                                java.nio.file.Path reports = java.nio.file.Path.of(args[index + 1]);
-                                java.nio.file.Files.createDirectories(reports);
-                                java.nio.file.Files.writeString(
-                                        reports.resolve("TEST-fake-console.xml"),
-                                        "<testsuite name=\\"fake-console\\" tests=\\"1\\" failures=\\"0\\"></testsuite>\\n");
-                            }
-                        }
-                    }
-                }
-                """);
-        Path classes = workDir.resolve("classes");
-        new com.zolt.build.JavacRunner().compile(
-                currentJavac(),
-                java.util.List.of(source),
-                new com.zolt.classpath.Classpath(java.util.List.of()),
-                classes);
-
-        Files.createDirectories(jar.getParent());
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
-            JarEntry entry = new JarEntry("org/junit/platform/console/ConsoleLauncher.class");
-            output.putNextEntry(entry);
-            output.write(Files.readAllBytes(classes.resolve("org/junit/platform/console/ConsoleLauncher.class")));
-            output.closeEntry();
-        }
-    }
-
     private static void createJarWithTextEntry(Path jar, String entryName, String text) throws IOException {
         Files.createDirectories(jar.getParent());
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
@@ -2332,16 +2097,6 @@ final class ZoltCliTest {
             output.write(text.getBytes(StandardCharsets.UTF_8));
             output.closeEntry();
         }
-    }
-
-    private static Path currentJavac() {
-        return Path.of(System.getProperty("java.home")).resolve("bin").resolve(executable("javac"));
-    }
-
-    private static String executable(String name) {
-        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
-                ? name + ".exe"
-                : name;
     }
 
     private static String currentJavaMajorVersion() {
