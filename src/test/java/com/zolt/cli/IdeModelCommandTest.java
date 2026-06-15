@@ -18,6 +18,91 @@ final class IdeModelCommandTest {
     private Path tempDir;
 
     @Test
+    void ideModelCheckLockReportsFreshLockfileWithoutDiagnostics() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            Path cacheRoot = tempDir.resolve("cache");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+            String lockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+            CommandResult result = execute(
+                    "ide",
+                    "model",
+                    "--check-lock",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString(),
+                    "--format", "json");
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(0, result.exitCode());
+            assertEquals("", result.stderr());
+            assertTrue(result.stdout().contains("\"diagnostics\": []"));
+            assertEquals(lockfile, Files.readString(projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
+    void ideModelReportsStaleLockfileWithoutRewritingItByDefault() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            repository.addArtifact("com.example", "extra", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>extra</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            Path cacheRoot = tempDir.resolve("cache");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"), Map.of());
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+            String lockfile = Files.readString(projectDir.resolve("zolt.lock"));
+            writeProjectConfig(
+                    projectDir,
+                    repository.baseUri().toString(),
+                    Map.of(
+                            "com.example:app", "1.0.0",
+                            "com.example:extra", "1.0.0"),
+                    Map.of());
+
+            CommandResult result = execute(
+                    "ide",
+                    "model",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString(),
+                    "--format", "json");
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(0, result.exitCode());
+            assertEquals("", result.stderr());
+            assertTrue(result.stdout().contains("\"code\": \"LOCKFILE_STALE\""));
+            assertTrue(result.stdout().contains("zolt.lock is out of date"));
+            assertTrue(result.stdout().contains("\"nextStep\": \"Run zolt resolve.\""));
+            assertEquals(lockfile, Files.readString(projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
     void ideModelPrintsNestedJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("ide-timings");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
