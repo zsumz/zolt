@@ -9,20 +9,12 @@ import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.dependency.DependencyScope;
-import com.zolt.dependency.PackageId;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class PackageService {
@@ -40,6 +32,7 @@ public final class PackageService {
     private final SpringBootWarLayoutAssembler springBootWarLayoutAssembler;
     private final QuarkusFastJarLayoutAssembler quarkusFastJarLayoutAssembler;
     private final PackageSupplementalArtifactAssembler supplementalArtifactAssembler;
+    private final PackageRuntimeJarSelector runtimeJarSelector;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -129,6 +122,7 @@ public final class PackageService {
         this.springBootWarLayoutAssembler = new SpringBootWarLayoutAssembler();
         this.quarkusFastJarLayoutAssembler = new QuarkusFastJarLayoutAssembler();
         this.supplementalArtifactAssembler = new PackageSupplementalArtifactAssembler(classpathBuilder);
+        this.runtimeJarSelector = new PackageRuntimeJarSelector();
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -334,8 +328,10 @@ public final class PackageService {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path jarPath = jarPath(projectDirectory, config);
         List<PackageRuntimeJar> runtimeJars = classpathPackages
-                .map(this::runtimeJars)
-                .orElseGet(() -> runtimeJars(lockfileReader.read(projectDirectory.resolve("zolt.lock")), cacheRoot));
+                .map(runtimeJarSelector::runtimeJars)
+                .orElseGet(() -> runtimeJarSelector.runtimeJars(
+                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
+                        cacheRoot));
         return springBootJarLayoutAssembler.assemble(startClass, buildResult, outputDirectory, jarPath, runtimeJars);
     }
 
@@ -348,10 +344,10 @@ public final class PackageService {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path warPath = archivePath(projectDirectory, config, "war");
         List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
-                .orElseGet(() -> packagedClasspathPackages(
+                .orElseGet(() -> runtimeJarSelector.packagedClasspathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        List<PackageRuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
+        List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         return warLayoutAssembler.assemble(config, buildResult, outputDirectory, warPath, runtimeJars);
     }
 
@@ -366,11 +362,11 @@ public final class PackageService {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path warPath = archivePath(projectDirectory, config, "war");
         List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
-                .orElseGet(() -> LockfileClasspathPackageConverter.classpathPackages(
+                .orElseGet(() -> runtimeJarSelector.allClasspathPackages(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        List<PackageRuntimeJar> providedJars = providedJars(resolvedPackages);
-        List<PackageRuntimeJar> runtimeJars = runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
+        List<PackageRuntimeJar> providedJars = runtimeJarSelector.providedJars(resolvedPackages);
+        List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         return springBootWarLayoutAssembler.assemble(
                 startClass,
                 buildResult,
@@ -463,74 +459,6 @@ public final class PackageService {
         return ProjectPaths.filenameComponent("[project].name", config.project().name())
                 + "-"
                 + ProjectPaths.filenameComponent("[project].version", config.project().version());
-    }
-
-    private List<PackageRuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
-        return runtimeJars(packagedClasspathPackages(lockfile, cacheRoot));
-    }
-
-    private List<PackageRuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
-        Map<String, PackageRuntimeJar> runtimeJars = new LinkedHashMap<>();
-        packagedClasspathPackages(classpathPackages).stream()
-                .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
-                .sorted(Comparator.comparing(PackageService::classpathSortKey))
-                .map(dependency -> new PackageRuntimeJar(
-                        dependency.resolvedPackage().packageId(),
-                        dependency.resolvedPackage().selectedVersion(),
-                        dependency.resolvedPackage().jarPath()))
-                .forEach(runtimeJar -> runtimeJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
-        return List.copyOf(runtimeJars.values());
-    }
-
-    private List<PackageRuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
-        Set<PackageId> providedPackageIds = providedPackageIds(classpathPackages);
-        return runtimeJars(classpathPackages).stream()
-                .filter(runtimeJar -> !providedPackageIds.contains(runtimeJar.packageId()))
-                .toList();
-    }
-
-    private List<PackageRuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
-        Map<String, PackageRuntimeJar> providedJars = new LinkedHashMap<>();
-        classpathPackages.stream()
-                .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
-                .sorted(Comparator.comparing(PackageService::classpathSortKey))
-                .map(dependency -> new PackageRuntimeJar(
-                        dependency.resolvedPackage().packageId(),
-                        dependency.resolvedPackage().selectedVersion(),
-                        dependency.resolvedPackage().jarPath()))
-                .forEach(runtimeJar -> providedJars.putIfAbsent(runtimeJarKey(runtimeJar), runtimeJar));
-        return List.copyOf(providedJars.values());
-    }
-
-    private Set<PackageId> providedPackageIds(List<ResolvedClasspathPackage> classpathPackages) {
-        Set<PackageId> packageIds = new LinkedHashSet<>();
-        classpathPackages.stream()
-                .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
-                .map(dependency -> dependency.resolvedPackage().packageId())
-                .forEach(packageIds::add);
-        return Set.copyOf(packageIds);
-    }
-
-    private List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
-        return packagedClasspathPackages(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
-    }
-
-    private List<ResolvedClasspathPackage> packagedClasspathPackages(List<ResolvedClasspathPackage> classpathPackages) {
-        return classpathPackages.stream()
-                .filter(dependency -> dependency.scope().packagedByDefault())
-                .toList();
-    }
-
-    private static String classpathSortKey(ResolvedClasspathPackage dependency) {
-        return dependency.resolvedPackage().packageId()
-                + ":"
-                + dependency.resolvedPackage().selectedVersion()
-                + ":"
-                + dependency.scope();
-    }
-
-    private static String runtimeJarKey(PackageRuntimeJar runtimeJar) {
-        return runtimeJar.packageId() + ":" + runtimeJar.version() + ":" + runtimeJar.jarPath();
     }
 
 }
