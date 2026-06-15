@@ -83,7 +83,7 @@ final class QuarkusAnnotationFailureDiagnostics {
         return Optional.empty();
     }
 
-    private void writeClassLoaderDiagnostic(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader, Throwable failure) {
+    void writeClassLoaderDiagnostic(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader, Throwable failure) {
         if (testClasses.isEmpty() || quarkusRuntimeClassLoader == null) {
             return;
         }
@@ -203,7 +203,7 @@ final class QuarkusAnnotationFailureDiagnostics {
         }
     }
 
-    private Optional<ClassLoader> loadedClassLoader(String className, ClassLoader classLoader) {
+    Optional<ClassLoader> loadedClassLoader(String className, ClassLoader classLoader) {
         try {
             Class<?> loadedClass = Class.forName(className, false, classLoader);
             return Optional.ofNullable(loadedClass.getClassLoader());
@@ -249,7 +249,7 @@ final class QuarkusAnnotationFailureDiagnostics {
         return Optional.empty();
     }
 
-    private void writeQuarkusResourceElements(String label, String className, ClassLoader classLoader) {
+    void writeQuarkusResourceElements(String label, String className, ClassLoader classLoader) {
         if (classLoader == null) {
             out.println("  " + label + ".resourceElements=<unavailable: missing classloader>");
             return;
@@ -320,7 +320,7 @@ final class QuarkusAnnotationFailureDiagnostics {
         return Optional.empty();
     }
 
-    private String applyModuleConfigurationToClassloader(ClassLoader quarkusRuntimeClassLoader, ClassLoader targetClassLoader) {
+    String applyModuleConfigurationToClassloader(ClassLoader quarkusRuntimeClassLoader, ClassLoader targetClassLoader) {
         if (quarkusRuntimeClassLoader == null || targetClassLoader == null) {
             return "skipped";
         }
