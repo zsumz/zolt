@@ -2,18 +2,69 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class BuildCommandTest {
     @TempDir
     private Path tempDir;
+
+    @Test
+    void buildRejectsStaleExistingLockfileBeforeCompiling() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            repository.addArtifact("com.example", "extra", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>extra</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("build-stale-lock");
+            Path cacheRoot = tempDir.resolve("build-stale-lock-cache");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+            Path mainSource = projectDir.resolve("src/main/java/com/example/Main.java");
+            Files.createDirectories(mainSource.getParent());
+            Files.writeString(mainSource, """
+                    package com.example;
+
+                    public final class Main {
+                    }
+                    """);
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of(
+                    "com.example:app", "1.0.0",
+                    "com.example:extra", "1.0.0"));
+
+            CommandResult result = execute(
+                    "build",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stderr().contains("zolt.lock is out of date"));
+            assertTrue(result.stderr().contains("Run `zolt resolve` to refresh it"));
+            assertFalse(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+        }
+    }
 
     @Test
     void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
@@ -145,8 +196,15 @@ final class BuildCommandTest {
     }
 
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
+        writeProjectConfig(projectDir, repositoryUrl, Map.of());
+    }
+
+    private static void writeProjectConfig(
+            Path projectDir,
+            String repositoryUrl,
+            Map<String, String> dependencies) throws IOException {
         Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), """
+        StringBuilder config = new StringBuilder("""
                 [project]
                 name = "demo"
                 version = "0.1.0"
@@ -158,6 +216,15 @@ final class BuildCommandTest {
                 test = "%s"
 
                 [dependencies]
+                """.formatted(currentJavaMajorVersion(), repositoryUrl));
+        dependencies.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> config.append('"')
+                        .append(entry.getKey())
+                        .append("\" = \"")
+                        .append(entry.getValue())
+                        .append("\"\n"));
+        config.append("""
 
                 [test.dependencies]
 
@@ -166,7 +233,8 @@ final class BuildCommandTest {
                 test = "src/test/java"
                 output = "target/classes"
                 testOutput = "target/test-classes"
-                """.formatted(currentJavaMajorVersion(), repositoryUrl));
+                """);
+        Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
     }
 
     private static void enableQuarkus(Path projectDir) throws IOException {

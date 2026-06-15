@@ -9,12 +9,55 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class ClasspathCommandTest {
     @TempDir
     private Path tempDir;
+
+    @Test
+    void classpathRejectsStaleExistingLockfileWhenProjectConfigExists() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            repository.addArtifact("com.example", "extra", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>extra</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("classpath-stale-lock");
+            Path cacheRoot = tempDir.resolve("classpath-stale-lock-cache");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString());
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of(
+                    "com.example:app", "1.0.0",
+                    "com.example:extra", "1.0.0"));
+
+            CommandResult result = execute(
+                    "classpath",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", cacheRoot.toString(),
+                    "compile");
+
+            assertEquals(0, resolve.exitCode());
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stderr().contains("zolt.lock is out of date"));
+            assertTrue(result.stderr().contains("Run `zolt resolve` to refresh it"));
+            assertEquals("", result.stdout());
+        }
+    }
 
     @Test
     void classpathPrintsRequestedClasspathFromLockfile() throws IOException {
@@ -273,5 +316,52 @@ final class ClasspathCommandTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Could not read zolt.lock"));
+    }
+
+    private static void writeProjectConfig(
+            Path projectDir,
+            String repositoryUrl,
+            Map<String, String> dependencies) throws IOException {
+        Files.createDirectories(projectDir);
+        StringBuilder config = new StringBuilder("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.Main"
+
+                [repositories]
+                test = "%s"
+
+                [dependencies]
+                """.formatted(currentJavaMajorVersion(), repositoryUrl));
+        dependencies.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> config.append('"')
+                        .append(entry.getKey())
+                        .append("\" = \"")
+                        .append(entry.getValue())
+                        .append("\"\n"));
+        config.append("""
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """);
+        Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
+    }
+
+    private static String currentJavaMajorVersion() {
+        String version = System.getProperty("java.version");
+        String[] parts = version.split("[._+-]", -1);
+        if (parts.length >= 2 && "1".equals(parts[0])) {
+            return parts[1];
+        }
+        return parts[0];
     }
 }
