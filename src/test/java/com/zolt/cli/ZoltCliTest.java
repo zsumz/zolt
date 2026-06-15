@@ -1250,6 +1250,65 @@ final class ZoltCliTest {
     }
 
     @Test
+    void checkContextCiAcceptsWorkspaceCoverageReportsWhenConfigured() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-context-ci-workspace-coverage-ok");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coverageDir = apiDir.resolve("target/coverage");
+        Files.createDirectories(coverageDir.resolve("html"));
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-context-ci-workspace-coverage-ok"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(coverageDir.resolve("jacoco.exec"), "exec\n");
+        Files.writeString(coverageDir.resolve("jacoco.xml"), "<report name=\"api\"/>\n");
+        Files.writeString(coverageDir.resolve("html/index.html"), "<!doctype html>\n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--coverage-dir", "target/coverage",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context apps/api coverage-reports CI coverage preflight found Jacoco execution data, 1 XML report, and 1 HTML report."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsMissingWorkspaceCoverageReportsWhenConfigured() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-context-ci-workspace-coverage-missing");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Files.createDirectories(apiDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-context-ci-workspace-coverage-missing"
+                members = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--coverage-dir", "target/coverage",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context apps/api target/coverage CI context expected coverage reports, but the coverage directory is missing."));
+        assertTrue(result.stdout().contains("next: Run `zolt coverage` from each selected member so coverage evidence exists under target/coverage"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiJsonOutputIsStable() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-json");
         Files.createDirectories(projectDir);
