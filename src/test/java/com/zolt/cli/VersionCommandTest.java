@@ -1,17 +1,16 @@
 package com.zolt.cli;
 
+import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.cli.CliTestSupport.CommandResult;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import picocli.CommandLine;
 
 final class VersionCommandTest {
     @TempDir
@@ -299,18 +298,4 @@ final class VersionCommandTest {
         assertTrue(config.contains("shared = \"1.0.0\""));
     }
 
-    private static CommandResult execute(String... args) {
-        CommandLine commandLine = ZoltCli.newCommandLine();
-        StringWriter stdout = new StringWriter();
-        StringWriter stderr = new StringWriter();
-        commandLine.setOut(new PrintWriter(stdout));
-        commandLine.setErr(new PrintWriter(stderr));
-
-        int exitCode = commandLine.execute(args);
-
-        return new CommandResult(exitCode, stdout.toString(), stderr.toString());
-    }
-
-    private record CommandResult(int exitCode, String stdout, String stderr) {
-    }
 }

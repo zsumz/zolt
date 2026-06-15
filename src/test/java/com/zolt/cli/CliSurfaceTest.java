@@ -1,13 +1,12 @@
 package com.zolt.cli;
 
+import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import com.zolt.cli.CliTestSupport.CommandResult;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
 
 final class CliSurfaceTest {
     @Test
@@ -94,18 +93,4 @@ final class CliSurfaceTest {
                 .getName();
     }
 
-    private static CommandResult execute(String... args) {
-        CommandLine commandLine = ZoltCli.newCommandLine();
-        StringWriter stdout = new StringWriter();
-        StringWriter stderr = new StringWriter();
-        commandLine.setOut(new PrintWriter(stdout));
-        commandLine.setErr(new PrintWriter(stderr));
-
-        int exitCode = commandLine.execute(args);
-
-        return new CommandResult(exitCode, stdout.toString(), stderr.toString());
-    }
-
-    private record CommandResult(int exitCode, String stdout, String stderr) {
-    }
 }

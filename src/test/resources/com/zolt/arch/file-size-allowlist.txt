@@ -12,7 +12,7 @@ src/main/java/com/zolt/build/PackageEvidenceManifestWriter.java|534|
 src/main/java/com/zolt/build/IncrementalCompilePlanner.java|524|
 src/main/java/com/zolt/toml/DependencySectionCodec.java|523|
 src/main/java/com/zolt/build/OpenApiGeneratedSourceService.java|508|
-src/test/java/com/zolt/cli/ZoltCliTest.java|8689|
+src/test/java/com/zolt/cli/ZoltCliTest.java|8506|
 src/test/java/com/zolt/resolve/ResolveServiceTest.java|2969|
 src/test/java/com/zolt/toml/ZoltTomlParserTest.java|1943|
 src/test/java/com/zolt/toml/ZoltTomlWriterTest.java|1517|
