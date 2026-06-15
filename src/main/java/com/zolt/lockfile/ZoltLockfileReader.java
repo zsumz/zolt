@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Optional;
 import org.tomlj.Toml;
 import org.tomlj.TomlArray;
+import org.tomlj.TomlInvalidTypeException;
 import org.tomlj.TomlParseError;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
@@ -31,31 +32,39 @@ public final class ZoltLockfileReader {
     }
 
     private ZoltLockfile read(TomlParseResult result) {
-        if (result.hasErrors()) {
-            TomlParseError error = result.errors().getFirst();
-            throw new LockfileReadException(
-                    "Could not parse zolt.lock. Fix the TOML syntax near "
-                            + error.position()
-                            + ": "
-                            + error.getMessage());
-        }
+        try {
+            if (result.hasErrors()) {
+                TomlParseError error = result.errors().getFirst();
+                throw new LockfileReadException(
+                        "Could not parse zolt.lock. Fix the TOML syntax near "
+                                + error.position()
+                                + ": "
+                                + error.getMessage());
+            }
 
-        int version = requireInt(result, "version");
-        if (version != ZoltLockfile.CURRENT_VERSION) {
-            throw new LockfileReadException(
-                    "Unsupported zolt.lock version "
-                            + version
-                            + ". Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.");
-        }
+            int version = requireInt(result, "version");
+            if (version != ZoltLockfile.CURRENT_VERSION) {
+                throw new LockfileReadException(
+                        "Unsupported zolt.lock version "
+                                + version
+                                + ". Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.");
+            }
 
-        return new ZoltLockfile(
-                version,
-                optionalString(result, "aliasFingerprint"),
-                optionalString(result, "projectResolutionFingerprint"),
-                optionalStringArray(result, "projectResolutionInputFingerprints"),
-                packages(result.getArray("package")),
-                conflicts(result.getArray("conflict")),
-                policyEffects(result.getArray("policy")));
+            return new ZoltLockfile(
+                    version,
+                    optionalString(result, "aliasFingerprint"),
+                    optionalString(result, "projectResolutionFingerprint"),
+                    optionalStringArray(result, "projectResolutionInputFingerprints"),
+                    packages(result.getArray("package")),
+                    conflicts(result.getArray("conflict")),
+                    policyEffects(result.getArray("policy")));
+        } catch (TomlInvalidTypeException exception) {
+            throw new LockfileReadException(
+                    "Invalid value type in zolt.lock: "
+                            + exception.getMessage()
+                            + ". Run `zolt resolve` to regenerate the lockfile.",
+                    exception);
+        }
     }
 
     private static List<LockPackage> packages(TomlArray packageArray) {

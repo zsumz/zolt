@@ -37,6 +37,19 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
+    void wrapsTomlTypeErrorsAsLockfileReadExceptions() {
+        LockfileReadException exception = assertThrows(LockfileReadException.class, () -> reader.read("""
+                version = 1
+
+                [[package]]
+                id = 42
+                """));
+
+        assertTrue(exception.getMessage().contains("Invalid value type in zolt.lock"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve` to regenerate the lockfile."));
+    }
+
+    @Test
     void readsAliasFingerprint() {
         ZoltLockfile lockfile = reader.read("""
                 version = 1

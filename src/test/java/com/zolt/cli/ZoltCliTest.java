@@ -5030,7 +5030,12 @@ final class ZoltCliTest {
                 members = ["apps/api"]
                 """);
         Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
-        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = \n");
+        Files.writeString(workspaceDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = 42
+                """);
 
         CommandResult result = execute(
                 "check",
