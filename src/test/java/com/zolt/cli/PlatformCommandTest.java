@@ -18,6 +18,43 @@ final class PlatformCommandTest {
     private Path tempDir;
 
     @Test
+    void platformAddRefreshesLockfileByDefault() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>enterprise-platform</artifactId>
+                      <version>2026.1.0</version>
+                      <dependencyManagement>
+                        <dependencies>
+                          <dependency>
+                            <groupId>com.example</groupId>
+                            <artifactId>legacy-api</artifactId>
+                            <version>1.5.0</version>
+                          </dependency>
+                        </dependencies>
+                      </dependencyManagement>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString());
+
+            CommandResult result = execute(
+                    "platform",
+                    "add",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString(),
+                    "com.example:enterprise-platform:2026.1.0");
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Added platform com.example:enterprise-platform:2026.1.0 to [platforms]"));
+            assertTrue(result.stdout().contains("Resolved 0 packages"));
+            assertTrue(result.stdout().contains("Downloaded 1 artifacts"));
+            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
     void platformAddWritesPlatformWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
@@ -160,12 +197,16 @@ final class PlatformCommandTest {
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+    }
+
+    private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
                 main = "com.example.Main"
 
                 [repositories]
-                test = "https://repo.maven.apache.org/maven2"
+                test = "%s"
 
                 [dependencies]
 
@@ -176,6 +217,6 @@ final class PlatformCommandTest {
                 test = "src/test/java"
                 output = "target/classes"
                 testOutput = "target/test-classes"
-                """);
+                """.formatted(repositoryUrl));
     }
 }
