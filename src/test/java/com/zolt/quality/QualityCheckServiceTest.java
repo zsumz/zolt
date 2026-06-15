@@ -232,6 +232,7 @@ final class QualityCheckServiceTest {
                         "lockfile|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java.",
                         "project-model|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java.",
                         "dependency-metadata|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java.",
+                        "dependency-policy|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java.",
                         "generated-sources|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java.",
                         "package-contents|zolt.toml|Unsupported generated source language `kotlin` in zolt.toml. Supported generated source languages are: java."),
                 report.checks().stream()

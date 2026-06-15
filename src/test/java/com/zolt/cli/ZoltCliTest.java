@@ -773,6 +773,7 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("Policy source: built-in ci context"));
         assertTrue(result.stdout().contains("ok lockfile zolt.lock zolt.lock matches zolt.toml."));
         assertTrue(result.stdout().contains("ok project-model check-context-ci Project model is valid"));
+        assertTrue(result.stdout().contains("ok dependency-policy check-context-ci Dependency policy baseline is explainable"));
         assertTrue(result.stdout().contains("ok generated-sources check-context-ci No declared generated-source steps require validation."));
         assertTrue(result.stdout().contains("ok package-contents check-context-ci Package mode `thin` has 0 dependency dispositions."));
         assertEquals("", result.stderr());
@@ -4929,6 +4930,41 @@ final class ZoltCliTest {
         assertTrue(result.stdout().contains("\"section\": \"dependencies\""));
         assertTrue(result.stdout().contains("\"versionRef\": \"direct-lib\""));
         assertEquals(result.stdout(), execute("policy", "--format", "json", "--cwd", projectDir.toString()).stdout());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkDependencyPolicyPassesWithoutConfiguredPolicy() throws IOException {
+        Path projectDir = tempDir.resolve("check-dependency-policy-empty");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-dependency-policy-empty"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "check",
+                "--check", "dependency-policy",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok dependency-policy check-dependency-policy-empty Dependency policy baseline is explainable: 0 platforms, 0 constraints, 0 exclusions, and 0 direct explicit versions."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkDependencyPolicyReportsDirectExclusionConflicts() throws IOException {
+        Path projectDir = tempDir.resolve("check-dependency-policy-direct-conflict");
+        writePolicyProject(projectDir);
+        writePolicyLockfile(projectDir);
+
+        CommandResult result = execute(
+                "check",
+                "--check", "dependency-policy",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("ok dependency-policy demo Dependency policy baseline is explainable: 1 platform, 2 constraints, 3 exclusions, and 1 direct explicit version."));
+        assertTrue(result.stdout().contains("error dependency-policy [dependencyPolicy].exclude com.example:direct-lib Dependency policy excludes `com.example:direct-lib`, but that package is still a direct dependency."));
+        assertTrue(result.stdout().contains("next: Remove the direct dependency, or remove the exclusion if the dependency is intentional."));
         assertEquals("", result.stderr());
     }
 
