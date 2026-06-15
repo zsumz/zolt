@@ -7,7 +7,6 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
-import com.zolt.framework.FrameworkTestSelection;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;
@@ -18,7 +17,6 @@ import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +36,8 @@ public final class TestRunService {
     private final JunitConsoleArguments junitConsoleArguments;
     private final TestRuntimeInputBuilder testRuntimeInputBuilder = new TestRuntimeInputBuilder();
     private final JunitLauncherClasspath junitLauncherClasspath = new JunitLauncherClasspath();
+    private final TestConsoleFailureHandler consoleFailureHandler = new TestConsoleFailureHandler();
+    private final FrameworkTestSelectionMapper frameworkTestSelectionMapper = new FrameworkTestSelectionMapper();
     private final boolean plainJunitWorkerEnabled;
 
     public TestRunService() {
@@ -69,7 +69,7 @@ public final class TestRunService {
                 jdkDetector,
                 new JavaRunner(),
                 frameworkTestRunner,
-                TestRunService::currentWorkerClasspath,
+                new CurrentWorkerClasspath()::discover,
                 TestRunService::runPlainJunitWorker,
                 Boolean.getBoolean("zolt.junit.worker"),
                 java.io.File.pathSeparator);
@@ -346,7 +346,7 @@ public final class TestRunService {
                             compileResult.outputDirectory(),
                             runnerClasspath,
                             jdkStatus.java().orElseThrow(),
-                            frameworkTestSelection(testSelection),
+                            frameworkTestSelectionMapper.map(testSelection),
                             testJvmArguments.values(),
                             testRuntime.environment()))
                     .orElseThrow(() -> new TestRunException(
@@ -413,17 +413,10 @@ public final class TestRunService {
                             testRuntime.events()),
                     testRuntime.environment());
         } catch (JavaRunException exception) {
-            if (!testSelection.emptySelection() && noTestsFound(exception.getMessage())) {
-                throw noSelectedTestsMatched(exception.getMessage(), exception);
-            }
-            if (reportsDirectory.isEmpty()) {
-                throw exception;
-            }
-            throw testFailed(exception, reportsDirectory);
+            consoleFailureHandler.throwForFailedRun(exception, testSelection, reportsDirectory);
+            throw exception;
         }
-        if (!testSelection.emptySelection() && noTestsFound(result.output())) {
-            throw noSelectedTestsMatched(result.output(), null);
-        }
+        consoleFailureHandler.throwIfSelectedTestsDidNotMatch(result.output(), testSelection);
         return new TestRunResult(
                 compileResult,
                 result.output(),
@@ -436,27 +429,6 @@ public final class TestRunService {
                 testSelection,
                 testJvmArguments,
                 reportsDirectory);
-    }
-
-    private static boolean noTestsFound(String message) {
-        return message.contains("No tests found")
-                || message.contains("Tests found: 0")
-                || message.contains("[         0 tests found");
-    }
-
-    private static TestRunException noSelectedTestsMatched(String output, Throwable cause) {
-        String message = "Selected tests did not match any tests. "
-                + "Check --test, --tests, --include-tag, and --exclude-tag values, then run `zolt test` again.\n"
-                + output.stripTrailing();
-        return cause == null ? new TestRunException(message) : new TestRunException(message, cause);
-    }
-
-    private static TestRunException testFailed(JavaRunException exception, Optional<Path> reportsDirectory) {
-        String message = exception.getMessage();
-        if (reportsDirectory.isPresent()) {
-            message = message + "\nTest reports: " + reportsDirectory.orElseThrow();
-        }
-        return new TestRunException(message, exception);
     }
 
     private static List<Path> absolutePaths(List<Path> classpath) {
@@ -491,37 +463,6 @@ public final class TestRunService {
         } catch (JunitWorkerClientException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }
-    }
-
-    private static List<Path> currentWorkerClasspath() {
-        String classpath = System.getProperty("java.class.path", "");
-        List<Path> entries = Arrays.stream(classpath.split(java.io.File.pathSeparator))
-                .filter(entry -> !entry.isBlank())
-                .map(Path::of)
-                .map(path -> path.toAbsolutePath().normalize())
-                .toList();
-        if (entries.isEmpty()) {
-            throw new TestRunException(
-                    "Could not determine Zolt worker classpath for test execution. "
-                            + "Run zolt test from the packaged launcher or check java.class.path.");
-        }
-        return entries;
-    }
-
-    private static FrameworkTestSelection frameworkTestSelection(TestSelection selection) {
-        if (selection == null) {
-            return FrameworkTestSelection.empty();
-        }
-        return new FrameworkTestSelection(
-                selection.classSelectors(),
-                selection.methodSelectors().stream()
-                        .map(method -> new FrameworkTestSelection.MethodSelector(
-                                method.className(),
-                                method.methodName()))
-                        .toList(),
-                selection.classNamePatterns(),
-                selection.includedTags(),
-                selection.excludedTags());
     }
 
     @FunctionalInterface

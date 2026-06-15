@@ -1,7 +1,6 @@
 # path|maxLines|followUp
 src/main/java/com/zolt/project/ProjectConfig.java|565|
 src/main/java/com/zolt/build/BuildFingerprintService.java|613|
-src/main/java/com/zolt/build/TestRunService.java|548|
 src/main/java/com/zolt/explain/GradleStaticProjectInspector.java|626|
 src/main/java/com/zolt/build/PackageService.java|536|
 src/main/java/com/zolt/build/PackageEvidenceManifestWriter.java|534|
