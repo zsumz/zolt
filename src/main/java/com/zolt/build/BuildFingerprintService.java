@@ -33,6 +33,7 @@ public final class BuildFingerprintService {
             TEST_FILE_NAME,
             MAIN_FILE_NAME + STATE_SUFFIX,
             TEST_FILE_NAME + STATE_SUFFIX);
+    private final BuildFingerprintExpectedClasses expectedClasses = new BuildFingerprintExpectedClasses();
 
     public boolean isMainCompileCurrent(
             Path projectDirectory,
@@ -177,7 +178,11 @@ public final class BuildFingerprintService {
         if (!Files.isDirectory(outputDirectory)) {
             return false;
         }
-        if (!expectedClassFilesPresent(projectDirectory, sourceRoots, sources, outputDirectory)) {
+        if (!expectedClasses.present(
+                projectDirectory.toAbsolutePath().normalize(),
+                sourceRoots,
+                sources,
+                outputDirectory)) {
             return false;
         }
         if (!processorClasspath.entries().isEmpty() && !Files.isDirectory(generatedSourcesDirectory)) {
@@ -319,7 +324,7 @@ public final class BuildFingerprintService {
         section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
         section(content, "resources", resourceEntries(projectRoot, resourceRoots, resourceRootKey, config.build(), cachedState, collectedState));
         section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory, cachedState, collectedState));
-        section(content, "expectedClasses", expectedClassEntries(projectRoot, sourceRoots, sources, outputDirectory));
+        section(content, "expectedClasses", expectedClasses.entries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
     }
 
@@ -450,73 +455,6 @@ public final class BuildFingerprintService {
                             + ". Check that the directory is readable.",
                     exception);
         }
-    }
-
-    private static List<String> expectedClassEntries(
-            Path projectRoot,
-            List<String> sourceRoots,
-            List<Path> sources,
-            Path outputDirectory) {
-        return expectedClassFiles(projectRoot, sourceRoots, sources, outputDirectory).stream()
-                .sorted()
-                .map(path -> relative(projectRoot, path))
-                .toList();
-    }
-
-    private static boolean expectedClassFilesPresent(
-            Path projectDirectory,
-            List<String> sourceRoots,
-            List<Path> sources,
-            Path outputDirectory) {
-        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        for (Path expectedClass : expectedClassFiles(projectRoot, sourceRoots, sources, outputDirectory)) {
-            if (!Files.isRegularFile(expectedClass)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static List<Path> expectedClassFiles(
-            Path projectRoot,
-            List<String> sourceRoots,
-            List<Path> sources,
-            Path outputDirectory) {
-        List<Path> roots = sourceRoots.stream()
-                .map(root -> projectRoot.resolve(root).normalize())
-                .toList();
-        return sources.stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .map(path -> classFile(sourceRootFor(roots, path), path, outputDirectory))
-                .flatMap(Optional::stream)
-                .sorted()
-                .toList();
-    }
-
-    private static Optional<Path> classFile(Optional<Path> sourceRoot, Path source, Path outputDirectory) {
-        if (sourceRoot.isEmpty()) {
-            return Optional.empty();
-        }
-        Path relative = sourceRoot.orElseThrow().relativize(source);
-        String fileName = relative.getFileName().toString();
-        String extension;
-        if (fileName.endsWith(".java")) {
-            extension = ".java";
-        } else if (fileName.endsWith(".groovy")) {
-            extension = ".groovy";
-        } else {
-            return Optional.empty();
-        }
-        Path classRelative = relative.getParent() == null
-                ? Path.of(fileName.substring(0, fileName.length() - extension.length()) + ".class")
-                : relative.getParent().resolve(fileName.substring(0, fileName.length() - extension.length()) + ".class");
-        return Optional.of(outputDirectory.resolve(classRelative).normalize());
-    }
-
-    private static Optional<Path> sourceRootFor(List<Path> sourceRoots, Path source) {
-        return sourceRoots.stream()
-                .filter(source::startsWith)
-                .max(Comparator.comparingInt(Path::getNameCount));
     }
 
     private static void section(StringBuilder content, String name, List<String> entries) {
