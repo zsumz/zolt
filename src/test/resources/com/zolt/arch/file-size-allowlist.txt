@@ -2,7 +2,6 @@
 src/main/java/com/zolt/project/ProjectConfig.java|565|
 src/main/java/com/zolt/build/BuildFingerprintService.java|675|
 src/main/java/com/zolt/build/TestRunService.java|673|
-src/main/java/com/zolt/quarkus/QuarkusAnnotationProgrammaticRunner.java|715|
 src/main/java/com/zolt/workspace/WorkspaceResolveService.java|628|
 src/main/java/com/zolt/explain/GradleStaticProjectInspector.java|626|
 src/main/java/com/zolt/build/PackageService.java|536|
