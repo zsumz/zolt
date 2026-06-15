@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import com.zolt.cache.CachedArtifact;
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.ArtifactDescriptor;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -9,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 
@@ -18,6 +18,14 @@ final class ArtifactBatchMaterializer {
             List<ArtifactDescriptor> descriptors,
             int concurrency,
             Function<ArtifactDescriptor, CachedArtifact> materializer) {
+        return materialize(descriptors, concurrency, RepositoryExecutionLane.DEFAULT, materializer);
+    }
+
+    Map<ArtifactDescriptor, CachedArtifact> materialize(
+            List<ArtifactDescriptor> descriptors,
+            int concurrency,
+            RepositoryExecutionLane executionLane,
+            Function<ArtifactDescriptor, CachedArtifact> materializer) {
         Map<ArtifactDescriptor, ArtifactDescriptor> uniqueDescriptors = new LinkedHashMap<>();
         descriptors.stream()
                 .sorted(Comparator.comparing(ArtifactBatchMaterializer::artifactDescriptorKey))
@@ -25,7 +33,7 @@ final class ArtifactBatchMaterializer {
         if (uniqueDescriptors.isEmpty()) {
             return Map.of();
         }
-        try (ExecutorService executor = Executors.newFixedThreadPool(concurrency)) {
+        try (ExecutorService executor = executionLane.openExecutor(concurrency)) {
             Map<ArtifactDescriptor, Future<CachedArtifact>> futures = new LinkedHashMap<>();
             for (ArtifactDescriptor descriptor : uniqueDescriptors.values()) {
                 futures.put(descriptor, executor.submit(() -> materializer.apply(descriptor)));

@@ -1,5 +1,6 @@
 package com.zolt.cache;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.MavenRepositoryPathBuilder;
@@ -35,6 +36,10 @@ public final class LocalArtifactCache {
 
     public int downloadConcurrency() {
         return downloadCoordinator.concurrency();
+    }
+
+    public RepositoryExecutionLane repositoryExecutionLane() {
+        return downloadCoordinator.executionLane();
     }
 
     public Path pomPath(Coordinate coordinate) {

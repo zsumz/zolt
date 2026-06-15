@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
 import java.util.ArrayList;
@@ -9,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 
@@ -18,6 +18,14 @@ final class PomMetadataPreloader {
             List<Coordinate> coordinates,
             int concurrency,
             Function<Coordinate, EffectiveRawPom> loader) {
+        preload(coordinates, concurrency, RepositoryExecutionLane.DEFAULT, loader);
+    }
+
+    void preload(
+            List<Coordinate> coordinates,
+            int concurrency,
+            RepositoryExecutionLane executionLane,
+            Function<Coordinate, EffectiveRawPom> loader) {
         Map<String, Coordinate> uniqueCoordinates = new LinkedHashMap<>();
         coordinates.stream()
                 .sorted(Comparator.comparing(Coordinate::toString))
@@ -25,7 +33,7 @@ final class PomMetadataPreloader {
         if (uniqueCoordinates.isEmpty()) {
             return;
         }
-        try (ExecutorService executor = Executors.newFixedThreadPool(concurrency)) {
+        try (ExecutorService executor = executionLane.openExecutor(concurrency)) {
             Map<String, Future<EffectiveRawPom>> futures = new LinkedHashMap<>();
             for (Map.Entry<String, Coordinate> entry : uniqueCoordinates.entrySet()) {
                 futures.put(entry.getKey(), executor.submit(() -> loader.apply(entry.getValue())));

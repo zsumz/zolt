@@ -1,5 +1,6 @@
 package com.zolt.cache;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -10,7 +11,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
@@ -19,18 +19,24 @@ public final class DownloadCoordinator {
     public static final String CONCURRENCY_ENV = "ZOLT_DOWNLOAD_CONCURRENCY";
 
     private final int concurrency;
+    private final RepositoryExecutionLane executionLane;
     private final Semaphore permits;
     private final ConcurrentHashMap<String, CompletableFuture<Object>> inFlight = new ConcurrentHashMap<>();
 
     public DownloadCoordinator() {
-        this(concurrencyFromEnvironment(System.getenv()));
+        this(concurrencyFromEnvironment(System.getenv()), RepositoryExecutionLane.fromEnvironment(System.getenv()));
     }
 
     public DownloadCoordinator(int concurrency) {
+        this(concurrency, RepositoryExecutionLane.DEFAULT);
+    }
+
+    public DownloadCoordinator(int concurrency, RepositoryExecutionLane executionLane) {
         if (concurrency < 1) {
             throw new IllegalArgumentException("Download concurrency must be at least 1.");
         }
         this.concurrency = concurrency;
+        this.executionLane = Objects.requireNonNull(executionLane, "executionLane");
         this.permits = new Semaphore(concurrency);
     }
 
@@ -49,6 +55,10 @@ public final class DownloadCoordinator {
 
     public int concurrency() {
         return concurrency;
+    }
+
+    public RepositoryExecutionLane executionLane() {
+        return executionLane;
     }
 
     public <T> T run(String repositoryPath, Supplier<T> action) {
@@ -95,7 +105,7 @@ public final class DownloadCoordinator {
         if (planned.isEmpty()) {
             return List.of();
         }
-        try (ExecutorService executor = Executors.newFixedThreadPool(concurrency)) {
+        try (ExecutorService executor = executionLane.openExecutor(concurrency)) {
             List<CompletableFuture<T>> futures = planned.stream()
                     .map(task -> CompletableFuture.supplyAsync(() -> run(task.repositoryPath(), task.action()), executor))
                     .toList();

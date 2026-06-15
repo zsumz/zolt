@@ -64,7 +64,11 @@ final class RepositorySession implements DependencyMetadataSource, ResolverMetri
 
     @Override
     public void preload(List<Coordinate> coordinates) {
-        pomMetadataPreloader.preload(coordinates, cache.downloadConcurrency(), this::load);
+        pomMetadataPreloader.preload(
+                coordinates,
+                cache.downloadConcurrency(),
+                cache.repositoryExecutionLane(),
+                this::load);
     }
 
     @Override
@@ -92,7 +96,11 @@ final class RepositorySession implements DependencyMetadataSource, ResolverMetri
 
     @Override
     public Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
-        return artifactBatchMaterializer.materialize(descriptors, cache.downloadConcurrency(), this::getArtifact);
+        return artifactBatchMaterializer.materialize(
+                descriptors,
+                cache.downloadConcurrency(),
+                cache.repositoryExecutionLane(),
+                this::getArtifact);
     }
 
     int downloadCount() {

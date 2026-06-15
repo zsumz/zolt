@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.Coordinate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +40,23 @@ final class PomMetadataPreloaderTest {
                 coordinate -> {
                     throw new AssertionError("unexpected preload call");
                 });
+    }
+
+    @Test
+    void preloadsWithSelectedExecutionLane() {
+        Coordinate alpha = coordinate("com.example", "alpha", "1.0.0");
+        List<Boolean> virtualThreads = Collections.synchronizedList(new ArrayList<>());
+
+        preloader.preload(
+                List.of(alpha),
+                1,
+                RepositoryExecutionLane.VIRTUAL,
+                coordinate -> {
+                    virtualThreads.add(Thread.currentThread().isVirtual());
+                    return null;
+                });
+
+        assertEquals(List.of(true), virtualThreads);
     }
 
     @Test

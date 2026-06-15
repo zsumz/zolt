@@ -5,10 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cache.CachedArtifact;
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,6 +50,24 @@ final class ArtifactBatchMaterializerTest {
                 });
 
         assertEquals(Map.of(), artifacts);
+    }
+
+    @Test
+    void materializesWithSelectedExecutionLane() {
+        ArtifactDescriptor alpha = jar("com.example", "alpha", "1.0.0");
+        List<Boolean> virtualThreads = Collections.synchronizedList(new ArrayList<>());
+
+        Map<ArtifactDescriptor, CachedArtifact> artifacts = materializer.materialize(
+                List.of(alpha),
+                1,
+                RepositoryExecutionLane.VIRTUAL,
+                descriptor -> {
+                    virtualThreads.add(Thread.currentThread().isVirtual());
+                    return cached(descriptor);
+                });
+
+        assertEquals(List.of(alpha), new ArrayList<>(artifacts.keySet()));
+        assertEquals(List.of(true), virtualThreads);
     }
 
     @Test

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.cache.DownloadCoordinator.DownloadCoordinatorException;
 import com.zolt.cache.DownloadCoordinator.DownloadTask;
 import java.util.List;
@@ -83,6 +84,17 @@ final class DownloadCoordinatorTest {
         assertEquals(
                 DownloadCoordinator.DEFAULT_CONCURRENCY,
                 DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "not-a-number")));
+    }
+
+    @Test
+    void runAllUsesSelectedExecutionLane() {
+        DownloadCoordinator coordinator = new DownloadCoordinator(2, RepositoryExecutionLane.VIRTUAL);
+
+        List<Boolean> virtualThreads = coordinator.runAll(List.of(
+                new DownloadTask<>("repo/a.jar", () -> Thread.currentThread().isVirtual()),
+                new DownloadTask<>("repo/b.jar", () -> Thread.currentThread().isVirtual())));
+
+        assertEquals(List.of(true, true), virtualThreads);
     }
 
     @Test
