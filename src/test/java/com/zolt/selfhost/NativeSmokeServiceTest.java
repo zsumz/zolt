@@ -25,7 +25,142 @@ final class NativeSmokeServiceTest {
     void smokesNativeBinaryThroughReleaseAndGeneratedProjectWorkflow() throws IOException {
         Path binary = writeBinary();
         List<List<String>> commands = new ArrayList<>();
+        NativeSmokeService service = recordingService(commands);
+
+        NativeSmokeResult result = service.smoke(
+                tempDir,
+                config(),
+                binary,
+                Path.of("target/native-smoke"));
+
+        assertEquals(binary, result.binary());
+        assertEquals(tempDir.resolve("target/native-smoke"), result.workDirectory());
+        assertEquals(tempDir.resolve("target/native-smoke/release/zolt-0.1.0-linux-x64.tar.gz"), result.archive());
+        assertEquals(tempDir.resolve("target/native-smoke/hello-native"), result.projectDirectory());
+        assertEquals(List.of(binary.toString(), "--version"), commands.getFirst());
+        assertEquals(List.of(binary.toString(), "help"), commands.get(1));
+        assertEquals(List.of(
+                binary.toString(),
+                "release-archive",
+                "--cwd",
+                tempDir.toString(),
+                "--binary",
+                binary.toString(),
+                "--output",
+                Path.of("target/native-smoke/release").toString()), commands.get(2));
+        assertEquals(List.of(
+                binary.toString(),
+                "version",
+                "set",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--no-resolve",
+                "native-smoke",
+                "0.0.1"), commands.get(5));
+        assertEquals(List.of(
+                binary.toString(),
+                "version",
+                "remove",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--no-resolve",
+                "native-smoke"), commands.get(6));
+        assertEquals(List.of(
+                binary.toString(),
+                "resolve",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--cache-root",
+                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(7));
+    }
+
+    @Test
+    void absoluteWorkDirectoryKeepsReleaseArchiveOutputProjectRelative() throws IOException {
+        Path binary = writeBinary();
+        List<List<String>> commands = new ArrayList<>();
+        NativeSmokeService service = recordingService(commands);
+
+        service.smoke(
+                tempDir,
+                config(),
+                binary,
+                tempDir.resolve("target/native-smoke").toAbsolutePath().normalize());
+
+        List<String> releaseArchive = commands.get(2);
+        assertEquals(
+                Path.of("target/native-smoke/release").toString(),
+                releaseArchive.get(releaseArchive.indexOf("--output") + 1));
+    }
+
+    @Test
+    void workDirectoryCannotBeProjectRoot() throws IOException {
+        Path binary = writeBinary();
         NativeSmokeService service = new NativeSmokeService((command, directory) -> {
+            throw new AssertionError("native smoke should reject work directory before running commands");
+        });
+
+        NativeSmokeException exception = assertThrows(
+                NativeSmokeException.class,
+                () -> service.smoke(tempDir, config(), binary, Path.of(".")));
+
+        assertTrue(exception.getMessage().contains("--work-dir"));
+        assertTrue(exception.getMessage().contains("must not be the project directory itself"));
+        assertTrue(Files.exists(binary));
+    }
+
+    @Test
+    void workDirectoryCannotEscapeProjectRoot() throws IOException {
+        Path binary = writeBinary();
+        NativeSmokeService service = new NativeSmokeService((command, directory) -> {
+            throw new AssertionError("native smoke should reject work directory before running commands");
+        });
+
+        NativeSmokeException exception = assertThrows(
+                NativeSmokeException.class,
+                () -> service.smoke(tempDir, config(), binary, Path.of("../native-smoke-outside")));
+
+        assertTrue(exception.getMessage().contains("--work-dir"));
+        assertTrue(exception.getMessage().contains("must be under project directory"));
+        assertTrue(Files.exists(binary));
+    }
+
+    @Test
+    void versionMismatchIsActionable() throws IOException {
+        Path binary = writeBinary();
+        NativeSmokeService service = new NativeSmokeService((command, directory) ->
+                new NativeSmokeService.ProcessResult(0, "demo 0.1.0\n"));
+
+        NativeSmokeException exception = assertThrows(
+                NativeSmokeException.class,
+                () -> service.smoke(tempDir, config(), binary, Path.of("target/native-smoke")));
+
+        assertTrue(exception.getMessage().contains("expected `"));
+        assertTrue(exception.getMessage().contains("0.1.0"));
+    }
+
+    @Test
+    void missingBinaryIsActionable() {
+        NativeSmokeService service = new NativeSmokeService((command, directory) -> {
+            throw new AssertionError("binary should not run");
+        });
+
+        NativeSmokeException exception = assertThrows(
+                NativeSmokeException.class,
+                () -> service.smoke(tempDir, config(), Path.of("target/native/missing"), Path.of("target/native-smoke")));
+
+        assertTrue(exception.getMessage().contains("Native smoke requires binary"));
+        assertTrue(exception.getMessage().contains("Run `zolt native`"));
+    }
+
+    private Path writeBinary() throws IOException {
+        Path binary = tempDir.resolve("target/native/zolt");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "native");
+        return binary;
+    }
+
+    private static NativeSmokeService recordingService(List<List<String>> commands) {
+        return new NativeSmokeService((command, directory) -> {
             commands.add(command);
             if (command.contains("release-archive")) {
                 Path projectDirectory = Path.of(command.get(command.indexOf("--cwd") + 1));
@@ -77,87 +212,6 @@ final class NativeSmokeServiceTest {
             }
             return new NativeSmokeService.ProcessResult(0, "ok\n");
         });
-
-        NativeSmokeResult result = service.smoke(
-                tempDir,
-                config(),
-                binary,
-                Path.of("target/native-smoke"));
-
-        assertEquals(binary, result.binary());
-        assertEquals(tempDir.resolve("target/native-smoke"), result.workDirectory());
-        assertEquals(tempDir.resolve("target/native-smoke/release/zolt-0.1.0-linux-x64.tar.gz"), result.archive());
-        assertEquals(tempDir.resolve("target/native-smoke/hello-native"), result.projectDirectory());
-        assertEquals(List.of(binary.toString(), "--version"), commands.getFirst());
-        assertEquals(List.of(binary.toString(), "help"), commands.get(1));
-        assertEquals(List.of(
-                binary.toString(),
-                "release-archive",
-                "--cwd",
-                tempDir.toString(),
-                "--binary",
-                binary.toString(),
-                "--output",
-                Path.of("target/native-smoke/release").toString()), commands.get(2));
-        assertEquals(List.of(
-                binary.toString(),
-                "version",
-                "set",
-                "--cwd",
-                tempDir.resolve("target/native-smoke/hello-native").toString(),
-                "--no-resolve",
-                "native-smoke",
-                "0.0.1"), commands.get(5));
-        assertEquals(List.of(
-                binary.toString(),
-                "version",
-                "remove",
-                "--cwd",
-                tempDir.resolve("target/native-smoke/hello-native").toString(),
-                "--no-resolve",
-                "native-smoke"), commands.get(6));
-        assertEquals(List.of(
-                binary.toString(),
-                "resolve",
-                "--cwd",
-                tempDir.resolve("target/native-smoke/hello-native").toString(),
-                "--cache-root",
-                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(7));
-    }
-
-    @Test
-    void versionMismatchIsActionable() throws IOException {
-        Path binary = writeBinary();
-        NativeSmokeService service = new NativeSmokeService((command, directory) ->
-                new NativeSmokeService.ProcessResult(0, "demo 0.1.0\n"));
-
-        NativeSmokeException exception = assertThrows(
-                NativeSmokeException.class,
-                () -> service.smoke(tempDir, config(), binary, Path.of("target/native-smoke")));
-
-        assertTrue(exception.getMessage().contains("expected `"));
-        assertTrue(exception.getMessage().contains("0.1.0"));
-    }
-
-    @Test
-    void missingBinaryIsActionable() {
-        NativeSmokeService service = new NativeSmokeService((command, directory) -> {
-            throw new AssertionError("binary should not run");
-        });
-
-        NativeSmokeException exception = assertThrows(
-                NativeSmokeException.class,
-                () -> service.smoke(tempDir, config(), Path.of("target/native/missing"), Path.of("target/native-smoke")));
-
-        assertTrue(exception.getMessage().contains("Native smoke requires binary"));
-        assertTrue(exception.getMessage().contains("Run `zolt native`"));
-    }
-
-    private Path writeBinary() throws IOException {
-        Path binary = tempDir.resolve("target/native/zolt");
-        Files.createDirectories(binary.getParent());
-        Files.writeString(binary, "native");
-        return binary;
     }
 
     private static ProjectConfig config() {

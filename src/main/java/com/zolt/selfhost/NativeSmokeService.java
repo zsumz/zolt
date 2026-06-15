@@ -34,7 +34,7 @@ public final class NativeSmokeService {
                             + ". Run `zolt native` or pass --binary <path>.");
         }
 
-        Path workRoot = root.resolve(workDirectory).normalize();
+        Path workRoot = nativeSmokeWorkDirectory(root, workDirectory);
         resetWorkDirectory(workRoot);
         String expectedVersion = config.project().version();
 
@@ -198,6 +198,19 @@ public final class NativeSmokeService {
                     "Native smoke " + key + " path " + normalized + " must be under project directory " + projectRoot + ".");
         }
         return projectRoot.relativize(normalized).toString();
+    }
+
+    private static Path nativeSmokeWorkDirectory(Path projectRoot, Path workDirectory) {
+        Path resolved = projectRoot.resolve(workDirectory).normalize();
+        if (!resolved.startsWith(projectRoot) || resolved.equals(projectRoot)) {
+            throw new NativeSmokeException(
+                    "Native smoke --work-dir path "
+                            + resolved
+                            + " must be under project directory "
+                            + projectRoot
+                            + " and must not be the project directory itself.");
+        }
+        return resolved;
     }
 
     private static Path singleReleaseArchive(Path releaseDirectory, ProjectConfig config) {
