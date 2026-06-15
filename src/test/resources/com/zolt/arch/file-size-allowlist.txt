@@ -2,7 +2,6 @@
 src/main/java/com/zolt/project/ProjectConfig.java|565|
 src/test/java/com/zolt/build/PackageServiceTest.java|850|
 src/test/java/com/zolt/build/TestRunServiceTest.java|784|
-src/test/java/com/zolt/build/BuildServiceTest.java|873|
 src/test/java/com/zolt/build/TestCompileServiceTest.java|866|
 src/test/java/com/zolt/workspace/WorkspaceBuildServiceTest.java|786|
 src/test/java/com/zolt/workspace/WorkspaceResolveServiceTest.java|714|
