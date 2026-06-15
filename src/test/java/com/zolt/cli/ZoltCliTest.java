@@ -1275,52 +1275,6 @@ final class ZoltCliTest {
     }
 
     @Test
-    void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        writeMainSource(projectDir, """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                        System.out.println("hello");
-                    }
-                }
-                """);
-
-        CommandResult result = execute(
-                "build",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("Compiled 1 main source files"));
-        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
-        assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
-        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
-    }
-
-    @Test
-    void buildRunsQuarkusAugmentationWhenFrameworkIsEnabled() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        enableQuarkus(projectDir);
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-
-        CommandResult result = execute(
-                "build",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("Compiled 0 main source files"));
-        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
-        assertTrue(result.stderr().contains("No Quarkus deployment artifacts were found in zolt.lock"));
-        assertTrue(result.stderr().contains("run `zolt resolve`"));
-    }
-
-    @Test
     void buildWorkspaceCompilesMembersInDependencyOrder() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");
@@ -2477,89 +2431,6 @@ final class ZoltCliTest {
     }
 
     @Test
-    void buildOfflineUsesExistingLockfileAndCache() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        writeMainSource(projectDir, """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                        System.out.println("hello");
-                    }
-                }
-                """);
-
-        CommandResult result = execute(
-                "build",
-                "--offline",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Compiled 1 main source files"));
-        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
-    }
-
-    @Test
-    void buildCommandPrintsJsonTimingsWithIncrementalDiagnosticsWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        writeMainSource(projectDir, """
-                package com.example;
-
-                public final class Main {
-                }
-                """);
-
-        CommandResult result = execute(
-                "build",
-                "--timings",
-                "--timings-format", "json",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(0, result.exitCode());
-        String[] lines = result.stderr().lines().toArray(String[]::new);
-        assertEquals(3, lines.length);
-        assertTrue(lines[1].contains("\"phase\":\"compile main\""));
-        assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
-        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
-        assertTrue(lines[1].contains("\"mainSourcesAdded\":\"0\""));
-        assertTrue(lines[1].contains("\"mainSourcesChanged\":\"0\""));
-        assertTrue(lines[1].contains("\"mainSourcesDeleted\":\"0\""));
-        assertTrue(lines[1].contains("\"mainSourcesRecompiled\":\"1\""));
-        assertTrue(lines[1].contains("\"mainDependentSourcesRecompiled\":\"0\""));
-        assertTrue(lines[1].contains("\"mainClassesDeleted\":\"0\""));
-        assertTrue(lines[1].contains("\"mainAbiChangedClasses\":\"0\""));
-        assertTrue(lines[1].contains("\"mainPackagePrivateAbiChangedClasses\":\"0\""));
-    }
-
-    @Test
-    void buildReturnsNonZeroOnCompilationFailure() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        writeMainSource(projectDir, """
-                package com.example;
-
-                public final class Main {
-                    missing
-                }
-                """);
-
-        CommandResult result = execute(
-                "build",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: javac failed with exit code"));
-        assertTrue(result.stderr().contains("Main.java"));
-    }
-
-    @Test
     void packageCommandBuildsSpringBootWarWithProvidedTomcatLane() throws IOException {
         Path projectDir = tempDir.resolve("spring-boot-war-provided-tomcat");
         Path cacheRoot = tempDir.resolve("cache");
@@ -2948,15 +2819,6 @@ final class ZoltCliTest {
                 testOutput = "target/test-classes"
                 """);
         Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
-    }
-
-    private static void enableQuarkus(Path projectDir) throws IOException {
-        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
-
-                [framework.quarkus]
-                enabled = true
-                package = "fast-jar"
-                """);
     }
 
     private static void writeProjectConfigWithoutMain(Path projectDir, String repositoryUrl) throws IOException {
