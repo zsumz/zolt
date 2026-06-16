@@ -1,15 +1,15 @@
 package com.zolt.workspace;
 
+import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.member;
+import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -21,7 +21,7 @@ final class WorkspaceDiscoveryServiceTest {
 
     @Test
     void discoversWorkspaceFromNestedMemberDirectory() throws IOException {
-        workspace("""
+        workspace(tempDir, """
                 [workspace]
                 name = "acme-platform"
                 members = ["apps/api", "modules/core"]
@@ -33,8 +33,8 @@ final class WorkspaceDiscoveryServiceTest {
                 [platforms]
                 "com.acme:enterprise-platform" = "2026.1.0"
                 """);
-        member("apps/api", "api", "com.acme");
-        member("modules/core", "core", "com.acme");
+        member(tempDir, "apps/api", "api", "com.acme", "");
+        member(tempDir, "modules/core", "core", "com.acme", "");
         Path nestedDirectory = tempDir.resolve("apps/api/src/main/java/com/acme");
         Files.createDirectories(nestedDirectory);
 
@@ -65,147 +65,13 @@ final class WorkspaceDiscoveryServiceTest {
     }
 
     @Test
-    void rejectsMemberPathsThatEscapeWorkspaceRoot() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["../outside"]
-                """);
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertTrue(exception.getMessage().contains("Invalid workspace member path `../outside` in [workspace].members."));
-        assertTrue(exception.getMessage().contains("[workspace].members"));
-        assertTrue(exception.getMessage().contains("resolved to"));
-    }
-
-    @Test
-    void rejectsWindowsAbsoluteWorkspaceMemberPathsOnEveryHost() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["C:\\\\outside\\\\member"]
-                """);
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertTrue(exception.getMessage().contains("Invalid workspace member path `C:\\outside\\member`"));
-        assertTrue(exception.getMessage().contains("[workspace].members"));
-    }
-
-    @Test
-    void rejectsWorkspaceMemberSymlinkThatEscapesWorkspaceRoot() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["apps/api"]
-                """);
-        Path outside = Files.createTempDirectory(tempDir.getParent(), "outside-member-");
-        Files.writeString(outside.resolve("zolt.toml"), """
-                [project]
-                name = "api"
-                version = "0.1.0"
-                group = "com.acme"
-                java = "21"
-                """);
-        createSymlink(tempDir.resolve("apps/api"), outside);
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertTrue(exception.getMessage().contains("[workspace].members"));
-        assertTrue(exception.getMessage().contains("resolved through symlinks"));
-    }
-
-    @Test
-    void rejectsMissingMemberConfig() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["apps/api"]
-                """);
-        Files.createDirectories(tempDir.resolve("apps/api"));
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertEquals(
-                "Workspace member `apps/api` must contain zolt.toml at "
-                        + tempDir.toAbsolutePath().normalize().resolve("apps/api/zolt.toml")
-                        + ".",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsDuplicateMemberCoordinates() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["apps/api", "modules/api-copy"]
-                """);
-        member("apps/api", "api", "com.acme");
-        member("modules/api-copy", "api", "com.acme");
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertEquals(
-                "Workspace member coordinate `com.acme:api` is used by both `apps/api` and `modules/api-copy`. Give each member a unique [project].group:[project].name.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsDefaultMembersThatAreNotDeclaredMembers() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["apps/api"]
-                defaultMembers = ["apps/worker"]
-                """);
-        member("apps/api", "api", "com.acme");
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertEquals(
-                "Workspace default member `apps/worker` must also be listed in [workspace].members.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsDuplicateNormalizedMemberPaths() throws IOException {
-        workspace("""
-                [workspace]
-                name = "bad"
-                members = ["apps/api", "apps/./api"]
-                """);
-        member("apps/api", "api", "com.acme");
-
-        WorkspaceConfigException exception = assertThrows(
-                WorkspaceConfigException.class,
-                () -> service.load(tempDir));
-
-        assertEquals(
-                "Duplicate workspace member `apps/api` after path normalization.",
-                exception.getMessage());
-    }
-
-    @Test
     void createsEdgesForWorkspaceDependencies() throws IOException {
-        workspace("""
+        workspace(tempDir, """
                 [workspace]
                 name = "acme-platform"
                 members = ["apps/api", "modules/core", "modules/test-fixtures"]
                 """);
-        member("apps/api", "api", "com.acme", """
+        member(tempDir, "apps/api", "api", "com.acme", """
 
                 [dependencies]
                 "com.acme:core" = { workspace = "modules/core" }
@@ -213,8 +79,8 @@ final class WorkspaceDiscoveryServiceTest {
                 [test.dependencies]
                 "com.acme:test-fixtures" = { workspace = "modules/test-fixtures" }
                 """);
-        member("modules/core", "core", "com.acme");
-        member("modules/test-fixtures", "test-fixtures", "com.acme");
+        member(tempDir, "modules/core", "core", "com.acme", "");
+        member(tempDir, "modules/test-fixtures", "test-fixtures", "com.acme", "");
 
         Workspace workspace = service.load(tempDir);
 
@@ -231,17 +97,17 @@ final class WorkspaceDiscoveryServiceTest {
 
     @Test
     void createsExportedEdgesForWorkspaceApiDependencies() throws IOException {
-        workspace("""
+        workspace(tempDir, """
                 [workspace]
                 name = "acme-platform"
                 members = ["apps/api", "modules/core"]
                 """);
-        member("apps/api", "api", "com.acme", """
+        member(tempDir, "apps/api", "api", "com.acme", """
 
                 [api.dependencies]
                 "com.acme:core" = { workspace = "modules/core" }
                 """);
-        member("modules/core", "core", "com.acme");
+        member(tempDir, "modules/core", "core", "com.acme", "");
 
         Workspace workspace = service.load(tempDir);
 
@@ -252,50 +118,21 @@ final class WorkspaceDiscoveryServiceTest {
 
     @Test
     void createsDependencyFirstBuildOrder() throws IOException {
-        workspace("""
+        workspace(tempDir, """
                 [workspace]
                 name = "acme-platform"
                 members = ["apps/api", "modules/core", "apps/worker"]
                 """);
-        member("apps/api", "api", "com.acme", """
+        member(tempDir, "apps/api", "api", "com.acme", """
 
                 [dependencies]
                 "com.acme:core" = { workspace = "modules/core" }
                 """);
-        member("modules/core", "core", "com.acme");
-        member("apps/worker", "worker", "com.acme");
+        member(tempDir, "modules/core", "core", "com.acme", "");
+        member(tempDir, "apps/worker", "worker", "com.acme", "");
 
         Workspace workspace = service.load(tempDir);
 
         assertEquals(List.of("modules/core", "apps/api", "apps/worker"), workspace.buildOrder());
-    }
-
-    private void workspace(String content) throws IOException {
-        Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
-    }
-
-    private void member(String path, String name, String group) throws IOException {
-        member(path, name, group, "");
-    }
-
-    private void member(String path, String name, String group, String extraToml) throws IOException {
-        Path member = tempDir.resolve(path);
-        Files.createDirectories(member);
-        Files.writeString(member.resolve("zolt.toml"), """
-                [project]
-                name = "%s"
-                version = "0.1.0"
-                group = "%s"
-                java = "21"
-                %s""".formatted(name, group, extraToml));
-    }
-
-    private static void createSymlink(Path link, Path target) throws IOException {
-        Files.createDirectories(link.getParent());
-        try {
-            Files.createSymbolicLink(link, target);
-        } catch (UnsupportedOperationException | IOException exception) {
-            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
-        }
     }
 }
