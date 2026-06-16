@@ -1,0 +1,88 @@
+package com.zolt.workspace;
+
+import com.zolt.build.JavacRunner;
+import com.zolt.classpath.Classpath;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+
+final class WorkspaceTestServiceTestSupport {
+    private WorkspaceTestServiceTestSupport() {
+    }
+
+    static void workspace(Path tempDir, String content) throws IOException {
+        Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
+    }
+
+    static void member(Path tempDir, String path, String name, String extraToml) throws IOException {
+        Path member = tempDir.resolve(path);
+        Files.createDirectories(member);
+        Files.writeString(member.resolve("zolt.toml"), """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "%s"
+                %s""".formatted(name, currentJavaMajorVersion(), extraToml));
+    }
+
+    static void source(Path tempDir, String path, String content) throws IOException {
+        Path source = tempDir.resolve(path);
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, content);
+    }
+
+    static void createFakeConsoleJar(Path tempDir, Path jar) throws IOException {
+        Path source = tempDir.resolve("fake-console-src/org/junit/platform/console/ConsoleLauncher.java");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, """
+                package org.junit.platform.console;
+
+                public final class ConsoleLauncher {
+                    private ConsoleLauncher() {
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println("fake console");
+                    }
+                }
+                """);
+        Path classes = tempDir.resolve("fake-console-classes");
+        new JavacRunner().compile(
+                currentJavac(),
+                List.of(source),
+                new Classpath(List.of()),
+                classes);
+
+        Files.createDirectories(jar.getParent());
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            JarEntry entry = new JarEntry("org/junit/platform/console/ConsoleLauncher.class");
+            output.putNextEntry(entry);
+            output.write(Files.readAllBytes(classes.resolve("org/junit/platform/console/ConsoleLauncher.class")));
+            output.closeEntry();
+        }
+    }
+
+    static String currentJavaMajorVersion() {
+        String version = System.getProperty("java.version");
+        String[] parts = version.split("[._+-]", -1);
+        if (parts.length >= 2 && "1".equals(parts[0])) {
+            return parts[1];
+        }
+        return parts[0];
+    }
+
+    static String executable(String name) {
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")
+                ? name + ".exe"
+                : name;
+    }
+
+    private static Path currentJavac() {
+        return Path.of(System.getProperty("java.home")).resolve("bin").resolve(executable("javac"));
+    }
+}
