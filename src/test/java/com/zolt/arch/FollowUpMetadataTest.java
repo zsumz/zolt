@@ -21,6 +21,12 @@ final class FollowUpMetadataTest {
     private static final Path FOLLOW_UPS = Path.of("followUps");
     private static final int MODERN_FOLLOW_UP_MIN_ID = 503;
     private static final Set<String> VALID_STATUSES = Set.of("Open", "Done", "Blocked", "Implemented");
+    private static final List<String> REQUIRED_SECTIONS = List.of(
+            "Goal",
+            "Context",
+            "Scope",
+            "Acceptance",
+            "Verification");
     private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("follow-up-(\\d{3})-.+\\.md");
 
     @Test
@@ -65,21 +71,75 @@ final class FollowUpMetadataTest {
 
                 Status: Open
 
+                ## Goal
+
+                Keep work visible.
+
+                ## Context
+
+                Work is still in progress.
+
+                ## Scope
+
+                Track a remaining item.
+
+                ## Acceptance
+
                 - [ ] Work in progress
+
+                ## Verification
+
+                - [ ] Later
                 """);
         write(tempDir.resolve("-done.md"), """
                 #  - Done followUp
 
                 Status: Done
 
+                ## Goal
+
+                Complete work.
+
+                ## Context
+
+                Work is complete.
+
+                ## Scope
+
+                Track the completed item.
+
+                ## Acceptance
+
                 - [x] Complete
+
+                ## Verification
+
+                - [x] Checked
                 """);
         write(tempDir.resolve("-stale.md"), """
                 #  - Stale followUp
 
                 Status: Done
 
+                ## Goal
+
+                Complete work.
+
+                ## Context
+
+                Work is not complete.
+
+                ## Scope
+
+                Track stale state.
+
+                ## Acceptance
+
                 - [ ] Incomplete
+
+                ## Verification
+
+                - [x] Checked
                 """);
 
         List<FollowUpFile> followUps = modernFollowUps(tempDir);
@@ -121,8 +181,37 @@ final class FollowUpMetadataTest {
             if (followUp.status().filter("Done"::equals).isPresent() && followUp.hasUncheckedChecklistItem()) {
                 violations.add(followUp.path() + " is Done but still has unchecked checklist items");
             }
+            for (String section : REQUIRED_SECTIONS) {
+                if (!followUp.hasSection(section)) {
+                    violations.add(followUp.path() + " is missing `## " + section + "`");
+                }
+            }
         }
         return violations;
+    }
+
+    @Test
+    void modernFollowUpsRequireCoreSections(@TempDir Path tempDir) throws IOException {
+        write(tempDir.resolve("-incomplete.md"), """
+                #  - Incomplete followUp
+
+                Status: Open
+
+                ## Goal
+
+                Keep enough context to start.
+
+                ## Context
+
+                Missing several core sections.
+                """);
+
+        assertEquals(
+                List.of(
+                        tempDir.resolve("-incomplete.md") + " is missing `## Scope`",
+                        tempDir.resolve("-incomplete.md") + " is missing `## Acceptance`",
+                        tempDir.resolve("-incomplete.md") + " is missing `## Verification`"),
+                violations(modernFollowUps(tempDir)));
     }
 
     private static List<String> sequenceViolations(List<FollowUpFile> followUps) {
@@ -204,6 +293,10 @@ final class FollowUpMetadataTest {
     private record FollowUpFile(Path path, String id, String title, Optional<String> status, List<String> lines) {
         private boolean hasUncheckedChecklistItem() {
             return lines.stream().anyMatch(line -> line.trim().startsWith("- [ ]"));
+        }
+
+        private boolean hasSection(String name) {
+            return lines.stream().anyMatch(line -> line.equals("## " + name));
         }
     }
 }
