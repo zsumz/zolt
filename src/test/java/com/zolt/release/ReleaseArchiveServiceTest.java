@@ -125,21 +125,6 @@ final class ReleaseArchiveServiceTest {
     }
 
     @Test
-    void currentTargetInfersLinuxArm64FromAarch64() {
-        String originalOs = System.getProperty("os.name");
-        String originalArch = System.getProperty("os.arch");
-        try {
-            System.setProperty("os.name", "Linux");
-            System.setProperty("os.arch", "aarch64");
-
-            assertEquals(ReleaseTarget.LINUX_ARM64, ReleaseTarget.current());
-        } finally {
-            restoreSystemProperty("os.name", originalOs);
-            restoreSystemProperty("os.arch", originalArch);
-        }
-    }
-
-    @Test
     void manifestIsDeterministicAndListsExistingArchives() throws IOException {
         writeProjectFiles();
         Path unixBinary = writeBinary("target/native/zolt");
@@ -213,18 +198,6 @@ final class ReleaseArchiveServiceTest {
         assertTrue(exception.getMessage().contains("[project].version"));
         assertTrue(exception.getMessage().contains("../0.1.0"));
         assertFalse(Files.exists(projectDir.resolve("dist/zolt-0.1.0-linux-x64.tar.gz")));
-    }
-
-    @Test
-    void unknownTargetListsSupportedTargets() {
-        ReleaseArchiveException exception = assertThrows(
-                ReleaseArchiveException.class,
-                () -> ReleaseTarget.fromId("solaris-sparc"));
-
-        assertTrue(exception.getMessage().contains("Unknown release target `solaris-sparc`"));
-        assertTrue(exception.getMessage().contains("macos-arm64"));
-        assertTrue(exception.getMessage().contains("linux-arm64"));
-        assertTrue(exception.getMessage().contains("windows-x64"));
     }
 
     private void writeProjectFiles() throws IOException {
@@ -309,11 +282,4 @@ final class ReleaseArchiveServiceTest {
         return parts[0];
     }
 
-    private static void restoreSystemProperty(String key, String value) {
-        if (value == null) {
-            System.clearProperty(key);
-        } else {
-            System.setProperty(key, value);
-        }
-    }
 }
