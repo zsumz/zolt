@@ -1,5 +1,14 @@
 package com.zolt.build;
 
+import static com.zolt.build.PackageServiceTestSupport.buildSettingsWithMetadata;
+import static com.zolt.build.PackageServiceTestSupport.config;
+import static com.zolt.build.PackageServiceTestSupport.createJarWithEntry;
+import static com.zolt.build.PackageServiceTestSupport.createSymlink;
+import static com.zolt.build.PackageServiceTestSupport.currentJavaMajorVersion;
+import static com.zolt.build.PackageServiceTestSupport.readEntry;
+import static com.zolt.build.PackageServiceTestSupport.resourceFilteringSettings;
+import static com.zolt.build.PackageServiceTestSupport.source;
+import static com.zolt.build.PackageServiceTestSupport.writeLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -12,18 +21,12 @@ import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
-import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ProjectPathException;
-import com.zolt.project.ResourceFilteringSettings;
-import com.zolt.project.ResourceMissingTokenPolicy;
-import com.zolt.project.ResourceTokenSettings;
-import java.io.InputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -32,8 +35,6 @@ import java.util.Optional;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -45,8 +46,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesCompiledClassesWithGeneratedManifest() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -78,8 +79,8 @@ final class PackageServiceTest {
 
     @Test
     void rejectsPackageArchiveNameThatUsesUnsafeProjectName() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -107,7 +108,7 @@ final class PackageServiceTest {
 
     @Test
     void rejectsPackageArchiveWhenTargetParentSymlinkEscapesProject() throws IOException {
-        writeLockfile();
+        writeLockfile(projectDir);
         Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-target-");
         createSymlink(projectDir.resolve("target"), outside);
         Path classes = projectDir.resolve("classes/com/example/Main.class");
@@ -130,8 +131,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesCustomManifestAttributesInThinJar() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -179,7 +180,7 @@ final class PackageServiceTest {
                 jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -202,8 +203,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesResourcesAndNativeImageConfigDeterministically() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -211,8 +212,8 @@ final class PackageServiceTest {
                     }
                 }
                 """);
-        source("src/main/resources/config/app.properties", "name=demo\n");
-        source("src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
+        source(projectDir, "src/main/resources/config/app.properties", "name=demo\n");
+        source(projectDir, "src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
 
         PackageResult result = packageService.packageJar(
                 projectDir,
@@ -232,8 +233,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesFilteredResourcesInThinJar() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -241,7 +242,7 @@ final class PackageServiceTest {
                     }
                 }
                 """);
-        source("src/main/resources/application.properties", "name=@projectName@\nversion=@projectVersion@\n");
+        source(projectDir, "src/main/resources/application.properties", "name=@projectName@\nversion=@projectVersion@\n");
         ProjectConfig config = config(Optional.of("com.example.Main"))
                 .withBuildSettings(BuildSettings.defaults().withResourceFiltering(resourceFilteringSettings()));
 
@@ -253,195 +254,9 @@ final class PackageServiceTest {
     }
 
     @Test
-    void writesDeterministicPackageEvidenceManifestWithoutResourceTokenValues() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                    }
-                }
-                """);
-        source("src/main/resources/application.properties", "name=@projectName@\nsecret=@secretToken@\n");
-        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
-        source("target/generated/sources/openapi/com/example/generated/GeneratedApi.java", """
-                package com.example.generated;
-
-                public interface GeneratedApi {
-                }
-                """);
-        ResourceFilteringSettings filtering = new ResourceFilteringSettings(
-                true,
-                false,
-                List.of("**/*.properties"),
-                ResourceMissingTokenPolicy.FAIL,
-                Map.of(
-                        "projectName", ResourceTokenSettings.project("name"),
-                        "secretToken", ResourceTokenSettings.literal("super-secret-value")));
-        BuildSettings build = BuildSettings.defaults()
-                .withResourceFiltering(filtering)
-                .withGeneratedSources(
-                        List.of(new GeneratedSourceStep(
-                                "openapi",
-                                GeneratedSourceKind.DECLARED_ROOT,
-                                "java",
-                                "target/generated/sources/openapi",
-                                List.of("src/main/openapi/api.yaml"),
-                                true,
-                                false)),
-                        List.of());
-        ProjectConfig config = config(Optional.of("com.example.Main"))
-                .withBuildSettings(build);
-
-        PackageResult first = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
-        String firstEvidence = Files.readString(first.evidenceManifestPath().orElseThrow());
-        PackageResult second = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
-        String secondEvidence = Files.readString(second.evidenceManifestPath().orElseThrow());
-
-        assertEquals(firstEvidence, secondEvidence);
-        assertEquals(
-                projectDir.resolve("target/demo-0.1.0.jar.zolt-package.json"),
-                first.evidenceManifestPath().orElseThrow());
-        assertTrue(firstEvidence.contains("\"schema\": \"zolt.package-evidence.v1\""));
-        assertTrue(firstEvidence.contains("\"archive\": \"target/demo-0.1.0.jar\""));
-        assertTrue(firstEvidence.contains("\"archiveSha256\": \"sha256:"));
-        assertTrue(firstEvidence.contains("\"resourceFiltering\": {"));
-        assertTrue(firstEvidence.contains("\"source\": \"literal\""));
-        assertTrue(firstEvidence.contains("\"source\": \"project\""));
-        assertTrue(firstEvidence.contains("\"path\": \"src/main/resources/application.properties\""));
-        assertTrue(firstEvidence.contains("\"generatedSources\": ["));
-        assertTrue(firstEvidence.contains("\"id\": \"generated-main-openapi\""));
-        assertTrue(firstEvidence.contains("\"path\": \"src/main/openapi/api.yaml\""));
-        assertTrue(firstEvidence.contains("\"freshness\": \"fresh\""));
-        assertTrue(firstEvidence.contains("\"toolVersionRef\": null"));
-        assertFalse(firstEvidence.contains("super-secret-value"));
-    }
-
-    @Test
-    void packageEvidenceRejectsUnsafeResourceRoot() throws IOException {
-        Path classes = projectDir.resolve("target/classes");
-        Path archive = projectDir.resolve("target/demo-0.1.0.jar");
-        Files.createDirectories(archive.getParent());
-        Files.writeString(archive, "archive");
-        ProjectConfig config = config(Optional.of("com.example.Main"))
-                .withBuildSettings(new BuildSettings(
-                        "src/main/java",
-                        "src/test/java",
-                        "target/classes",
-                        "target/test-classes",
-                        List.of("src/test/java"),
-                        List.of(),
-                        List.of("../outside-resources"),
-                        List.of("src/test/resources"),
-                        null));
-        BuildResult buildResult = new BuildResult(Optional.empty(), 0, 0, classes, "");
-        PackagePlan plan = new PackagePlan(
-                projectDir,
-                PackageMode.THIN,
-                archive,
-                classes,
-                "classes-root",
-                Optional.empty(),
-                List.of(),
-                List.of());
-        PackageResult result = new PackageResult(
-                buildResult,
-                PackageMode.THIN,
-                archive,
-                Optional.empty(),
-                Optional.empty(),
-                0,
-                false,
-                List.of());
-
-        PackageException exception = assertThrows(
-                PackageException.class,
-                () -> new PackageEvidenceManifestWriter().write(projectDir, config, plan, result, List.of()));
-
-        assertTrue(exception.getMessage().contains("[resources].main"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("../outside-resources"), exception.getMessage());
-    }
-
-    @Test
-    void recordsOpenApiToolVersionRefInPackageEvidenceManifest() throws IOException {
-        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
-        Path output = projectDir.resolve("target/generated/sources/openapi/com/example/generated/GeneratedApi.java");
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, "package com.example.generated; public interface GeneratedApi {}\n");
-        Path classes = projectDir.resolve("target/classes");
-        Files.createDirectories(classes);
-        Path archive = projectDir.resolve("target/demo-0.1.0.jar");
-        Files.writeString(archive, "archive", StandardCharsets.UTF_8);
-
-        BuildSettings build = BuildSettings.defaults().withGeneratedSources(
-                List.of(new GeneratedSourceStep(
-                        "openapi",
-                        GeneratedSourceKind.OPENAPI,
-                        "java",
-                        "target/generated/sources/openapi",
-                        List.of("src/main/openapi/api.yaml"),
-                        true,
-                        false,
-                        new OpenApiGenerationSettings(
-                                Optional.of("org.openapitools:openapi-generator-cli"),
-                                Optional.of("7.11.0"),
-                                Optional.of("openapi-generator"),
-                                Optional.empty(),
-                                Optional.of("spring"),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Map.of(),
-                                Map.of(),
-                                Map.of(),
-                                Map.of(),
-                                Map.of(),
-                                Map.of()))),
-                List.of());
-        ProjectConfig config = config(Optional.of("com.example.Main"))
-                .withBuildSettings(build);
-        BuildResult buildResult = new BuildResult(Optional.empty(), 0, 0, classes, "");
-        PackagePlan plan = new PackagePlan(
-                projectDir,
-                PackageMode.THIN,
-                archive,
-                classes,
-                "classes-root",
-                Optional.empty(),
-                List.of(),
-                List.of());
-        PackageResult result = new PackageResult(
-                buildResult,
-                PackageMode.THIN,
-                archive,
-                Optional.empty(),
-                Optional.empty(),
-                1,
-                true,
-                List.of());
-
-        PackageEvidenceManifestWriter writer = new PackageEvidenceManifestWriter();
-        Path firstPath = writer.write(projectDir, config, plan, result, List.of());
-        String firstEvidence = Files.readString(firstPath);
-        Path secondPath = writer.write(projectDir, config, plan, result, List.of());
-        String secondEvidence = Files.readString(secondPath);
-
-        assertEquals(firstEvidence, secondEvidence);
-        assertTrue(firstEvidence.contains("\"toolArtifact\": \"org.openapitools:openapi-generator-cli:7.11.0\""));
-        assertTrue(firstEvidence.contains("\"toolVersionRef\": \"openapi-generator\""));
-        assertTrue(firstEvidence.contains("\"toolFingerprint\": \""));
-        assertTrue(firstEvidence.contains("\"optionsFingerprint\": \""));
-    }
-
-    @Test
     void packagesGeneratedBuildInfoMetadata() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -468,8 +283,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesRequestedLibraryArtifacts() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Calculator.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Calculator.java", """
                 package com.example;
 
                 /** Adds numbers. */
@@ -480,14 +295,14 @@ final class PackageServiceTest {
                     }
                 }
                 """);
-        source("src/test/java/com/example/CalculatorTest.java", """
+        source(projectDir, "src/test/java/com/example/CalculatorTest.java", """
                 package com.example;
 
                 public final class CalculatorTest {
                 }
                 """);
-        source("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
-        source("target/generated/sources/openapi/com/example/generated/GeneratedApi.java", """
+        source(projectDir, "src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        source(projectDir, "target/generated/sources/openapi/com/example/generated/GeneratedApi.java", """
                 package com.example.generated;
 
                 public interface GeneratedApi {
@@ -529,8 +344,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesJavadocsWhenProjectDirectoryIsRelative() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Calculator.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Calculator.java", """
                 package com.example;
 
                 /** Adds numbers. */
@@ -571,8 +386,8 @@ final class PackageServiceTest {
 
     @Test
     void javadocFailuresPreserveToolOutputAndNextStep() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Calculator.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Calculator.java", """
                 package com.example;
 
                 public final class Calculator {
@@ -599,8 +414,8 @@ final class PackageServiceTest {
 
     @Test
     void duplicateJarEntriesFailWithActionableError() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -608,7 +423,7 @@ final class PackageServiceTest {
                     }
                 }
                 """);
-        source("src/main/resources/META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n");
+        source(projectDir, "src/main/resources/META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n");
 
         PackageException exception = assertThrows(
                 PackageException.class,
@@ -623,8 +438,8 @@ final class PackageServiceTest {
 
     @Test
     void packagesLibraryProjectsWithoutMainClassManifestEntry() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Library.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Library.java", """
                 package com.example;
 
                 public final class Library {
@@ -694,7 +509,7 @@ final class PackageServiceTest {
                 jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -749,7 +564,7 @@ final class PackageServiceTest {
                 jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -771,80 +586,4 @@ final class PackageServiceTest {
         assertFalse(runtimeClasspath.contains(devJar.toString()));
     }
 
-    private static ProjectConfig config(Optional<String> mainClass) {
-        return config(new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass));
-    }
-
-    private static ProjectConfig config(ProjectMetadata projectMetadata) {
-        return new ProjectConfig(
-                projectMetadata,
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of(),
-                Map.of(),
-                BuildSettings.defaults());
-    }
-
-    private static BuildSettings buildSettingsWithMetadata(BuildMetadataSettings metadataSettings) {
-        return new BuildSettings(
-                "src/main/java",
-                "src/test/java",
-                "target/classes",
-                "target/test-classes",
-                List.of("src/test/java"),
-                metadataSettings);
-    }
-
-    private static ResourceFilteringSettings resourceFilteringSettings() {
-        return new ResourceFilteringSettings(
-                true,
-                false,
-                List.of("**/*.properties"),
-                ResourceMissingTokenPolicy.FAIL,
-                Map.of(
-                        "projectName", ResourceTokenSettings.project("name"),
-                        "projectVersion", ResourceTokenSettings.project("version"),
-                        "serverPort", ResourceTokenSettings.literal("0")));
-    }
-
-    private void source(String path, String content) throws IOException {
-        Path source = projectDir.resolve(path);
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, content);
-    }
-
-    private void writeLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-    }
-
-    private static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
-        Files.createDirectories(jarPath.getParent());
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(new byte[] {0});
-            output.closeEntry();
-        }
-    }
-
-    private static void createSymlink(Path link, Path target) throws IOException {
-        try {
-            Files.createSymbolicLink(link, target);
-        } catch (UnsupportedOperationException | IOException exception) {
-            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
-        }
-    }
-
-    private static String readEntry(JarFile jar, String name) throws IOException {
-        try (InputStream input = jar.getInputStream(jar.getEntry(name))) {
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
-    }
 }

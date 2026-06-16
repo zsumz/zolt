@@ -1,5 +1,12 @@
 package com.zolt.build;
 
+import static com.zolt.build.PackageServiceTestSupport.buildSettingsWithMetadata;
+import static com.zolt.build.PackageServiceTestSupport.config;
+import static com.zolt.build.PackageServiceTestSupport.createJarWithEntry;
+import static com.zolt.build.PackageServiceTestSupport.readEntry;
+import static com.zolt.build.PackageServiceTestSupport.resourceFilteringSettings;
+import static com.zolt.build.PackageServiceTestSupport.source;
+import static com.zolt.build.PackageServiceTestSupport.writeLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -10,30 +17,21 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildMetadataSettings;
-import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
-import com.zolt.project.ResourceFilteringSettings;
-import com.zolt.project.ResourceMissingTokenPolicy;
-import com.zolt.project.ResourceTokenSettings;
 import com.zolt.resolve.ResolveService;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -61,7 +59,7 @@ final class PackageServiceFrameworkModesTest {
                 jar = "org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -121,7 +119,7 @@ final class PackageServiceFrameworkModesTest {
                 jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -129,7 +127,7 @@ final class PackageServiceFrameworkModesTest {
                     }
                 }
                 """);
-        source("src/main/resources/application.properties", "name=@projectName@\n");
+        source(projectDir, "src/main/resources/application.properties", "name=@projectName@\n");
         ProjectConfig config = config(Optional.of("com.example.Main"))
                 .withPackageSettings(new PackageSettings(PackageMode.WAR));
         config = config.withBuildSettings(config.build().withResourceFiltering(resourceFilteringSettings()));
@@ -228,7 +226,7 @@ final class PackageServiceFrameworkModesTest {
                 jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -282,8 +280,8 @@ final class PackageServiceFrameworkModesTest {
 
     @Test
     void unsupportedUberPackageModeFailsBeforeWritingJar() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -307,8 +305,8 @@ final class PackageServiceFrameworkModesTest {
 
     @Test
     void quarkusPackageModeReturnsAugmentedRunnerJar() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -352,8 +350,8 @@ final class PackageServiceFrameworkModesTest {
 
     @Test
     void quarkusPackageModeRequiresEnabledFramework() throws IOException {
-        writeLockfile();
-        source("src/main/java/com/example/Main.java", """
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -450,7 +448,7 @@ final class PackageServiceFrameworkModesTest {
                 jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -458,7 +456,7 @@ final class PackageServiceFrameworkModesTest {
                     }
                 }
                 """);
-        source("src/main/resources/application.properties", "server.port=@serverPort@\nname=@projectName@\n");
+        source(projectDir, "src/main/resources/application.properties", "server.port=@serverPort@\nname=@projectName@\n");
         ProjectConfig config = config(Optional.of("com.example.Main"))
                 .withBuildSettings(buildSettingsWithMetadata(new BuildMetadataSettings(true, false, true)))
                 .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
@@ -552,7 +550,7 @@ final class PackageServiceFrameworkModesTest {
                 jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/main/java/com/example/Main.java", """
+        source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -576,68 +574,4 @@ final class PackageServiceFrameworkModesTest {
         }
     }
 
-    private static ProjectConfig config(Optional<String> mainClass) {
-        return new ProjectConfig(
-                new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of(),
-                Map.of(),
-                BuildSettings.defaults());
-    }
-
-    private static BuildSettings buildSettingsWithMetadata(BuildMetadataSettings metadataSettings) {
-        return new BuildSettings(
-                "src/main/java",
-                "src/test/java",
-                "target/classes",
-                "target/test-classes",
-                List.of("src/test/java"),
-                metadataSettings);
-    }
-
-    private static ResourceFilteringSettings resourceFilteringSettings() {
-        return new ResourceFilteringSettings(
-                true,
-                false,
-                List.of("**/*.properties"),
-                ResourceMissingTokenPolicy.FAIL,
-                Map.of(
-                        "projectName", ResourceTokenSettings.project("name"),
-                        "projectVersion", ResourceTokenSettings.project("version"),
-                        "serverPort", ResourceTokenSettings.literal("0")));
-    }
-
-    private void source(String path, String content) throws IOException {
-        Path source = projectDir.resolve(path);
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, content);
-    }
-
-    private void writeLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-    }
-
-    private static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
-        Files.createDirectories(jarPath.getParent());
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(new byte[] {0});
-            output.closeEntry();
-        }
-    }
-
-    private static String readEntry(JarFile jar, String name) throws IOException {
-        try (InputStream input = jar.getInputStream(jar.getEntry(name))) {
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
-    }
 }
