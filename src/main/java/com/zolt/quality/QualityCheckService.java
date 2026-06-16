@@ -22,48 +22,24 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 public final class QualityCheckService {
-    public static final String COMMAND_SURFACE = "command-surface";
-    public static final String CACHE_INTEGRITY = "cache-integrity";
-    public static final String LOCKFILE = "lockfile";
-    public static final String PROJECT_MODEL = "project-model";
-    public static final String DEPENDENCY_METADATA = "dependency-metadata";
-    public static final String DEPENDENCY_POLICY = "dependency-policy";
-    public static final String PACKAGE_METADATA = "package-metadata";
-    public static final String PACKAGE_CONTENTS = "package-contents";
-    public static final String MANIFEST_METADATA = "manifest-metadata";
-    public static final String GENERATED_SOURCES = "generated-sources";
-    public static final String EXECUTION_CONTEXT = "execution-context";
-
-    private static final Set<String> IMPLEMENTED_CHECKS = Set.of(
-            COMMAND_SURFACE,
-            CACHE_INTEGRITY,
-            EXECUTION_CONTEXT,
-            LOCKFILE,
-            PROJECT_MODEL,
-            DEPENDENCY_METADATA,
-            DEPENDENCY_POLICY,
-            PACKAGE_METADATA,
-            PACKAGE_CONTENTS,
-            MANIFEST_METADATA,
-            GENERATED_SOURCES);
-    private static final List<String> CI_CONTEXT_CHECKS = List.of(
-            EXECUTION_CONTEXT,
-            LOCKFILE,
-            PROJECT_MODEL,
-            DEPENDENCY_METADATA,
-            DEPENDENCY_POLICY,
-            GENERATED_SOURCES,
-            PACKAGE_CONTENTS);
-    private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of();
+    public static final String COMMAND_SURFACE = QualityCheckCatalog.COMMAND_SURFACE;
+    public static final String CACHE_INTEGRITY = QualityCheckCatalog.CACHE_INTEGRITY;
+    public static final String LOCKFILE = QualityCheckCatalog.LOCKFILE;
+    public static final String PROJECT_MODEL = QualityCheckCatalog.PROJECT_MODEL;
+    public static final String DEPENDENCY_METADATA = QualityCheckCatalog.DEPENDENCY_METADATA;
+    public static final String DEPENDENCY_POLICY = QualityCheckCatalog.DEPENDENCY_POLICY;
+    public static final String PACKAGE_METADATA = QualityCheckCatalog.PACKAGE_METADATA;
+    public static final String PACKAGE_CONTENTS = QualityCheckCatalog.PACKAGE_CONTENTS;
+    public static final String MANIFEST_METADATA = QualityCheckCatalog.MANIFEST_METADATA;
+    public static final String GENERATED_SOURCES = QualityCheckCatalog.GENERATED_SOURCES;
+    public static final String EXECUTION_CONTEXT = QualityCheckCatalog.EXECUTION_CONTEXT;
 
     private final ZoltTomlParser projectParser;
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
@@ -141,14 +117,14 @@ public final class QualityCheckService {
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
-        List<String> requestedChecks = requestedChecks(request);
+        List<String> requestedChecks = QualityCheckCatalog.requestedChecks(request);
         Path root = request.projectRoot();
 
         if (request.workspace()) {
             try {
                 Optional<Workspace> maybeWorkspace = workspaceDiscoveryService.discover(root);
                 if (maybeWorkspace.isEmpty()) {
-                    return new QualityCheckReport(root, true, unavailableResults(
+                    return new QualityCheckReport(root, true, QualityCheckCatalog.unavailableResults(
                             requestedChecks,
                             "zolt-workspace.toml",
                             "No Zolt workspace was found for `zolt check --workspace`.",
@@ -158,7 +134,7 @@ public final class QualityCheckService {
                 WorkspaceSelection selection = workspaceMemberSelector.select(workspace, request.workspaceSelection());
                 return new QualityCheckReport(root, true, runWorkspaceChecks(request, requestedChecks, workspace, selection));
             } catch (WorkspaceConfigException exception) {
-                return new QualityCheckReport(root, true, unavailableResults(
+                return new QualityCheckReport(root, true, QualityCheckCatalog.unavailableResults(
                         requestedChecks,
                         "zolt-workspace.toml",
                         exception.getMessage(),
@@ -170,7 +146,7 @@ public final class QualityCheckService {
             ProjectConfig config = projectParser.parse(root.resolve("zolt.toml"));
             return new QualityCheckReport(root, false, runProjectChecks(request, requestedChecks, config));
         } catch (ZoltConfigException exception) {
-            return new QualityCheckReport(root, false, unavailableResults(
+            return new QualityCheckReport(root, false, QualityCheckCatalog.unavailableResults(
                     requestedChecks,
                     "zolt.toml",
                     exception.getMessage(),
@@ -179,9 +155,7 @@ public final class QualityCheckService {
     }
 
     public static Set<String> supportedChecks() {
-        Set<String> supported = new LinkedHashSet<>(IMPLEMENTED_CHECKS);
-        supported.addAll(new TreeMap<>(PLANNED_CHECK_NOTES).keySet());
-        return Collections.unmodifiableSet(supported);
+        return QualityCheckCatalog.supportedChecks();
     }
 
     private static QualityCheckResult commandSurfaceProjectResult(ProjectConfig config) {
@@ -245,7 +219,7 @@ public final class QualityCheckService {
                         Optional.empty(),
                         request.projectRoot(),
                         config));
-                default -> results.add(unsupportedOrSkipped(requestedCheck));
+                default -> results.add(QualityCheckCatalog.unsupportedOrSkipped(requestedCheck));
             }
         }
         return List.copyOf(results);
@@ -322,7 +296,7 @@ public final class QualityCheckService {
                                 member.config()));
                     }
                 }
-                default -> results.add(unsupportedOrSkipped(requestedCheck));
+                default -> results.add(QualityCheckCatalog.unsupportedOrSkipped(requestedCheck));
             }
         }
         return List.copyOf(results);
@@ -427,65 +401,4 @@ public final class QualityCheckService {
         return Collections.unmodifiableMap(members);
     }
 
-    private static List<QualityCheckResult> unavailableResults(
-            List<String> requestedChecks,
-            String subject,
-            String message,
-            String nextStep) {
-        List<QualityCheckResult> results = new ArrayList<>();
-        for (String requestedCheck : requestedChecks) {
-            if (IMPLEMENTED_CHECKS.contains(requestedCheck)) {
-                results.add(QualityCheckResult.failed(
-                        requestedCheck,
-                        Optional.empty(),
-                        subject,
-                        message,
-                        nextStep));
-            } else {
-                results.add(unsupportedOrSkipped(requestedCheck));
-            }
-        }
-        return List.copyOf(results);
-    }
-
-    private static QualityCheckResult unsupportedOrSkipped(String requestedCheck) {
-        if (PLANNED_CHECK_NOTES.containsKey(requestedCheck)) {
-            return QualityCheckResult.skipped(
-                    requestedCheck,
-                    Optional.empty(),
-                    requestedCheck,
-                    "Quality check `" + requestedCheck + "` is planned but not implemented yet.",
-                    "Track " + PLANNED_CHECK_NOTES.get(requestedCheck) + ".");
-        }
-        return QualityCheckResult.failed(
-                "unsupported-check",
-                Optional.empty(),
-                requestedCheck,
-                "Unsupported quality check `" + requestedCheck + "`.",
-                "Use one of: " + String.join(", ", supportedChecks()) + ". Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks.");
-    }
-
-    private static List<String> requestedChecks(QualityCheckRequest request) {
-        List<String> rawChecks = request.checks();
-        if (rawChecks.isEmpty()) {
-            if (request.context() == QualityCheckContext.CI) {
-                return CI_CONTEXT_CHECKS;
-            }
-            if (request.context() == QualityCheckContext.LOCAL) {
-                return List.of(EXECUTION_CONTEXT);
-            }
-            return List.of(COMMAND_SURFACE);
-        }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        if (request.context() == QualityCheckContext.CI || request.context() == QualityCheckContext.LOCAL) {
-            normalized.add(EXECUTION_CONTEXT);
-        }
-        for (String rawCheck : rawChecks) {
-            String check = rawCheck == null ? "" : rawCheck.trim();
-            if (!check.isEmpty()) {
-                normalized.add(check);
-            }
-        }
-        return List.copyOf(normalized);
-    }
 }
