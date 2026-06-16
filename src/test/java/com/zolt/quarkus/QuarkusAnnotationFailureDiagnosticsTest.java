@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -120,39 +119,6 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
         assertEquals("<unavailable: StartupAction>", result);
     }
 
-    @Test
-    void reportsQuarkusResourceElementsWhenLoaderExposesThem() {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        QuarkusAnnotationFailureDiagnostics diagnostics = diagnostics(out);
-        FakeResourceClassLoader classLoader = new FakeResourceClassLoader(List.of(
-                new FakeClassPathElement(Path.of("target", "quarkus-app", "quarkus", "generated-bytecode.jar"))));
-
-        diagnostics.writeQuarkusResourceElements(
-                "generatedInvoker.actualLoader",
-                "com.example.HelloResource$quarkusrestinvoker$hello",
-                classLoader);
-
-        String output = output(out);
-        assertTrue(output.contains(
-                "generatedInvoker.actualLoader.resource=com/example/HelloResource$quarkusrestinvoker$hello.class"));
-        assertTrue(output.contains(
-                "generatedInvoker.actualLoader.resourceElement.0=target/quarkus-app/quarkus/generated-bytecode.jar"));
-    }
-
-    @Test
-    void reportsUnavailableResourceElementsForPlainClassLoaders() {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        QuarkusAnnotationFailureDiagnostics diagnostics = diagnostics(out);
-
-        diagnostics.writeQuarkusResourceElements(
-                "generatedInvoker.actualLoader",
-                "com.example.HelloResource",
-                QuarkusAnnotationFailureDiagnosticsTest.class.getClassLoader());
-
-        assertTrue(output(out).contains(
-                "generatedInvoker.actualLoader.resourceElements=<unavailable: NoSuchMethodException>"));
-    }
-
     private static QuarkusAnnotationFailureDiagnostics diagnostics(ByteArrayOutputStream out) {
         return new QuarkusAnnotationFailureDiagnostics(new PrintStream(out, true, StandardCharsets.UTF_8));
     }
@@ -185,28 +151,4 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
         }
     }
 
-    static final class FakeResourceClassLoader extends ClassLoader {
-        private final List<FakeClassPathElement> elements;
-
-        private FakeResourceClassLoader(List<FakeClassPathElement> elements) {
-            super(QuarkusAnnotationFailureDiagnosticsTest.class.getClassLoader());
-            this.elements = elements;
-        }
-
-        public List<FakeClassPathElement> getElementsWithResource(String resourceName, boolean includeParent) {
-            return elements;
-        }
-    }
-
-    static final class FakeClassPathElement {
-        private final Path root;
-
-        private FakeClassPathElement(Path root) {
-            this.root = root;
-        }
-
-        public Path getRoot() {
-            return root;
-        }
-    }
 }

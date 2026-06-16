@@ -4,35 +4,29 @@ import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URL;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
-import java.util.ServiceConfigurationError;
-import java.util.ServiceLoader;
 
 final class QuarkusAnnotationFailureDiagnostics {
     private static final String MAIN_OUTPUT_DIRECTORY_PROPERTY =
             QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY;
-    private static final String TEST_BUILD_CHAIN_FUNCTION = "io.quarkus.test.junit.TestBuildChainFunction";
-    private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SPI =
-            "io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
-    private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE =
-            "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
 
     private final PrintStream out;
+    private final QuarkusBuildChainDiagnostic buildChainDiagnostic;
     private final QuarkusDiagnosticFilePrinter diagnosticFilePrinter;
+    private final QuarkusResourceElementDiagnostic resourceElementDiagnostic;
 
     QuarkusAnnotationFailureDiagnostics(PrintStream out) {
         this.out = out;
+        this.buildChainDiagnostic = new QuarkusBuildChainDiagnostic(out);
         this.diagnosticFilePrinter = new QuarkusDiagnosticFilePrinter(out);
+        this.resourceElementDiagnostic = new QuarkusResourceElementDiagnostic(out);
     }
 
     void writeFailure(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader, Throwable failure) {
         writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader, failure);
-        writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader);
+        buildChainDiagnostic.write(quarkusRuntimeClassLoader);
         diagnosticFilePrinter.writeTestClassBeanCustomizerDiagnostic();
         diagnosticFilePrinter.writeBuildGraphDiagnostic();
     }
@@ -248,53 +242,7 @@ final class QuarkusAnnotationFailureDiagnostics {
     }
 
     void writeQuarkusResourceElements(String label, String className, ClassLoader classLoader) {
-        if (classLoader == null) {
-            out.println("  " + label + ".resourceElements=<unavailable: missing classloader>");
-            return;
-        }
-        String resourceName = className.replace('.', '/') + ".class";
-        out.println("  " + label + ".resource=" + resourceName);
-        try {
-            Method elements = classLoader.getClass().getMethod("getElementsWithResource", String.class, boolean.class);
-            elements.setAccessible(true);
-            Object result = elements.invoke(classLoader, resourceName, true);
-            if (!(result instanceof List<?> list)) {
-                out.println("  " + label + ".resourceElements=<unavailable: unexpected result>");
-                return;
-            }
-            if (list.isEmpty()) {
-                out.println("  " + label + ".resourceElements=<none>");
-                return;
-            }
-            for (int index = 0; index < list.size(); index++) {
-                out.println("  " + label + ".resourceElement." + index + "=" + classPathElementName(list.get(index)));
-            }
-        } catch (InvocationTargetException exception) {
-            Throwable cause = exception.getCause();
-            String causeName = cause == null
-                    ? exception.getClass().getSimpleName()
-                    : cause.getClass().getSimpleName();
-            out.println("  " + label + ".resourceElements=<unavailable: " + causeName + ">");
-        } catch (ReflectiveOperationException | LinkageError exception) {
-            out.println("  " + label + ".resourceElements=<unavailable: "
-                    + exception.getClass().getSimpleName()
-                    + ">");
-        }
-    }
-
-    private String classPathElementName(Object element) {
-        try {
-            Method root = element.getClass().getMethod("getRoot");
-            root.setAccessible(true);
-            Object value = root.invoke(element);
-            if (value != null) {
-                return String.valueOf(value);
-            }
-            return element.getClass().getName() + "(root=null)";
-        } catch (ReflectiveOperationException | LinkageError exception) {
-            return element.getClass().getName() + "@"
-                    + Integer.toHexString(System.identityHashCode(element));
-        }
+        resourceElementDiagnostic.write(label, className, classLoader);
     }
 
     private Optional<ClassLoader> runningApplicationClassLoader() {
@@ -394,60 +342,6 @@ final class QuarkusAnnotationFailureDiagnostics {
         }
         return classLoader.getClass().getName() + "@"
                 + Integer.toHexString(System.identityHashCode(classLoader));
-    }
-
-    private void writeBuildChainCustomizerDiagnostic(ClassLoader quarkusRuntimeClassLoader) {
-        out.println("Zolt Quarkus build-chain diagnostic:");
-        writeBuildChainCustomizerDiagnostic("system", ClassLoader.getSystemClassLoader());
-        if (quarkusRuntimeClassLoader != null
-                && quarkusRuntimeClassLoader != ClassLoader.getSystemClassLoader()) {
-            writeBuildChainCustomizerDiagnostic("quarkusRuntime", quarkusRuntimeClassLoader);
-        }
-    }
-
-    private void writeBuildChainCustomizerDiagnostic(String label, ClassLoader classLoader) {
-        out.println("  " + label + "Loader=" + classLoaderName(classLoader));
-        try {
-            Class<?> buildChainFunction = Class.forName(TEST_BUILD_CHAIN_FUNCTION, false, classLoader);
-            ClassLoader buildChainLoader = buildChainFunction.getClassLoader();
-            out.println("    TestBuildChainFunction.loader=" + classLoaderName(buildChainLoader));
-            out.println("    serviceResources=" + serviceResources(buildChainLoader));
-            out.println("    providers=" + serviceProviders(buildChainLoader));
-        } catch (ReflectiveOperationException | LinkageError exception) {
-            out.println("    TestBuildChainFunction=<unavailable: "
-                    + exception.getClass().getSimpleName()
-                    + ">");
-        }
-    }
-
-    private List<String> serviceResources(ClassLoader classLoader) {
-        try {
-            Enumeration<URL> resources = classLoader.getResources(TEST_BUILD_CHAIN_CUSTOMIZER_SERVICE);
-            List<String> urls = new ArrayList<>();
-            while (resources.hasMoreElements()) {
-                urls.add(resources.nextElement().toString());
-            }
-            return urls.isEmpty() ? List.of("<none>") : List.copyOf(urls);
-        } catch (java.io.IOException exception) {
-            return List.of("<unavailable: " + exception.getClass().getSimpleName() + ">");
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private List<String> serviceProviders(ClassLoader classLoader) {
-        try {
-            Class<?> spi = Class.forName(TEST_BUILD_CHAIN_CUSTOMIZER_SPI, false, classLoader);
-            ServiceLoader<?> serviceLoader = ServiceLoader.load((Class) spi, classLoader);
-            List<String> providers = new ArrayList<>();
-            for (Object provider : serviceLoader) {
-                providers.add(provider.getClass().getName()
-                        + "@"
-                        + classLoaderName(provider.getClass().getClassLoader()));
-            }
-            return providers.isEmpty() ? List.of("<none>") : List.copyOf(providers);
-        } catch (ReflectiveOperationException | LinkageError | ServiceConfigurationError exception) {
-            return List.of("<unavailable: " + exception.getClass().getSimpleName() + ">");
-        }
     }
 
 }
