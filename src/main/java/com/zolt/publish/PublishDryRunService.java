@@ -1,10 +1,7 @@
 package com.zolt.publish;
 
-import com.zolt.build.PackageEvidenceArtifact;
-import com.zolt.build.PackageEvidenceManifest;
 import com.zolt.build.PackageEvidenceManifestReader;
 import com.zolt.build.PackageEvidenceManifestWriter;
-import com.zolt.build.PackageException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanService;
 import com.zolt.lockfile.LockfileReadException;
@@ -23,10 +20,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,10 +37,10 @@ public final class PublishDryRunService {
     private final ZoltTomlParser projectParser;
     private final PublishSettingsReader publishSettingsReader;
     private final PackagePlanService packagePlanService;
-    private final PackageEvidenceManifestReader evidenceManifestReader;
     private final ZoltLockfileReader lockfileReader;
     private final PublishPomGenerator pomGenerator;
     private final MavenRepositoryPathBuilder repositoryPathBuilder;
+    private final PublishDryRunArtifactEvidencePlanner artifactEvidencePlanner;
     private final Function<String, String> environment;
 
     public PublishDryRunService() {
@@ -82,13 +76,35 @@ public final class PublishDryRunService {
             PublishPomGenerator pomGenerator,
             MavenRepositoryPathBuilder repositoryPathBuilder,
             Function<String, String> environment) {
+        this(
+                projectParser,
+                publishSettingsReader,
+                packagePlanService,
+                evidenceManifestReader,
+                lockfileReader,
+                pomGenerator,
+                repositoryPathBuilder,
+                new PublishDryRunArtifactEvidencePlanner(evidenceManifestReader, repositoryPathBuilder),
+                environment);
+    }
+
+    PublishDryRunService(
+            ZoltTomlParser projectParser,
+            PublishSettingsReader publishSettingsReader,
+            PackagePlanService packagePlanService,
+            PackageEvidenceManifestReader evidenceManifestReader,
+            ZoltLockfileReader lockfileReader,
+            PublishPomGenerator pomGenerator,
+            MavenRepositoryPathBuilder repositoryPathBuilder,
+            PublishDryRunArtifactEvidencePlanner artifactEvidencePlanner,
+            Function<String, String> environment) {
         this.projectParser = projectParser;
         this.publishSettingsReader = publishSettingsReader;
         this.packagePlanService = packagePlanService;
-        this.evidenceManifestReader = evidenceManifestReader;
         this.lockfileReader = lockfileReader;
         this.pomGenerator = pomGenerator;
         this.repositoryPathBuilder = repositoryPathBuilder;
+        this.artifactEvidencePlanner = artifactEvidencePlanner;
         this.environment = environment;
     }
 
@@ -133,37 +149,17 @@ public final class PublishDryRunService {
         String pomSha256 = writePom(root, pomPath, config, lockfile);
         Coordinate coordinate = coordinate(config);
         String artifactUploadPath = repositoryPathBuilder.artifactPath(
-                new ArtifactDescriptor(coordinate, Optional.empty(), extension(artifactPath)));
+                new ArtifactDescriptor(
+                        coordinate,
+                        Optional.empty(),
+                        PublishDryRunArtifactEvidencePlanner.extension(artifactPath)));
         String pomUploadPath = repositoryPathBuilder.pomPath(coordinate);
-        String artifactSha256 = "";
-        List<PublishArtifactPlan> supplementalArtifacts = List.of();
-        if (!Files.isRegularFile(artifactPath)) {
-            blockers.add("missing artifact: run `zolt package` to create " + displayPath(root, artifactPath));
-        } else if (!Files.isRegularFile(evidencePath)) {
-            blockers.add("missing package evidence: run `zolt package` to create " + displayPath(root, evidencePath));
-        } else {
-            try {
-                PackageEvidenceManifest evidence = evidenceManifestReader.read(evidencePath);
-                artifactSha256 = evidence.archiveSha256();
-                Path evidenceArchive = root.resolve(evidence.archive()).normalize();
-                if (!evidenceArchive.equals(artifactPath)) {
-                    blockers.add("package evidence archive mismatch: "
-                            + displayPath(root, evidencePath)
-                            + " describes "
-                            + displayPath(root, evidenceArchive)
-                            + " but publish selected "
-                            + displayPath(root, artifactPath)
-                            + ". Run `zolt package` to refresh package evidence.");
-                }
-                String actualSha256 = sha256(artifactPath);
-                if (!actualSha256.equals(evidence.archiveSha256())) {
-                    blockers.add("stale package evidence: run `zolt package` to refresh " + displayPath(root, evidencePath));
-                }
-                supplementalArtifacts = supplementalArtifacts(root, coordinate, evidence, evidencePath, blockers);
-            } catch (PackageException exception) {
-                blockers.add("invalid package evidence: " + exception.getMessage());
-            }
-        }
+        PublishDryRunArtifactEvidence artifactEvidence = artifactEvidencePlanner.plan(
+                root,
+                coordinate,
+                artifactPath,
+                evidencePath,
+                blockers);
 
         return new PublishDryRunPlan(
                 config.project().group() + ":" + config.project().name() + ":" + config.project().version(),
@@ -171,50 +167,16 @@ public final class PublishDryRunService {
                 repository.id(),
                 redactedRepositoryUrl(repository.url()),
                 artifactId,
-                display(root, artifactPath),
-                artifactSha256,
+                PublishDryRunArtifactEvidencePlanner.display(root, artifactPath),
+                artifactEvidence.artifactSha256(),
                 artifactUploadPath,
-                supplementalArtifacts,
-                display(root, evidencePath),
-                display(root, pomPath),
+                artifactEvidence.supplementalArtifacts(),
+                PublishDryRunArtifactEvidencePlanner.display(root, evidencePath),
+                PublishDryRunArtifactEvidencePlanner.display(root, pomPath),
                 pomSha256,
                 pomUploadPath,
                 "",
                 blockers);
-    }
-
-    private List<PublishArtifactPlan> supplementalArtifacts(
-            Path root,
-            Coordinate coordinate,
-            PackageEvidenceManifest evidence,
-            Path evidencePath,
-            List<String> blockers) {
-        List<PublishArtifactPlan> artifacts = new ArrayList<>();
-        for (PackageEvidenceArtifact artifact : evidence.artifacts()) {
-            if ("main".equals(artifact.classifier())) {
-                continue;
-            }
-            Path artifactPath = root.resolve(artifact.path()).normalize();
-            String uploadPath = repositoryPathBuilder.artifactPath(new ArtifactDescriptor(
-                    coordinate,
-                    Optional.of(artifact.classifier()),
-                    extension(artifactPath)));
-            if (!Files.isRegularFile(artifactPath)) {
-                blockers.add("missing supplemental artifact: run `zolt package` to create " + displayPath(root, artifactPath));
-                continue;
-            }
-            String actualSha256 = sha256(artifactPath);
-            if (!actualSha256.equals(artifact.sha256())) {
-                blockers.add("stale supplemental package evidence: run `zolt package` to refresh " + displayPath(root, evidencePath));
-            }
-            artifacts.add(new PublishArtifactPlan(
-                    artifact.classifier(),
-                    Optional.of(artifact.classifier()),
-                    display(root, artifactPath),
-                    artifact.sha256(),
-                    uploadPath));
-        }
-        return List.copyOf(artifacts);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {
@@ -222,15 +184,6 @@ public final class PublishDryRunService {
                 config.project().group(),
                 config.project().name(),
                 Optional.of(config.project().version()));
-    }
-
-    private static String extension(Path artifactPath) {
-        String fileName = artifactPath.getFileName().toString();
-        int dot = fileName.lastIndexOf('.');
-        if (dot < 0 || dot == fileName.length() - 1) {
-            throw new PublishException("Could not determine publish artifact extension from `" + fileName + "`.");
-        }
-        return fileName.substring(dot + 1);
     }
 
     private static boolean hasEmbeddedCredentials(String url) {
@@ -339,34 +292,13 @@ public final class PublishDryRunService {
         try {
             Files.createDirectories(pomPath.getParent());
             Files.writeString(pomPath, pomGenerator.generate(config, lockfile));
-            return sha256(pomPath);
+            return PublishChecksum.sha256(pomPath);
         } catch (IOException exception) {
             throw new PublishException(
-                    "Could not write publish POM preview at " + displayPath(root, pomPath) + ".",
+                    "Could not write publish POM preview at "
+                            + PublishDryRunArtifactEvidencePlanner.displayPath(root, pomPath)
+                            + ".",
                     exception);
         }
-    }
-
-    private static Path display(Path root, Path path) {
-        return Path.of(displayPath(root, path));
-    }
-
-    private static String sha256(Path path) {
-        try {
-            return "sha256:" + HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
-        } catch (java.io.IOException exception) {
-            throw new PublishException("Could not read package artifact at " + path + ".", exception);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new PublishException("Could not compute package artifact checksum because SHA-256 is unavailable.", exception);
-        }
-    }
-
-    private static String displayPath(Path root, Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.startsWith(root)) {
-            return root.relativize(normalized).toString();
-        }
-        return normalized.toString();
     }
 }
