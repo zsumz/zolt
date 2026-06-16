@@ -1,8 +1,11 @@
 package com.zolt.quarkus;
 
+import static com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.fakeApiWithArtifactKey;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakeApplicationModel;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakeArtifactKey;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;
@@ -43,17 +46,16 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                 List.of(quarkusCore),
                 List.of()));
 
-        QuarkusApplicationModelFactoryTest.FakeApplicationModel model =
-                assertInstanceOf(QuarkusApplicationModelFactoryTest.FakeApplicationModel.class, handle.applicationModel());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
-                List.of(new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                List.of(new FakeArtifactKey(
                         "io.quarkus",
                         "quarkus-bootstrap-runner",
                         "",
                         "jar")),
                 model.parentFirstArtifacts());
         assertEquals(
-                List.of(new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                List.of(new FakeArtifactKey(
                         "io.quarkus",
                         "quarkus-bootstrap-runner",
                         "",
@@ -77,10 +79,9 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                         List.of(),
                         Map.of()));
 
-        QuarkusApplicationModelFactoryTest.FakeApplicationModel model =
-                assertInstanceOf(QuarkusApplicationModelFactoryTest.FakeApplicationModel.class, handle.applicationModel());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
-                List.of(new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                List.of(new FakeArtifactKey(
                         "io.quarkus",
                         "quarkus-builder",
                         "",
@@ -115,31 +116,30 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                 java.util.Optional.empty(),
                 QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
 
-        QuarkusApplicationModelFactoryTest.FakeApplicationModel model =
-                assertInstanceOf(QuarkusApplicationModelFactoryTest.FakeApplicationModel.class, handle.applicationModel());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
                 List.of(
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.quarkus",
                                 "quarkus-builder",
                                 "",
                                 "jar"),
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "org.eclipse.microprofile.config",
                                 "microprofile-config-api",
                                 "",
                                 "jar"),
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.smallrye.config",
                                 "smallrye-config",
                                 "",
                                 "jar"),
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.smallrye.config",
                                 "smallrye-config-common",
                                 "",
                                 "jar"),
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.smallrye.config",
                                 "smallrye-config-core",
                                 "",
@@ -172,11 +172,10 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                 List.of(quarkusRest),
                 List.of()));
 
-        QuarkusApplicationModelFactoryTest.FakeApplicationModel model =
-                assertInstanceOf(QuarkusApplicationModelFactoryTest.FakeApplicationModel.class, handle.applicationModel());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
                 Map.of(
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.quarkus",
                                 "quarkus-rest",
                                 "",
@@ -196,17 +195,16 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                 java.util.Optional.empty(),
                 QuarkusApplicationModelOptions.TEST_BOOTSTRAP);
 
-        QuarkusApplicationModelFactoryTest.FakeApplicationModel model =
-                assertInstanceOf(QuarkusApplicationModelFactoryTest.FakeApplicationModel.class, handle.applicationModel());
+        FakeApplicationModel model = assertInstanceOf(FakeApplicationModel.class, handle.applicationModel());
         assertEquals(
                 Map.of(
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.quarkus",
                                 "quarkus-rest",
                                 "",
                                 "jar"),
                         List.of("META-INF/services/io.quarkus.runtime.test.TestHttpEndpointProvider"),
-                        new QuarkusApplicationModelFactoryTest.FakeArtifactKey(
+                        new FakeArtifactKey(
                                 "io.quarkus",
                                 "quarkus-arc",
                                 "",
@@ -262,15 +260,6 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                 deploymentClasspath,
                 platformPropertiesFiles,
                 bootstrapDependencies);
-    }
-
-    private static QuarkusApplicationModelApi fakeApiWithArtifactKey() {
-        return new QuarkusApplicationModelApi(
-                QuarkusApplicationModelFactoryTest.FakeApplicationModelBuilder.class.getName(),
-                QuarkusApplicationModelFactoryTest.FakeResolvedDependencyBuilder.class.getName(),
-                QuarkusApplicationModelFactoryTest.FakePlatformImports.class.getName(),
-                QuarkusApplicationModelFactoryTest.FakePlatformImportsImpl.class.getName(),
-                QuarkusApplicationModelFactoryTest.FakeArtifactKey.class.getName());
     }
 
     private static void writeJar(Path jarPath, String entryName, String content) throws IOException {
