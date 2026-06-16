@@ -1,8 +1,6 @@
 package com.zolt.build;
 
 import static com.zolt.build.IncrementalCompileInputHasher.hash;
-import static com.zolt.build.IncrementalCompileInputHasher.hashText;
-import static com.zolt.build.IncrementalCompileInputHasher.relative;
 
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
@@ -18,7 +16,8 @@ import java.util.Set;
 
 final class IncrementalCompilePlanner {
     private final IncrementalCompileStateCodec codec;
-    private final ClassFileAbiReader abiReader;
+    private final IncrementalCompileStateValidator stateValidator;
+    private final IncrementalCompileAbiValidator abiValidator;
 
     IncrementalCompilePlanner() {
         this(new IncrementalCompileStateCodec(), new ClassFileAbiReader());
@@ -28,7 +27,8 @@ final class IncrementalCompilePlanner {
             IncrementalCompileStateCodec codec,
             ClassFileAbiReader abiReader) {
         this.codec = codec;
-        this.abiReader = abiReader;
+        this.stateValidator = new IncrementalCompileStateValidator();
+        this.abiValidator = new IncrementalCompileAbiValidator(abiReader);
     }
 
     Plan planMain(
@@ -109,7 +109,7 @@ final class IncrementalCompilePlanner {
             return Plan.full(state.fallbackReasons().getFirst());
         }
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
-        String validationFailure = validateState(
+        String validationFailure = stateValidator.validate(
                 state,
                 scope,
                 projectRoot,
@@ -167,109 +167,8 @@ final class IncrementalCompilePlanner {
                 state.reverseDependencies());
     }
 
-    private String validateState(
-            IncrementalCompileState state,
-            String scope,
-            Path projectRoot,
-            ProjectConfig config,
-            List<String> configuredSourceRoots,
-            List<GeneratedSourceStep> generatedSteps,
-            Classpath compileClasspath,
-            Path outputDirectory,
-            Path generatedSourcesDirectory) {
-        if (!state.scope().equals(scope)) {
-            return "state-scope-mismatch";
-        }
-        if (!state.projectDirectory().equals(projectRoot)
-                || !state.outputDirectory().equals(outputDirectory.toAbsolutePath().normalize())
-                || !state.generatedSourcesDirectory().equals(generatedSourcesDirectory.toAbsolutePath().normalize())) {
-            return "state-path-mismatch";
-        }
-        if (!state.compilerSettingsHash().equals(hashText(config.compilerSettings().toString()))) {
-            return "compiler-settings-changed";
-        }
-        if (!state.sourceRoots().equals(sourceRoots(projectRoot, configuredSourceRoots, generatedSteps))) {
-            return "source-roots-changed";
-        }
-        if (!state.generatedSourceRoots().equals(generatedSteps.stream().map(GeneratedSourceStep::output).sorted().toList())) {
-            return "generated-source-roots-changed";
-        }
-        if (!state.compileClasspath().equals(classpathEntries(compileClasspath))) {
-            return "compile-classpath-changed";
-        }
-        return "";
-    }
-
     IncrementalValidation validateAfterIncrementalCompile(Plan plan) {
-        if (!plan.incremental()) {
-            return IncrementalValidation.success(List.of());
-        }
-        Set<Path> scheduledSources = new LinkedHashSet<>(plan.sourcesToCompile());
-        List<Path> additionalSources = new ArrayList<>();
-        int abiChangedClasses = 0;
-        int packagePrivateAbiChangedClasses = 0;
-        for (IncrementalCompileState.SourceRecord previousSource : plan.changedPreviousRecords()) {
-            Path output = previousSource.classOutputs().getFirst();
-            ClassFileAbi currentAbi;
-            try {
-                currentAbi = abiReader.read(output);
-            } catch (BuildException exception) {
-                return IncrementalValidation.fallback("changed-class-output-missing");
-            }
-            Optional<IncrementalCompileState.ClassRecord> previousClass = plan.previousClass(output);
-            if (previousClass.isEmpty()) {
-                return IncrementalValidation.fallback("changed-class-state-missing");
-            }
-            IncrementalCompileState.ClassRecord classRecord = previousClass.orElseThrow();
-            boolean abiChanged = !classRecord.abiHash().equals(currentAbi.abiHash());
-            boolean packagePrivateAbiChanged = !classRecord.packagePrivateAbiHash().equals(currentAbi.packagePrivateAbiHash())
-                    && !abiChanged;
-            if (abiChanged) {
-                abiChangedClasses++;
-                addAffectedSources(
-                        additionalSources,
-                        scheduledSources,
-                        plan.reverseDependencies().getOrDefault(classRecord.binaryName(), List.of()),
-                        plan);
-            }
-            if (packagePrivateAbiChanged) {
-                packagePrivateAbiChangedClasses++;
-                addSamePackageSources(
-                        additionalSources,
-                        scheduledSources,
-                        previousSource.packageName(),
-                        plan);
-            }
-        }
-        return IncrementalValidation.success(
-                additionalSources,
-                abiChangedClasses,
-                packagePrivateAbiChangedClasses);
-    }
-
-    private static void addAffectedSources(
-            List<Path> additionalSources,
-            Set<Path> scheduledSources,
-            List<Path> candidates,
-            Plan plan) {
-        for (Path candidate : candidates) {
-            Path normalized = candidate.toAbsolutePath().normalize();
-            if (plan.hasSource(normalized) && scheduledSources.add(normalized)) {
-                additionalSources.add(normalized);
-            }
-        }
-    }
-
-    private static void addSamePackageSources(
-            List<Path> additionalSources,
-            Set<Path> scheduledSources,
-            String packageName,
-            Plan plan) {
-        for (IncrementalCompileState.SourceRecord source : plan.previousSources().values()) {
-            if (source.packageName().equals(packageName) && scheduledSources.add(source.path())) {
-                additionalSources.add(source.path());
-            }
-        }
+        return abiValidator.validate(plan);
     }
 
     private static List<Path> outputsForDeletedSources(
@@ -290,32 +189,6 @@ final class IncrementalCompilePlanner {
                 .sorted()
                 .forEach(path -> hashes.put(path, hash(path)));
         return hashes;
-    }
-
-    private static List<String> sourceRoots(
-            Path projectRoot,
-            List<String> configuredSourceRoots,
-            List<GeneratedSourceStep> generatedSteps) {
-        List<Path> roots = new ArrayList<>();
-        configuredSourceRoots.stream()
-                .map(root -> projectRoot.resolve(root).normalize())
-                .forEach(roots::add);
-        generatedSteps.stream()
-                .map(step -> projectRoot.resolve(step.output()).normalize())
-                .forEach(roots::add);
-        return roots.stream()
-                .distinct()
-                .sorted()
-                .map(path -> relative(projectRoot, path))
-                .toList();
-    }
-
-    private static List<IncrementalCompileState.ClasspathEntry> classpathEntries(Classpath classpath) {
-        return classpath.entries().stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .sorted()
-                .map(path -> new IncrementalCompileState.ClasspathEntry(path, hash(path)))
-                .toList();
     }
 
     record Plan(
