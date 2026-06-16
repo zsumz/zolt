@@ -1,10 +1,11 @@
 package com.zolt.selfhost;
 
+import static com.zolt.selfhost.SelfCheckServiceTestSupport.buildResult;
+import static com.zolt.selfhost.SelfCheckServiceTestSupport.writeSelfHostingProject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.BuildResult;
 import com.zolt.build.JavaRunResult;
 import com.zolt.build.NativeBuildResult;
 import com.zolt.build.NativeImageResult;
@@ -16,11 +17,9 @@ import com.zolt.doctor.SelfHostingCheckService;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,7 +29,7 @@ final class SelfCheckServiceTest {
 
     @Test
     void runsJvmSelfHostingPathInOrder() throws IOException {
-        writeSelfHostingProject(true);
+        writeSelfHostingProject(tempDir, true);
         List<String> calls = new ArrayList<>();
         SelfCheckService service = new SelfCheckService(
                 new ZoltTomlParser(),
@@ -45,7 +44,7 @@ final class SelfCheckServiceTest {
                 },
                 (projectDirectory, config, cacheRoot) -> {
                     calls.add("test");
-                    BuildResult buildResult = buildResult(projectDirectory, 12);
+                    com.zolt.build.BuildResult buildResult = buildResult(projectDirectory, 12);
                     TestCompileResult compileResult = new TestCompileResult(
                             buildResult,
                             34,
@@ -98,7 +97,7 @@ final class SelfCheckServiceTest {
 
     @Test
     void stopsWhenReadinessCheckFails() throws IOException {
-        writeSelfHostingProject(false);
+        writeSelfHostingProject(tempDir, false);
         SelfCheckService service = new SelfCheckService(
                 new ZoltTomlParser(),
                 new SelfHostingCheckService(),
@@ -134,8 +133,8 @@ final class SelfCheckServiceTest {
 
     @Test
     void failsWhenPackagedApplicationDoesNotPrintVersion() throws IOException {
-        writeSelfHostingProject(true);
-        BuildResult buildResult = buildResult(tempDir, 12);
+        writeSelfHostingProject(tempDir, true);
+        com.zolt.build.BuildResult buildResult = buildResult(tempDir, 12);
         PackageResult packageResult = new PackageResult(
                 buildResult,
                 tempDir.resolve("target/demo-0.1.0.jar"),
@@ -175,8 +174,8 @@ final class SelfCheckServiceTest {
 
     @Test
     void runsNativeSelfHostingPathWhenRequested() throws IOException {
-        writeSelfHostingProject(true);
-        BuildResult buildResult = buildResult(tempDir, 12);
+        writeSelfHostingProject(tempDir, true);
+        com.zolt.build.BuildResult buildResult = buildResult(tempDir, 12);
         PackageResult packageResult = new PackageResult(
                 buildResult,
                 tempDir.resolve("target/demo-0.1.0.jar"),
@@ -240,8 +239,8 @@ final class SelfCheckServiceTest {
 
     @Test
     void failsWhenNativeBinaryDoesNotPrintVersion() throws IOException {
-        writeSelfHostingProject(true);
-        BuildResult buildResult = buildResult(tempDir, 12);
+        writeSelfHostingProject(tempDir, true);
+        com.zolt.build.BuildResult buildResult = buildResult(tempDir, 12);
         PackageResult packageResult = new PackageResult(
                 buildResult,
                 tempDir.resolve("target/demo-0.1.0.jar"),
@@ -286,47 +285,4 @@ final class SelfCheckServiceTest {
         assertTrue(result.steps().getLast().message().contains("expected native binary to print only `0.1.0`"));
     }
 
-    private BuildResult buildResult(Path projectDirectory, int sourceCount) {
-        return new BuildResult(
-                Optional.empty(),
-                sourceCount,
-                0,
-                projectDirectory.resolve("target/classes"),
-                "");
-    }
-
-    private void writeSelfHostingProject(boolean includeTestRunner) throws IOException {
-        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
-        Files.createDirectories(tempDir.resolve("src/main/java"));
-        Files.createDirectories(tempDir.resolve("src/test/java"));
-        Files.writeString(tempDir.resolve("zolt.toml"), """
-                [project]
-                name = "demo"
-                version = "0.1.0"
-                group = "com.example"
-                java = "21"
-                main = "com.example.Main"
-
-                [repositories]
-                central = "https://repo.maven.apache.org/maven2"
-
-                %s
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-
-                [native]
-                imageName = "demo"
-                output = "target/native"
-                args = ["--no-fallback"]
-                """.formatted(includeTestRunner
-                ? """
-                [test.dependencies]
-                "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
-
-                """
-                : ""));
-    }
 }
