@@ -1,4 +1,3 @@
 # path|maxLines|followUp
 src/main/java/com/zolt/project/ProjectConfig.java|565|
 src/test/java/com/zolt/build/PackageServiceTest.java|850|
-src/test/java/com/zolt/build/TestRunServiceTest.java|784|

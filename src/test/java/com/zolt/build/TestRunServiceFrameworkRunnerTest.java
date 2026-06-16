@@ -1,31 +1,29 @@
 package com.zolt.build;
 
+import static com.zolt.build.TestRunServiceTestSupport.config;
+import static com.zolt.build.TestRunServiceTestSupport.configWithTestRuntime;
+import static com.zolt.build.TestRunServiceTestSupport.enabledFrameworkTestRunner;
+import static com.zolt.build.TestRunServiceTestSupport.quarkusConfig;
+import static com.zolt.build.TestRunServiceTestSupport.service;
+import static com.zolt.build.TestRunServiceTestSupport.source;
+import static com.zolt.build.TestRunServiceTestSupport.writeConsoleAndJbossLogManagerLockfile;
+import static com.zolt.build.TestRunServiceTestSupport.writeConsoleLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.junit.JunitWorkerClient;
-import com.zolt.project.BuildSettings;
-import com.zolt.project.FrameworkSettings;
-import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectMetadata;
-import com.zolt.project.QuarkusPackageMode;
-import com.zolt.project.QuarkusSettings;
-import com.zolt.project.TestRuntimeSettings;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,9 +33,9 @@ final class TestRunServiceFrameworkRunnerTest {
 
     @Test
     void optInPlainJUnitWorkerRunsInsteadOfConsoleLauncher() throws IOException {
-        writeConsoleLockfile();
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<List<String>> javaCommands = new ArrayList<>();
         List<List<Path>> workerClasspaths = new ArrayList<>();
         List<List<Path>> testRuntimeClasspaths = new ArrayList<>();
@@ -110,9 +108,9 @@ final class TestRunServiceFrameworkRunnerTest {
 
     @Test
     void optInPlainJUnitWorkerFailureProducesActionableError() throws IOException {
-        writeConsoleLockfile();
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 new JdkDetector(),
@@ -136,9 +134,9 @@ final class TestRunServiceFrameworkRunnerTest {
 
     @Test
     void quarkusPlainJUnitRunsThroughQuarkusTestWorker() throws IOException {
-        writeConsoleAndJbossLogManagerLockfile();
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        writeConsoleAndJbossLogManagerLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<List<String>> javaCommands = new ArrayList<>();
         List<FrameworkTestRunRequest> frameworkRequests = new ArrayList<>();
         TestRunService service = service(
@@ -174,9 +172,9 @@ final class TestRunServiceFrameworkRunnerTest {
 
     @Test
     void quarkusWorkerFailureProducesTestRunError() throws IOException {
-        writeConsoleLockfile();
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 enabledFrameworkTestRunner(request -> {
@@ -192,9 +190,9 @@ final class TestRunServiceFrameworkRunnerTest {
 
     @Test
     void frameworkRunnerCanRejectReportsDirectoryBeforeRunning() throws IOException {
-        writeConsoleLockfile();
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         TestRunService service = service(
                 (command, outputConsumer) -> {
                     throw new AssertionError("direct Java runner should not run for an enabled framework.");
@@ -218,154 +216,4 @@ final class TestRunServiceFrameworkRunnerTest {
         assertTrue(exception.getMessage().contains("framework reports are not supported yet"));
     }
 
-    private TestRunService service(
-            JavaRunner.ProcessRunner processRunner,
-            FrameworkTestRunner frameworkTestRunner) {
-        return service(
-                processRunner,
-                new JdkDetector(),
-                frameworkTestRunner);
-    }
-
-    private TestRunService service(
-            JavaRunner.ProcessRunner processRunner,
-            JdkChecker jdkChecker,
-            FrameworkTestRunner frameworkTestRunner) {
-        return new TestRunService(
-                new TestCompileService(jdkChecker),
-                jdkChecker,
-                new JavaRunner(":", processRunner),
-                frameworkTestRunner,
-                () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) -> {
-                    throw new AssertionError("Plain JUnit worker should not run for this test.");
-                },
-                false,
-                ":");
-    }
-
-    private TestRunService service(
-            JavaRunner.ProcessRunner processRunner,
-            JdkChecker jdkChecker,
-            FrameworkTestRunner frameworkTestRunner,
-            java.util.function.Supplier<List<Path>> plainJunitWorkerClasspath,
-            TestRunService.PlainJunitWorkerRunner plainJunitWorkerRunner,
-            boolean plainJunitWorkerEnabled) {
-        return new TestRunService(
-                new TestCompileService(jdkChecker),
-                jdkChecker,
-                new JavaRunner(":", processRunner),
-                frameworkTestRunner,
-                plainJunitWorkerClasspath,
-                plainJunitWorkerRunner,
-                plainJunitWorkerEnabled,
-                ":");
-    }
-
-    private static FrameworkTestRunner enabledFrameworkTestRunner(
-            Function<FrameworkTestRunRequest, Optional<FrameworkTestRunResult>> runner) {
-        return enabledFrameworkTestRunner(runner, null);
-    }
-
-    private static FrameworkTestRunner enabledFrameworkTestRunner(
-            Function<FrameworkTestRunRequest, Optional<FrameworkTestRunResult>> runner,
-            String unsupportedReportsMessage) {
-        return new FrameworkTestRunner() {
-            @Override
-            public Optional<FrameworkTestRunResult> runIfEnabled(FrameworkTestRunRequest request) {
-                return runner.apply(request);
-            }
-
-            @Override
-            public boolean isEnabled(ProjectConfig config) {
-                return true;
-            }
-
-            @Override
-            public String testRunnerName() {
-                return "quarkus-test-worker";
-            }
-
-            @Override
-            public Optional<String> unsupportedReportsMessage() {
-                return Optional.ofNullable(unsupportedReportsMessage);
-            }
-        };
-    }
-
-    private void writeConsoleLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.junit.platform:junit-platform-console-standalone"
-                version = "1.11.4"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
-                dependencies = []
-                """);
-    }
-
-    private void writeConsoleAndJbossLogManagerLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.junit.platform:junit-platform-console-standalone"
-                version = "1.11.4"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
-                dependencies = []
-
-                [[package]]
-                id = "org.jboss.logmanager:jboss-logmanager"
-                version = "3.1.2.Final"
-                source = "maven-central"
-                scope = "test"
-                direct = false
-                jar = "org/jboss/logmanager/jboss-logmanager/3.1.2.Final/jboss-logmanager-3.1.2.Final.jar"
-                dependencies = []
-                """);
-    }
-
-    private void source(String path, String content) throws IOException {
-        Path source = projectDir.resolve(path);
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, content);
-    }
-
-    private static ProjectConfig config() {
-        return new ProjectConfig(
-                new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), Optional.of("com.example.Main")),
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of(),
-                Map.of("org.junit.platform:junit-platform-console-standalone", "1.11.4"),
-                BuildSettings.defaults());
-    }
-
-    private static ProjectConfig configWithTestRuntime() {
-        return config().withBuildSettings(BuildSettings.defaults().withTestRuntime(new TestRuntimeSettings(
-                List.of("-Dconfigured=true"),
-                Map.of("logs.dir", "${project.root}/test-logs"),
-                Map.of("TZ", "America/Chicago", "APP_HOME", "${project.root}"),
-                List.of("failed"))));
-    }
-
-    private static ProjectConfig quarkusConfig() {
-        return config().withFrameworkSettings(new FrameworkSettings(
-                new QuarkusSettings(true, QuarkusPackageMode.FAST_JAR)));
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
-    }
 }
