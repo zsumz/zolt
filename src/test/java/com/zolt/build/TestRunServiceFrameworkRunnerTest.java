@@ -6,8 +6,8 @@ import static com.zolt.build.TestRunServiceTestSupport.enabledFrameworkTestRunne
 import static com.zolt.build.TestRunServiceTestSupport.quarkusConfig;
 import static com.zolt.build.TestRunServiceTestSupport.service;
 import static com.zolt.build.TestRunServiceTestSupport.source;
-import static com.zolt.build.TestRunServiceTestSupport.writeConsoleAndJbossLogManagerLockfile;
-import static com.zolt.build.TestRunServiceTestSupport.writeConsoleLockfile;
+import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleAndJbossLogManagerLockfile;
+import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

@@ -4,7 +4,7 @@ import static com.zolt.build.TestRunServiceTestSupport.commandArgumentAfter;
 import static com.zolt.build.TestRunServiceTestSupport.config;
 import static com.zolt.build.TestRunServiceTestSupport.service;
 import static com.zolt.build.TestRunServiceTestSupport.source;
-import static com.zolt.build.TestRunServiceTestSupport.writeConsoleLockfile;
+import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
