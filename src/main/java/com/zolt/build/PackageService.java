@@ -2,20 +2,18 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.framework.FrameworkPackageAugmenter;
-import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public final class PackageService {
     private final BuildService buildService;
@@ -27,12 +25,8 @@ public final class PackageService {
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
     private final ThinJarLayoutAssembler thinJarLayoutAssembler;
-    private final WarLayoutAssembler warLayoutAssembler;
-    private final SpringBootJarLayoutAssembler springBootJarLayoutAssembler;
-    private final SpringBootWarLayoutAssembler springBootWarLayoutAssembler;
-    private final QuarkusFastJarLayoutAssembler quarkusFastJarLayoutAssembler;
+    private final PackageArchiveModePackager archiveModePackager;
     private final PackageSupplementalArtifactAssembler supplementalArtifactAssembler;
-    private final PackageRuntimeJarSelector runtimeJarSelector;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -117,18 +111,17 @@ public final class PackageService {
                 manifestGenerator,
                 lockfileReader,
                 classpathBuilder);
-        this.warLayoutAssembler = new WarLayoutAssembler(manifestGenerator);
-        this.springBootJarLayoutAssembler = new SpringBootJarLayoutAssembler();
-        this.springBootWarLayoutAssembler = new SpringBootWarLayoutAssembler();
-        this.quarkusFastJarLayoutAssembler = new QuarkusFastJarLayoutAssembler();
+        this.archiveModePackager = new PackageArchiveModePackager(
+                manifestGenerator,
+                lockfileReader,
+                frameworkPackageAugmenter);
         this.supplementalArtifactAssembler = new PackageSupplementalArtifactAssembler(classpathBuilder);
-        this.runtimeJarSelector = new PackageRuntimeJarSelector();
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         Path projectRoot = projectRoot(projectDirectory);
         PackageMode mode = config.packageSettings().mode();
-        ensureSupportedPackageMode(mode);
+        PackageModeSupport.ensureSupported(mode);
         preparePackageToolingIfNeeded(projectRoot, config, cacheRoot);
         BuildResultWithClasspaths buildResult = buildService.buildWithClasspaths(
                 projectRoot,
@@ -176,7 +169,7 @@ public final class PackageService {
             BuildResult buildResult,
             Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
-        ensureSupportedPackageMode(mode);
+        PackageModeSupport.ensureSupported(mode);
         return packageJar(
                 projectRoot(projectDirectory),
                 config,
@@ -192,7 +185,7 @@ public final class PackageService {
             BuildResultWithClasspaths buildResult,
             Path cacheRoot) {
         PackageMode mode = config.packageSettings().mode();
-        ensureSupportedPackageMode(mode);
+        PackageModeSupport.ensureSupported(mode);
         return packageJar(
                 projectRoot(projectDirectory),
                 config,
@@ -207,7 +200,7 @@ public final class PackageService {
             ProjectConfig config,
             BuildResult buildResult) {
         PackageMode mode = config.packageSettings().mode();
-        ensureSupportedPackageMode(mode);
+        PackageModeSupport.ensureSupported(mode);
         return packageJar(
                 projectRoot(projectDirectory),
                 config,
@@ -223,7 +216,7 @@ public final class PackageService {
             BuildResult buildResult,
             ClasspathSet classpaths) {
         PackageMode mode = config.packageSettings().mode();
-        ensureSupportedPackageMode(mode);
+        PackageModeSupport.ensureSupported(mode);
         return packageJar(
                 projectRoot(projectDirectory),
                 config,
@@ -253,28 +246,31 @@ public final class PackageService {
                     jarPath(projectDirectory, config),
                     cacheRoot,
                     classpathPackages);
-            case SPRING_BOOT -> packageSpringBootJar(
+            case SPRING_BOOT -> archiveModePackager.packageSpringBootJar(
                     projectDirectory,
                     config,
                     buildResult,
+                    jarPath(projectDirectory, config),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")),
                     classpathPackages);
-            case WAR -> packageWar(
+            case WAR -> archiveModePackager.packageWar(
                     projectDirectory,
                     config,
                     buildResult,
+                    archivePath(projectDirectory, config, "war"),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode war` for now; workspace WAR packaging is not wired yet.")),
                     classpathPackages);
-            case SPRING_BOOT_WAR -> packageSpringBootWar(
+            case SPRING_BOOT_WAR -> archiveModePackager.packageSpringBootWar(
                     projectDirectory,
                     config,
                     buildResult,
+                    archivePath(projectDirectory, config, "war"),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot-war` for now; workspace Spring Boot WAR packaging is not wired yet.")),
                     classpathPackages);
-            case QUARKUS -> packageFrameworkJar(
+            case QUARKUS -> archiveModePackager.packageFrameworkJar(
                     projectDirectory,
                     config,
                     buildResult,
@@ -285,7 +281,7 @@ public final class PackageService {
                                     + "` requires dependency jar access from zolt.lock. Use single-project `zolt package --mode "
                                     + mode.configValue()
                                     + "` for now; workspace framework packaging is not wired yet.")));
-            case UBER -> throw unsupportedPackageMode(mode);
+            case UBER -> throw PackageModeSupport.unsupported(mode);
         };
         List<PackageArtifact> artifacts = supplementalArtifactAssembler.assemble(
                 projectDirectory,
@@ -315,133 +311,6 @@ public final class PackageService {
                 result.runtimeClasspathPath(),
                 List.of(),
                 List.of());
-    }
-
-    private PackageResult packageSpringBootJar(
-            Path projectDirectory,
-            ProjectConfig config,
-            BuildResult buildResult,
-            Path cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
-        String startClass = config.project().main().orElseThrow(() -> new PackageException(
-                "Spring Boot package mode requires [project].main in zolt.toml. Add the application main class and retry."));
-        Path outputDirectory = requireOutputDirectory(buildResult);
-        Path jarPath = jarPath(projectDirectory, config);
-        List<PackageRuntimeJar> runtimeJars = classpathPackages
-                .map(runtimeJarSelector::runtimeJars)
-                .orElseGet(() -> runtimeJarSelector.runtimeJars(
-                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
-                        cacheRoot));
-        return springBootJarLayoutAssembler.assemble(startClass, buildResult, outputDirectory, jarPath, runtimeJars);
-    }
-
-    private PackageResult packageWar(
-            Path projectDirectory,
-            ProjectConfig config,
-            BuildResult buildResult,
-            Path cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
-        Path outputDirectory = requireOutputDirectory(buildResult);
-        Path warPath = archivePath(projectDirectory, config, "war");
-        List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
-                .orElseGet(() -> runtimeJarSelector.packagedClasspathPackages(
-                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
-                        cacheRoot));
-        List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
-        return warLayoutAssembler.assemble(config, buildResult, outputDirectory, warPath, runtimeJars);
-    }
-
-    private PackageResult packageSpringBootWar(
-            Path projectDirectory,
-            ProjectConfig config,
-            BuildResult buildResult,
-            Path cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
-        String startClass = config.project().main().orElseThrow(() -> new PackageException(
-                "Spring Boot WAR package mode requires [project].main in zolt.toml. Add the application main class and retry."));
-        Path outputDirectory = requireOutputDirectory(buildResult);
-        Path warPath = archivePath(projectDirectory, config, "war");
-        List<ResolvedClasspathPackage> resolvedPackages = classpathPackages
-                .orElseGet(() -> runtimeJarSelector.allClasspathPackages(
-                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
-                        cacheRoot));
-        List<PackageRuntimeJar> providedJars = runtimeJarSelector.providedJars(resolvedPackages);
-        List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
-        return springBootWarLayoutAssembler.assemble(
-                startClass,
-                buildResult,
-                outputDirectory,
-                warPath,
-                runtimeJars,
-                providedJars);
-    }
-
-    private PackageResult packageFrameworkJar(
-            Path projectDirectory,
-            ProjectConfig config,
-            BuildResult buildResult,
-            PackageMode mode,
-            Path cacheRoot) {
-        Optional<FrameworkPackageResult> result = frameworkPackageAugmenter.augmentIfEnabled(
-                projectDirectory,
-                config,
-                cacheRoot);
-        FrameworkPackageResult packageResult = result.orElseThrow(() -> new PackageException(
-                frameworkPackageAugmenter.missingPackageResultMessage(mode)));
-        return quarkusFastJarLayoutAssembler.assemble(
-                buildResult,
-                mode,
-                packageResult,
-                frameworkPackageAugmenter.missingRunnerJarMessage(mode, packageResult.runnerJar()),
-                frameworkPackageAugmenter.inspectPackageDirectoryMessage(mode, packageResult.packageDirectory()));
-    }
-
-    private static void ensureSupportedPackageMode(PackageMode mode) {
-        if (mode != PackageMode.UBER) {
-            return;
-        }
-        throw unsupportedPackageMode(mode);
-    }
-
-    private static PackageException unsupportedPackageMode(PackageMode mode) {
-        return new PackageException(
-                "Package mode `"
-                        + mode.configValue()
-                        + "` is not implemented yet. Supported package modes are: "
-                        + supportedPackageModes()
-                        + ". Intentionally unsupported package modes are: "
-                        + unsupportedPackageModes()
-                        + ". Use one of the supported modes until uber jar support lands"
-                        + ".");
-    }
-
-    private static String supportedPackageModes() {
-        return List.of(
-                        PackageMode.THIN,
-                        PackageMode.SPRING_BOOT,
-                        PackageMode.WAR,
-                        PackageMode.SPRING_BOOT_WAR,
-                        PackageMode.QUARKUS)
-                .stream()
-                .map(PackageMode::configValue)
-                .collect(Collectors.joining(", "));
-    }
-
-    private static String unsupportedPackageModes() {
-        return List.of(PackageMode.UBER).stream()
-                .map(PackageMode::configValue)
-                .collect(Collectors.joining(", "));
-    }
-
-    private Path requireOutputDirectory(BuildResult buildResult) {
-        Path outputDirectory = buildResult.outputDirectory();
-        if (!Files.isDirectory(outputDirectory)) {
-            throw new PackageException(
-                    "Build output directory does not exist at "
-                            + outputDirectory
-                            + ". Run zolt build and check [build].output in zolt.toml.");
-        }
-        return outputDirectory;
     }
 
     private static Path jarPath(Path projectDirectory, ProjectConfig config) {
