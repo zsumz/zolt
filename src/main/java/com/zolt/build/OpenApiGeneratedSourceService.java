@@ -15,18 +15,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.Stream;
 
 public final class OpenApiGeneratedSourceService {
-    private static final String FINGERPRINT_VERSION = "1";
-
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratorCommandBuilder commandBuilder;
+    private final OpenApiGeneratedSourceCache cache;
     private final ProcessRunner processRunner;
 
     public OpenApiGeneratedSourceService() {
@@ -43,6 +39,7 @@ public final class OpenApiGeneratedSourceService {
             ProcessRunner processRunner) {
         this.jdkDetector = jdkDetector;
         this.commandBuilder = new OpenApiGeneratorCommandBuilder(pathSeparator);
+        this.cache = new OpenApiGeneratedSourceCache();
         this.processRunner = processRunner;
     }
 
@@ -96,19 +93,20 @@ public final class OpenApiGeneratedSourceService {
             GeneratedSourceStep step) {
         validateStep(projectRoot, scope, step);
         Path output = safeProjectPath(projectRoot, step.output(), scope, step.id(), "output");
-        Path fingerprint = output.resolve(".zolt-openapi-" + scope + "-" + step.id() + ".fingerprint");
-        String expectedFingerprint = fingerprint(projectRoot, toolClasspath, scope, step);
-        if (Files.isDirectory(output)
-                && Files.isRegularFile(fingerprint)
-                && readFingerprint(fingerprint).equals(expectedFingerprint)) {
+        OpenApiGeneratedSourceCache.GenerationCacheState cacheState = cache.state(
+                projectRoot,
+                output,
+                toolClasspath,
+                scope,
+                step);
+        if (cache.isCurrent(output, cacheState)) {
             return;
         }
         deleteOutput(output);
         createDirectory(output);
         List<String> command = commandBuilder.command(projectRoot, javaExecutable, toolClasspath, scope, step);
         ProcessResult result = processRunner.run(command, projectRoot);
-        Path log = output.resolve(".zolt-openapi-" + scope + "-" + step.id() + ".log");
-        writeLog(log, result.output());
+        cache.writeLog(cacheState, result.output());
         if (result.exitCode() != 0) {
             throw new BuildException(
                     "OpenAPI generation failed for [generated."
@@ -118,11 +116,11 @@ public final class OpenApiGeneratedSourceService {
                             + "] with exit code "
                             + result.exitCode()
                             + ". Review "
-                            + log
+                            + cacheState.log()
                             + ", fix the input or generator options, and retry `zolt build`.\n"
                             + result.output().stripTrailing());
         }
-        writeFingerprint(fingerprint, expectedFingerprint);
+        cache.writeFingerprint(cacheState);
     }
 
     private static void validateStep(Path projectRoot, String scope, GeneratedSourceStep step) {
@@ -214,48 +212,6 @@ public final class OpenApiGeneratedSourceService {
                 .toList();
     }
 
-    private static String fingerprint(
-            Path projectRoot,
-            List<Path> toolClasspath,
-            String scope,
-            GeneratedSourceStep step) {
-        StringBuilder content = new StringBuilder();
-        content.append("version=").append(FINGERPRINT_VERSION).append('\n');
-        content.append("scope=").append(scope).append('\n');
-        content.append("step=").append(step).append('\n');
-        content.append("[toolClasspath]\n");
-        toolClasspath.stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .sorted()
-                .forEach(path -> content
-                        .append(relative(projectRoot, path))
-                        .append('|')
-                        .append(fileHash(path))
-                        .append('\n'));
-        content.append("[inputs]\n");
-        step.inputs().stream()
-                .map(input -> projectRoot.resolve(input).normalize())
-                .sorted()
-                .forEach(path -> content
-                        .append(relative(projectRoot, path))
-                        .append('|')
-                        .append(fileHash(path))
-                        .append('\n'));
-        step.openApi().config().ifPresent(value -> content
-                .append("config=")
-                .append(value)
-                .append('|')
-                .append(fileHash(projectRoot.resolve(value).normalize()))
-                .append('\n'));
-        step.openApi().templateDir().ifPresent(value -> content
-                .append("templateDir=")
-                .append(value)
-                .append('|')
-                .append(fileHash(projectRoot.resolve(value).normalize()))
-                .append('\n'));
-        return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
     private static void deleteOutput(Path output) {
         if (!Files.exists(output)) {
             return;
@@ -285,38 +241,6 @@ public final class OpenApiGeneratedSourceService {
         }
     }
 
-    private static String readFingerprint(Path fingerprint) {
-        try {
-            return Files.readString(fingerprint);
-        } catch (IOException exception) {
-            return "";
-        }
-    }
-
-    private static void writeFingerprint(Path fingerprint, String content) {
-        try {
-            Files.writeString(fingerprint, content, StandardCharsets.UTF_8);
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not write OpenAPI generation fingerprint at "
-                            + fingerprint
-                            + ". Check filesystem permissions.",
-                    exception);
-        }
-    }
-
-    private static void writeLog(Path log, String output) {
-        try {
-            Files.writeString(log, output, StandardCharsets.UTF_8);
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not write OpenAPI generation log at "
-                            + log
-                            + ". Check filesystem permissions.",
-                    exception);
-        }
-    }
-
     private static ProcessResult runProcess(List<String> command, Path directory) {
         try {
             Process process = new ProcessBuilder(command)
@@ -333,63 +257,6 @@ public final class OpenApiGeneratedSourceService {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new BuildException("OpenAPI generation was interrupted. Try `zolt build` again.", exception);
-        }
-    }
-
-    private static String fileHash(Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (Files.isDirectory(normalized)) {
-            return directoryHash(normalized);
-        }
-        if (!Files.isRegularFile(normalized)) {
-            return "missing";
-        }
-        try {
-            return sha256(Files.readAllBytes(normalized));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not fingerprint OpenAPI input "
-                            + normalized
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String directoryHash(Path directory) {
-        try (Stream<Path> paths = Files.walk(directory)) {
-            StringBuilder content = new StringBuilder();
-            paths.filter(Files::isRegularFile)
-                    .map(Path::normalize)
-                    .sorted()
-                    .forEach(path -> content
-                            .append(directory.relativize(path).toString().replace('\\', '/'))
-                            .append('|')
-                            .append(fileHash(path))
-                            .append('\n'));
-            return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not fingerprint OpenAPI directory "
-                            + directory
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String relative(Path projectRoot, Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.startsWith(projectRoot)) {
-            return projectRoot.relativize(normalized).toString().replace('\\', '/');
-        }
-        return normalized.toString().replace('\\', '/');
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new BuildException("Could not compute OpenAPI fingerprint because SHA-256 is unavailable.", exception);
         }
     }
 
