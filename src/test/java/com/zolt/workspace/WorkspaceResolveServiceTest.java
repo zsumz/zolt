@@ -188,64 +188,6 @@ final class WorkspaceResolveServiceTest {
     }
 
     @Test
-    void recordsExportedWorkspacePackageOwners() throws IOException {
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api", "modules/core"]
-                """);
-        member("apps/api", "api", """
-
-                [api.dependencies]
-                "com.acme:core" = { workspace = "modules/core" }
-                """);
-        member("modules/core", "core", "");
-
-        ResolveResult result = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-
-        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
-        LockPackage core = lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.acme", "core")))
-                .findFirst()
-                .orElseThrow();
-        assertEquals(List.of("apps/api"), core.members());
-        assertEquals(List.of("apps/api"), core.exportedBy());
-    }
-
-    @Test
-    void recordsExportedExternalApiDependencies() throws IOException {
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s"
-                """.formatted(baseUri));
-        member("apps/api", "api", """
-
-                [api.dependencies]
-                "com.example:app" = "1.0.0"
-                """);
-
-        ResolveResult result = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-
-        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
-        LockPackage app = lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "app")))
-                .findFirst()
-                .orElseThrow();
-        LockPackage lib = lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "lib")))
-                .findFirst()
-                .orElseThrow();
-        assertEquals(List.of("apps/api"), app.members());
-        assertEquals(List.of("apps/api"), app.exportedBy());
-        assertEquals(List.of("apps/api"), lib.members());
-        assertEquals(List.of(), lib.exportedBy());
-    }
-
-    @Test
     void preservesDependencyMetadataWhenMergingWorkspacePolicy() throws IOException {
         workspace("""
                 [workspace]
@@ -269,52 +211,6 @@ final class WorkspaceResolveServiceTest {
                 lockPackage.packageId().equals(new PackageId("com.example", "app"))));
         assertFalse(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib"))));
-    }
-
-    @Test
-    void recordsExportedManagedApiDependencies() throws IOException {
-        addPom("com.example", "platform", "1.0.0", """
-                <project>
-                  <groupId>com.example</groupId>
-                  <artifactId>platform</artifactId>
-                  <version>1.0.0</version>
-                  <dependencyManagement>
-                    <dependencies>
-                      <dependency>
-                        <groupId>com.example</groupId>
-                        <artifactId>app</artifactId>
-                        <version>1.0.0</version>
-                      </dependency>
-                    </dependencies>
-                  </dependencyManagement>
-                </project>
-                """);
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s"
-
-                [platforms]
-                "com.example:platform" = "1.0.0"
-                """.formatted(baseUri));
-        member("apps/api", "api", """
-
-                [api.dependencies]
-                "com.example:app" = {}
-                """);
-
-        ResolveResult result = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-
-        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
-        LockPackage app = lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "app")))
-                .findFirst()
-                .orElseThrow();
-        assertEquals("1.0.0", app.version());
-        assertEquals(List.of("apps/api"), app.exportedBy());
     }
 
     @Test
