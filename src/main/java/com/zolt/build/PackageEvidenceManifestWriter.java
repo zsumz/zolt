@@ -1,5 +1,14 @@
 package com.zolt.build;
 
+import static com.zolt.build.PackageEvidenceJsonFields.booleanField;
+import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.PackageEvidenceJsonFields.intField;
+import static com.zolt.build.PackageEvidenceJsonFields.nullablePathField;
+import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
+import static com.zolt.build.PackageEvidenceJsonFields.stringArrayField;
+import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.project.GeneratedSourceStep;
@@ -315,144 +324,6 @@ public final class PackageEvidenceManifestWriter {
         } catch (NoSuchAlgorithmException exception) {
             throw new PackageException("Could not compute package evidence checksum because SHA-256 is unavailable.", exception);
         }
-    }
-
-    private static void nullablePathField(
-            StringBuilder json,
-            int level,
-            String name,
-            Path projectRoot,
-            Optional<Path> value,
-            boolean trailingComma) {
-        nullableStringField(json, level, name, value.map(path -> displayPath(projectRoot, path)), trailingComma);
-    }
-
-    private static void nullableStringField(
-            StringBuilder json,
-            int level,
-            String name,
-            Optional<String> value,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ");
-        if (value.isPresent()) {
-            string(json, value.orElseThrow());
-        } else {
-            json.append("null");
-        }
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void stringArrayField(
-            StringBuilder json,
-            int level,
-            String name,
-            List<String> values,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": [");
-        for (int index = 0; index < values.size(); index++) {
-            if (index > 0) {
-                json.append(", ");
-            }
-            string(json, values.get(index));
-        }
-        json.append("]");
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void stringField(
-            StringBuilder json,
-            int level,
-            String name,
-            String value,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ");
-        string(json, value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void booleanField(
-            StringBuilder json,
-            int level,
-            String name,
-            boolean value,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ").append(value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void intField(
-            StringBuilder json,
-            int level,
-            String name,
-            int value,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ").append(value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void string(StringBuilder json, String value) {
-        json.append('"');
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            switch (character) {
-                case '"' -> json.append("\\\"");
-                case '\\' -> json.append("\\\\");
-                case '\b' -> json.append("\\b");
-                case '\f' -> json.append("\\f");
-                case '\n' -> json.append("\\n");
-                case '\r' -> json.append("\\r");
-                case '\t' -> json.append("\\t");
-                default -> {
-                    if (character < 0x20) {
-                        json.append(String.format("\\u%04x", (int) character));
-                    } else {
-                        json.append(character);
-                    }
-                }
-            }
-        }
-        json.append('"');
-    }
-
-    private static String displayPath(Path projectRoot, Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.startsWith(projectRoot)) {
-            return projectRoot.relativize(normalized).toString().replace('\\', '/');
-        }
-        return normalized.toString();
-    }
-
-    private static void updateText(MessageDigest digest, String value) {
-        digest.update(value.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static StringBuilder indent(StringBuilder json, int level) {
-        return json.append("  ".repeat(level));
     }
 
     private record ArtifactEvidence(String classifier, String type, Path path, int entries) {}
