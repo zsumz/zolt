@@ -8,6 +8,7 @@ import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
@@ -193,7 +194,7 @@ final class DependencyWhyFormatterTest {
     }
 
     private static ProjectConfig config() {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),

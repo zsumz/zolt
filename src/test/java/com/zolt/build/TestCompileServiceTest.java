@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.classpath.Classpath;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -314,7 +315,7 @@ final class TestCompileServiceTest {
     }
 
     private static ProjectConfig config() {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), Optional.of("com.example.Main")),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),

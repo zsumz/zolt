@@ -3,6 +3,7 @@ package com.zolt.build;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
@@ -29,7 +30,7 @@ final class PackageServiceTestSupport {
     }
 
     static ProjectConfig config(ProjectMetadata projectMetadata) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 projectMetadata,
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),

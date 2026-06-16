@@ -12,6 +12,7 @@ import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
@@ -242,7 +243,7 @@ final class CleanServiceTest {
     }
 
     private static ProjectConfig config(BuildSettings buildSettings, boolean quarkusEnabled) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
                 Map.of(),
                 Map.of(),

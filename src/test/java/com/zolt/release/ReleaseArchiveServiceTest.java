@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -381,7 +382,7 @@ final class ReleaseArchiveServiceTest {
     }
 
     private static ProjectConfig config(ProjectMetadata projectMetadata) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 projectMetadata,
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),

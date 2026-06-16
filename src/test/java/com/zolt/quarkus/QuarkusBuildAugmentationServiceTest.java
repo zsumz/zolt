@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
@@ -96,7 +97,7 @@ final class QuarkusBuildAugmentationServiceTest {
     }
 
     private static ProjectConfig config(boolean quarkusEnabled) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                         new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
                         ProjectConfig.defaultRepositories(),
                         Map.of(),

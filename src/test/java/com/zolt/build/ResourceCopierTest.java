@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ResourceFilteringSettings;
 import com.zolt.project.ResourceMissingTokenPolicy;
@@ -361,7 +362,7 @@ final class ResourceCopierTest {
     }
 
     private static ProjectConfig config(ResourceFilteringSettings filtering) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                         new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                         ProjectConfig.defaultRepositories(),
                         Map.of(),

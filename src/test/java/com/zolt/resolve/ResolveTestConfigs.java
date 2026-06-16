@@ -36,7 +36,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig configWithRepositoryAndDependencies(String repositoryUrl, Map<String, String> dependencies) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", repositoryUrl),
                 dependencies,
@@ -70,7 +70,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig configWithTestDependencies(URI baseUri, Map<String, String> testDependencies) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(),
@@ -127,7 +127,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig runtimeProvidedConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withAllDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(),
@@ -157,7 +157,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig devConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withAllDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(),

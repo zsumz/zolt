@@ -393,7 +393,7 @@ final class BuildServiceTest {
     }
 
     private static ProjectConfig config() {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata(
                         "demo",
                         "0.1.0",

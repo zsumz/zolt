@@ -12,6 +12,7 @@ import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ProjectPathException;
 import java.io.IOException;
@@ -231,7 +232,7 @@ final class NativeBuildServiceTest {
     }
 
     private static ProjectConfig config(Optional<String> mainClass, NativeSettings nativeSettings) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),

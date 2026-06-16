@@ -9,6 +9,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceClasspathService;
@@ -109,7 +110,7 @@ final class WorkspaceIdeClasspathPlannerTest {
         return new WorkspaceMember(
                 path,
                 directory,
-                new ProjectConfig(
+                ProjectConfigs.withDirectDependencies(
                         new ProjectMetadata(name, "0.1.0", "com.acme", "21", Optional.empty()),
                         ProjectConfig.defaultRepositories(),
                         Map.of(),

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.nio.file.Path;
 import java.util.List;
@@ -106,7 +107,7 @@ final class WorkspaceMemberSelectorTest {
     }
 
     private static ProjectConfig config(String name) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata(name, "0.1.0", "com.acme", "21", Optional.empty()),
                 Map.of(),
                 Map.of(),

@@ -40,10 +40,10 @@ public record ProjectConfig(
 
     public ProjectConfig {
         repositorySettings = repositorySettings == null || repositorySettings.isEmpty()
-                ? repositorySettingsFromUrls(repositories)
+                ? ProjectConfigNormalizer.repositorySettingsFromUrls(repositories)
                 : ProjectConfigNormalizer.orderedRepositorySettings(repositorySettings);
         repositories = repositories == null || repositories.isEmpty()
-                ? repositoryUrls(repositorySettings)
+                ? ProjectConfigNormalizer.repositoryUrls(repositorySettings)
                 : ProjectConfigNormalizer.orderedMap(repositories);
         repositoryCredentials = ProjectConfigNormalizer.orderedRepositoryCredentials(repositoryCredentials);
         versionAliases = ProjectConfigNormalizer.orderedMap(versionAliases);
@@ -200,62 +200,6 @@ public record ProjectConfig(
             Set<String> managedTestAnnotationProcessors,
             BuildSettings build,
             NativeSettings nativeSettings,
-            CompilerSettings compilerSettings,
-            PackageSettings packageSettings) {
-        this(ProjectConfigConstruction.fullWithPackage(
-                project,
-                repositories,
-                platforms,
-                apiDependencies,
-                managedApiDependencies,
-                workspaceApiDependencies,
-                dependencies,
-                managedDependencies,
-                workspaceDependencies,
-                runtimeDependencies,
-                managedRuntimeDependencies,
-                providedDependencies,
-                managedProvidedDependencies,
-                devDependencies,
-                managedDevDependencies,
-                testDependencies,
-                managedTestDependencies,
-                workspaceTestDependencies,
-                annotationProcessors,
-                managedAnnotationProcessors,
-                testAnnotationProcessors,
-                managedTestAnnotationProcessors,
-                build,
-                nativeSettings,
-                compilerSettings,
-                packageSettings));
-    }
-
-    public ProjectConfig(
-            ProjectMetadata project,
-            Map<String, String> repositories,
-            Map<String, String> platforms,
-            Map<String, String> apiDependencies,
-            Set<String> managedApiDependencies,
-            Map<String, String> workspaceApiDependencies,
-            Map<String, String> dependencies,
-            Set<String> managedDependencies,
-            Map<String, String> workspaceDependencies,
-            Map<String, String> runtimeDependencies,
-            Set<String> managedRuntimeDependencies,
-            Map<String, String> providedDependencies,
-            Set<String> managedProvidedDependencies,
-            Map<String, String> devDependencies,
-            Set<String> managedDevDependencies,
-            Map<String, String> testDependencies,
-            Set<String> managedTestDependencies,
-            Map<String, String> workspaceTestDependencies,
-            Map<String, String> annotationProcessors,
-            Set<String> managedAnnotationProcessors,
-            Map<String, String> testAnnotationProcessors,
-            Set<String> managedTestAnnotationProcessors,
-            BuildSettings build,
-            NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
         this(ProjectConfigConstruction.full(
                 project,
@@ -335,45 +279,12 @@ public record ProjectConfig(
                 compilerSettings));
     }
 
-    public ProjectConfig(
-            ProjectMetadata project,
-            Map<String, String> repositories,
-            Map<String, String> dependencies,
-            Map<String, String> testDependencies,
-            BuildSettings build,
-            NativeSettings nativeSettings) {
-        this(ProjectConfigDependencyConstruction.directDependencies(
-                project,
-                repositories,
-                dependencies,
-                testDependencies,
-                build,
-                nativeSettings));
-    }
-
-    public ProjectConfig(
-            ProjectMetadata project,
-            Map<String, String> repositories,
-            Map<String, String> dependencies,
-            Map<String, String> testDependencies,
-            BuildSettings build) {
-        this(project, repositories, dependencies, testDependencies, build, NativeSettings.defaults());
-    }
-
     public static Map<String, String> defaultRepositories() {
         return ProjectConfigNormalizer.defaultRepositories();
     }
 
     public static Map<String, RepositorySettings> defaultRepositorySettings() {
         return ProjectConfigNormalizer.defaultRepositorySettings();
-    }
-
-    private static Map<String, RepositorySettings> repositorySettingsFromUrls(Map<String, String> repositories) {
-        return ProjectConfigNormalizer.repositorySettingsFromUrls(repositories);
-    }
-
-    private static Map<String, String> repositoryUrls(Map<String, RepositorySettings> repositorySettings) {
-        return ProjectConfigNormalizer.repositoryUrls(repositorySettings);
     }
 
     public ProjectConfig withBuildSettings(BuildSettings build) {

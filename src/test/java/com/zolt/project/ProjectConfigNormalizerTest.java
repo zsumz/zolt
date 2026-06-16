@@ -24,7 +24,7 @@ final class ProjectConfigNormalizerTest {
         dependencies.put("com.example:first", "1.0.0");
         dependencies.put("com.example:second", "2.0.0");
 
-        ProjectConfig config = new ProjectConfig(
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
                 ProjectConfig.defaultRepositories(),
                 dependencies,

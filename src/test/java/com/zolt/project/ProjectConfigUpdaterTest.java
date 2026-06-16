@@ -68,7 +68,7 @@ final class ProjectConfigUpdaterTest {
     }
 
     private static ProjectConfig config() {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
                 ProjectConfig.defaultRepositories(),
                 Map.of("com.example:main", "1.0.0"),

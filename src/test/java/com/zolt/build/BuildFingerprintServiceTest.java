@@ -8,6 +8,7 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.classpath.Classpath;
 import java.io.IOException;
@@ -84,7 +85,7 @@ final class BuildFingerprintServiceTest {
     }
 
     private static ProjectConfig config() {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
                 ProjectConfig.defaultRepositories(),
                 Map.of(),

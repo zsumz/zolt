@@ -13,6 +13,7 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
@@ -384,7 +385,7 @@ final class RunPackageServiceTest {
     }
 
     private static ProjectConfig config(Optional<String> mainClass) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),
