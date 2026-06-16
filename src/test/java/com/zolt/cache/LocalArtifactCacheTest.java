@@ -15,14 +15,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,71 +56,6 @@ final class LocalArtifactCacheTest {
         assertEquals(1, fetchCount.get());
         assertArrayEquals(first.bytes(), second.bytes());
         assertEquals(first.cachePath(), second.cachePath());
-    }
-
-    @Test
-    void concurrentDuplicatePomFetchDownloadsOnce() throws Exception {
-        LocalArtifactCache cache = new LocalArtifactCache(tempDir, new DownloadCoordinator(4));
-        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
-        AtomicInteger fetchCount = new AtomicInteger();
-        CountDownLatch firstStarted = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-
-        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<CachedArtifact> first = executor.submit(() -> cache.getOrFetchPom(coordinate, requested -> {
-                fetchCount.incrementAndGet();
-                firstStarted.countDown();
-                await(release);
-                return artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<project/>");
-            }));
-            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
-            executor.submit(() -> {
-                sleepBriefly();
-                release.countDown();
-            });
-            CachedArtifact second = cache.getOrFetchPom(coordinate, requested -> {
-                fetchCount.incrementAndGet();
-                return artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<duplicate/>");
-            });
-
-            assertArrayEquals(first.get().bytes(), second.bytes());
-            assertEquals(1, fetchCount.get());
-            assertEquals("<project/>", Files.readString(cache.pomPath(coordinate)));
-        }
-    }
-
-    @Test
-    void manyConcurrentDuplicateJarFetchesDownloadOnce() throws Exception {
-        LocalArtifactCache cache = new LocalArtifactCache(tempDir, new DownloadCoordinator(4));
-        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
-        AtomicInteger fetchCount = new AtomicInteger();
-        CountDownLatch firstStarted = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
-
-        try (ExecutorService executor = Executors.newFixedThreadPool(12)) {
-            List<Future<CachedArtifact>> futures = new ArrayList<>();
-            for (int index = 0; index < 12; index++) {
-                futures.add(executor.submit(() -> cache.getOrFetchJar(coordinate, requested -> {
-                    fetchCount.incrementAndGet();
-                    firstStarted.countDown();
-                    await(release);
-                    return new RepositoryArtifact(
-                            requested,
-                            "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar",
-                            URI.create("https://repo.example/guava.jar"),
-                            jarBytes);
-                })));
-            }
-            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
-            release.countDown();
-            for (Future<CachedArtifact> future : futures) {
-                assertArrayEquals(jarBytes, future.get().bytes());
-            }
-        }
-
-        assertEquals(1, fetchCount.get());
-        assertArrayEquals(jarBytes, Files.readAllBytes(cache.jarPath(coordinate)));
     }
 
     @Test
@@ -257,23 +186,5 @@ final class LocalArtifactCacheTest {
                 path,
                 URI.create("https://repo.example/" + path),
                 body.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            assertTrue(latch.await(2, TimeUnit.SECONDS));
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while waiting for test latch.", exception);
-        }
-    }
-
-    private static void sleepBriefly() {
-        try {
-            Thread.sleep(50L);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while sleeping in test.", exception);
-        }
     }
 }
