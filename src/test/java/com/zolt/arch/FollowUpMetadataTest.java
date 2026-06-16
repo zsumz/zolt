@@ -25,7 +25,9 @@ final class FollowUpMetadataTest {
 
     @Test
     void modernFollowUpsHaveMatchingTitleAndValidStatus() throws IOException {
-        List<String> violations = violations(modernFollowUps(FOLLOW_UPS));
+        List<FollowUpFile> followUps = modernFollowUps(FOLLOW_UPS);
+        List<String> violations = violations(followUps);
+        violations.addAll(sequenceViolations(followUps));
 
         assertTrue(
                 violations.isEmpty(),
@@ -88,6 +90,23 @@ final class FollowUpMetadataTest {
                 violations(followUps));
     }
 
+    @Test
+    void modernFollowUpIdsMustBeContiguous(@TempDir Path tempDir) throws IOException {
+        writeModernFollowUp(tempDir.resolve("-first.md"), "503");
+        writeModernFollowUp(tempDir.resolve("-duplicate.md"), "503");
+        writeModernFollowUp(tempDir.resolve("-second.md"), "504");
+        writeModernFollowUp(tempDir.resolve("-gap.md"), "506");
+        write(tempDir.resolve("-legacy.md"), """
+                # : Legacy followUp
+                """);
+
+        assertEquals(
+                List.of(
+                        "Duplicate modern followUp id ",
+                        "Missing modern followUp id  between  and "),
+                sequenceViolations(modernFollowUps(tempDir)));
+    }
+
     private static List<String> violations(List<FollowUpFile> followUps) {
         List<String> violations = new ArrayList<>();
         for (FollowUpFile followUp : followUps) {
@@ -102,6 +121,28 @@ final class FollowUpMetadataTest {
             if (followUp.status().filter("Done"::equals).isPresent() && followUp.hasUncheckedChecklistItem()) {
                 violations.add(followUp.path() + " is Done but still has unchecked checklist items");
             }
+        }
+        return violations;
+    }
+
+    private static List<String> sequenceViolations(List<FollowUpFile> followUps) {
+        List<String> violations = new ArrayList<>();
+        int previous = MODERN_FOLLOW_UP_MIN_ID - 1;
+        for (FollowUpFile followUp : followUps) {
+            int current = Integer.parseInt(followUp.id());
+            if (current == previous) {
+                violations.add("Duplicate modern followUp id follow-up-" + followUp.id());
+                continue;
+            }
+            for (int missing = previous + 1; missing < current; missing++) {
+                violations.add("Missing modern followUp id follow-up-"
+                        + String.format("%03d", missing)
+                        + " between follow-up-"
+                        + String.format("%03d", previous)
+                        + " and follow-up-"
+                        + followUp.id());
+            }
+            previous = current;
         }
         return violations;
     }
@@ -140,6 +181,16 @@ final class FollowUpMetadataTest {
 
     private static void write(Path path, String contents) throws IOException {
         Files.writeString(path, contents);
+    }
+
+    private static void writeModernFollowUp(Path path, String id) throws IOException {
+        write(path, """
+                # follow-up-%s - FollowUp
+
+                Status: Done
+
+                - [x] Complete
+                """.formatted(id));
     }
 
     private static String describe(List<String> values) {
