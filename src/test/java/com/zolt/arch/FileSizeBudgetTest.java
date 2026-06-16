@@ -23,9 +23,32 @@ final class FileSizeBudgetTest {
             new Budget(Path.of("src/test/java"), 450, 650));
 
     @Test
+    void javaFilesStayBelowSoftThresholds() throws IOException {
+        List<String> violations = new ArrayList<>();
+        for (Budget budget : BUDGETS) {
+            for (SourceFileSize fileSize : sourceFileSizes(budget)) {
+                if (fileSize.lines() > budget.softThreshold()) {
+                    violations.add(fileSize.path()
+                            + " has "
+                            + fileSize.lines()
+                            + " lines and exceeds the soft threshold of "
+                            + budget.softThreshold()
+                            + " lines");
+                }
+            }
+        }
+
+        assertTrue(
+                violations.isEmpty(),
+                () -> "File-size soft threshold violations:\n"
+                        + describe(violations)
+                        + "\nSplit the file or update `docs/code-organization.md` with a planned policy change.");
+    }
+
+    @Test
     void hardThresholdFilesAreExplicitlyAllowlistedAndDoNotGrow() throws IOException {
         Map<String, AllowlistEntry> allowlist = readAllowlist();
-        Map<String, SourceFileSize> oversizedFiles = oversizedFiles(BUDGETS);
+        Map<String, SourceFileSize> oversizedFiles = filesAboveHardThreshold(BUDGETS);
         List<String> violations = new ArrayList<>();
 
         for (SourceFileSize fileSize : oversizedFiles.values()) {
@@ -70,10 +93,33 @@ final class FileSizeBudgetTest {
 
         assertEquals(
                 Map.of("src/main/java/Large.java", new SourceFileSize("src/main/java/Large.java", 6)),
-                oversizedFiles(List.of(new Budget(sourceRoot, 4, 5))));
+                filesAboveHardThreshold(List.of(new Budget(sourceRoot, 4, 5))));
     }
 
-    private static Map<String, SourceFileSize> oversizedFiles(List<Budget> budgets) throws IOException {
+    @Test
+    void scannerFindsFilesAboveSoftThreshold(@TempDir Path tempDir) throws IOException {
+        Path sourceRoot = tempDir.resolve("src/test/java");
+        writeLines(sourceRoot.resolve("SmallTest.java"), 3);
+        writeLines(sourceRoot.resolve("LargeTest.java"), 5);
+
+        assertEquals(
+                Map.of("src/test/java/LargeTest.java", new SourceFileSize("src/test/java/LargeTest.java", 5)),
+                filesAboveSoftThreshold(List.of(new Budget(sourceRoot, 4, 10))));
+    }
+
+    private static Map<String, SourceFileSize> filesAboveSoftThreshold(List<Budget> budgets) throws IOException {
+        Map<String, SourceFileSize> files = new LinkedHashMap<>();
+        for (Budget budget : budgets) {
+            for (SourceFileSize fileSize : sourceFileSizes(budget)) {
+                if (fileSize.lines() > budget.softThreshold()) {
+                    files.put(fileSize.path(), fileSize);
+                }
+            }
+        }
+        return files;
+    }
+
+    private static Map<String, SourceFileSize> filesAboveHardThreshold(List<Budget> budgets) throws IOException {
         Map<String, SourceFileSize> files = new LinkedHashMap<>();
         for (Budget budget : budgets) {
             for (SourceFileSize fileSize : sourceFileSizes(budget)) {
