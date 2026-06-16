@@ -1,5 +1,7 @@
 package com.zolt.cli;
 
+import static com.zolt.cli.AddCommandNoResolveTestSupport.occurrences;
+import static com.zolt.cli.AddCommandNoResolveTestSupport.writeProjectConfig;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,7 +12,6 @@ import com.zolt.cli.CliTestSupport.CommandResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -237,98 +238,4 @@ final class AddCommandNoResolveTest {
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
     }
 
-    @Test
-    void addAddsProcessorDependencyWithoutResolveWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-
-        CommandResult result = execute(
-                "add",
-                "--cwd", projectDir.toString(),
-                "--no-resolve",
-                "processor",
-                "org.mapstruct:mapstruct-processor:1.6.3");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains(
-                "Added dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
-        String config = Files.readString(projectDir.resolve("zolt.toml"));
-        assertTrue(config.contains("[annotationProcessors]"));
-        assertTrue(config.contains("\"org.mapstruct:mapstruct-processor\" = \"1.6.3\""));
-        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
-    }
-
-    @Test
-    void addAddsManagedTestProcessorDependencyWithoutResolveWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-
-        CommandResult result = execute(
-                "add",
-                "--cwd", projectDir.toString(),
-                "--no-resolve",
-                "--managed",
-                "test-processor",
-                "io.micronaut:micronaut-inject-java");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains(
-                "Added dependency io.micronaut:micronaut-inject-java with a platform-managed version to [test.annotationProcessors]"));
-        String config = Files.readString(projectDir.resolve("zolt.toml"));
-        assertTrue(config.contains("[test.annotationProcessors]"));
-        assertTrue(config.contains("\"io.micronaut:micronaut-inject-java\" = {}"));
-        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
-    }
-
-    private static void writeProjectConfig(Path projectDir) throws IOException {
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-    }
-
-    private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
-        writeProjectConfig(projectDir, repositoryUrl, Map.of());
-    }
-
-    private static void writeProjectConfig(
-            Path projectDir,
-            String repositoryUrl,
-            Map<String, String> dependencies) throws IOException {
-        Files.createDirectories(projectDir);
-        StringBuilder config = new StringBuilder(memberConfig("demo") + """
-                main = "com.example.Main"
-
-                [repositories]
-                test = "%s"
-
-                [dependencies]
-                """.formatted(repositoryUrl));
-        dependencies.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> config.append('"')
-                        .append(entry.getKey())
-                        .append("\" = \"")
-                        .append(entry.getValue())
-                        .append("\"\n"));
-        config.append("""
-
-                [test.dependencies]
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """);
-        Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
-    }
-
-    private static int occurrences(String value, String needle) {
-        int count = 0;
-        int index = value.indexOf(needle);
-        while (index >= 0) {
-            count++;
-            index = value.indexOf(needle, index + needle.length());
-        }
-        return count;
-    }
 }
