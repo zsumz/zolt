@@ -16,19 +16,17 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 
 final class CredentialQualityCheck {
     private final PublishSettingsReader publishSettingsReader;
-    private final Function<String, String> environment;
+    private final CredentialEnvironmentValidator credentialEnvironmentValidator;
 
     CredentialQualityCheck(PublishSettingsReader publishSettingsReader, Function<String, String> environment) {
         this.publishSettingsReader = publishSettingsReader;
-        this.environment = environment;
+        this.credentialEnvironmentValidator = new CredentialEnvironmentValidator(environment);
     }
 
     List<QualityCheckResult> checkRepositoryCredentials(
@@ -66,7 +64,8 @@ final class CredentialQualityCheck {
                 continue;
             }
 
-            List<String> missing = missingCredentialEnvironmentVariables(credential);
+            CredentialEnvironmentCheck environmentCheck = credentialEnvironmentValidator.check(credential);
+            List<String> missing = environmentCheck.missing();
             if (!missing.isEmpty()) {
                 results.add(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -86,7 +85,7 @@ final class CredentialQualityCheck {
                 continue;
             }
 
-            List<String> placeholders = placeholderCredentialEnvironmentVariables(credential);
+            List<String> placeholders = environmentCheck.placeholders();
             if (!placeholders.isEmpty()) {
                 results.add(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -157,7 +156,8 @@ final class CredentialQualityCheck {
                 continue;
             }
 
-            List<String> missing = missingCredentialEnvironmentVariables(credential);
+            CredentialEnvironmentCheck environmentCheck = credentialEnvironmentValidator.check(credential);
+            List<String> missing = environmentCheck.missing();
             if (!missing.isEmpty()) {
                 results.add(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -177,7 +177,7 @@ final class CredentialQualityCheck {
                 continue;
             }
 
-            List<String> placeholders = placeholderCredentialEnvironmentVariables(credential);
+            List<String> placeholders = environmentCheck.placeholders();
             if (!placeholders.isEmpty()) {
                 results.add(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -230,7 +230,7 @@ final class CredentialQualityCheck {
             if (token.env().isPresent()) {
                 envTokens++;
                 String env = token.env().orElseThrow();
-                if (isMissingEnvironmentValue(env)) {
+                if (credentialEnvironmentValidator.isMissingEnvironmentValue(env)) {
                     failures.add(QualityCheckResult.failed(
                             EXECUTION_CONTEXT,
                             member,
@@ -319,46 +319,4 @@ final class CredentialQualityCheck {
         }
     }
 
-    private List<String> missingCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
-        List<String> missing = new ArrayList<>();
-        if (isMissingEnvironmentValue(credential.usernameEnv())) {
-            missing.add(credential.usernameEnv());
-        }
-        if (isMissingEnvironmentValue(credential.passwordEnv())) {
-            missing.add(credential.passwordEnv());
-        }
-        return List.copyOf(missing);
-    }
-
-    private List<String> placeholderCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
-        List<String> placeholders = new ArrayList<>();
-        if (isPlaceholderCredential(environment.apply(credential.usernameEnv()))) {
-            placeholders.add(credential.usernameEnv());
-        }
-        if (isPlaceholderCredential(environment.apply(credential.passwordEnv()))) {
-            placeholders.add(credential.passwordEnv());
-        }
-        return List.copyOf(placeholders);
-    }
-
-    private boolean isMissingEnvironmentValue(String name) {
-        String value = environment.apply(name);
-        return value == null || value.isBlank();
-    }
-
-    private static boolean isPlaceholderCredential(String value) {
-        if (value == null) {
-            return false;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return Set.of(
-                "read.only",
-                "readonly",
-                "change-me",
-                "changeme",
-                "dummy",
-                "example",
-                "password",
-                "secret").contains(normalized);
-    }
 }
