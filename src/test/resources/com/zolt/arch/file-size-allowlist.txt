@@ -1,2 +1,1 @@
 # path|maxLines|followUp
-src/main/java/com/zolt/project/ProjectConfig.java|565|

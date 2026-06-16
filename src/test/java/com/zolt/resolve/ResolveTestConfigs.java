@@ -8,6 +8,7 @@ import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
@@ -50,7 +51,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig quarkusPlatformConfigWithDependencies(URI baseUri, Map<String, String> dependencies) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDependencySections(
                         new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                         Map.of("test", baseUri.toString()),
                         Map.of("io.quarkus.platform:quarkus-bom", "3.33.0"),
@@ -78,7 +79,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig platformConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withRuntimeDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of("com.example:platform", "1.0.0"),
@@ -113,7 +114,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig testPlatformConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withRuntimeDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of("com.example:platform", "1.0.0"),
@@ -194,7 +195,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig processorConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(),
@@ -270,7 +271,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig configWithDependencyAndProcessor(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(),
@@ -287,7 +288,7 @@ final class ResolveTestConfigs {
     }
 
     static ProjectConfig processorPlatformConfig(URI baseUri) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of("com.example:platform", "1.0.0"),

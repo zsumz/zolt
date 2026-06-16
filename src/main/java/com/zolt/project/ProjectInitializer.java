@@ -26,7 +26,7 @@ public final class ProjectInitializer {
         }
 
         String mainClass = group + ".Main";
-        ProjectConfig config = new ProjectConfig(
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata(name, "0.1.0", group, javaVersion, Optional.of(mainClass)),
                 ProjectConfig.defaultRepositories(),
                 java.util.Map.of(),

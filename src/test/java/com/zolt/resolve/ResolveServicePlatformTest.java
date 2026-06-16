@@ -10,6 +10,7 @@ import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.nio.file.Path;
 import java.util.List;
@@ -103,7 +104,7 @@ final class ResolveServicePlatformTest extends ResolveServiceTestSupport {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");
         createDirectory(projectDir);
-        ProjectConfig config = new ProjectConfig(
+        ProjectConfig config = ProjectConfigs.withRuntimeDependencySections(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("test", baseUri.toString()),
                 Map.of(

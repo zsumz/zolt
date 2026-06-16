@@ -13,6 +13,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -406,7 +407,7 @@ final class BuildServiceTest {
     }
 
     private static ProjectConfig withCompilerSettings(ProjectConfig config, CompilerSettings compilerSettings) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDependencySections(
                 config.project(),
                 config.repositories(),
                 config.platforms(),

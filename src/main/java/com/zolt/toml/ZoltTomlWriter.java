@@ -3,6 +3,7 @@ package com.zolt.toml;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectConfigs;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +11,7 @@ import java.util.Map;
 
 public final class ZoltTomlWriter {
     public ProjectConfig defaultApplicationConfig(String name, String group, String mainClass) {
-        return new ProjectConfig(
+        return ProjectConfigs.withDirectDependencies(
                 ProjectSectionCodec.defaultApplicationProject(name, group, mainClass),
                 ProjectConfig.defaultRepositories(),
                 Map.of(),
