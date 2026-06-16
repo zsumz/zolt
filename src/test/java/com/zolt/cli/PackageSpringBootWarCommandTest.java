@@ -1,0 +1,96 @@
+package com.zolt.cli;
+
+import static com.zolt.cli.CliTestSupport.execute;
+import static com.zolt.cli.PackageSpringBootCommandTestSupport.createJarWithEntry;
+import static com.zolt.cli.PackageSpringBootCommandTestSupport.writeMainSource;
+import static com.zolt.cli.PackageSpringBootCommandTestSupport.writeProjectConfig;
+import static com.zolt.cli.PackageSpringBootCommandTestSupport.writeSpringBootWarProvidedTomcatLockfile;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.cli.CliTestSupport.CommandResult;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class PackageSpringBootWarCommandTest {
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void packageCommandBuildsSpringBootWarWithProvidedTomcatLane() throws IOException {
+        Path projectDir = tempDir.resolve("spring-boot-war-provided-tomcat");
+        Path cacheRoot = tempDir.resolve("cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        createJarWithEntry(
+                cacheRoot.resolve("org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"),
+                "org/springframework/boot/SpringApplication.class");
+        createJarWithEntry(
+                cacheRoot.resolve(
+                        "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar"),
+                "org/springframework/boot/loader/launch/WarLauncher.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"),
+                "com/example/runtime/RuntimeLib.class");
+        createJarWithEntry(
+                cacheRoot.resolve(
+                        "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"),
+                "org/apache/catalina/startup/Tomcat.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/devtools/1.0.0/devtools-1.0.0.jar"),
+                "com/example/dev/DevTools.class");
+        createJarWithEntry(
+                cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar"),
+                "com/example/processor/Processor.class");
+        writeSpringBootWarProvidedTomcatLockfile(projectDir);
+
+        CommandResult result = execute(
+                "package",
+                "--mode", "spring-boot-war",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        Path warPath = projectDir.resolve("target/demo-0.1.0.war");
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Packaged"));
+        assertTrue(result.stdout().contains("spring-boot-war"));
+        assertTrue(result.stdout().contains("Wrote archive to " + warPath));
+        assertTrue(result.stdout().contains("Wrote package evidence to " + warPath + ".zolt-package.json"));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json")));
+        assertFalse(result.stdout().contains("CONTAINER_DEPENDENCY_PACKAGED"));
+        String evidence = Files.readString(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json"));
+        assertTrue(evidence.contains("\"rule\": \"spring-boot-war-provided-coordinate-override\""));
+        assertTrue(evidence.contains("\"rule\": \"spring-boot-war-provided-lib\""));
+        try (JarFile jar = new JarFile(warPath.toFile())) {
+            Attributes attributes = jar.getManifest().getMainAttributes();
+            assertEquals(
+                    "org.springframework.boot.loader.launch.WarLauncher",
+                    attributes.getValue(Attributes.Name.MAIN_CLASS));
+            assertEquals("com.example.Main", attributes.getValue("Start-Class"));
+            assertEquals("WEB-INF/lib-provided/", attributes.getValue("Spring-Boot-Lib-Provided"));
+            assertNotNull(jar.getEntry("WEB-INF/lib/runtime-lib-1.0.0.jar"));
+            assertNotNull(jar.getEntry("WEB-INF/lib-provided/tomcat-embed-core-10.1.40.jar"));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/tomcat-embed-core-10.1.40.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/devtools-1.0.0.jar")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(
+                    "WEB-INF/lib/processor-1.0.0.jar")));
+        }
+    }
+}
