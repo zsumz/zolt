@@ -342,7 +342,7 @@ public record ProjectConfig(
             Map<String, String> testDependencies,
             BuildSettings build,
             NativeSettings nativeSettings) {
-        this(ProjectConfigConstruction.directDependencies(
+        this(ProjectConfigDependencyConstruction.directDependencies(
                 project,
                 repositories,
                 dependencies,
