@@ -7,16 +7,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.Properties;
 
 public final class QuarkusApplicationModelFactory {
     private final QuarkusApplicationModelApi api;
-    private final QuarkusExtensionMetadataReader metadataReader;
+    private final QuarkusClassLoadingArtifactsConfigurer classLoadingArtifactsConfigurer;
 
     public QuarkusApplicationModelFactory() {
         this(QuarkusApplicationModelApi.DEFAULT, new QuarkusExtensionMetadataReader());
@@ -36,7 +34,7 @@ public final class QuarkusApplicationModelFactory {
             throw new QuarkusAugmentationException("Quarkus extension metadata reader is required.");
         }
         this.api = api;
-        this.metadataReader = metadataReader;
+        this.classLoadingArtifactsConfigurer = new QuarkusClassLoadingArtifactsConfigurer(api, metadataReader);
     }
 
     public QuarkusApplicationModelHandle create(QuarkusBootstrapDescriptor descriptor) {
@@ -105,7 +103,7 @@ public final class QuarkusApplicationModelFactory {
             applicationModelBuilderClass
                     .getMethod("setAppArtifact", resolvedDependencyBuilderClass)
                     .invoke(modelBuilder, appArtifact);
-            setClassLoadingArtifacts(applicationModelBuilderClass, modelBuilder, descriptor, options);
+            classLoadingArtifactsConfigurer.configure(applicationModelBuilderClass, modelBuilder, descriptor, options);
             Object applicationModel = applicationModelBuilderClass.getMethod("build").invoke(modelBuilder);
             return new QuarkusApplicationModelHandle(
                     applicationModel,
@@ -248,58 +246,7 @@ public final class QuarkusApplicationModelFactory {
                         outputDirectory.toAbsolutePath().normalize());
     }
 
-    private void setClassLoadingArtifacts(
-            Class<?> applicationModelBuilderClass,
-            Object modelBuilder,
-            QuarkusBootstrapDescriptor descriptor,
-            QuarkusApplicationModelOptions options)
-            throws ReflectiveOperationException {
-        Set<QuarkusArtifactKey> parentFirstArtifacts = new LinkedHashSet<>(options.parentFirstArtifacts());
-        Set<QuarkusArtifactKey> runnerParentFirstArtifacts = new LinkedHashSet<>(options.runnerParentFirstArtifacts());
-        Map<QuarkusArtifactKey, Set<String>> removedResources = new LinkedHashMap<>();
-        addRemovedResources(removedResources, options.removedResources());
-        for (Path runtimeArtifact : descriptor.runtimeClasspath()) {
-            if (!Files.isRegularFile(runtimeArtifact)) {
-                continue;
-            }
-            Optional<QuarkusExtensionMetadata> metadata = metadataReader.readIfPresent(runtimeArtifact);
-            if (metadata.isEmpty()) {
-                continue;
-            }
-            parentFirstArtifacts.addAll(metadata.orElseThrow().parentFirstArtifacts());
-            runnerParentFirstArtifacts.addAll(metadata.orElseThrow().runnerParentFirstArtifacts());
-            addRemovedResources(removedResources, metadata.orElseThrow().removedResources());
-        }
-        if (parentFirstArtifacts.isEmpty() && runnerParentFirstArtifacts.isEmpty() && removedResources.isEmpty()) {
-            return;
-        }
-        Class<?> artifactKeyClass = Class.forName(api.artifactKeyClass());
-        for (QuarkusArtifactKey artifactKey : parentFirstArtifacts) {
-            applicationModelBuilderClass
-                    .getMethod("addParentFirstArtifact", artifactKeyClass)
-                    .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
-        }
-        for (QuarkusArtifactKey artifactKey : runnerParentFirstArtifacts) {
-            applicationModelBuilderClass
-                    .getMethod("addRunnerParentFirstArtifact", artifactKeyClass)
-                    .invoke(modelBuilder, artifactKey(artifactKeyClass, artifactKey));
-        }
-        for (Map.Entry<QuarkusArtifactKey, Set<String>> entry : removedResources.entrySet()) {
-            applicationModelBuilderClass
-                    .getMethod("addRemovedResources", artifactKeyClass, java.util.Collection.class)
-                    .invoke(modelBuilder, artifactKey(artifactKeyClass, entry.getKey()), List.copyOf(entry.getValue()));
-        }
-    }
-
-    private static void addRemovedResources(
-            Map<QuarkusArtifactKey, Set<String>> target,
-            Map<QuarkusArtifactKey, List<String>> source) {
-        for (Map.Entry<QuarkusArtifactKey, List<String>> entry : source.entrySet()) {
-            target.computeIfAbsent(entry.getKey(), ignored -> new LinkedHashSet<>()).addAll(entry.getValue());
-        }
-    }
-
-    private static Object artifactKey(
+    static Object artifactKey(
             Class<?> artifactKeyClass,
             QuarkusArtifactKey artifactKey)
             throws ReflectiveOperationException {
