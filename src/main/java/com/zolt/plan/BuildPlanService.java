@@ -3,7 +3,6 @@ package com.zolt.plan;
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.project.BuildSettings;
-import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
@@ -17,13 +16,21 @@ import java.util.Optional;
 
 public final class BuildPlanService {
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner;
 
     public BuildPlanService() {
-        this(new GeneratedSourceEvidenceService());
+        this(new GeneratedSourceEvidenceService(), new BuildPlanGeneratedSourceNodePlanner());
     }
 
     BuildPlanService(GeneratedSourceEvidenceService generatedSourceEvidenceService) {
+        this(generatedSourceEvidenceService, new BuildPlanGeneratedSourceNodePlanner());
+    }
+
+    BuildPlanService(
+            GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner) {
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.generatedSourceNodePlanner = generatedSourceNodePlanner;
     }
 
     public BuildPlan plan(Path projectRoot, ProjectConfig config, PlanTarget target, Optional<Path> reportsDir) {
@@ -76,16 +83,21 @@ public final class BuildPlanService {
                         "Run `zolt resolve` first, then rerun `zolt plan`."))));
     }
 
-    private static void addBuildNodes(
+    private void addBuildNodes(
             List<PlanNode> nodes,
             Path root,
             ProjectConfig config,
             List<GeneratedSourceEvidence> generatedSources) {
         BuildSettings build = config.build();
-        for (GeneratedSourceEvidence evidence : generatedSourcesForScope(generatedSources, "main")) {
-            nodes.add(generatedSourceNode(root, "generate-main-" + evidence.step().id(), evidence));
-        }
-        addResourceNode(nodes, "process-main-resources", "resources", build.resourceRoots(), build.output(), build.resourceFiltering(), false);
+        nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "main"));
+        addResourceNode(
+                nodes,
+                "process-main-resources",
+                "resources",
+                build.resourceRoots(),
+                build.output(),
+                build.resourceFiltering(),
+                false);
         nodes.add(new PlanNode(
                 "compile-main",
                 "compile",
@@ -97,17 +109,22 @@ public final class BuildPlanService {
                 List.of()));
     }
 
-    private static void addTestNodes(
+    private void addTestNodes(
             List<PlanNode> nodes,
             Path root,
             ProjectConfig config,
             Optional<Path> reportsDir,
             List<GeneratedSourceEvidence> generatedSources) {
         BuildSettings build = config.build();
-        for (GeneratedSourceEvidence evidence : generatedSourcesForScope(generatedSources, "test")) {
-            nodes.add(generatedSourceNode(root, "generate-test-" + evidence.step().id(), evidence));
-        }
-        addResourceNode(nodes, "process-test-resources", "test-resources", build.testResourceRoots(), build.testOutput(), build.resourceFiltering(), true);
+        nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "test"));
+        addResourceNode(
+                nodes,
+                "process-test-resources",
+                "test-resources",
+                build.testResourceRoots(),
+                build.testOutput(),
+                build.resourceFiltering(),
+                true);
         List<String> testCompileInputs = new ArrayList<>();
         testCompileInputs.add(build.output());
         testCompileInputs.addAll(build.testSources());
@@ -226,106 +243,6 @@ public final class BuildPlanService {
                 List.of("publish request preview"),
                 List.of("mode: dry-run"),
                 List.of()));
-    }
-
-    private static PlanNode generatedSourceNode(Path root, String id, GeneratedSourceEvidence evidence) {
-        GeneratedSourceStep step = evidence.step();
-        List<PlanBlocker> blockers = new ArrayList<>();
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
-            blockers.add(new PlanBlocker(
-                    "unsupported-generated-source-kind",
-                    "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
-                    "Use declared-root or add support for a Zolt-owned typed generator."));
-        }
-        if (step.kind() == GeneratedSourceKind.OPENAPI
-                && (step.openApi().toolCoordinate().isEmpty()
-                        || step.openApi().toolVersion().isEmpty()
-                        || step.openApi().generator().isEmpty())) {
-            blockers.add(new PlanBlocker(
-                    "openapi-generation-incomplete",
-                    "OpenAPI generated-source step `" + step.id() + "` is missing tool or generator settings.",
-                    "Add [generated.openapiTool] coordinate/version and generator or preset.generator."));
-        }
-        if (!"java".equals(step.language())) {
-            blockers.add(new PlanBlocker(
-                    "unsupported-generated-source-language",
-                    "Generated source language `" + step.language() + "` is not supported yet.",
-                    "Use language = \"java\" for current generated-source steps."));
-        }
-        addInvalidPathBlocker(blockers, root, step.output(), "output");
-        for (int index = 0; index < step.inputs().size(); index++) {
-            String input = step.inputs().get(index);
-            addInvalidPathBlocker(blockers, root, input, "input");
-            if (!Files.exists(evidence.inputs().get(index))) {
-                blockers.add(new PlanBlocker(
-                        "missing-generated-source-input",
-                        "Generated source input `" + input + "` is missing.",
-                        "Create the input file or update [generated." + evidence.scope() + "." + step.id() + "].inputs."));
-            }
-        }
-        if (step.required() && step.kind() == GeneratedSourceKind.DECLARED_ROOT && !evidence.outputExists()) {
-            blockers.add(new PlanBlocker(
-                    "missing-generated-source-output",
-                    "Required generated source output `" + step.output() + "` is missing.",
-                    "Run the generator that produces it, commit the generated sources, or remove the generated-source step."));
-        }
-        if (step.required() && "stale".equals(evidence.freshness())) {
-            blockers.add(new PlanBlocker(
-                    "stale-generated-source-output",
-                    "Required generated source output `" + step.output() + "` is older than one or more declared inputs.",
-                    "Regenerate the source root or update [generated." + evidence.scope() + "." + step.id() + "].inputs."));
-        }
-        PlanNodeStatus status = blockers.isEmpty()
-                ? (step.required() || evidence.outputExists() ? PlanNodeStatus.READY : PlanNodeStatus.SKIPPED)
-                : PlanNodeStatus.BLOCKED;
-        List<String> details = new ArrayList<>(List.of(
-                "sourceRoot: " + evidence.sourceRootId(),
-                "scope: " + evidence.scope(),
-                "compileLane: " + evidence.compileLane(),
-                "kind: " + step.kind().configValue(),
-                "language: " + step.language(),
-                "ownership: " + evidence.ownership(),
-                "outputExists: " + evidence.outputExists(),
-                "inputsPresent: " + evidence.inputsPresent(),
-                "freshness: " + evidence.freshness(),
-                "toolArtifact: " + evidence.toolArtifact()));
-        step.openApi().toolVersionRef().ifPresent(versionRef -> details.add("toolVersionRef: " + versionRef));
-        details.add("toolFingerprint: " + evidence.toolFingerprint());
-        details.add("optionsFingerprint: " + evidence.optionsFingerprint());
-        return new PlanNode(
-                id,
-                "generated-source",
-                status,
-                step.kind() == GeneratedSourceKind.DECLARED_ROOT
-                        ? "Use declared generated Java source root."
-                        : "Run typed generated-source step.",
-                step.inputs(),
-                List.of(step.output()),
-                details,
-                blockers);
-    }
-
-    private static List<GeneratedSourceEvidence> generatedSourcesForScope(
-            List<GeneratedSourceEvidence> generatedSources,
-            String scope) {
-        return generatedSources.stream()
-                .filter(evidence -> evidence.scope().equals(scope))
-                .toList();
-    }
-
-    private static void addInvalidPathBlocker(
-            List<PlanBlocker> blockers,
-            Path root,
-            String configuredPath,
-            String field) {
-        Path path = Path.of(configuredPath);
-        Path resolved = root.resolve(path).normalize();
-        if (path.isAbsolute() || !resolved.startsWith(root) || resolved.equals(root)) {
-            blockers.add(new PlanBlocker(
-                    "invalid-generated-source-" + field,
-                    "Generated source " + field + " path `" + configuredPath + "` must be project-relative and under the project directory.",
-                    "Use a project-relative path under the project directory."));
-        }
     }
 
     private static List<String> mainCompileInputs(BuildSettings build) {
