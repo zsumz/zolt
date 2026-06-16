@@ -1,5 +1,13 @@
 package com.zolt.tree;
 
+import static com.zolt.tree.DependencyJsonFields.booleanField;
+import static com.zolt.tree.DependencyJsonFields.comma;
+import static com.zolt.tree.DependencyJsonFields.indent;
+import static com.zolt.tree.DependencyJsonFields.intField;
+import static com.zolt.tree.DependencyJsonFields.optionalStringField;
+import static com.zolt.tree.DependencyJsonFields.stringArrayField;
+import static com.zolt.tree.DependencyJsonFields.stringField;
+
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
@@ -18,7 +26,7 @@ public final class DependencyJsonFormatter {
     public String tree(ProjectConfig config, ZoltLockfile lockfile) {
         StringBuilder json = new StringBuilder();
         json.append("{\n");
-        field(json, 1, "schemaVersion", 1, true);
+        intField(json, 1, "schemaVersion", 1, true);
         stringField(json, 1, "command", "tree", true);
         project(json, config);
         comma(json);
@@ -42,7 +50,7 @@ public final class DependencyJsonFormatter {
 
         StringBuilder json = new StringBuilder();
         json.append("{\n");
-        field(json, 1, "schemaVersion", 1, true);
+        intField(json, 1, "schemaVersion", 1, true);
         stringField(json, 1, "command", "why", true);
         project(json, config);
         comma(json);
@@ -250,109 +258,6 @@ public final class DependencyJsonFormatter {
             case DIRECT_DEPENDENCY -> "direct dependency wins";
             case NEWEST_VERSION -> "newest version wins";
         };
-    }
-
-    private static void stringArrayField(
-            StringBuilder json,
-            int level,
-            String name,
-            List<String> values,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": [");
-        for (int index = 0; index < values.size(); index++) {
-            if (index > 0) {
-                json.append(", ");
-            }
-            string(json, values.get(index));
-        }
-        json.append("]");
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void stringField(StringBuilder json, int level, String name, String value, boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ");
-        string(json, value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void optionalStringField(
-            StringBuilder json,
-            int level,
-            String name,
-            Optional<String> value,
-            boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ");
-        value.ifPresentOrElse(
-                present -> string(json, present),
-                () -> json.append("null"));
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void booleanField(StringBuilder json, int level, String name, boolean value, boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ").append(value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void field(StringBuilder json, int level, String name, int value, boolean trailingComma) {
-        indent(json, level);
-        string(json, name);
-        json.append(": ").append(value);
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
-    }
-
-    private static void string(StringBuilder json, String value) {
-        json.append('"');
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            switch (character) {
-                case '"' -> json.append("\\\"");
-                case '\\' -> json.append("\\\\");
-                case '\b' -> json.append("\\b");
-                case '\f' -> json.append("\\f");
-                case '\n' -> json.append("\\n");
-                case '\r' -> json.append("\\r");
-                case '\t' -> json.append("\\t");
-                default -> {
-                    if (character < 0x20) {
-                        json.append(String.format("\\u%04x", (int) character));
-                    } else {
-                        json.append(character);
-                    }
-                }
-            }
-        }
-        json.append('"');
-    }
-
-    private static StringBuilder indent(StringBuilder json, int level) {
-        return json.append("  ".repeat(level));
-    }
-
-    private static void comma(StringBuilder json) {
-        json.append(",\n");
     }
 
     private record PathItem(LockPackage lockPackage, List<LockPackage> path) {
