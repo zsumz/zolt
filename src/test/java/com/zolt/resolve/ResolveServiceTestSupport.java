@@ -30,11 +30,11 @@ abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSup
     }
 
     ProjectConfig quarkusConfigWithDependencies(Map<String, String> dependencies) {
-        return ResolveTestConfigs.quarkusConfigWithDependencies(baseUri, dependencies);
+        return ResolveFeatureTestConfigs.quarkusConfigWithDependencies(baseUri, dependencies);
     }
 
     ProjectConfig quarkusPlatformConfigWithDependencies(Map<String, String> dependencies) {
-        return ResolveTestConfigs.quarkusPlatformConfigWithDependencies(baseUri, dependencies);
+        return ResolveFeatureTestConfigs.quarkusPlatformConfigWithDependencies(baseUri, dependencies);
     }
 
     ProjectConfig configWithTestDependencies(Map<String, String> testDependencies) {
@@ -42,51 +42,51 @@ abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSup
     }
 
     ProjectConfig platformConfig() {
-        return ResolveTestConfigs.platformConfig(baseUri);
+        return ResolveFeatureTestConfigs.platformConfig(baseUri);
     }
 
     ProjectConfig platformVersionRefConfig(String alias) {
-        return ResolveTestConfigs.platformVersionRefConfig(baseUri, alias);
+        return ResolveFeatureTestConfigs.platformVersionRefConfig(baseUri, alias);
     }
 
     ProjectConfig testPlatformConfig() {
-        return ResolveTestConfigs.testPlatformConfig(baseUri);
+        return ResolveFeatureTestConfigs.testPlatformConfig(baseUri);
     }
 
     ProjectConfig runtimeProvidedConfig() {
-        return ResolveTestConfigs.runtimeProvidedConfig(baseUri);
+        return ResolveFeatureTestConfigs.runtimeProvidedConfig(baseUri);
     }
 
     ProjectConfig devConfig() {
-        return ResolveTestConfigs.devConfig(baseUri);
+        return ResolveFeatureTestConfigs.devConfig(baseUri);
     }
 
     ProjectConfig springBootPlatformConfig() {
-        return ResolveTestConfigs.springBootPlatformConfig(baseUri);
+        return ResolveFeatureTestConfigs.springBootPlatformConfig(baseUri);
     }
 
     ProjectConfig springBootWarPlatformConfig() {
-        return ResolveTestConfigs.springBootWarPlatformConfig(baseUri);
+        return ResolveFeatureTestConfigs.springBootWarPlatformConfig(baseUri);
     }
 
     ProjectConfig processorConfig() {
-        return ResolveTestConfigs.processorConfig(baseUri);
+        return ResolveFeatureTestConfigs.processorConfig(baseUri);
     }
 
     ProjectConfig openApiConfig() {
-        return ResolveTestConfigs.openApiConfig(baseUri);
+        return ResolveFeatureTestConfigs.openApiConfig(baseUri);
     }
 
     ProjectConfig openApiVersionRefConfig(String alias) {
-        return ResolveTestConfigs.openApiVersionRefConfig(baseUri, alias);
+        return ResolveFeatureTestConfigs.openApiVersionRefConfig(baseUri, alias);
     }
 
     ProjectConfig configWithDependencyAndProcessor() {
-        return ResolveTestConfigs.configWithDependencyAndProcessor(baseUri);
+        return ResolveFeatureTestConfigs.configWithDependencyAndProcessor(baseUri);
     }
 
     ProjectConfig processorPlatformConfig() {
-        return ResolveTestConfigs.processorPlatformConfig(baseUri);
+        return ResolveFeatureTestConfigs.processorPlatformConfig(baseUri);
     }
 
     static void createDirectory(Path directory) {
