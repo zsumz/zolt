@@ -1,23 +1,14 @@
 package com.zolt.resolve;
 
-import com.zolt.dependency.DependencyScope;
-import com.zolt.dependency.PackageId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomDependency;
-import com.zolt.maven.RawPomExclusion;
-import com.zolt.maven.RawPomRelocation;
-import java.util.HashMap;
+import com.zolt.dependency.DependencyScope;
+import com.zolt.dependency.PackageId;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-final class DependencyGraphTraverserTest {
+final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSupport {
     @Test
     void resolvesGuavaFixtureShape() {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
@@ -48,37 +39,6 @@ final class DependencyGraphTraverserTest {
 
         assertEquals(List.of("org.slf4j:slf4j-api:2.0.16"), nodeStrings(graph));
         assertEquals(0, graph.edges().size());
-    }
-
-    @Test
-    void resolvesDirectRelocatedDependencyToTargetCoordinate() {
-        MapBackedMetadataSource source = new MapBackedMetadataSource();
-        source.put(
-                "io.quarkus:quarkus-junit5:3.33.2",
-                relocatedPom("io.quarkus", "quarkus-junit5", "3.33.2", "io.quarkus", "quarkus-junit", "${project.version}"));
-        source.put("io.quarkus:quarkus-junit:3.33.2", pom("io.quarkus", "quarkus-junit", "3.33.2", List.of()));
-
-        ResolutionGraph graph = traverser(source).traverse(List.of(directTest("io.quarkus", "quarkus-junit5", "3.33.2")));
-
-        assertEquals(List.of("io.quarkus:quarkus-junit:3.33.2"), nodeStrings(graph));
-        assertEquals(1, source.loadCount("io.quarkus:quarkus-junit5:3.33.2"));
-        assertEquals(1, source.loadCount("io.quarkus:quarkus-junit:3.33.2"));
-    }
-
-    @Test
-    void resolvesTransitiveRelocatedDependencyToTargetCoordinate() {
-        MapBackedMetadataSource source = new MapBackedMetadataSource();
-        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
-                dependency("com.legacy", "old-lib", "1.0.0"))));
-        source.put(
-                "com.legacy:old-lib:1.0.0",
-                relocatedPom("com.legacy", "old-lib", "1.0.0", "com.modern", "new-lib", "2.0.0"));
-        source.put("com.modern:new-lib:2.0.0", pom("com.modern", "new-lib", "2.0.0", List.of()));
-
-        ResolutionGraph graph = traverser(source).traverse(List.of(direct("com.example", "root", "1.0.0")));
-
-        assertEquals(List.of("com.example:root:1.0.0", "com.modern:new-lib:2.0.0"), nodeStrings(graph));
-        assertEquals(List.of("com.example:root:1.0.0->com.modern:new-lib:2.0.0"), edgeStrings(graph));
     }
 
     @Test
@@ -265,169 +225,4 @@ final class DependencyGraphTraverserTest {
                 exception.getMessage());
     }
 
-    @Test
-    void relocationCycleFailsActionably() {
-        MapBackedMetadataSource source = new MapBackedMetadataSource();
-        source.put(
-                "com.example:a:1.0.0",
-                relocatedPom("com.example", "a", "1.0.0", "com.example", "b", "1.0.0"));
-        source.put(
-                "com.example:b:1.0.0",
-                relocatedPom("com.example", "b", "1.0.0", "com.example", "a", "1.0.0"));
-
-        GraphTraversalException exception = assertThrows(
-                GraphTraversalException.class,
-                () -> traverser(source).traverse(List.of(direct("com.example", "a", "1.0.0"))));
-
-        assertEquals(
-                "Dependency relocation cycle detected: com.example:a:1.0.0 -> com.example:b:1.0.0 -> com.example:a:1.0.0. Replace the dependency with the final relocated coordinate.",
-                exception.getMessage());
-    }
-
-    private static DependencyGraphTraverser traverser(MapBackedMetadataSource source) {
-        return new DependencyGraphTraverser(source);
-    }
-
-    private static DependencyRequest direct(String groupId, String artifactId, String version) {
-        return new DependencyRequest(new PackageId(groupId, artifactId), version, DependencyScope.COMPILE, RequestOrigin.DIRECT);
-    }
-
-    private static DependencyRequest directWithExclusion(
-            String groupId,
-            String artifactId,
-            String version,
-            String excludedGroupId,
-            String excludedArtifactId) {
-        return new DependencyRequest(
-                new PackageId(groupId, artifactId),
-                version,
-                DependencyScope.COMPILE,
-                RequestOrigin.DIRECT,
-                List.of(new DependencyExclusion(excludedGroupId, excludedArtifactId)));
-    }
-
-    private static DependencyRequest directTest(String groupId, String artifactId, String version) {
-        return new DependencyRequest(new PackageId(groupId, artifactId), version, DependencyScope.TEST, RequestOrigin.DIRECT);
-    }
-
-    private static EffectiveRawPom pom(String groupId, String artifactId, String version, List<RawPomDependency> dependencies) {
-        RawPom rawPom = new RawPom(
-                Optional.of(groupId),
-                artifactId,
-                Optional.of(version),
-                "jar",
-                Optional.empty(),
-                Optional.empty(),
-                Map.of(),
-                List.of(),
-                dependencies);
-        return new EffectiveRawPom(rawPom, List.of(), groupId, version, Map.of(), List.of());
-    }
-
-    private static EffectiveRawPom relocatedPom(
-            String groupId,
-            String artifactId,
-            String version,
-            String relocatedGroupId,
-            String relocatedArtifactId,
-            String relocatedVersion) {
-        RawPom rawPom = new RawPom(
-                Optional.of(groupId),
-                artifactId,
-                Optional.of(version),
-                "pom",
-                Optional.empty(),
-                Optional.of(new RawPomRelocation(
-                        Optional.of(relocatedGroupId),
-                        Optional.of(relocatedArtifactId),
-                        Optional.of(relocatedVersion),
-                        Optional.empty())),
-                Map.of(),
-                List.of(),
-                List.of());
-        return new EffectiveRawPom(rawPom, List.of(), groupId, version, Map.of(), List.of());
-    }
-
-    private static RawPomDependency dependency(String groupId, String artifactId, String version) {
-        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.empty(), Optional.empty(), Optional.empty(), false, List.of());
-    }
-
-    private static RawPomDependency runtimeDependency(String groupId, String artifactId, String version) {
-        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("runtime"), Optional.empty(), Optional.empty(), false, List.of());
-    }
-
-    private static RawPomDependency testDependency(String groupId, String artifactId, String version) {
-        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("test"), Optional.empty(), Optional.empty(), false, List.of());
-    }
-
-    private static RawPomDependency providedDependency(String groupId, String artifactId, String version) {
-        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.of("provided"), Optional.empty(), Optional.empty(), false, List.of());
-    }
-
-    private static RawPomDependency optionalDependency(String groupId, String artifactId, String version) {
-        return new RawPomDependency(groupId, artifactId, Optional.of(version), Optional.empty(), Optional.empty(), Optional.empty(), true, List.of());
-    }
-
-    private static RawPomDependency versionlessDependency(String groupId, String artifactId) {
-        return new RawPomDependency(groupId, artifactId, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), false, List.of());
-    }
-
-    private static RawPomDependency dependencyWithExclusion(
-            String groupId,
-            String artifactId,
-            String version,
-            String excludedGroupId,
-            String excludedArtifactId) {
-        return new RawPomDependency(
-                groupId,
-                artifactId,
-                Optional.of(version),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                false,
-                List.of(new RawPomExclusion(excludedGroupId, excludedArtifactId)));
-    }
-
-    private static List<String> nodeStrings(ResolutionGraph graph) {
-        return graph.nodes().stream()
-                .map(node -> node.packageId() + ":" + node.selectedVersion())
-                .toList();
-    }
-
-    private static List<String> edgeStrings(ResolutionGraph graph) {
-        return graph.edges().stream()
-                .map(edge -> edge.from().packageId()
-                        + ":"
-                        + edge.from().selectedVersion()
-                        + "->"
-                        + edge.to().packageId()
-                        + ":"
-                        + edge.to().selectedVersion())
-                .toList();
-    }
-
-    private static final class MapBackedMetadataSource implements DependencyMetadataSource {
-        private final Map<String, EffectiveRawPom> poms = new HashMap<>();
-        private final Map<String, Integer> loadCounts = new HashMap<>();
-
-        void put(String coordinate, EffectiveRawPom pom) {
-            poms.put(coordinate, pom);
-        }
-
-        int loadCount(String coordinate) {
-            return loadCounts.getOrDefault(coordinate, 0);
-        }
-
-        @Override
-        public EffectiveRawPom load(Coordinate coordinate) {
-            String key = coordinate.toString();
-            loadCounts.merge(key, 1, Integer::sum);
-            EffectiveRawPom pom = poms.get(key);
-            if (pom == null) {
-                throw new GraphTraversalException("No test POM for " + key);
-            }
-            return pom;
-        }
-    }
 }
