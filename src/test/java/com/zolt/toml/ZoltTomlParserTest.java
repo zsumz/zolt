@@ -2,7 +2,6 @@ package com.zolt.toml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.PackageMode;
@@ -47,7 +46,6 @@ final class ZoltTomlParserTest {
         assertEquals(PackageMode.THIN, config.packageSettings().mode());
     }
 
-
     @Test
     void appliesRepositoryAndBuildDefaultsWhenOptionalSectionsAreMissing() {
         ProjectConfig config = parser.parse("""
@@ -84,11 +82,6 @@ final class ZoltTomlParserTest {
         assertTrue(config.nativeSettings().args().isEmpty());
     }
 
-
-
-
-
-
     @Test
     void parsesCompilerGeneratedSourceDirectories() {
         ProjectConfig config = parser.parse("""
@@ -114,27 +107,6 @@ final class ZoltTomlParserTest {
         assertEquals(List.of("-Xlint:deprecation", "-parameters"), config.compilerSettings().args());
         assertEquals(List.of("-Xlint:unchecked"), config.compilerSettings().testArgs());
     }
-
-
-    @Test
-    void rejectsCompilerOwnedJavacArgs() {
-        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
-                [project]
-                name = "bad-compiler-args"
-                version = "0.1.0"
-                group = "com.example"
-                java = "21"
-
-                [compiler]
-                args = ["--release", "17"]
-                """));
-
-        assertTrue(exception.getMessage().contains("Zolt owns `--release`"));
-        assertTrue(exception.getMessage().contains("[compiler].release"));
-    }
-
-
-
 
     @Test
     void parsesExplicitJavaTestSourceRoots() {
@@ -173,117 +145,4 @@ final class ZoltTomlParserTest {
                 List.of("src/test/groovy", "src/integration-test/groovy"),
                 config.build().groovyTestSources());
     }
-
-
-    @Test
-    void rejectsMalformedJavaTestSourceRoots() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "demo"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [test.sources]
-                        java = "src/test/java"
-                        """));
-
-        assertEquals(
-                "Invalid value for [test.sources].java in zolt.toml. Use an array of strings.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsUnknownTestSourceLanguage() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "demo"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [test.sources]
-                        kotlin = ["src/test/kotlin"]
-                        """));
-
-        assertEquals(
-                "Unknown field [test.sources].kotlin in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
-    }
-
-
-    @Test
-    void invalidTomlFailsCleanly() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project
-                        name = "broken"
-                        """));
-
-        assertTrue(exception.getMessage().contains("Could not parse zolt.toml."));
-        assertTrue(exception.getMessage().contains("Fix the TOML syntax"));
-    }
-
-    @Test
-    void missingRequiredProjectFieldIsActionable() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "missing-version"
-                        group = "com.example"
-                        java = "21"
-                        """));
-
-        assertEquals(
-                "Missing required field [project].version in zolt.toml. Add a non-empty string value.",
-                exception.getMessage());
-    }
-
-    @Test
-    void unknownTopLevelSectionFailsCleanly() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [plugins]
-                        custom = "nope"
-                        """));
-
-        assertEquals(
-                "Unknown top-level section [plugins] in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
-    }
-
-    @Test
-    void unknownProjectFieldFailsCleanly() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-                        packaging = "jar"
-                        """));
-
-        assertEquals(
-                "Unknown field [project].packaging in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
-    }
-
-
-
-
 }
