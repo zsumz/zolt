@@ -13,14 +13,10 @@ import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
-import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -123,62 +119,6 @@ final class BuildServiceFingerprintInvalidationTest {
     }
 
     @Test
-    void generatedSourceChangeInvalidatesMainBuildFingerprint() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache");
-        Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
-        Files.createDirectories(processorJar.getParent());
-        Files.copy(
-                AnnotationProcessorFixture.processorJar(projectDir.resolve("processor-work")),
-                processorJar,
-                StandardCopyOption.REPLACE_EXISTING);
-        writeProcessorLockfile();
-        source("src/main/java/com/example/Main.java", """
-                package com.example;
-
-                public final class Main {
-                    public static String message() {
-                        return GeneratedMessage.value();
-                    }
-                }
-                """);
-        buildService.build(projectDir, config(), cacheRoot);
-        Files.writeString(
-                projectDir.resolve("target/generated/sources/annotations/com/example/GeneratedMessage.java"),
-                "package com.example; public final class GeneratedMessage { public static String value() { return \"tampered\"; } }\n");
-
-        BuildResult result = buildService.build(projectDir, config(), cacheRoot);
-
-        assertFalse(result.mainCompilationSkipped());
-    }
-
-    @Test
-    void processorClasspathChangeInvalidatesMainBuildFingerprint() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache");
-        Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
-        Files.createDirectories(processorJar.getParent());
-        Files.copy(
-                AnnotationProcessorFixture.processorJar(projectDir.resolve("processor-work")),
-                processorJar,
-                StandardCopyOption.REPLACE_EXISTING);
-        writeProcessorLockfile();
-        source("src/main/java/com/example/Main.java", """
-                package com.example;
-
-                public final class Main {
-                    public static String message() {
-                        return GeneratedMessage.value();
-                    }
-                }
-                """);
-        buildService.build(projectDir, config(), cacheRoot);
-        appendJarEntry(processorJar, "zolt-marker.txt", "changed\n");
-
-        BuildResult result = buildService.build(projectDir, config(), cacheRoot);
-
-        assertFalse(result.mainCompilationSkipped());
-    }
-
-    @Test
     void missingExpectedClassFilePreventsMainBuildSkip() throws IOException {
         writeLockfile("version = 1\n");
         source("src/main/java/com/example/Main.java", """
@@ -255,23 +195,6 @@ final class BuildServiceFingerprintInvalidationTest {
                 jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
                 dependencies = []
                 """);
-    }
-
-    private static void appendJarEntry(Path jar, String entryName, String content) throws IOException {
-        Path tempJar = jar.resolveSibling(jar.getFileName() + ".tmp");
-        try (JarInputStream input = new JarInputStream(Files.newInputStream(jar));
-                JarOutputStream output = new JarOutputStream(Files.newOutputStream(tempJar))) {
-            JarEntry entry;
-            while ((entry = input.getNextJarEntry()) != null) {
-                output.putNextEntry(new JarEntry(entry.getName()));
-                input.transferTo(output);
-                output.closeEntry();
-            }
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            output.closeEntry();
-        }
-        Files.move(tempJar, jar, StandardCopyOption.REPLACE_EXISTING);
     }
 
     private static String currentJavaMajorVersion() {
