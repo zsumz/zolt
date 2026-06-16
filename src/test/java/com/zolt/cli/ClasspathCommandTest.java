@@ -36,12 +36,15 @@ final class ClasspathCommandTest {
                     """);
             Path projectDir = tempDir.resolve("classpath-stale-lock");
             Path cacheRoot = tempDir.resolve("classpath-stale-lock-cache");
-            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+            ClasspathCommandTestSupport.writeProjectConfig(
+                    projectDir,
+                    repository.baseUri().toString(),
+                    Map.of("com.example:app", "1.0.0"));
             CommandResult resolve = execute(
                     "resolve",
                     "--cwd", projectDir.toString(),
                     "--cache-root", cacheRoot.toString());
-            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of(
+            ClasspathCommandTestSupport.writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of(
                     "com.example:app", "1.0.0",
                     "com.example:extra", "1.0.0"));
 
@@ -64,7 +67,7 @@ final class ClasspathCommandTest {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
         Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.lock"), """
+        ClasspathCommandTestSupport.writeLockfile(projectDir, """
                 version = 1
 
                 [[package]]
@@ -131,32 +134,32 @@ final class ClasspathCommandTest {
         Path quarkusDeploymentJar = cacheRoot.resolve(
                 "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar");
 
-        CommandResult compile = execute(
+            CommandResult compile = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "compile");
-        CommandResult runtime = execute(
+            CommandResult runtime = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "runtime");
-        CommandResult test = execute(
+            CommandResult test = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test");
-        CommandResult processor = execute(
+            CommandResult processor = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "processor");
-        CommandResult testProcessor = execute(
+            CommandResult testProcessor = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test-processor");
-        CommandResult quarkusDeployment = execute(
+            CommandResult quarkusDeployment = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
@@ -178,112 +181,5 @@ final class ClasspathCommandTest {
         assertEquals(testProcessorJar + System.lineSeparator(), testProcessor.stdout());
         assertEquals(0, quarkusDeployment.exitCode());
         assertEquals(quarkusDeploymentJar + System.lineSeparator(), quarkusDeployment.stdout());
-    }
-
-    @Test
-    void classpathFailsWhenCachedJarDoesNotMatchLockfileHash() throws IOException {
-        Path projectDir = tempDir.resolve("demo-corrupted-cache");
-        Path cacheRoot = tempDir.resolve("cache-corrupted");
-        Files.createDirectories(projectDir);
-        Path jar = cacheRoot.resolve("com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar");
-        Files.createDirectories(jar.getParent());
-        Files.writeString(jar, "corrupted jar bytes");
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "com.example:compile-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "compile"
-                direct = true
-                jar = "com/example/compile-lib/1.0.0/compile-lib-1.0.0.jar"
-                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
-                dependencies = []
-                """);
-
-        CommandResult result = execute(
-                "classpath",
-                "--cwd", projectDir.toString(),
-                "--cache-root", cacheRoot.toString(),
-                "compile");
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains(
-                "Cached jar integrity check failed for com.example:compile-lib:1.0.0"));
-        assertTrue(result.stderr().contains(
-                "Expected 0000000000000000000000000000000000000000000000000000000000000000"));
-        assertTrue(result.stderr().contains("Remove the cache entry or run `zolt resolve`"));
-    }
-
-    @Test
-    void classpathRejectsUnknownKindWithSupportedKinds() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-
-        CommandResult result = execute("classpath", "--cwd", projectDir.toString(), "processor-test");
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("Unknown classpath kind `processor-test`"));
-        assertTrue(result.stderr().contains("compile, runtime, test, processor, test-processor, quarkus-deployment, or audit"));
-    }
-
-    @Test
-    void classpathReportsMissingLockfileCleanly() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        Files.createDirectories(projectDir);
-
-        CommandResult result = execute("classpath", "--cwd", projectDir.toString(), "runtime");
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("error: Could not read zolt.lock"));
-    }
-
-    private static void writeProjectConfig(
-            Path projectDir,
-            String repositoryUrl,
-            Map<String, String> dependencies) throws IOException {
-        Files.createDirectories(projectDir);
-        StringBuilder config = new StringBuilder("""
-                [project]
-                name = "demo"
-                version = "0.1.0"
-                group = "com.example"
-                java = "%s"
-                main = "com.example.Main"
-
-                [repositories]
-                test = "%s"
-
-                [dependencies]
-                """.formatted(currentJavaMajorVersion(), repositoryUrl));
-        dependencies.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> config.append('"')
-                        .append(entry.getKey())
-                        .append("\" = \"")
-                        .append(entry.getValue())
-                        .append("\"\n"));
-        config.append("""
-
-                [test.dependencies]
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """);
-        Files.writeString(projectDir.resolve("zolt.toml"), config.toString());
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
     }
 }
