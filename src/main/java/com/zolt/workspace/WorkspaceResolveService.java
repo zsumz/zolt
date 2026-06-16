@@ -11,7 +11,6 @@ import com.zolt.lockfile.ZoltLockfileWriter;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
-import com.zolt.project.RepositorySettings;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ResolveException;
@@ -38,22 +37,32 @@ public final class WorkspaceResolveService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final ResolveService resolveService;
     private final ZoltLockfileWriter lockfileWriter;
+    private final WorkspacePolicyMerger policyMerger;
 
     public WorkspaceResolveService() {
-        this(new WorkspaceDiscoveryService(), new ResolveService(), new ZoltLockfileWriter());
+        this(new WorkspaceDiscoveryService(), new ResolveService(), new ZoltLockfileWriter(), new WorkspacePolicyMerger());
     }
 
     public WorkspaceResolveService(ResolveService resolveService) {
-        this(new WorkspaceDiscoveryService(), resolveService, new ZoltLockfileWriter());
+        this(new WorkspaceDiscoveryService(), resolveService, new ZoltLockfileWriter(), new WorkspacePolicyMerger());
     }
 
     WorkspaceResolveService(
             WorkspaceDiscoveryService workspaceDiscoveryService,
             ResolveService resolveService,
             ZoltLockfileWriter lockfileWriter) {
+        this(workspaceDiscoveryService, resolveService, lockfileWriter, new WorkspacePolicyMerger());
+    }
+
+    WorkspaceResolveService(
+            WorkspaceDiscoveryService workspaceDiscoveryService,
+            ResolveService resolveService,
+            ZoltLockfileWriter lockfileWriter,
+            WorkspacePolicyMerger policyMerger) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.resolveService = resolveService;
         this.lockfileWriter = lockfileWriter;
+        this.policyMerger = policyMerger;
     }
 
     public ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, boolean offline) {
@@ -75,7 +84,7 @@ public final class WorkspaceResolveService {
         for (String memberPath : workspace.buildOrder()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             ResolveOutput output = resolveService.resolveLockfile(
-                    mergeWorkspacePolicy(workspace, member),
+                    policyMerger.merge(workspace, member),
                     cacheRoot,
                     offline);
             memberOutputs.add(new MemberResolveOutput(
@@ -136,91 +145,6 @@ public final class WorkspaceResolveService {
         } catch (LockfileReadException exception) {
             return "";
         }
-    }
-
-    private static ProjectConfig mergeWorkspacePolicy(Workspace workspace, WorkspaceMember member) {
-        ProjectConfig config = member.config();
-        Map<String, String> repositories = mergedPolicy(
-                "repository",
-                workspace,
-                member,
-                workspace.config().repositories(),
-                config.repositories());
-        return new ProjectConfig(
-                config.project(),
-                repositories,
-                repositorySettings(repositories),
-                Map.of(),
-                config.versionAliases(),
-                mergedPolicy(
-                        "platform",
-                        workspace,
-                        member,
-                        workspace.config().platforms(),
-                        config.platforms()),
-                config.apiDependencies(),
-                config.managedApiDependencies(),
-                config.workspaceApiDependencies(),
-                config.dependencies(),
-                config.managedDependencies(),
-                config.workspaceDependencies(),
-                config.runtimeDependencies(),
-                config.managedRuntimeDependencies(),
-                config.providedDependencies(),
-                config.managedProvidedDependencies(),
-                config.devDependencies(),
-                config.managedDevDependencies(),
-                config.testDependencies(),
-                config.managedTestDependencies(),
-                config.workspaceTestDependencies(),
-                config.annotationProcessors(),
-                config.managedAnnotationProcessors(),
-                config.testAnnotationProcessors(),
-                config.managedTestAnnotationProcessors(),
-                config.dependencyPolicy(),
-                config.build(),
-                config.nativeSettings(),
-                config.compilerSettings(),
-                config.packageSettings(),
-                config.frameworkSettings(),
-                config.dependencyMetadata());
-    }
-
-    private static Map<String, String> mergedPolicy(
-            String kind,
-            Workspace workspace,
-            WorkspaceMember member,
-            Map<String, String> workspaceValues,
-            Map<String, String> memberValues) {
-        Map<String, String> merged = new LinkedHashMap<>(workspaceValues);
-        for (Map.Entry<String, String> entry : memberValues.entrySet()) {
-            String existing = merged.putIfAbsent(entry.getKey(), entry.getValue());
-            if (existing != null && !existing.equals(entry.getValue())) {
-                throw new ResolveException(
-                        "Workspace "
-                                + kind
-                                + " `"
-                                + entry.getKey()
-                                + "` has value `"
-                                + existing
-                                + "` in "
-                                + workspace.configPath()
-                                + " but member `"
-                                + member.path()
-                                + "` declares `"
-                                + entry.getValue()
-                                + "`. Make the values match or remove the member override.");
-            }
-        }
-        return merged;
-    }
-
-    private static Map<String, RepositorySettings> repositorySettings(Map<String, String> repositories) {
-        Map<String, RepositorySettings> settings = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : repositories.entrySet()) {
-            settings.put(entry.getKey(), RepositorySettings.unauthenticated(entry.getKey(), entry.getValue()));
-        }
-        return settings;
     }
 
     private static ZoltLockfile aggregate(Workspace workspace, List<MemberResolveOutput> memberOutputs) {
