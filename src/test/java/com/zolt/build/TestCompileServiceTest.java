@@ -1,24 +1,13 @@
 package com.zolt.build;
 
+import static com.zolt.build.TestCompileServiceTestSupport.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.classpath.Classpath;
-import com.zolt.project.BuildSettings;
-import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectConfigs;
-import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,8 +19,8 @@ final class TestCompileServiceTest {
 
     @Test
     void compilesMainSourcesBeforeTestSources() throws IOException {
-        writeLockfile("version = 1\n");
-        source("src/main/java/com/example/Main.java", """
+        TestCompileServiceTestSupport.writeLockfile(projectDir, "version = 1\n");
+        TestCompileServiceTestSupport.source(projectDir, "src/main/java/com/example/Main.java", """
                 package com.example;
 
                 public final class Main {
@@ -40,7 +29,7 @@ final class TestCompileServiceTest {
                     }
                 }
                 """);
-        source("src/test/java/com/example/MainTest.java", """
+        TestCompileServiceTestSupport.source(projectDir, "src/test/java/com/example/MainTest.java", """
                 package com.example;
 
                 public final class MainTest {
@@ -63,11 +52,11 @@ final class TestCompileServiceTest {
 
     @Test
     void copiesMainAndTestResourcesDuringTestCompilation() throws IOException {
-        writeLockfile("version = 1\n");
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-        source("src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
-        source("src/test/resources/fixtures/input.txt", "fixture\n");
+        TestCompileServiceTestSupport.writeLockfile(projectDir, "version = 1\n");
+        TestCompileServiceTestSupport.source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        TestCompileServiceTestSupport.source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        TestCompileServiceTestSupport.source(projectDir, "src/main/resources/META-INF/native-image/reflect-config.json", "[]\n");
+        TestCompileServiceTestSupport.source(projectDir, "src/test/resources/fixtures/input.txt", "fixture\n");
 
         TestCompileResult result = testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache"));
 
@@ -78,69 +67,6 @@ final class TestCompileServiceTest {
     }
 
     @Test
-    void testCompileClasspathIncludesTestDependencies() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache");
-        Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");
-        createHelperJar(helperJar);
-        writeLockfile("""
-                version = 1
-
-                [[package]]
-                id = "com.example:helper"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "com/example/helper/1.0.0/helper-1.0.0.jar"
-                dependencies = []
-                """);
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/MainTest.java", """
-                package com.example;
-
-                import com.example.helper.Helper;
-
-                public final class MainTest {
-                    public String message() {
-                        return Helper.message();
-                    }
-                }
-                """);
-
-        TestCompileResult result = testCompileService.compileTests(projectDir, config(), cacheRoot);
-
-        assertEquals(1, result.sourceCount());
-        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
-    }
-
-    @Test
-    void compileTestsWithClasspathsReturnsReusedClasspaths() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache");
-        Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");
-        createHelperJar(helperJar);
-        writeLockfile("""
-                version = 1
-
-                [[package]]
-                id = "com.example:helper"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "com/example/helper/1.0.0/helper-1.0.0.jar"
-                dependencies = []
-                """);
-        source("src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-
-        TestCompileResultWithClasspaths result =
-                testCompileService.compileTestsWithClasspaths(projectDir, config(), cacheRoot);
-
-        assertEquals(1, result.testCompileResult().sourceCount());
-        assertEquals(List.of(helperJar), result.classpaths().test().entries());
-        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
-    }
-
-    @Test
     void testCompilationUsesTestProcessorClasspathAndGeneratedSources() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path processorJar = cacheRoot.resolve("com/example/test-processor/1.0.0/test-processor-1.0.0.jar");
@@ -148,8 +74,8 @@ final class TestCompileServiceTest {
         Files.copy(
                 AnnotationProcessorFixture.processorJar(projectDir.resolve("processor-work")),
                 processorJar,
-                StandardCopyOption.REPLACE_EXISTING);
-        writeLockfile("""
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        TestCompileServiceTestSupport.writeLockfile(projectDir, """
                 version = 1
 
                 [[package]]
@@ -161,7 +87,7 @@ final class TestCompileServiceTest {
                 jar = "com/example/test-processor/1.0.0/test-processor-1.0.0.jar"
                 dependencies = []
                 """);
-        source("src/test/java/com/example/MainTest.java", """
+        TestCompileServiceTestSupport.source(projectDir, "src/test/java/com/example/MainTest.java", """
                 package com.example;
 
                 public final class MainTest {
@@ -179,92 +105,5 @@ final class TestCompileServiceTest {
                 "target/generated/test-sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
         assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/GeneratedMessage.class")));
-    }
-
-    @Test
-    void testCompilerErrorsAreSurfacedClearly() throws IOException {
-        writeLockfile("version = 1\n");
-        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source("src/test/java/com/example/BrokenTest.java", """
-                package com.example;
-
-                public final class BrokenTest {
-                    missing
-                }
-                """);
-
-        JavacException exception = assertThrows(
-                JavacException.class,
-                () -> testCompileService.compileTests(projectDir, config(), projectDir.resolve("cache")));
-
-        assertTrue(exception.getMessage().contains("javac failed with exit code"));
-        assertTrue(exception.getMessage().contains("BrokenTest.java"));
-    }
-
-    private static ProjectConfig config() {
-        return ProjectConfigs.withDirectDependencies(
-                new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), Optional.of("com.example.Main")),
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of(),
-                Map.of(),
-                BuildSettings.defaults());
-    }
-
-    private Path source(String path, String content) throws IOException {
-        Path source = projectDir.resolve(path);
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, content);
-        return source;
-    }
-
-    private void writeLockfile(String content) throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), content);
-    }
-
-    private void createHelperJar(Path jar) throws IOException {
-        Path helperSource = projectDir.resolve("helper-src/com/example/helper/Helper.java");
-        Files.createDirectories(helperSource.getParent());
-        Files.writeString(helperSource, """
-                package com.example.helper;
-
-                public final class Helper {
-                    public static String message() {
-                        return "helper";
-                    }
-                }
-                """);
-        Path helperClasses = projectDir.resolve("helper-classes");
-        new JavacRunner().compile(
-                currentJavac(),
-                List.of(helperSource),
-                new Classpath(List.of()),
-                helperClasses);
-
-        Files.createDirectories(jar.getParent());
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
-            JarEntry entry = new JarEntry("com/example/helper/Helper.class");
-            output.putNextEntry(entry);
-            output.write(Files.readAllBytes(helperClasses.resolve("com/example/helper/Helper.class")));
-            output.closeEntry();
-        }
-    }
-
-    private static Path currentJavac() {
-        return Path.of(System.getProperty("java.home")).resolve("bin").resolve(executable("javac"));
-    }
-
-    private static String executable(String name) {
-        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
-                ? name + ".exe"
-                : name;
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
     }
 }
