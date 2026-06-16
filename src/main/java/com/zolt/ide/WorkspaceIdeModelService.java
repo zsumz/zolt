@@ -1,14 +1,10 @@
 package com.zolt.ide;
 
 import com.zolt.cache.ArtifactCacheException;
-import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.perf.TimingRecorder;
-import com.zolt.project.ProjectPathException;
-import com.zolt.project.ProjectPaths;
-import com.zolt.classpath.Classpath;
 import com.zolt.resolve.ResolveException;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceClasspathService;
@@ -20,8 +16,6 @@ import com.zolt.workspace.WorkspaceResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +26,7 @@ public final class WorkspaceIdeModelService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final IdeModelService ideModelService;
     private final ZoltLockfileReader lockfileReader;
-    private final WorkspaceClasspathService workspaceClasspathService;
+    private final WorkspaceIdeClasspathPlanner classpathPlanner;
     private final WorkspaceResolveService workspaceResolveService;
 
     public WorkspaceIdeModelService() {
@@ -53,7 +47,7 @@ public final class WorkspaceIdeModelService {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.ideModelService = ideModelService;
         this.lockfileReader = lockfileReader;
-        this.workspaceClasspathService = workspaceClasspathService;
+        this.classpathPlanner = new WorkspaceIdeClasspathPlanner(workspaceClasspathService);
         this.workspaceResolveService = workspaceResolveService;
     }
 
@@ -122,7 +116,7 @@ public final class WorkspaceIdeModelService {
         List<WorkspaceIdeModel.ProjectModel> projects = new ArrayList<>();
         Map<String, IdeModel.ClasspathInfo> classpathsByMember = timings.measure(
                 "plan workspace ide classpaths",
-                () -> classpaths(workspace, cacheRoot, lockState.lockfile()),
+                () -> classpathPlanner.classpaths(workspace, cacheRoot, lockState.lockfile()),
                 WorkspaceIdeModelService::workspaceClasspathAttributes);
         for (WorkspaceMember member : workspace.members()) {
             projects.add(new WorkspaceIdeModel.ProjectModel(
@@ -234,72 +228,10 @@ public final class WorkspaceIdeModelService {
         }
     }
 
-    private Map<String, IdeModel.ClasspathInfo> classpaths(
-            Workspace workspace,
-            Path cacheRoot,
-            ZoltLockfile lockfile) {
-        Map<String, IdeModel.ClasspathInfo> classpathsByMember = new LinkedHashMap<>();
-        if (lockfile == null) {
-            for (WorkspaceMember member : workspace.members()) {
-                classpathsByMember.put(
-                        member.path(),
-                        new IdeModel.ClasspathInfo(List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
-            }
-            return Collections.unmodifiableMap(classpathsByMember);
-        }
-        Map<String, ClasspathSet> zoltClasspathsByMember = workspaceClasspathService.classpathsForMembers(
-                workspace,
-                lockfile,
-                cacheRoot,
-                workspace.members().stream()
-                        .map(WorkspaceMember::path)
-                        .toList());
-        for (WorkspaceMember member : workspace.members()) {
-            ClasspathSet classpaths = zoltClasspathsByMember.get(member.path());
-            Optional<Path> mainOutput = outputPath(member, "[build].output", member.config().build().output());
-            Optional<Path> testOutput = outputPath(member, "[build].testOutput", member.config().build().testOutput());
-            classpathsByMember.put(
-                    member.path(),
-                    new IdeModel.ClasspathInfo(
-                            absoluteEntries(classpaths.compile()),
-                            withOutputs(mainOutput.stream().toList(), classpaths.runtime()),
-                            withOutputs(
-                                    java.util.stream.Stream.concat(mainOutput.stream(), testOutput.stream()).toList(),
-                                    classpaths.test()),
-                            absoluteEntries(classpaths.processor()),
-                            absoluteEntries(classpaths.testProcessor()),
-                            absoluteEntries(classpaths.quarkusDeployment())));
-        }
-        return Collections.unmodifiableMap(classpathsByMember);
-    }
-
-    private static Optional<Path> outputPath(WorkspaceMember member, String key, String configuredPath) {
-        try {
-            return Optional.of(ProjectPaths.output(
-                    ProjectPaths.root(member.directory()),
-                    key,
-                    configuredPath));
-        } catch (ProjectPathException exception) {
-            return Optional.empty();
-        }
-    }
-
     private static String lockDiagnosticCode(ResolveException exception) {
         return exception.getMessage().contains("out of date")
                 ? "LOCKFILE_STALE"
                 : "LOCKFILE_CHECK_FAILED";
-    }
-
-    private static List<Path> withOutputs(List<Path> outputs, Classpath classpath) {
-        List<Path> entries = new ArrayList<>(outputs);
-        entries.addAll(absoluteEntries(classpath));
-        return entries;
-    }
-
-    private static List<Path> absoluteEntries(Classpath classpath) {
-        return classpath.entries().stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .toList();
     }
 
     private static List<WorkspaceIdeModel.ProjectEdge> projectEdges(Workspace workspace) {
