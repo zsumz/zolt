@@ -17,21 +17,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
 import java.util.stream.Stream;
 
 public final class OpenApiGeneratedSourceService {
-    private static final String MAIN_CLASS = "org.openapitools.codegen.OpenAPIGenerator";
     private static final String FINGERPRINT_VERSION = "1";
 
     private final JdkChecker jdkDetector;
-    private final String pathSeparator;
+    private final OpenApiGeneratorCommandBuilder commandBuilder;
     private final ProcessRunner processRunner;
 
     public OpenApiGeneratedSourceService() {
@@ -47,7 +42,7 @@ public final class OpenApiGeneratedSourceService {
             String pathSeparator,
             ProcessRunner processRunner) {
         this.jdkDetector = jdkDetector;
-        this.pathSeparator = pathSeparator;
+        this.commandBuilder = new OpenApiGeneratorCommandBuilder(pathSeparator);
         this.processRunner = processRunner;
     }
 
@@ -110,7 +105,7 @@ public final class OpenApiGeneratedSourceService {
         }
         deleteOutput(output);
         createDirectory(output);
-        List<String> command = command(projectRoot, javaExecutable, toolClasspath, scope, step);
+        List<String> command = commandBuilder.command(projectRoot, javaExecutable, toolClasspath, scope, step);
         ProcessResult result = processRunner.run(command, projectRoot);
         Path log = output.resolve(".zolt-openapi-" + scope + "-" + step.id() + ".log");
         writeLog(log, result.output());
@@ -128,90 +123,6 @@ public final class OpenApiGeneratedSourceService {
                             + result.output().stripTrailing());
         }
         writeFingerprint(fingerprint, expectedFingerprint);
-    }
-
-    private List<String> command(
-            Path projectRoot,
-            Path javaExecutable,
-            List<Path> toolClasspath,
-            String scope,
-            GeneratedSourceStep step) {
-        OpenApiGenerationSettings settings = step.openApi();
-        List<String> command = new ArrayList<>();
-        command.add(javaExecutable.toString());
-        command.add("-cp");
-        command.add(joinClasspath(toolClasspath));
-        command.add(MAIN_CLASS);
-        command.add("generate");
-        command.add("--input-spec");
-        command.add(safeProjectPath(projectRoot, step.inputs().getFirst(), scope, step.id(), "input").toString());
-        command.add("--generator-name");
-        command.add(settings.generator().orElseThrow());
-        command.add("--output");
-        command.add(safeProjectPath(projectRoot, step.output(), scope, step.id(), "output").toString());
-        if (settings.validateSpec().isPresent() && !settings.validateSpec().orElseThrow()) {
-            command.add("--skip-validate-spec");
-        }
-        settings.library().ifPresent(value -> addOption(command, "--library", value));
-        settings.apiPackage().ifPresent(value -> addOption(command, "--api-package", value));
-        settings.modelPackage().ifPresent(value -> addOption(command, "--model-package", value));
-        settings.invokerPackage().ifPresent(value -> addOption(command, "--invoker-package", value));
-        settings.config().ifPresent(value -> addOption(
-                command,
-                "--config",
-                safeProjectPath(projectRoot, value, scope, step.id(), "config").toString()));
-        settings.templateDir().ifPresent(value -> addOption(
-                command,
-                "--template-dir",
-                safeProjectPath(projectRoot, value, scope, step.id(), "templateDir").toString()));
-        String additionalProperties = joinedMap(additionalProperties(settings));
-        if (!additionalProperties.isBlank()) {
-            addOption(command, "--additional-properties", additionalProperties);
-        }
-        addMapOption(command, "--global-property", settings.globalProperties());
-        addMapOption(command, "--type-mappings", settings.typeMappings());
-        addMapOption(command, "--import-mappings", settings.importMappings());
-        return List.copyOf(command);
-    }
-
-    private static void addOption(List<String> command, String name, String value) {
-        command.add(name);
-        command.add(value);
-    }
-
-    private static void addMapOption(List<String> command, String name, Map<String, String> values) {
-        String joined = joinedMap(values);
-        if (!joined.isBlank()) {
-            addOption(command, name, joined);
-        }
-    }
-
-    private static Map<String, String> additionalProperties(OpenApiGenerationSettings settings) {
-        Map<String, String> values = new LinkedHashMap<>();
-        values.putAll(settings.options());
-        values.putAll(settings.additionalProperties());
-        values.putAll(settings.configOptions());
-        return values;
-    }
-
-    private static String joinedMap(Map<String, String> values) {
-        if (values.isEmpty()) {
-            return "";
-        }
-        StringJoiner joiner = new StringJoiner(",");
-        values.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> joiner.add(entry.getKey() + "=" + entry.getValue()));
-        return joiner.toString();
-    }
-
-    private String joinClasspath(List<Path> paths) {
-        StringJoiner joiner = new StringJoiner(pathSeparator);
-        paths.stream()
-                .map(path -> path.toAbsolutePath().normalize().toString())
-                .sorted()
-                .forEach(joiner::add);
-        return joiner.toString();
     }
 
     private static void validateStep(Path projectRoot, String scope, GeneratedSourceStep step) {
