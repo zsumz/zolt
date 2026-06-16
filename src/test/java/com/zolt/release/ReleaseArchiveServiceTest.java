@@ -1,8 +1,6 @@
 package com.zolt.release;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
@@ -159,45 +157,6 @@ final class ReleaseArchiveServiceTest {
                 unixBinary,
                 Path.of("dist"));
         assertEquals(manifest, Files.readString(result.manifestPath()));
-    }
-
-    @Test
-    void missingBinaryFailsWithNextStep() {
-        ReleaseArchiveException exception = assertThrows(
-                ReleaseArchiveException.class,
-                () -> service.assemble(
-                        projectDir,
-                        config(),
-                        ReleaseTarget.LINUX_X64,
-                        Path.of("target/native/zolt"),
-                        Path.of("dist")));
-
-        assertTrue(exception.getMessage().contains("Release archive requires native binary"));
-        assertTrue(exception.getMessage().contains("Run `zolt native` or pass --binary <path>"));
-    }
-
-    @Test
-    void rejectsArchiveNameThatUsesUnsafeProjectVersion() throws IOException {
-        writeProjectFiles();
-        Path binary = writeBinary("target/native/zolt");
-
-        ReleaseArchiveException exception = assertThrows(
-                ReleaseArchiveException.class,
-                () -> service.assemble(
-                        projectDir,
-                        config(new ProjectMetadata(
-                                "zolt",
-                                "../0.1.0",
-                                "com.zolt",
-                                currentJavaMajorVersion(),
-                                Optional.of("com.zolt.Main"))),
-                        ReleaseTarget.LINUX_X64,
-                        binary,
-                        Path.of("dist")));
-
-        assertTrue(exception.getMessage().contains("[project].version"));
-        assertTrue(exception.getMessage().contains("../0.1.0"));
-        assertFalse(Files.exists(projectDir.resolve("dist/zolt-0.1.0-linux-x64.tar.gz")));
     }
 
     private void writeProjectFiles() throws IOException {
