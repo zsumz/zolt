@@ -25,17 +25,7 @@ final class FollowUpMetadataTest {
 
     @Test
     void modernFollowUpsHaveMatchingTitleAndValidStatus() throws IOException {
-        List<String> violations = new ArrayList<>();
-        for (FollowUpFile followUp : modernFollowUps(FOLLOW_UPS)) {
-            if (!followUp.title().startsWith("# follow-up-" + followUp.id() + " - ")) {
-                violations.add(followUp.path() + " title must start with `# follow-up-" + followUp.id() + " - `");
-            }
-            if (followUp.status().isEmpty()) {
-                violations.add(followUp.path() + " must declare `Status:` near the top of the file");
-            } else if (!VALID_STATUSES.contains(followUp.status().orElseThrow())) {
-                violations.add(followUp.path() + " has unsupported status `" + followUp.status().orElseThrow() + "`");
-            }
-        }
+        List<String> violations = violations(modernFollowUps(FOLLOW_UPS));
 
         assertTrue(
                 violations.isEmpty(),
@@ -58,8 +48,62 @@ final class FollowUpMetadataTest {
                         tempDir.resolve("-modern.md"),
                         "503",
                         "#  - Modern followUp",
-                        Optional.of("Done"))),
+                        Optional.of("Done"),
+                        List.of(
+                                "#  - Modern followUp",
+                                "",
+                                "Status: Done"))),
                 modernFollowUps(tempDir));
+    }
+
+    @Test
+    void doneFollowUpsCannotKeepUncheckedChecklistItems(@TempDir Path tempDir) throws IOException {
+        write(tempDir.resolve("-open.md"), """
+                #  - Open followUp
+
+                Status: Open
+
+                - [ ] Work in progress
+                """);
+        write(tempDir.resolve("-done.md"), """
+                #  - Done followUp
+
+                Status: Done
+
+                - [x] Complete
+                """);
+        write(tempDir.resolve("-stale.md"), """
+                #  - Stale followUp
+
+                Status: Done
+
+                - [ ] Incomplete
+                """);
+
+        List<FollowUpFile> followUps = modernFollowUps(tempDir);
+
+        assertEquals(3, followUps.size());
+        assertEquals(
+                List.of(tempDir.resolve("-stale.md") + " is Done but still has unchecked checklist items"),
+                violations(followUps));
+    }
+
+    private static List<String> violations(List<FollowUpFile> followUps) {
+        List<String> violations = new ArrayList<>();
+        for (FollowUpFile followUp : followUps) {
+            if (!followUp.title().startsWith("# follow-up-" + followUp.id() + " - ")) {
+                violations.add(followUp.path() + " title must start with `# follow-up-" + followUp.id() + " - `");
+            }
+            if (followUp.status().isEmpty()) {
+                violations.add(followUp.path() + " must declare `Status:` near the top of the file");
+            } else if (!VALID_STATUSES.contains(followUp.status().orElseThrow())) {
+                violations.add(followUp.path() + " has unsupported status `" + followUp.status().orElseThrow() + "`");
+            }
+            if (followUp.status().filter("Done"::equals).isPresent() && followUp.hasUncheckedChecklistItem()) {
+                violations.add(followUp.path() + " is Done but still has unchecked checklist items");
+            }
+        }
+        return violations;
     }
 
     private static List<FollowUpFile> modernFollowUps(Path root) throws IOException {
@@ -88,7 +132,7 @@ final class FollowUpMetadataTest {
                     .filter(line -> line.startsWith("Status:"))
                     .map(line -> line.substring("Status:".length()).trim())
                     .findFirst();
-            return Optional.of(new FollowUpFile(path, matcher.group(1), title, status));
+            return Optional.of(new FollowUpFile(path, matcher.group(1), title, status, lines));
         } catch (IOException exception) {
             throw new IllegalStateException("Could not read followUp " + path, exception);
         }
@@ -106,6 +150,9 @@ final class FollowUpMetadataTest {
         return description.toString();
     }
 
-    private record FollowUpFile(Path path, String id, String title, Optional<String> status) {
+    private record FollowUpFile(Path path, String id, String title, Optional<String> status, List<String> lines) {
+        private boolean hasUncheckedChecklistItem() {
+            return lines.stream().anyMatch(line -> line.trim().startsWith("- [ ]"));
+        }
     }
 }
