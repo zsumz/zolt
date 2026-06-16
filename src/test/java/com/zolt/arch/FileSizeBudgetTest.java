@@ -18,14 +18,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class FileSizeBudgetTest {
     private static final Path ALLOWLIST = Path.of("src/test/resources/com/zolt/arch/file-size-allowlist.txt");
-    private static final List<Budget> BUDGETS = List.of(
-            new Budget(Path.of("src/main/java"), 350, 500),
-            new Budget(Path.of("src/test/java"), 450, 650));
+    private static final Path BUDGETS = Path.of("src/test/resources/com/zolt/arch/file-size-budgets.txt");
 
     @Test
     void javaFilesStayBelowSoftThresholds() throws IOException {
         List<String> violations = new ArrayList<>();
-        for (Budget budget : BUDGETS) {
+        for (Budget budget : readBudgets()) {
             for (SourceFileSize fileSize : sourceFileSizes(budget)) {
                 if (fileSize.lines() > budget.softThreshold()) {
                     violations.add(fileSize.path()
@@ -48,7 +46,7 @@ final class FileSizeBudgetTest {
     @Test
     void hardThresholdFilesAreExplicitlyAllowlistedAndDoNotGrow() throws IOException {
         Map<String, AllowlistEntry> allowlist = readAllowlist();
-        Map<String, SourceFileSize> oversizedFiles = filesAboveHardThreshold(BUDGETS);
+        Map<String, SourceFileSize> oversizedFiles = filesAboveHardThreshold(readBudgets());
         List<String> violations = new ArrayList<>();
 
         for (SourceFileSize fileSize : oversizedFiles.values()) {
@@ -105,6 +103,51 @@ final class FileSizeBudgetTest {
         assertEquals(
                 Map.of("src/test/java/LargeTest.java", new SourceFileSize("src/test/java/LargeTest.java", 5)),
                 filesAboveSoftThreshold(List.of(new Budget(sourceRoot, 4, 10))));
+    }
+
+    @Test
+    void budgetFileParserReadsRootsAndThresholds(@TempDir Path tempDir) throws IOException {
+        Path budgets = tempDir.resolve("budgets.txt");
+        Files.writeString(budgets, """
+                # root|softThreshold|hardThreshold
+                src/main/java|350|500
+
+                src/test/java|450|650
+                """);
+
+        assertEquals(
+                List.of(
+                        new Budget(Path.of("src/main/java"), 350, 500),
+                        new Budget(Path.of("src/test/java"), 450, 650)),
+                readBudgets(budgets));
+    }
+
+    private static List<Budget> readBudgets() throws IOException {
+        return readBudgets(BUDGETS);
+    }
+
+    private static List<Budget> readBudgets(Path path) throws IOException {
+        List<Budget> budgets = new ArrayList<>();
+        for (String line : Files.readAllLines(path)) {
+            Optional<Budget> budget = parseBudgetLine(line);
+            budget.ifPresent(budgets::add);
+        }
+        return budgets;
+    }
+
+    private static Optional<Budget> parseBudgetLine(String line) {
+        String trimmed = line.trim();
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            return Optional.empty();
+        }
+        String[] parts = trimmed.split("\\|");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid file-size budget line: " + line);
+        }
+        return Optional.of(new Budget(
+                Path.of(parts[0]),
+                Integer.parseInt(parts[1]),
+                Integer.parseInt(parts[2])));
     }
 
     private static Map<String, SourceFileSize> filesAboveSoftThreshold(List<Budget> budgets) throws IOException {

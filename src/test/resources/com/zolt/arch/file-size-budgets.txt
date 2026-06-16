@@ -1,0 +1,3 @@
+# root|softThreshold|hardThreshold
+src/main/java|350|500
+src/test/java|450|650
