@@ -25,7 +25,7 @@ public final class DependencyGraphTraverser {
     private final DependencyNormalizer normalizer;
     private final DependencyTraversalPolicy traversalPolicy;
     private final DependencyRelocator relocator;
-    private final List<GlobalExclusion> globalExclusions;
+    private final List<DependencyGlobalExclusion> globalExclusions;
     private final Map<PackageId, DependencyConstraint> strictConstraints;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
@@ -59,28 +59,28 @@ public final class DependencyGraphTraverser {
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
-        SequencedMap<NodeKey, PackageNode> nodes = new LinkedHashMap<>();
+        SequencedMap<DependencyTraversalNodeKey, PackageNode> nodes = new LinkedHashMap<>();
         List<ResolutionEdge> edges = new ArrayList<>();
         List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
-        Set<VisitKey> visited = new TreeSet<>();
-        ArrayDeque<TraversalItem> queue = new ArrayDeque<>();
+        Set<DependencyTraversalVisitKey> visited = new TreeSet<>();
+        ArrayDeque<DependencyTraversalItem> queue = new ArrayDeque<>();
 
         directRequests.stream()
-                .sorted(Comparator.comparing(DependencyGraphTraverser::requestSortKey))
-                .forEach(request -> queue.add(TraversalItem.direct(request)));
+                .sorted(Comparator.comparing(DependencyTraversalOrdering::requestSortKey))
+                .forEach(request -> queue.add(DependencyTraversalItem.direct(request)));
 
         while (!queue.isEmpty()) {
-            List<TraversalItem> frontier = frontier(queue);
+            List<DependencyTraversalItem> frontier = frontier(queue);
             metadataSource.preload(frontier.stream()
                     .map(item -> coordinate(item.request()))
                     .sorted(Comparator.comparing(Coordinate::toString))
                     .toList());
-            for (TraversalItem item : frontier) {
+            for (DependencyTraversalItem item : frontier) {
                 DependencyRelocator.RelocationResult relocated = relocator.relocateWithPom(item.request());
                 DependencyRequest request = relocated.request();
                 String version = requireVersion(request);
                 PackageNode node = node(request, version);
-                NodeKey nodeKey = NodeKey.from(node);
+                DependencyTraversalNodeKey nodeKey = DependencyTraversalNodeKey.from(node);
                 nodes.putIfAbsent(nodeKey, node);
 
                 item.parent().ifPresent(parent -> edges.add(new ResolutionEdge(
@@ -89,14 +89,14 @@ public final class DependencyGraphTraverser {
                         request,
                         item.decision())));
 
-                if (!visited.add(VisitKey.from(node, item.request().scope()))) {
+                if (!visited.add(DependencyTraversalVisitKey.from(node, item.request().scope()))) {
                     continue;
                 }
 
                 EffectiveRawPom pom = relocated.pom();
                 List<NormalizedDependency> dependencies = dependencyManager.applyManagedVersions(pom).stream()
                         .map(normalizer::normalize)
-                        .sorted(Comparator.comparing(DependencyGraphTraverser::dependencySortKey))
+                        .sorted(Comparator.comparing(DependencyTraversalOrdering::dependencySortKey))
                         .toList();
 
                 for (NormalizedDependency dependency : dependencies) {
@@ -146,7 +146,7 @@ public final class DependencyGraphTraverser {
                             requestedVersion,
                             requestScope.orElseThrow(),
                             RequestOrigin.TRANSITIVE);
-                    queue.add(TraversalItem.transitive(node, transitiveRequest, dependency.exclusions(), decision));
+                    queue.add(DependencyTraversalItem.transitive(node, transitiveRequest, dependency.exclusions(), decision));
                 }
             }
         }
@@ -155,12 +155,12 @@ public final class DependencyGraphTraverser {
                 List.copyOf(nodes.values()),
                 List.copyOf(edges),
                 List.of(),
-                sortedPolicyEffects(policyEffects));
+                DependencyTraversalOrdering.sortedPolicyEffects(policyEffects));
     }
 
-    private static List<TraversalItem> frontier(ArrayDeque<TraversalItem> queue) {
+    private static List<DependencyTraversalItem> frontier(ArrayDeque<DependencyTraversalItem> queue) {
         int size = queue.size();
-        List<TraversalItem> frontier = new ArrayList<>(size);
+        List<DependencyTraversalItem> frontier = new ArrayList<>(size);
         for (int index = 0; index < size; index++) {
             frontier.add(queue.removeFirst());
         }
@@ -190,12 +190,12 @@ public final class DependencyGraphTraverser {
                 Optional.ofNullable(request.requestedVersion()));
     }
 
-    private static List<GlobalExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
+    private static List<DependencyGlobalExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
         if (dependencyPolicy == null) {
             return List.of();
         }
         return dependencyPolicy.exclusions().stream()
-                .map(exclusion -> new GlobalExclusion(
+                .map(exclusion -> new DependencyGlobalExclusion(
                         new DependencyExclusion(exclusion.group(), exclusion.artifact()),
                         exclusion.reason()))
                 .toList();
@@ -254,7 +254,7 @@ public final class DependencyGraphTraverser {
     }
 
     private List<DependencyPolicyEffect> exclusionEffects(
-            TraversalItem item,
+            DependencyTraversalItem item,
             PackageNode source,
             NormalizedDependency dependency,
             Coordinate coordinate) {
@@ -294,7 +294,7 @@ public final class DependencyGraphTraverser {
         return effects;
     }
 
-    private List<GlobalExclusion> matchingGlobalExclusions(Coordinate coordinate) {
+    private List<DependencyGlobalExclusion> matchingGlobalExclusions(Coordinate coordinate) {
         return globalExclusions.stream()
                 .filter(exclusion -> exclusion.exclusion().matches(coordinate))
                 .toList();
@@ -321,112 +321,8 @@ public final class DependencyGraphTraverser {
                         .orElse(policy));
     }
 
-    private static List<DependencyPolicyEffect> sortedPolicyEffects(List<DependencyPolicyEffect> policyEffects) {
-        return policyEffects.stream()
-                .distinct()
-                .sorted(Comparator.comparing(policyEffect -> policyEffect.kind()
-                        + ":"
-                        + policyEffect.packageId()
-                        + ":"
-                        + policyEffect.requestedVersion().orElse("")
-                        + ":"
-                        + policyEffect.source().orElse("")
-                        + ":"
-                        + policyEffect.policy()))
-                .toList();
-    }
-
-    private static String requestSortKey(DependencyRequest request) {
-        return request.packageId() + ":" + request.requestedVersion() + ":" + request.scope();
-    }
-
-    private static String dependencySortKey(NormalizedDependency dependency) {
-        RawPomDependency raw = dependency.rawDependency();
-        return raw.groupId()
-                + ":"
-                + raw.artifactId()
-                + ":"
-                + raw.version().orElse("")
-                + ":"
-                + dependency.scope();
-    }
-
     private static String coordinate(PackageNode node) {
         return node.packageId() + ":" + node.selectedVersion();
     }
 
-    private record NodeKey(PackageId packageId, String version) implements Comparable<NodeKey> {
-        static NodeKey from(PackageNode node) {
-            return new NodeKey(node.packageId(), node.selectedVersion());
-        }
-
-        @Override
-        public int compareTo(NodeKey other) {
-            int packageCompared = packageId.toString().compareTo(other.packageId.toString());
-            if (packageCompared != 0) {
-                return packageCompared;
-            }
-            return version.compareTo(other.version);
-        }
-    }
-
-    private record VisitKey(PackageId packageId, String version, DependencyScope scope) implements Comparable<VisitKey> {
-        static VisitKey from(PackageNode node, DependencyScope scope) {
-            return new VisitKey(node.packageId(), node.selectedVersion(), scope);
-        }
-
-        @Override
-        public int compareTo(VisitKey other) {
-            int packageCompared = packageId.toString().compareTo(other.packageId.toString());
-            if (packageCompared != 0) {
-                return packageCompared;
-            }
-            int versionCompared = version.compareTo(other.version);
-            if (versionCompared != 0) {
-                return versionCompared;
-            }
-            return scope.compareTo(other.scope);
-        }
-    }
-
-    private record TraversalItem(
-            Optional<PackageNode> parent,
-            DependencyRequest request,
-            List<DependencyExclusion> edgeExclusions,
-            DependencyTraversalDecision decision) {
-        TraversalItem {
-            parent = parent == null ? Optional.empty() : parent;
-            edgeExclusions = List.copyOf(edgeExclusions);
-        }
-
-        static TraversalItem direct(DependencyRequest request) {
-            return new TraversalItem(
-                    Optional.empty(),
-                    request,
-                    request.exclusions(),
-                    DependencyTraversalDecision.include("direct dependency"));
-        }
-
-        static TraversalItem transitive(
-                PackageNode parent,
-                DependencyRequest request,
-                List<DependencyExclusion> edgeExclusions,
-                DependencyTraversalDecision decision) {
-            return new TraversalItem(Optional.of(parent), request, edgeExclusions, decision);
-        }
-
-        List<DependencyExclusion> matchingExclusions(Coordinate coordinate) {
-            return edgeExclusions.stream()
-                    .filter(exclusion -> exclusion.matches(coordinate))
-                    .toList();
-        }
-    }
-
-    private record GlobalExclusion(
-            DependencyExclusion exclusion,
-            Optional<String> reason) {
-        private GlobalExclusion {
-            reason = reason == null ? Optional.empty() : reason;
-        }
-    }
 }
