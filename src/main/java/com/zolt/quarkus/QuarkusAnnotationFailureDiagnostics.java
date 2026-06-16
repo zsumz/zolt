@@ -16,10 +16,6 @@ import java.util.ServiceLoader;
 final class QuarkusAnnotationFailureDiagnostics {
     private static final String MAIN_OUTPUT_DIRECTORY_PROPERTY =
             QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY;
-    private static final String TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY =
-            "zolt.quarkus.test-class-bean-diagnostic-file";
-    private static final String QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY =
-            "quarkus.builder.graph-output";
     private static final String TEST_BUILD_CHAIN_FUNCTION = "io.quarkus.test.junit.TestBuildChainFunction";
     private static final String TEST_BUILD_CHAIN_CUSTOMIZER_SPI =
             "io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
@@ -27,16 +23,18 @@ final class QuarkusAnnotationFailureDiagnostics {
             "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer";
 
     private final PrintStream out;
+    private final QuarkusDiagnosticFilePrinter diagnosticFilePrinter;
 
     QuarkusAnnotationFailureDiagnostics(PrintStream out) {
         this.out = out;
+        this.diagnosticFilePrinter = new QuarkusDiagnosticFilePrinter(out);
     }
 
     void writeFailure(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader, Throwable failure) {
         writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader, failure);
         writeBuildChainCustomizerDiagnostic(quarkusRuntimeClassLoader);
-        writeTestClassBeanCustomizerDiagnostic();
-        writeBuildGraphDiagnostic();
+        diagnosticFilePrinter.writeTestClassBeanCustomizerDiagnostic();
+        diagnosticFilePrinter.writeBuildGraphDiagnostic();
     }
 
     Optional<String> failingClass(Throwable failure) {
@@ -452,47 +450,4 @@ final class QuarkusAnnotationFailureDiagnostics {
         }
     }
 
-    private void writeTestClassBeanCustomizerDiagnostic() {
-        String diagnosticFile = System.getProperty(TEST_CLASS_BEAN_DIAGNOSTIC_FILE_PROPERTY, "");
-        if (diagnosticFile.isBlank()) {
-            return;
-        }
-        Path path = Path.of(diagnosticFile).toAbsolutePath().normalize();
-        out.println("Zolt Quarkus test-class-bean customizer diagnostic:");
-        out.println("  file=" + path);
-        try {
-            if (!java.nio.file.Files.isRegularFile(path)) {
-                out.println("  entries=<missing>");
-                return;
-            }
-            for (String line : java.nio.file.Files.readAllLines(path)) {
-                out.println("  " + line);
-            }
-        } catch (java.io.IOException | RuntimeException exception) {
-            out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");
-        }
-    }
-
-    private void writeBuildGraphDiagnostic() {
-        String graphOutput = System.getProperty(QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY, "");
-        if (graphOutput.isBlank()) {
-            return;
-        }
-        Path path = Path.of(graphOutput).toAbsolutePath().normalize();
-        out.println("Zolt Quarkus build-chain graph diagnostic:");
-        out.println("  file=" + path);
-        try {
-            if (!java.nio.file.Files.isRegularFile(path)) {
-                out.println("  entries=<missing>");
-                return;
-            }
-            String graph = java.nio.file.Files.readString(path);
-            out.println("  containsZoltCustomizer=" + graph.contains("ZoltQuarkusTestClassBeanCustomizer"));
-            out.println("  containsTestClassBeanBuildItem=" + graph.contains("TestClassBeanBuildItem"));
-            out.println("  containsAdditionalBeanBuildItem=" + graph.contains("AdditionalBeanBuildItem"));
-            out.println("  lines=" + graph.lines().count());
-        } catch (java.io.IOException | RuntimeException exception) {
-            out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");
-        }
-    }
 }
