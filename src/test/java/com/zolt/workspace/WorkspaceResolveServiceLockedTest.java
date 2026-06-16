@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveResult;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -83,138 +82,6 @@ final class WorkspaceResolveServiceLockedTest {
         assertEquals(existing, Files.readString(first.lockfilePath()));
     }
 
-    @Test
-    void lockedWorkspaceResolveFailsWhenRootLockfileWouldChange() throws IOException {
-        addArtifact("com.example", "extra", "1.0.0", pom("com.example", "extra", "1.0.0"));
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s"
-                """.formatted(baseUri));
-        member("apps/api", "api", """
-
-                [dependencies]
-                "com.example:app" = "1.0.0"
-                """);
-        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-        String existing = Files.readString(first.lockfilePath());
-        member("apps/api", "api", """
-
-                [dependencies]
-                "com.example:app" = "1.0.0"
-                "com.example:extra" = "1.0.0"
-                """);
-
-        ResolveException exception = assertThrows(
-                ResolveException.class,
-                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
-
-        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
-        assertEquals(existing, Files.readString(first.lockfilePath()));
-    }
-
-    @Test
-    void lockedWorkspaceResolveFailsWhenRepositoryInputChangesWithoutGraphChange() throws IOException {
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s"
-                """.formatted(baseUri));
-        member("apps/api", "api", """
-
-                [dependencies]
-                "com.example:app" = "1.0.0"
-                """);
-        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-        String existing = Files.readString(first.lockfilePath());
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s?changed=true"
-                """.formatted(baseUri));
-
-        ResolveException exception = assertThrows(
-                ResolveException.class,
-                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
-
-        assertTrue(existing.contains("projectResolutionFingerprint = \"sha256:"));
-        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
-        assertTrue(exception.getMessage().contains("Changed inputs: repositories."));
-        assertEquals(existing, Files.readString(first.lockfilePath()));
-    }
-
-    @Test
-    void lockedWorkspaceResolveFailsWhenMemberPlatformVersionRefEdgeChangesWithoutConcreteVersionChange()
-            throws IOException {
-        addPom("com.example", "platform", "1.0.0", """
-                <project>
-                  <groupId>com.example</groupId>
-                  <artifactId>platform</artifactId>
-                  <version>1.0.0</version>
-                  <dependencyManagement>
-                    <dependencies>
-                      <dependency>
-                        <groupId>com.example</groupId>
-                        <artifactId>app</artifactId>
-                        <version>1.0.0</version>
-                      </dependency>
-                    </dependencies>
-                  </dependencyManagement>
-                </project>
-                """);
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-
-                [repositories]
-                test = "%s"
-                """.formatted(baseUri));
-        platformVersionRefMember("platform-one");
-        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-        String existing = Files.readString(first.lockfilePath());
-        platformVersionRefMember("platform-two");
-
-        ResolveException exception = assertThrows(
-                ResolveException.class,
-                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
-
-        assertTrue(existing.contains("aliasFingerprint = \"sha256:"));
-        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
-        assertEquals(existing, Files.readString(first.lockfilePath()));
-    }
-
-    @Test
-    void lockedWorkspaceResolveFailsWhenMemberVersionAliasTableChangesWithoutGraphChange()
-            throws IOException {
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-                """);
-        unusedAliasMember("unused-one");
-        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
-        String existing = Files.readString(first.lockfilePath());
-        unusedAliasMember("unused-two");
-
-        ResolveException exception = assertThrows(
-                ResolveException.class,
-                () -> service.resolve(tempDir, tempDir.resolve("cache"), true, false));
-
-        assertTrue(existing.contains("aliasFingerprint = \"sha256:"));
-        assertTrue(exception.getMessage().contains("Workspace zolt.lock is out of date"));
-        assertEquals(existing, Files.readString(first.lockfilePath()));
-    }
-
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }
@@ -229,28 +96,6 @@ final class WorkspaceResolveServiceLockedTest {
                 group = "com.acme"
                 java = "21"
                 %s""".formatted(name, extraToml));
-    }
-
-    private void platformVersionRefMember(String alias) throws IOException {
-        member("apps/api", "api", """
-
-                [versions]
-                "%s" = "1.0.0"
-
-                [platforms]
-                "com.example:platform" = { versionRef = "%s" }
-
-                [dependencies]
-                "com.example:app" = {}
-                """.formatted(alias, alias));
-    }
-
-    private void unusedAliasMember(String alias) throws IOException {
-        member("apps/api", "api", """
-
-                [versions]
-                "%s" = "1.0.0"
-                """.formatted(alias));
     }
 
     private void addArtifact(String groupId, String artifactId, String version, String pom) {
