@@ -46,10 +46,7 @@ public final class QualityCheckService {
     private final WorkspaceMemberSelector workspaceMemberSelector;
     private final GeneratedSourceQualityCheck generatedSourceQualityCheck;
     private final LockfileQualityCheck lockfileQualityCheck;
-    private final ExecutionContextQualityCheck executionContextQualityCheck;
-    private final CredentialQualityCheck credentialQualityCheck;
-    private final ExecutionEvidenceQualityCheck executionEvidenceQualityCheck;
-    private final PublishDryRunQualityCheck publishDryRunQualityCheck;
+    private final QualityExecutionContextRunner executionContextRunner;
     private final ProjectModelQualityCheck projectModelQualityCheck;
     private final PackageQualityCheck packageQualityCheck;
     private final DependencyQualityCheck dependencyQualityCheck;
@@ -107,10 +104,11 @@ public final class QualityCheckService {
         this.workspaceMemberSelector = workspaceMemberSelector;
         this.generatedSourceQualityCheck = new GeneratedSourceQualityCheck(generatedSourceEvidenceService);
         this.lockfileQualityCheck = new LockfileQualityCheck(resolveService, workspaceResolveService, lockfileReader);
-        this.executionContextQualityCheck = new ExecutionContextQualityCheck(lockfileReader);
-        this.credentialQualityCheck = new CredentialQualityCheck(publishSettingsReader, environment);
-        this.executionEvidenceQualityCheck = new ExecutionEvidenceQualityCheck();
-        this.publishDryRunQualityCheck = new PublishDryRunQualityCheck(publishDryRunService);
+        this.executionContextRunner = new QualityExecutionContextRunner(
+                new ExecutionContextQualityCheck(lockfileReader),
+                new CredentialQualityCheck(publishSettingsReader, environment),
+                new ExecutionEvidenceQualityCheck(),
+                new PublishDryRunQualityCheck(publishDryRunService));
         this.projectModelQualityCheck = new ProjectModelQualityCheck();
         this.packageQualityCheck = new PackageQualityCheck(packagePlanService, packageEvidenceManifestReader);
         this.dependencyQualityCheck = new DependencyQualityCheck(lockfileReader, dependencyPolicyReportService);
@@ -185,7 +183,7 @@ public final class QualityCheckService {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceProjectResult(config));
                 case CACHE_INTEGRITY -> results.add(lockfileQualityCheck.checkProjectCacheIntegrity(request));
-                case EXECUTION_CONTEXT -> results.addAll(checkProjectExecutionContext(request, config));
+                case EXECUTION_CONTEXT -> results.addAll(executionContextRunner.checkProject(request, config));
                 case LOCKFILE -> results.add(lockfileQualityCheck.checkProjectLockfile(request, config));
                 case PROJECT_MODEL -> results.addAll(projectModelQualityCheck.check(
                         Optional.empty(),
@@ -236,7 +234,11 @@ public final class QualityCheckService {
             switch (requestedCheck) {
                 case COMMAND_SURFACE -> results.add(commandSurfaceWorkspaceResult(workspace, selection));
                 case CACHE_INTEGRITY -> results.add(lockfileQualityCheck.checkWorkspaceCacheIntegrity(request, workspace));
-                case EXECUTION_CONTEXT -> results.addAll(checkWorkspaceExecutionContext(request, workspace, selection, members));
+                case EXECUTION_CONTEXT -> results.addAll(executionContextRunner.checkWorkspace(
+                        request,
+                        workspace,
+                        selection,
+                        members));
                 case LOCKFILE -> results.add(lockfileQualityCheck.checkWorkspaceLockfile(request, workspace));
                 case PROJECT_MODEL -> {
                     for (String memberPath : selection.includedMembers()) {
@@ -302,97 +304,6 @@ public final class QualityCheckService {
         return List.copyOf(results);
     }
 
-    private List<QualityCheckResult> checkProjectExecutionContext(
-            QualityCheckRequest request,
-            ProjectConfig config) {
-        List<QualityCheckResult> results = new ArrayList<>();
-        results.addAll(executionContextQualityCheck.check(
-                Optional.empty(),
-                request.projectRoot(),
-                request.context()));
-        results.addAll(credentialQualityCheck.checkRepositoryCredentials(
-                Optional.empty(),
-                config,
-                request.context()));
-        results.addAll(credentialQualityCheck.checkPublishCredentials(
-                Optional.empty(),
-                request.projectRoot(),
-                config,
-                request.context()));
-        results.addAll(credentialQualityCheck.checkResourceTokens(
-                Optional.empty(),
-                config,
-                request.context()));
-        results.addAll(executionEvidenceQualityCheck.checkTestReports(
-                Optional.empty(),
-                request.projectRoot(),
-                request.reportsDir(),
-                request.reportsDir(),
-                request.context()));
-        results.addAll(executionEvidenceQualityCheck.checkCoverageReports(
-                Optional.empty(),
-                request.projectRoot(),
-                request.coverageDir(),
-                request.coverageDir(),
-                request.context()));
-        results.addAll(publishDryRunQualityCheck.check(
-                Optional.empty(),
-                request.projectRoot(),
-                request.context(),
-                request.requirePublishDryRun()));
-        return List.copyOf(results);
-    }
-
-    private List<QualityCheckResult> checkWorkspaceExecutionContext(
-            QualityCheckRequest request,
-            Workspace workspace,
-            WorkspaceSelection selection,
-            Map<String, WorkspaceMember> members) {
-        List<QualityCheckResult> results = new ArrayList<>();
-        results.addAll(executionContextQualityCheck.check(
-                Optional.empty(),
-                workspace.root(),
-                request.context()));
-        if (request.context() != QualityCheckContext.CI) {
-            return List.copyOf(results);
-        }
-        for (String memberPath : selection.includedMembers()) {
-            WorkspaceMember member = members.get(memberPath);
-            Optional<String> memberName = Optional.of(member.path());
-            results.addAll(credentialQualityCheck.checkRepositoryCredentials(
-                    memberName,
-                    member.config(),
-                    request.context()));
-            results.addAll(credentialQualityCheck.checkPublishCredentials(
-                    memberName,
-                    member.directory(),
-                    member.config(),
-                    request.context()));
-            results.addAll(credentialQualityCheck.checkResourceTokens(
-                    memberName,
-                    member.config(),
-                    request.context()));
-            results.addAll(executionEvidenceQualityCheck.checkTestReports(
-                    memberName,
-                    member.directory(),
-                    request.reportsDir() == null ? null : request.reportsDir().resolve(member.path()),
-                    request.reportsDir(),
-                    request.context()));
-            results.addAll(executionEvidenceQualityCheck.checkCoverageReports(
-                    memberName,
-                    member.directory(),
-                    request.coverageDir(),
-                    request.coverageDir(),
-                    request.context()));
-            results.addAll(publishDryRunQualityCheck.check(
-                    memberName,
-                    member.directory(),
-                    request.context(),
-                    request.requirePublishDryRun()));
-        }
-        return List.copyOf(results);
-    }
-
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
         Map<String, WorkspaceMember> members = new LinkedHashMap<>();
         for (WorkspaceMember member : workspace.members()) {
@@ -400,5 +311,4 @@ public final class QualityCheckService {
         }
         return Collections.unmodifiableMap(members);
     }
-
 }
