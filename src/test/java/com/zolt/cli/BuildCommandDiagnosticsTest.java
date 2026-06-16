@@ -1,9 +1,9 @@
 package com.zolt.cli;
 
-import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.BuildCommandTestSupport.enableQuarkus;
 import static com.zolt.cli.BuildCommandTestSupport.writeMainSource;
 import static com.zolt.cli.BuildCommandTestSupport.writeProjectConfig;
+import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,7 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-final class BuildCommandTest {
+final class BuildCommandDiagnosticsTest {
     @TempDir
     private Path tempDir;
 
@@ -70,34 +70,26 @@ final class BuildCommandTest {
     }
 
     @Test
-    void buildResolvesMissingLockfileAndCompilesMainSources() throws IOException {
+    void buildRunsQuarkusAugmentationWhenFrameworkIsEnabled() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-        writeMainSource(projectDir, """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                        System.out.println("hello");
-                    }
-                }
-                """);
+        enableQuarkus(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
         CommandResult result = execute(
                 "build",
                 "--cwd", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
 
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("Compiled 1 main source files"));
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("Compiled 0 main source files"));
         assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
-        assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
-        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+        assertTrue(result.stderr().contains("No Quarkus deployment artifacts were found in zolt.lock"));
+        assertTrue(result.stderr().contains("run `zolt resolve`"));
     }
 
     @Test
-    void buildOfflineUsesExistingLockfileAndCache() throws IOException {
+    void buildCommandPrintsJsonTimingsWithIncrementalDiagnosticsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
@@ -105,20 +97,51 @@ final class BuildCommandTest {
                 package com.example;
 
                 public final class Main {
-                    public static void main(String[] args) {
-                        System.out.println("hello");
-                    }
                 }
                 """);
 
         CommandResult result = execute(
                 "build",
-                "--offline",
+                "--timings",
+                "--timings-format", "json",
                 "--cwd", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Compiled 1 main source files"));
-        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+        String[] lines = result.stderr().lines().toArray(String[]::new);
+        assertEquals(3, lines.length);
+        assertTrue(lines[1].contains("\"phase\":\"compile main\""));
+        assertTrue(lines[1].contains("\"mainCompilationMode\":\"full\""));
+        assertTrue(lines[1].contains("\"mainIncrementalFallbackReason\":\"missing-state\""));
+        assertTrue(lines[1].contains("\"mainSourcesAdded\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesChanged\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesDeleted\":\"0\""));
+        assertTrue(lines[1].contains("\"mainSourcesRecompiled\":\"1\""));
+        assertTrue(lines[1].contains("\"mainDependentSourcesRecompiled\":\"0\""));
+        assertTrue(lines[1].contains("\"mainClassesDeleted\":\"0\""));
+        assertTrue(lines[1].contains("\"mainAbiChangedClasses\":\"0\""));
+        assertTrue(lines[1].contains("\"mainPackagePrivateAbiChangedClasses\":\"0\""));
+    }
+
+    @Test
+    void buildReturnsNonZeroOnCompilationFailure() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    missing
+                }
+                """);
+
+        CommandResult result = execute(
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: javac failed with exit code"));
+        assertTrue(result.stderr().contains("Main.java"));
     }
 }
