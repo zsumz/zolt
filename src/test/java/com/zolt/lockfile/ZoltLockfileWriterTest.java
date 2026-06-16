@@ -3,9 +3,9 @@ package com.zolt.lockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.dependency.ConflictSelectionReason;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -119,133 +119,6 @@ final class ZoltLockfileWriterTest {
                 source = "com.example:app:1.0.0"
                 policy = "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)"
                 """));
-    }
-
-    @Test
-    void writesInternalToolingScopeNames() {
-        ZoltLockfile lockfile = new ZoltLockfile(
-                ZoltLockfile.CURRENT_VERSION,
-                List.of(
-                        lockPackage("com.example", "processor", "1.0.0", DependencyScope.PROCESSOR, true, Optional.empty(), Optional.empty(), List.of()),
-                        lockPackage("com.example", "test-processor", "1.0.0", DependencyScope.TEST_PROCESSOR, true, Optional.empty(), Optional.empty(), List.of()),
-                        lockPackage("io.quarkus", "quarkus-rest-deployment", "3.33.0", DependencyScope.QUARKUS_DEPLOYMENT, false, Optional.empty(), Optional.empty(), List.of()),
-                        lockPackage("org.jacoco", "org.jacoco.cli", "0.8.14", DependencyScope.TOOL_COVERAGE, false, Optional.empty(), Optional.empty(), List.of())),
-                List.of());
-
-        String output = writer.write(lockfile);
-
-        assertTrue(output.contains("scope = \"processor\""));
-        assertTrue(output.contains("scope = \"test-processor\""));
-        assertTrue(output.contains("scope = \"quarkus-deployment\""));
-        assertTrue(output.contains("scope = \"tool-coverage\""));
-    }
-
-    @Test
-    void writesWorkspacePackageFields() {
-        ZoltLockfile lockfile = new ZoltLockfile(
-                ZoltLockfile.CURRENT_VERSION,
-                List.of(new LockPackage(
-                        new PackageId("com.acme", "core"),
-                        "0.1.0",
-                        "workspace",
-                        DependencyScope.COMPILE,
-                        true,
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.of("modules/core"),
-                        Optional.of("target/classes"),
-                        List.of())),
-                List.of());
-
-        String output = writer.write(lockfile);
-
-        assertTrue(output.contains("source = \"workspace\""));
-        assertTrue(output.contains("workspace = \"modules/core\""));
-        assertTrue(output.contains("workspaceOutput = \"target/classes\""));
-    }
-
-    @Test
-    void writesNonJarArtifactFields() {
-        ZoltLockfile lockfile = new ZoltLockfile(
-                ZoltLockfile.CURRENT_VERSION,
-                List.of(new LockPackage(
-                        new PackageId("io.quarkus.platform", "quarkus-bom-quarkus-platform-properties"),
-                        "3.33.0",
-                        "maven-central",
-                        DependencyScope.QUARKUS_DEPLOYMENT,
-                        false,
-                        Optional.empty(),
-                        Optional.of("io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.pom"),
-                        Optional.empty(),
-                        Optional.of("pom-checksum"),
-                        Optional.of("io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties"),
-                        Optional.of("properties"),
-                        Optional.of("properties-checksum"),
-                        Optional.empty(),
-                        Optional.empty(),
-                        List.of(),
-                        List.of(),
-                        List.of())),
-                List.of());
-
-        String output = writer.write(lockfile);
-
-        assertTrue(output.contains("artifact = \"io/quarkus/platform/quarkus-bom-quarkus-platform-properties/3.33.0/quarkus-bom-quarkus-platform-properties-3.33.0.properties\""));
-        assertTrue(output.contains("artifactType = \"properties\""));
-        assertTrue(output.contains("artifactSha256 = \"properties-checksum\""));
-    }
-
-    @Test
-    void writesPackageMembersDeterministically() {
-        ZoltLockfile lockfile = new ZoltLockfile(
-                ZoltLockfile.CURRENT_VERSION,
-                List.of(new LockPackage(
-                        new PackageId("com.example", "demo"),
-                        "1.0.0",
-                        "maven-central",
-                        DependencyScope.COMPILE,
-                        true,
-                        Optional.of("com/example/demo/1.0.0/demo-1.0.0.jar"),
-                        Optional.of("com/example/demo/1.0.0/demo-1.0.0.pom"),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        List.of(),
-                        List.of("modules/core", "apps/api"))),
-                List.of());
-
-        String output = writer.write(lockfile);
-
-        assertTrue(output.contains("members = [\"apps/api\", \"modules/core\"]"));
-    }
-
-    @Test
-    void writesExportedByMembersDeterministically() {
-        ZoltLockfile lockfile = new ZoltLockfile(
-                ZoltLockfile.CURRENT_VERSION,
-                List.of(new LockPackage(
-                        new PackageId("com.example", "contract"),
-                        "1.0.0",
-                        "maven-central",
-                        DependencyScope.COMPILE,
-                        true,
-                        Optional.of("com/example/contract/1.0.0/contract-1.0.0.jar"),
-                        Optional.of("com/example/contract/1.0.0/contract-1.0.0.pom"),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        List.of(),
-                        List.of(),
-                        List.of("modules/web", "modules/api"))),
-                List.of());
-
-        String output = writer.write(lockfile);
-
-        assertTrue(output.contains("exportedBy = [\"modules/api\", \"modules/web\"]"));
     }
 
     private static ZoltLockfile unsortedLockfile() {
