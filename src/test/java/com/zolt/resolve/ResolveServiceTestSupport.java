@@ -42,51 +42,51 @@ abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSup
     }
 
     ProjectConfig platformConfig() {
-        return ResolveFeatureTestConfigs.platformConfig(baseUri);
+        return ResolvePackagingTestConfigs.platformConfig(baseUri);
     }
 
     ProjectConfig platformVersionRefConfig(String alias) {
-        return ResolveFeatureTestConfigs.platformVersionRefConfig(baseUri, alias);
+        return ResolvePackagingTestConfigs.platformVersionRefConfig(baseUri, alias);
     }
 
     ProjectConfig testPlatformConfig() {
-        return ResolveFeatureTestConfigs.testPlatformConfig(baseUri);
+        return ResolvePackagingTestConfigs.testPlatformConfig(baseUri);
     }
 
     ProjectConfig runtimeProvidedConfig() {
-        return ResolveFeatureTestConfigs.runtimeProvidedConfig(baseUri);
+        return ResolvePackagingTestConfigs.runtimeProvidedConfig(baseUri);
     }
 
     ProjectConfig devConfig() {
-        return ResolveFeatureTestConfigs.devConfig(baseUri);
+        return ResolvePackagingTestConfigs.devConfig(baseUri);
     }
 
     ProjectConfig springBootPlatformConfig() {
-        return ResolveFeatureTestConfigs.springBootPlatformConfig(baseUri);
+        return ResolvePackagingTestConfigs.springBootPlatformConfig(baseUri);
     }
 
     ProjectConfig springBootWarPlatformConfig() {
-        return ResolveFeatureTestConfigs.springBootWarPlatformConfig(baseUri);
+        return ResolvePackagingTestConfigs.springBootWarPlatformConfig(baseUri);
     }
 
     ProjectConfig processorConfig() {
-        return ResolveFeatureTestConfigs.processorConfig(baseUri);
+        return ResolveGeneratedSourceTestConfigs.processorConfig(baseUri);
     }
 
     ProjectConfig openApiConfig() {
-        return ResolveFeatureTestConfigs.openApiConfig(baseUri);
+        return ResolveGeneratedSourceTestConfigs.openApiConfig(baseUri);
     }
 
     ProjectConfig openApiVersionRefConfig(String alias) {
-        return ResolveFeatureTestConfigs.openApiVersionRefConfig(baseUri, alias);
+        return ResolveGeneratedSourceTestConfigs.openApiVersionRefConfig(baseUri, alias);
     }
 
     ProjectConfig configWithDependencyAndProcessor() {
-        return ResolveFeatureTestConfigs.configWithDependencyAndProcessor(baseUri);
+        return ResolveGeneratedSourceTestConfigs.configWithDependencyAndProcessor(baseUri);
     }
 
     ProjectConfig processorPlatformConfig() {
-        return ResolveFeatureTestConfigs.processorPlatformConfig(baseUri);
+        return ResolveGeneratedSourceTestConfigs.processorPlatformConfig(baseUri);
     }
 
     static void createDirectory(Path directory) {
