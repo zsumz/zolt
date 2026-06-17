@@ -3,7 +3,6 @@ package com.zolt.cli;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -11,17 +10,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-final class CheckCommandTest {
-    @TempDir
-    private Path tempDir;
+final class CheckCommandTest extends CheckCommandTestSupport {
 
     @Test
     void checkSucceedsForTypedProjectModel() throws IOException {
-        Path projectDir = tempDir.resolve("check-demo");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-demo"));
+        Path projectDir = createProject("check-demo");
 
         CommandResult result = execute("check", "--cwd", projectDir.toString());
 
@@ -34,9 +28,7 @@ final class CheckCommandTest {
 
     @Test
     void checkJsonOutputUsesStableResultShape() throws IOException {
-        Path projectDir = tempDir.resolve("check-json");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-json"));
+        Path projectDir = createProject("check-json");
 
         CommandResult result = execute("check", "--format", "json", "--cwd", projectDir.toString());
 
@@ -53,9 +45,7 @@ final class CheckCommandTest {
 
     @Test
     void checkRefusesArbitraryHookNames() throws IOException {
-        Path projectDir = tempDir.resolve("check-hook");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-hook"));
+        Path projectDir = createProject("check-hook");
 
         CommandResult result = execute("check", "--cwd", projectDir.toString(), "--check", "mvn verify");
 
@@ -67,9 +57,8 @@ final class CheckCommandTest {
 
     @Test
     void checkReportsMalformedConfigAsFailedCheck() throws IOException {
-        Path projectDir = tempDir.resolve("check-malformed");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-malformed") + """
+        Path projectDir = createProject("check-malformed");
+        Files.writeString(projectDir.resolve("zolt.toml"), """
 
                 [check]
                 command = "mvn verify"
@@ -116,120 +105,4 @@ final class CheckCommandTest {
         assertTrue(result.stderr().contains("\"passed\":\"1\""));
     }
 
-    @Test
-    void checkCacheIntegrityReportsCorruptedLockedArtifact() throws IOException {
-        Path projectDir = tempDir.resolve("check-cache-integrity");
-        Path cacheRoot = tempDir.resolve("cache-integrity-cache");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-cache-integrity"));
-        Path jar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
-        Files.createDirectories(jar.getParent());
-        Files.writeString(jar, "corrupted runtime jar bytes");
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "com.example:runtime-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "runtime"
-                direct = true
-                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
-                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
-                dependencies = []
-                """);
-
-        CommandResult result = execute(
-                "check",
-                "--check", "cache-integrity",
-                "--cwd", projectDir.toString(),
-                "--cache-root", cacheRoot.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains(
-                "error cache-integrity zolt.lock Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
-        assertTrue(result.stdout().contains("next: Remove the cache entry or run `zolt resolve`."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
-    void checkCacheIntegrityMalformedLockfileUsesLockfileRemediation() throws IOException {
-        Path projectDir = tempDir.resolve("check-cache-integrity-malformed-lockfile");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-cache-integrity-malformed-lockfile"));
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = 42
-                """);
-
-        CommandResult result = execute(
-                "check",
-                "--check", "cache-integrity",
-                "--cwd", projectDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("error cache-integrity zolt.lock Invalid value type in zolt.lock"));
-        assertTrue(result.stdout().contains("next: Run `zolt resolve` to regenerate zolt.lock."));
-        assertFalse(result.stdout().contains("Remove the cache entry"));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
-    void checkWorkspaceCacheIntegrityMissingLockfileUsesWorkspaceRemediation() throws IOException {
-        Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-missing-lockfile");
-        Path apiDir = workspaceDir.resolve("apps/api");
-        Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
-                [workspace]
-                name = "check-workspace-cache-integrity-missing-lockfile"
-                members = ["apps/api"]
-                """);
-        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
-
-        CommandResult result = execute(
-                "check",
-                "--workspace",
-                "--member", "apps/api",
-                "--check", "cache-integrity",
-                "--cwd", workspaceDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("error cache-integrity zolt.lock zolt.lock is missing."));
-        assertTrue(result.stdout().contains("next: Run `zolt resolve --workspace`."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
-    void checkWorkspaceCacheIntegrityMalformedLockfileUsesWorkspaceRemediation() throws IOException {
-        Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-malformed-lockfile");
-        Path apiDir = workspaceDir.resolve("apps/api");
-        Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
-                [workspace]
-                name = "check-workspace-cache-integrity-malformed-lockfile"
-                members = ["apps/api"]
-                """);
-        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
-        Files.writeString(workspaceDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = 42
-                """);
-
-        CommandResult result = execute(
-                "check",
-                "--workspace",
-                "--member", "apps/api",
-                "--check", "cache-integrity",
-                "--cwd", workspaceDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("error cache-integrity zolt.lock Invalid value type in zolt.lock"));
-        assertTrue(result.stdout().contains("next: Run `zolt resolve --workspace` to regenerate zolt.lock."));
-        assertFalse(result.stdout().contains("Remove the cache entry"));
-        assertEquals("", result.stderr());
-    }
 }
