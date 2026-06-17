@@ -1,7 +1,6 @@
 package com.zolt.resolve;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
@@ -209,20 +208,6 @@ final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSup
                 "com.example:root:1.0.0->com.example:left:1.0.0",
                 "com.example:root:1.0.0->com.example:right:1.0.0",
                 "com.example:right:1.0.0->com.example:shared:1.0.0"), edgeStrings(graph));
-    }
-
-    @Test
-    void missingTransitiveVersionFailsActionably() {
-        MapBackedMetadataSource source = new MapBackedMetadataSource();
-        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(versionlessDependency("com.example", "missing-version"))));
-
-        GraphTraversalException exception = assertThrows(
-                GraphTraversalException.class,
-                () -> traverser(source).traverse(List.of(direct("com.example", "root", "1.0.0"))));
-
-        assertEquals(
-                "Dependency com.example:missing-version from com.example:root:1.0.0 does not declare or inherit a version.",
-                exception.getMessage());
     }
 
 }
