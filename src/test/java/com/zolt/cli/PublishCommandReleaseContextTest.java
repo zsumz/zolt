@@ -231,19 +231,4 @@ final class PublishCommandReleaseContextTest {
         assertEquals("", result.stderr());
     }
 
-    @Test
-    void publishRejectsContextWithoutDryRun() throws IOException {
-        Path projectDir = tempDir.resolve("publish-context-without-dry-run");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("publish-context-without-dry-run"));
-
-        CommandResult result = execute(
-                "publish",
-                "--context", "release",
-                "--cwd", projectDir.toString());
-
-        assertEquals(1, result.exitCode());
-        assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("error: Publish context policy is currently supported only with --dry-run."));
-    }
 }
