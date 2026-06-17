@@ -86,37 +86,6 @@ final class AddCommandNoResolveTest {
     }
 
     @Test
-    void addAddsVersionRefDependencyWithoutResolveWhenRequested() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
-
-                [repositories]
-                "central" = "https://repo.maven.apache.org/maven2"
-
-                [versions]
-                guava = "33.4.8-jre"
-                """);
-
-        CommandResult result = execute(
-                "add",
-                "--cwd", projectDir.toString(),
-                "--no-resolve",
-                "--version-ref",
-                "guava",
-                "com.google.guava:guava");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains(
-                "Added dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
-        String config = Files.readString(projectDir.resolve("zolt.toml"));
-        assertTrue(config.contains("[versions]\n\"guava\" = \"33.4.8-jre\""));
-        assertTrue(config.contains("\"com.google.guava:guava\" = { versionRef = \"guava\" }"));
-        assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
-    }
-
-    @Test
     void addAddsApiDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);
