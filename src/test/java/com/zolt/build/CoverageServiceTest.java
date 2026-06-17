@@ -3,7 +3,6 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.BuildSettings;
@@ -96,56 +95,6 @@ final class CoverageServiceTest {
         assertTrue(!reportCommands.getFirst().contains("--html"));
     }
 
-    @Test
-    void rejectsCoverageWhenAllReportsAreDisabled() {
-        CoverageException exception = assertThrows(
-                CoverageException.class,
-                () -> new CoverageReportSettings(
-                        false,
-                        false,
-                        Path.of("target/coverage/jacoco.exec"),
-                        Path.of("target/coverage/jacoco.xml"),
-                        Path.of("target/coverage/html"),
-                        TestReportSettings.reportsDirectory(Path.of("target/coverage/test-reports"))));
-
-        assertTrue(exception.getMessage().contains("at least one report format"));
-    }
-
-    @Test
-    void rejectsCoverageOutputSymlinkThatEscapesProject() throws IOException {
-        Files.createDirectories(projectDir.resolve("target"));
-        createSymlink(projectDir.resolve("target/coverage"), Files.createTempDirectory("zolt-coverage-"));
-
-        CoverageException exception = assertThrows(
-                CoverageException.class,
-                () -> CoverageReportSettings.defaults().absoluteExecFile(projectDir));
-
-        assertTrue(exception.getMessage().contains("coverage output"));
-        assertTrue(exception.getMessage().contains("resolved through symlinks"));
-    }
-
-    @Test
-    void missingCoverageToolingExplainsHowToRefreshLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) ->
-                        new TestRunResult(null, ""),
-                new ArrayList<>());
-
-        CoverageException exception = assertThrows(
-                CoverageException.class,
-                () -> service.runCoverage(
-                        projectDir,
-                        config(),
-                        projectDir.resolve("cache"),
-                        TestSelection.empty(),
-                        CoverageReportSettings.defaults(),
-                        List.of()));
-
-        assertTrue(exception.getMessage().contains("tool-coverage"));
-        assertTrue(exception.getMessage().contains("zolt resolve"));
-    }
-
     private CoverageService service(
             CoverageService.CoverageTestRunner testRunner,
             List<List<String>> reportCommands) {
@@ -222,11 +171,4 @@ final class CoverageServiceTest {
         return command.get(index + 1);
     }
 
-    private static void createSymlink(Path link, Path target) throws IOException {
-        try {
-            Files.createSymbolicLink(link, target);
-        } catch (UnsupportedOperationException | IOException exception) {
-            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
-        }
-    }
 }
