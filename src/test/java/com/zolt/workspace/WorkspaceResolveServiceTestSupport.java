@@ -72,6 +72,28 @@ abstract class WorkspaceResolveServiceTestSupport {
                 %s""".formatted(name, extraToml));
     }
 
+    void platformVersionRefMember(String alias) throws IOException {
+        member("apps/api", "api", """
+
+                [versions]
+                "%s" = "1.0.0"
+
+                [platforms]
+                "com.example:platform" = { versionRef = "%s" }
+
+                [dependencies]
+                "com.example:app" = {}
+                """.formatted(alias, alias));
+    }
+
+    void unusedAliasMember(String alias) throws IOException {
+        member("apps/api", "api", """
+
+                [versions]
+                "%s" = "1.0.0"
+                """.formatted(alias));
+    }
+
     void addArtifact(String groupId, String artifactId, String version, String pom) {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
