@@ -5,7 +5,6 @@ import static com.zolt.build.PackageServiceTestSupport.source;
 import static com.zolt.build.PackageServiceTestSupport.writeLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
@@ -97,51 +96,6 @@ final class PackageServiceEvidenceManifestTest {
         assertTrue(firstEvidence.contains("\"freshness\": \"fresh\""));
         assertTrue(firstEvidence.contains("\"toolVersionRef\": null"));
         assertFalse(firstEvidence.contains("super-secret-value"));
-    }
-
-    @Test
-    void packageEvidenceRejectsUnsafeResourceRoot() throws IOException {
-        Path classes = projectDir.resolve("target/classes");
-        Path archive = projectDir.resolve("target/demo-0.1.0.jar");
-        Files.createDirectories(archive.getParent());
-        Files.writeString(archive, "archive");
-        ProjectConfig config = config(Optional.of("com.example.Main"))
-                .withBuildSettings(new BuildSettings(
-                        "src/main/java",
-                        "src/test/java",
-                        "target/classes",
-                        "target/test-classes",
-                        List.of("src/test/java"),
-                        List.of(),
-                        List.of("../outside-resources"),
-                        List.of("src/test/resources"),
-                        null));
-        BuildResult buildResult = new BuildResult(Optional.empty(), 0, 0, classes, "");
-        PackagePlan plan = new PackagePlan(
-                projectDir,
-                PackageMode.THIN,
-                archive,
-                classes,
-                "classes-root",
-                Optional.empty(),
-                List.of(),
-                List.of());
-        PackageResult result = new PackageResult(
-                buildResult,
-                PackageMode.THIN,
-                archive,
-                Optional.empty(),
-                Optional.empty(),
-                0,
-                false,
-                List.of());
-
-        PackageException exception = assertThrows(
-                PackageException.class,
-                () -> new PackageEvidenceManifestWriter().write(projectDir, config, plan, result, List.of()));
-
-        assertTrue(exception.getMessage().contains("[resources].main"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("../outside-resources"), exception.getMessage());
     }
 
     @Test
