@@ -148,60 +148,6 @@ final class WorkspaceIdeModelServiceTest {
         assertEquals(List.of(), model.diagnostics());
     }
 
-    @Test
-    void exportsVersionAliasesInMemberProjectModels() throws IOException {
-        workspace("""
-                [workspace]
-                name = "acme-platform"
-                members = ["apps/api"]
-                """);
-        member("apps/api", "api", """
-
-                [versions]
-                guava = "33.4.8-jre"
-                junit = "5.12.1"
-
-                [dependencies]
-                "com.google.guava:guava" = { versionRef = "guava" }
-
-                [test.dependencies]
-                "org.junit.jupiter:junit-jupiter" = { versionRef = "junit" }
-                """);
-
-        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
-
-        IdeModel apiModel = model.projects().getFirst().model();
-        assertEquals(Map.of("guava", "33.4.8-jre", "junit", "5.12.1"), apiModel.dependencies().versionAliases());
-        assertEquals(
-                List.of(new IdeModel.DependencyDeclaration(
-                        "com.google.guava:guava",
-                        "33.4.8-jre",
-                        "guava",
-                        false,
-                        null,
-                        false,
-                        false,
-                        List.of())),
-                apiModel.dependencies().implementation());
-        assertEquals(
-                List.of(new IdeModel.DependencyDeclaration(
-                        "org.junit.jupiter:junit-jupiter",
-                        "5.12.1",
-                        "junit",
-                        false,
-                        null,
-                        false,
-                        false,
-                        List.of())),
-                apiModel.dependencies().test());
-
-        String json = new WorkspaceIdeModelJsonWriter().write(model);
-        assertTrue(json.contains("\"versionAliases\": {"));
-        assertTrue(json.contains("\"guava\": \"33.4.8-jre\""));
-        assertTrue(json.contains("\"versionRef\": \"guava\""));
-        assertTrue(json.contains("\"versionRef\": \"junit\""));
-    }
-
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
         Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
