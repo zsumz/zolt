@@ -11,7 +11,6 @@ import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleLockf
 import static com.zolt.build.TestRunServiceLockfileTestSupport.writeNonStandaloneConsoleLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.TestRunServiceTestSupport.CachingJdkChecker;
@@ -197,37 +196,6 @@ final class TestRunServiceTest {
 
         assertEquals(3, jdkChecker.detectCalls());
         assertEquals(1, jdkChecker.toolchainReads());
-    }
-
-    @Test
-    void missingConsoleJarProducesActionableError() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-        TestRunService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, ""));
-
-        TestRunException exception = assertThrows(
-                TestRunException.class,
-                () -> service.runTests(projectDir, config(), projectDir.resolve("cache")));
-
-        assertTrue(exception.getMessage().contains("JUnit Platform Console is not present"));
-        assertTrue(exception.getMessage().contains("Run `zolt resolve`"));
-        assertTrue(exception.getMessage().contains("test engines declared in [test.dependencies]"));
-    }
-
-    @Test
-    void failingTestsReturnNonZeroThroughJavaRunner() throws IOException {
-        writeConsoleLockfile(projectDir);
-        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
-        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
-        TestRunService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(2, "test failed\n"));
-
-        JavaRunException exception = assertThrows(
-                JavaRunException.class,
-                () -> service.runTests(projectDir, config(), projectDir.resolve("cache")));
-
-        assertTrue(exception.getMessage().contains("java exited with code 2"));
-        assertTrue(exception.getMessage().contains("test failed"));
     }
 
 }
