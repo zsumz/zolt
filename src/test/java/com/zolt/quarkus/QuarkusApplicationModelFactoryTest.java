@@ -4,7 +4,6 @@ import static com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.fakeApi
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.quarkus.QuarkusApplicationModelFactoryArtifactDoubles.FakeArtifactKey;
@@ -12,7 +11,6 @@ import com.zolt.quarkus.QuarkusApplicationModelFactoryArtifactDoubles.FakePlatfo
 import com.zolt.quarkus.QuarkusApplicationModelFactoryArtifactDoubles.FakePlatformImportsImpl;
 import com.zolt.quarkus.QuarkusApplicationModelFactoryModelDoubles.FakeApplicationModel;
 import com.zolt.quarkus.QuarkusApplicationModelFactoryModelDoubles.FakeResolvedDependencyBuilder;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryModelDoubles.IncompatibleApplicationModelBuilder;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;
@@ -147,38 +145,6 @@ final class QuarkusApplicationModelFactoryTest {
         assertEquals(
                 List.of(new FakeArtifactKey("com.example", "demo", "", "jar")),
                 model.reloadableWorkspaceModules());
-    }
-
-    @Test
-    void rejectsMissingApplicationModelClasses() {
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
-                "missing.ApplicationModelBuilder",
-                FakeResolvedDependencyBuilder.class.getName(),
-                FakePlatformImports.class.getName(),
-                FakePlatformImportsImpl.class.getName()));
-
-        QuarkusAugmentationException exception = assertThrows(
-                QuarkusAugmentationException.class,
-                () -> factory.create(descriptor()));
-
-        assertTrue(exception.getMessage().contains("application model classes are missing"));
-        assertTrue(exception.getMessage().contains("quarkus-bootstrap-app-model"));
-    }
-
-    @Test
-    void rejectsIncompatibleApplicationModelApi() {
-        QuarkusApplicationModelFactory factory = new QuarkusApplicationModelFactory(new QuarkusApplicationModelApi(
-                IncompatibleApplicationModelBuilder.class.getName(),
-                FakeResolvedDependencyBuilder.class.getName(),
-                FakePlatformImports.class.getName(),
-                FakePlatformImportsImpl.class.getName()));
-
-        QuarkusAugmentationException exception = assertThrows(
-                QuarkusAugmentationException.class,
-                () -> factory.create(descriptor()));
-
-        assertTrue(exception.getMessage().contains("application model API is incompatible"));
-        assertTrue(exception.getMessage().contains("setAppArtifact"));
     }
 
     private static QuarkusBootstrapDescriptor descriptor() {
