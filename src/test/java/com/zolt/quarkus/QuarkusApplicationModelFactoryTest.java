@@ -7,12 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakeApplicationModel;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakeArtifactKey;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakePlatformImports;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakePlatformImportsImpl;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.FakeResolvedDependencyBuilder;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.IncompatibleApplicationModelBuilder;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakeApplicationModel;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakeArtifactKey;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakePlatformImports;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakePlatformImportsImpl;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakeResolvedDependencyBuilder;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.IncompatibleApplicationModelBuilder;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;
