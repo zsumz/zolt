@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-final class PackagePlanCommandTest {
+final class PackagePlanCommandTest extends PackagePlanCommandTestSupport {
     @TempDir
     private Path tempDir;
 
@@ -96,127 +96,5 @@ final class PackagePlanCommandTest {
         assertTrue(result.stdout().contains(
                 "io.quarkus:quarkus-rest-deployment:3.33.0 [quarkus-deployment] omitted rule=quarkus-deployment-omitted"));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
-    }
-
-    @Test
-    void packagePlanJsonUsesStableShapeForThinJar() throws IOException {
-        Path projectDir = tempDir.resolve("package-plan-json");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("package-plan-json"));
-        writePackagePlanLockfile(projectDir, true, false);
-
-        CommandResult result = execute(
-                "package",
-                "--plan",
-                "--format", "json",
-                "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().startsWith("{\n"));
-        assertTrue(result.stdout().contains("\"mode\": \"thin\""));
-        assertTrue(result.stdout().contains("\"runtimeClasspath\": \"" + projectDir.resolve("target/package-plan-json-0.1.0.runtime-classpath")));
-        assertTrue(result.stdout().contains("\"coordinate\": \"com.example:runtime-lib:1.0.0\""));
-        assertTrue(result.stdout().contains("\"lanes\": [\"runtime\", \"test\"]"));
-        assertTrue(result.stdout().contains("\"packageDefault\": true"));
-        assertTrue(result.stdout().contains("\"laneDisposition\": \"package-default\""));
-        assertTrue(result.stdout().contains("\"coordinate\": \"com.example:devtools:1.0.0\""));
-        assertTrue(result.stdout().contains("\"packageDefault\": false"));
-        assertTrue(result.stdout().contains("\"laneDisposition\": \"development-only\""));
-        assertTrue(result.stdout().contains("\"disposition\": \"runtime-classpath\""));
-        assertTrue(result.stdout().contains("\"rule\": \"thin-runtime-classpath\""));
-        assertTrue(result.stdout().contains("\"policies\": [\"strict-version: com.example:runtime-lib -> 1.0.0 (security baseline)\"]"));
-        assertTrue(result.stdout().contains("\"warnings\": []"));
-    }
-
-    private static void writePackagePlanLockfile(
-            Path projectDir,
-            boolean includePolicy,
-            boolean includeSuspiciousContainerRuntime) throws IOException {
-        String policy = includePolicy
-                ? """
-                policies = ["strict-version: com.example:runtime-lib -> 1.0.0 (security baseline)"]
-                """
-                : "";
-        String suspiciousContainer = includeSuspiciousContainerRuntime
-                ? """
-
-                [[package]]
-                id = "org.apache.tomcat.embed:tomcat-embed-core"
-                version = "10.1.40"
-                source = "maven-central"
-                scope = "runtime"
-                direct = false
-                jar = "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"
-                dependencies = []
-                """
-                : "";
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "org.springframework.boot:spring-boot"
-                version = "4.0.6"
-                source = "maven-central"
-                scope = "compile"
-                direct = false
-                jar = "org/springframework/boot/spring-boot/4.0.6/spring-boot-4.0.6.jar"
-                dependencies = []
-
-                [[package]]
-                id = "org.springframework.boot:spring-boot-loader"
-                version = "4.0.6"
-                source = "maven-central"
-                scope = "runtime"
-                direct = false
-                jar = "org/springframework/boot/spring-boot-loader/4.0.6/spring-boot-loader-4.0.6.jar"
-                dependencies = []
-
-                [[package]]
-                id = "com.example:runtime-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "runtime"
-                direct = false
-                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
-                dependencies = []
-                %s
-
-                [[package]]
-                id = "jakarta.servlet:jakarta.servlet-api"
-                version = "6.1.0"
-                source = "maven-central"
-                scope = "provided"
-                direct = true
-                jar = "jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar"
-                dependencies = []
-
-                [[package]]
-                id = "com.example:devtools"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "dev"
-                direct = true
-                jar = "com/example/devtools/1.0.0/devtools-1.0.0.jar"
-                dependencies = []
-
-                [[package]]
-                id = "com.example:test-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "test"
-                direct = true
-                jar = "com/example/test-lib/1.0.0/test-lib-1.0.0.jar"
-                dependencies = []
-
-                [[package]]
-                id = "com.example:processor"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "processor"
-                direct = true
-                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
-                dependencies = []
-                %s
-                """.formatted(policy, suspiciousContainer));
     }
 }
