@@ -2,34 +2,17 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.doctor.JdkChecker;
-import com.zolt.doctor.JdkDetector;
-import com.zolt.lockfile.LockfileReadException;
-import com.zolt.project.BuildSettings;
-import com.zolt.project.PackageMode;
-import com.zolt.project.PackageSettings;
-import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectConfigs;
-import com.zolt.project.ProjectMetadata;
-import com.zolt.testkit.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-final class RunPackageServiceTest {
-    @TempDir
-    private Path projectDir;
-
+final class RunPackageServiceTest extends RunPackageServiceTestSupport {
     @Test
     void runsPackagedJarWithRuntimeClasspathAndArguments() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
@@ -68,170 +51,5 @@ final class RunPackageServiceTest {
                 "com.example.Main",
                 "one",
                 "two"), commands.getFirst());
-    }
-
-    @Test
-    void failsBeforeLaunchingPackageWhenCachedRuntimeJarDoesNotMatchLockfileHash() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache-corrupted");
-        Path runtimeJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
-        Files.createDirectories(runtimeJar.getParent());
-        Files.writeString(runtimeJar, "corrupted runtime jar bytes");
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "com.example:runtime-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "runtime"
-                direct = false
-                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
-                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
-                dependencies = []
-                """);
-        source("src/main/java/com/example/Main.java", """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                    }
-                }
-                """);
-        RunPackageService service = service((command, outputConsumer) -> {
-            throw new AssertionError("packaged application JVM should not be launched with a corrupted cached jar");
-        });
-
-        LockfileReadException exception = assertThrows(
-                LockfileReadException.class,
-                () -> service.runPackage(
-                        projectDir,
-                        config(Optional.of("com.example.Main")),
-                        cacheRoot,
-                        List.of()));
-
-        assertTrue(exception.getMessage().contains(
-                "Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
-    }
-
-    @Test
-    void plainWarPackageFailsWithDeploymentGuidance() {
-        RunPackageService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, ""));
-
-        RunPackageException exception = assertThrows(
-                RunPackageException.class,
-                () -> service.runPackage(
-                        projectDir,
-                        config(Optional.empty())
-                                .withPackageSettings(new PackageSettings(PackageMode.WAR)),
-                        projectDir.resolve("cache"),
-                        List.of()));
-
-        assertTrue(exception.getMessage().contains("cannot be run directly"));
-        assertTrue(exception.getMessage().contains("servlet container"));
-        assertTrue(exception.getMessage().contains("spring-boot-war"));
-    }
-
-    @Test
-    void missingMainClassProducesActionableErrorBeforePackaging() {
-        RunPackageService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, ""));
-
-        RunPackageException exception = assertThrows(
-                RunPackageException.class,
-                () -> service.runPackage(
-                        projectDir,
-                        config(Optional.empty()),
-                        projectDir.resolve("cache"),
-                        List.of()));
-
-        assertTrue(exception.getMessage().contains("No main class is configured"));
-        assertTrue(exception.getMessage().contains("[project].main"));
-    }
-
-    @Test
-    void sharesCachedJdkDetectionAcrossBuildPackageAndLaunch() throws IOException {
-        Path cacheRoot = projectDir.resolve("cache");
-        writeRuntimeLockfile();
-        source("src/main/java/com/example/Main.java", """
-                package com.example;
-
-                public final class Main {
-                    public static void main(String[] args) {
-                    }
-                }
-                """);
-        CachingJdkChecker jdkChecker = new CachingJdkChecker();
-        RunPackageService service = service(
-                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),
-                jdkChecker);
-
-        service.runPackage(
-                projectDir,
-                config(Optional.of("com.example.Main")),
-                cacheRoot,
-                List.of());
-
-        assertEquals(2, jdkChecker.detectCalls());
-        assertEquals(1, jdkChecker.toolchainReads());
-    }
-
-    private RunPackageService service(JavaRunner.ProcessRunner processRunner) {
-        return service(processRunner, new JdkDetector());
-    }
-
-    private RunPackageService service(JavaRunner.ProcessRunner processRunner, JdkChecker jdkChecker) {
-        return new RunPackageService(
-                new PackageService(),
-                new BuildService(jdkChecker),
-                new ClasspathBuilder(),
-                jdkChecker,
-                new JavaRunner(":", processRunner));
-    }
-
-    private void writeRuntimeLockfile() throws IOException {
-        Files.writeString(projectDir.resolve("zolt.lock"), """
-                version = 1
-
-                [[package]]
-                id = "com.example:runtime-lib"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "runtime"
-                direct = false
-                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
-                dependencies = []
-
-                [[package]]
-                id = "com.example:processor"
-                version = "1.0.0"
-                source = "maven-central"
-                scope = "processor"
-                direct = true
-                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
-                dependencies = []
-                """);
-    }
-
-    private void source(String path, String content) throws IOException {
-        Path source = projectDir.resolve(path);
-        Files.createDirectories(source.getParent());
-        Files.writeString(source, content);
-    }
-
-    private static ProjectConfig config(Optional<String> mainClass) {
-        return ProjectConfigs.withDirectDependencies(
-                new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass),
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of(),
-                Map.of(),
-                BuildSettings.defaults());
-    }
-
-    private static String currentJavaMajorVersion() {
-        String version = System.getProperty("java.version");
-        String[] parts = version.split("[._+-]", -1);
-        if (parts.length >= 2 && "1".equals(parts[0])) {
-            return parts[1];
-        }
-        return parts[0];
     }
 }
