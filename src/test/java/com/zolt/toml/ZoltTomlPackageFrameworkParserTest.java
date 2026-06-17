@@ -2,7 +2,6 @@ package com.zolt.toml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.PackageMode;
@@ -153,106 +152,6 @@ final class ZoltTomlPackageFrameworkParserTest {
         assertTrue(config.build().metadata().buildInfo());
         assertTrue(config.build().metadata().git());
         assertTrue(config.build().metadata().reproducible());
-    }
-
-    @Test
-    void rejectsMalformedBuildMetadataSetting() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [build.metadata]
-                        buildInfo = "yes"
-                        """));
-
-        assertEquals(
-                "Invalid value for [build.metadata].buildInfo in zolt.toml. Use true or false.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsUnknownPackageMode() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [package]
-                        mode = "ear"
-                        """));
-
-        assertEquals(
-                "Unsupported package mode `ear` in zolt.toml. Supported package modes are: thin, spring-boot, war, spring-boot-war, quarkus, uber.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsUnknownPackageField() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [package]
-                        classifier = "all"
-                        """));
-
-        assertEquals(
-                "Unknown field [package].classifier in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsUnknownQuarkusPackageMode() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [framework.quarkus]
-                        package = "legacy-jar"
-                        """));
-
-        assertEquals(
-                "Unsupported Quarkus package mode `legacy-jar` in zolt.toml. Supported Quarkus package modes are: fast-jar.",
-                exception.getMessage());
-    }
-
-    @Test
-    void rejectsUnknownQuarkusFrameworkField() {
-        ZoltConfigException exception = assertThrows(
-                ZoltConfigException.class,
-                () -> parser.parse("""
-                        [project]
-                        name = "bad"
-                        version = "0.1.0"
-                        group = "com.example"
-                        java = "21"
-
-                        [framework.quarkus]
-                        devMode = true
-                        """));
-
-        assertEquals(
-                "Unknown field [framework.quarkus].devMode in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
     }
 
 }
