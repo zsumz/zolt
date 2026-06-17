@@ -10,6 +10,7 @@ import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.resolve.ResolveException;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,11 +25,11 @@ final class WorkspacePolicyMergerTest {
         WorkspaceMember member = member(
                 "app",
                 config(
-                        Map.of("central", "https://repo.maven.apache.org/maven2", "internal", "https://repo.example/internal"),
-                        Map.of("com.example:platform", "1.0.0")));
+                        orderedMap("central", "https://repo.maven.apache.org/maven2", "internal", "https://repo.example/internal"),
+                        orderedMap("com.example:platform", "1.0.0")));
         Workspace workspace = workspace(
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of("com.example:platform", "1.0.0", "com.example:company-platform", "2.0.0"),
+                orderedMap("central", "https://repo.maven.apache.org/maven2"),
+                orderedMap("com.example:platform", "1.0.0", "com.example:company-platform", "2.0.0"),
                 member);
 
         ProjectConfig merged = merger.merge(workspace, member);
@@ -47,11 +48,11 @@ final class WorkspacePolicyMergerTest {
         WorkspaceMember member = member(
                 "lib",
                 config(
-                        Map.of("central", "https://repo.maven.apache.org/maven2"),
-                        Map.of("com.example:platform", "2.0.0")));
+                        orderedMap("central", "https://repo.maven.apache.org/maven2"),
+                        orderedMap("com.example:platform", "2.0.0")));
         Workspace workspace = workspace(
-                Map.of("central", "https://repo.maven.apache.org/maven2"),
-                Map.of("com.example:platform", "1.0.0"),
+                orderedMap("central", "https://repo.maven.apache.org/maven2"),
+                orderedMap("com.example:platform", "1.0.0"),
                 member);
 
         ResolveException exception = assertThrows(ResolveException.class, () -> merger.merge(workspace, member));
@@ -88,5 +89,16 @@ final class WorkspacePolicyMergerTest {
                 Set.of(),
                 BuildSettings.defaults(),
                 null);
+    }
+
+    private static Map<String, String> orderedMap(String... entries) {
+        if (entries.length % 2 != 0) {
+            throw new IllegalArgumentException("orderedMap requires key/value pairs");
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        for (int index = 0; index < entries.length; index += 2) {
+            values.put(entries[index], entries[index + 1]);
+        }
+        return values;
     }
 }
