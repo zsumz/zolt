@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.io.TempDir;
 
 abstract class ReleaseArchiveTestSupport {
@@ -101,5 +102,13 @@ abstract class ReleaseArchiveTestSupport {
             return parts[1];
         }
         return parts[0];
+    }
+
+    protected static void createSymlink(Path link, Path target) throws IOException {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 }
