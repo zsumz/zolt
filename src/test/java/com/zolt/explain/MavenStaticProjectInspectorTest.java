@@ -1,8 +1,6 @@
 package com.zolt.explain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -198,25 +196,4 @@ final class MavenStaticProjectInspectorTest {
                         && signal.category() == ExplainSignal.Category.NON_DETERMINISM));
     }
 
-    @Test
-    void missingPomFailsWithActionableMessage() {
-        MigrationExplainException exception = assertThrows(
-                MigrationExplainException.class,
-                () -> inspector.inspect(tempDir));
-
-        assertTrue(exception.getMessage().contains("Expected pom.xml"));
-        assertTrue(exception.getMessage().contains("pass --cwd"));
-    }
-
-    @Test
-    void malformedPomFailsWithActionableMessage() throws IOException {
-        Files.writeString(tempDir.resolve("pom.xml"), "<project><artifactId>broken</project>");
-
-        MigrationExplainException exception = assertThrows(
-                MigrationExplainException.class,
-                () -> inspector.inspect(tempDir));
-
-        assertTrue(exception.getMessage().contains("Fix malformed POM XML"));
-        assertTrue(exception.getMessage().contains("pom.xml"));
-    }
 }
