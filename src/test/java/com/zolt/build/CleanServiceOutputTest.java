@@ -2,35 +2,19 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
-import com.zolt.project.FrameworkSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
-import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectConfigs;
-import com.zolt.project.ProjectMetadata;
-import com.zolt.project.QuarkusPackageMode;
-import com.zolt.project.QuarkusSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-final class CleanServiceTest {
-    private final CleanService cleanService = new CleanService();
-
-    @TempDir
-    private Path projectDir;
-
+final class CleanServiceOutputTest extends CleanServiceTestSupport {
     @Test
     void deletesDefaultTargetDirectory() throws IOException {
         file("target/classes/com/example/Main.class");
@@ -132,59 +116,6 @@ final class CleanServiceTest {
     }
 
     @Test
-    void refusesOutputPathOutsideProject() {
-        CleanException exception = assertThrows(
-                CleanException.class,
-                () -> cleanService.clean(
-                        projectDir,
-                        new BuildSettings("src/main/java", "src/test/java", "../outside", "target/test-classes")));
-
-        assertTrue(exception.getMessage().contains("[build].output"));
-        assertTrue(exception.getMessage().contains("../outside"));
-    }
-
-    @Test
-    void refusesWindowsStyleOutputPath() {
-        CleanException exception = assertThrows(
-                CleanException.class,
-                () -> cleanService.clean(
-                        projectDir,
-                        new BuildSettings("src/main/java", "src/test/java", "C:\\outside\\classes", "target/test-classes")));
-
-        assertTrue(exception.getMessage().contains("[build].output"));
-        assertTrue(exception.getMessage().contains("C:\\outside\\classes"));
-    }
-
-    @Test
-    void refusesOutputSymlinkThatEscapesProject() throws IOException {
-        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-clean-");
-        createSymlink(projectDir.resolve("target/classes"), outside);
-
-        CleanException exception = assertThrows(
-                CleanException.class,
-                () -> cleanService.clean(projectDir, BuildSettings.defaults()));
-
-        assertTrue(exception.getMessage().contains("[build].output"));
-        assertTrue(exception.getMessage().contains("resolved through symlinks"));
-        assertTrue(Files.exists(outside));
-    }
-
-    @Test
-    void refusesOutputWithSymlinkedParentEvenWhenOutputIsMissing() throws IOException {
-        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-clean-parent-");
-        createSymlink(projectDir.resolve("target"), outside);
-
-        CleanException exception = assertThrows(
-                CleanException.class,
-                () -> cleanService.clean(projectDir, BuildSettings.defaults()));
-
-        assertTrue(exception.getMessage().contains("[build].output"));
-        assertTrue(exception.getMessage().contains("target/classes"));
-        assertTrue(exception.getMessage().contains("resolved through symlinks"));
-        assertTrue(Files.exists(outside));
-    }
-
-    @Test
     void preservesDeclaredGeneratedRootsByDefault() throws IOException {
         file("target/classes/com/example/Main.class");
         file("target/generated/sources/openapi/com/example/Generated.java");
@@ -225,31 +156,5 @@ final class CleanServiceTest {
 
         assertEquals(1, result.deletedCount());
         assertFalse(Files.exists(projectDir.resolve("target")));
-    }
-
-    private void file(String path) throws IOException {
-        Path file = projectDir.resolve(path);
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, "x");
-    }
-
-    private static void createSymlink(Path link, Path target) throws IOException {
-        Files.createDirectories(link.getParent());
-        try {
-            Files.createSymbolicLink(link, target);
-        } catch (UnsupportedOperationException | IOException exception) {
-            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
-        }
-    }
-
-    private static ProjectConfig config(BuildSettings buildSettings, boolean quarkusEnabled) {
-        return ProjectConfigs.withDirectDependencies(
-                new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                buildSettings)
-                .withFrameworkSettings(new FrameworkSettings(
-                        new QuarkusSettings(quarkusEnabled, QuarkusPackageMode.FAST_JAR)));
     }
 }
