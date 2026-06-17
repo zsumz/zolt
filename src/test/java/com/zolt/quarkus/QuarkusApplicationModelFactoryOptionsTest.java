@@ -4,8 +4,8 @@ import static com.zolt.quarkus.QuarkusApplicationModelFactoryTestSupport.fakeApi
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakeApplicationModel;
-import com.zolt.quarkus.QuarkusApplicationModelFactoryTestDoubles.FakeArtifactKey;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryArtifactDoubles.FakeArtifactKey;
+import com.zolt.quarkus.QuarkusApplicationModelFactoryModelDoubles.FakeApplicationModel;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;
