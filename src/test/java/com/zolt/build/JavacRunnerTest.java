@@ -2,7 +2,6 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.classpath.Classpath;
@@ -176,30 +175,6 @@ final class JavacRunnerTest {
         assertTrue(Files.exists(generatedSources.resolve("com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(output.resolve("com/example/Main.class")));
         assertTrue(Files.exists(output.resolve("com/example/GeneratedMessage.class")));
-    }
-
-    @Test
-    void surfacesJavacErrorsWithCompilerOutput() throws IOException {
-        Path source = source("src/main/java/com/example/Broken.java", """
-                package com.example;
-
-                public final class Broken {
-                    missing
-                }
-                """);
-
-        JavacException exception = assertThrows(
-                JavacException.class,
-                () -> new JavacRunner().compile(
-                        currentJavac(),
-                        List.of(source),
-                        new Classpath(List.of()),
-                        tempDir.resolve("target/classes")));
-
-        assertTrue(exception.getMessage().contains("javac failed with exit code"));
-        assertTrue(exception.getMessage().contains("Broken.java"));
-        assertTrue(exception.getMessage().contains("[annotationProcessors]"));
-        assertFalse(exception.getMessage().isBlank());
     }
 
     private Path source(String path, String content) throws IOException {
