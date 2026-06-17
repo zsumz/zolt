@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-final class PlatformCommandTest {
+final class PlatformCommandTest extends PlatformCommandTestSupport {
     @TempDir
     private Path tempDir;
 
@@ -154,69 +154,4 @@ final class PlatformCommandTest {
         assertFalse(config.contains("enterprise-platform"));
     }
 
-    @Test
-    void platformRemoveDeletesPlatformAndRefreshesLockfile() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-        CommandResult add = execute(
-                "platform",
-                "add",
-                "--cwd", projectDir.toString(),
-                "--no-resolve",
-                "com.example:enterprise-platform:2026.1.0");
-
-        CommandResult remove = execute(
-                "platform",
-                "remove",
-                "--cwd", projectDir.toString(),
-                "--cache-root", tempDir.resolve("cache").toString(),
-                "com.example:enterprise-platform");
-
-        assertEquals(0, add.exitCode());
-        assertEquals(0, remove.exitCode());
-        assertTrue(remove.stdout().contains("Removed platform com.example:enterprise-platform from [platforms]"));
-        assertTrue(remove.stdout().contains("Resolved 0 packages"));
-        String config = Files.readString(projectDir.resolve("zolt.toml"));
-        assertFalse(config.contains("\"com.example:enterprise-platform\""));
-    }
-
-    @Test
-    void platformRemoveRejectsVersionedCoordinate() throws IOException {
-        Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-
-        CommandResult result = execute(
-                "platform",
-                "remove",
-                "--cwd", projectDir.toString(),
-                "com.example:enterprise-platform:2026.1.0");
-
-        assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains(
-                "Platform remove coordinate must not include a version. Use `group:artifact`."));
-    }
-
-    private static void writeProjectConfig(Path projectDir) throws IOException {
-        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-    }
-
-    private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
-                main = "com.example.Main"
-
-                [repositories]
-                test = "%s"
-
-                [dependencies]
-
-                [test.dependencies]
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """.formatted(repositoryUrl));
-    }
 }
