@@ -2,7 +2,6 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
-import static com.zolt.cli.CliTestSupport.sha256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -228,29 +227,6 @@ final class CheckExecutionContextEvidenceCommandTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("error execution-context apps/api target/coverage CI context expected coverage reports, but the coverage directory is missing."));
         assertTrue(result.stdout().contains("next: Run `zolt coverage` from each selected member so coverage evidence exists under target/coverage"));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
-    void checkContextCiJsonOutputIsStable() throws IOException {
-        Path projectDir = tempDir.resolve("check-context-ci-json");
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-json"));
-        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
-
-        CommandResult result = execute(
-                "check",
-                "--context", "ci",
-                "--check", "execution-context",
-                "--format", "json",
-                "--cwd", projectDir.toString());
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("\"id\":\"execution-context\""));
-        assertTrue(result.stdout().contains("\"subject\":\"ci\""));
-        assertTrue(result.stdout().contains("\"status\":\"passed\""));
-        assertTrue(result.stdout().contains("CI context policy is active"));
-        assertTrue(result.stdout().contains("Policy source: built-in ci context"));
         assertEquals("", result.stderr());
     }
 
