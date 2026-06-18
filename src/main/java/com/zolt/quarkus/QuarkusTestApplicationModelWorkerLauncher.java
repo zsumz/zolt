@@ -61,7 +61,9 @@ public final class QuarkusTestApplicationModelWorkerLauncher {
         } catch (IOException exception) {
             throw new QuarkusAugmentationException(
                     "Could not create Quarkus test application model output directory. "
-                            + "Check that target/ is writable and try again.",
+                            + "Check that "
+                            + outputPath.toAbsolutePath().normalize().getParent()
+                            + " is writable and try again.",
                     exception);
         }
         ProcessResult result = processRunner.run(command(descriptor, outputPath, workspaceModuleInputs));
@@ -77,7 +79,9 @@ public final class QuarkusTestApplicationModelWorkerLauncher {
             throw new QuarkusAugmentationException(
                     "Quarkus test application model worker completed without writing "
                             + normalizedOutput
-                            + ". Rerun zolt test after cleaning target/quarkus.");
+                            + ". Rerun zolt test after cleaning "
+                            + normalizedOutput.getParent()
+                            + ".");
         }
         return normalizedOutput;
     }

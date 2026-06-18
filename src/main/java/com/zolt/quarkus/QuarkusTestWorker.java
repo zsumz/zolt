@@ -111,7 +111,9 @@ public final class QuarkusTestWorker {
             case UNSUPPORTED_RUNNER_MODE ->
                     "error: Quarkus test worker does not support runner mode `"
                             + plan.descriptor().runnerMode()
-                            + "`. Run `zolt test` again to refresh target/quarkus/zolt-test-bootstrap.properties.";
+                            + "`. Run `zolt test` again to refresh "
+                            + plan.descriptor().descriptorFile()
+                            + ".";
             case PLAIN_JUNIT_READY ->
                     "error: Dedicated Quarkus test worker execution is not implemented yet. "
                             + "Run `zolt test` for the current plain JUnit path until Zolt owns Quarkus JUnit discovery "

@@ -1,6 +1,7 @@
 package com.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -112,6 +113,27 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
         assertEquals(3, exitCode);
         assertTrue(output(out).contains("Tests failed"));
         assertEquals("", output(err));
+    }
+
+    @Test
+    void unsupportedRunnerModeDiagnosticUsesDescriptorPath() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestRunnerDescriptor descriptor = descriptor(Path.of("/repo/.zolt/build/quarkus"));
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.UNSUPPORTED_RUNNER_MODE,
+                        List.of()),
+                out,
+                err);
+
+        int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
+
+        assertEquals(2, exitCode);
+        assertTrue(output(err).contains("/repo/.zolt/build/quarkus/zolt-test-bootstrap.properties"));
+        assertFalse(output(err).contains("target/quarkus/zolt-test-bootstrap.properties"));
     }
 
 }

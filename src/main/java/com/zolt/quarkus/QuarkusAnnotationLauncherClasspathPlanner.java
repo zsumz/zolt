@@ -91,7 +91,7 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
                             + "Zolt needs to filter the launcher-session service from "
                             + sourceJar
                             + " so Quarkus JUnit owns test configuration during @QuarkusTest bootstrap. "
-                            + "Clean target/quarkus and run `zolt test` again.",
+                            + "Clean " + descriptor.descriptorFile().getParent() + " and run `zolt test` again.",
                     exception);
         }
     }
@@ -138,7 +138,7 @@ public final class QuarkusAnnotationLauncherClasspathPlanner {
                             + "Zolt needs to add its @QuarkusTest class-bean customizer to "
                             + sourceJar
                             + " so Quarkus test augmentation can see Zolt-owned test classes. "
-                            + "Clean target/quarkus and run `zolt test` again.",
+                            + "Clean " + descriptor.descriptorFile().getParent() + " and run `zolt test` again.",
                     exception);
         }
     }

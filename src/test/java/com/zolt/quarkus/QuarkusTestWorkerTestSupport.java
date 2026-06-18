@@ -72,14 +72,22 @@ abstract class QuarkusTestWorkerTestSupport {
     }
 
     static QuarkusTestRunnerDescriptor descriptor(boolean supportsQuarkusTestAnnotations) {
+        return descriptor(Path.of("/repo/target/quarkus"), supportsQuarkusTestAnnotations);
+    }
+
+    static QuarkusTestRunnerDescriptor descriptor(Path quarkusDirectory) {
+        return descriptor(quarkusDirectory, QuarkusTestRunnerRequest.SUPPORTS_QUARKUS_TEST_ANNOTATIONS);
+    }
+
+    static QuarkusTestRunnerDescriptor descriptor(Path quarkusDirectory, boolean supportsQuarkusTestAnnotations) {
         return new QuarkusTestRunnerDescriptor(
-                Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
-                Path.of("/repo/target/quarkus/test-runtime-classpath.txt"),
+                quarkusDirectory.resolve("zolt-test-bootstrap.properties"),
+                quarkusDirectory.resolve("test-runtime-classpath.txt"),
                 Path.of("/repo"),
                 Path.of("/repo/target/classes"),
                 Path.of("/repo/target/test-classes"),
-                Path.of("/repo/target/quarkus/test-application-model.dat"),
-                Path.of("/repo/target/quarkus/zolt-bootstrap.properties"),
+                quarkusDirectory.resolve("test-application-model.dat"),
+                quarkusDirectory.resolve("zolt-bootstrap.properties"),
                 QuarkusTestRunnerRequest.RUNNER_MODE,
                 supportsQuarkusTestAnnotations,
                 true,
