@@ -108,9 +108,13 @@ final class PublicReadinessDocumentationTest {
         assertTrue(roadmap.contains("the current repository has since removed that bootstrap"));
         assertTrue(roadmap.contains("The old Gradle fallback native task was removed with the root Gradle bootstrap"));
         assertTrue(roadmap.contains("native self-hosting now runs through `scripts/self-host-native`"));
+        assertTrue(roadmap.contains("Goal: make Native Image support Zolt-owned command behavior instead of Gradle bootstrap behavior."));
         assertFalse(
                 roadmap.contains("Goal: make the current Zolt repository buildable by Zolt without removing the Gradle bootstrap."),
                 "Roadmap must not present the removed Gradle bootstrap as a current constraint");
+        assertFalse(
+                roadmap.contains("Goal: move native-image support from Gradle bootstrap tasks into Zolt-owned command behavior."),
+                "Roadmap must not describe native self-hosting as still moving out of Gradle bootstrap tasks");
         assertFalse(
                 roadmap.contains("The Gradle fallback `nativeImage` task delegates"),
                 "Roadmap must not describe a removed Gradle fallback native task as current status");
