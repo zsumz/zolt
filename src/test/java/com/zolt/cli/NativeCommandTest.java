@@ -47,7 +47,7 @@ final class NativeCommandTest {
     }
 
     @Test
-    void nativeReportsMissingSpringBootAotOutputsClearly() throws IOException {
+    void nativeReportsMissingSpringBootAotToolingClearly() throws IOException {
         Path projectDir = tempDir.resolve("spring-boot-native-demo");
         writeExplicitSpringBootNativeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
 
@@ -57,9 +57,8 @@ final class NativeCommandTest {
                 "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("[framework.springBoot.native] enabled = true"));
-        assertTrue(result.stderr().contains("Spring Boot native AOT output is missing"));
-        assertTrue(result.stderr().contains("target/spring-aot/main/classes"));
+        assertTrue(result.stderr().contains("Spring Boot native AOT requires tool artifact"));
+        assertTrue(result.stderr().contains("Add the Spring Boot platform to [platforms]"));
     }
 
     @Test

@@ -53,13 +53,13 @@ public final class NativeBuildService {
         String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
                 "Native Image main class is missing. Add [project].main to zolt.toml."));
         Path projectRoot = ProjectPaths.root(projectDirectory);
-        List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
-                ? new SpringBootAotNativeInputs(projectRoot).classpathEntries()
-                : List.of();
         PackageResult packageResult = packageService.packageJar(
                 projectDirectory,
                 config.withPackageSettings(PackageSettings.defaults()),
                 cacheRoot);
+        List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
+                ? new SpringBootAotNativeInputs(projectRoot).classpathEntries()
+                : List.of();
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot).stream()

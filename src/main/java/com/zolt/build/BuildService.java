@@ -31,6 +31,7 @@ public final class BuildService {
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
+    private final SpringBootAotGenerationService springBootAotGenerationService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
 
@@ -114,6 +115,7 @@ public final class BuildService {
         this.jdkDetector = jdkDetector;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
         this.protobufGeneratedSourceService = protobufGeneratedSourceService;
+        this.springBootAotGenerationService = new SpringBootAotGenerationService(javacRunner);
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
         this.sourceExecutor = new MainCompileSourceExecutor(
                 javacRunner,
@@ -225,6 +227,7 @@ public final class BuildService {
                 jdkStatus);
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
+        springBootAotGenerationService.generate(projectDirectory, config, jdkStatus);
         long fingerprintWriteNanos = 0L;
         if (!compileSkipped) {
             long fingerprintWriteStarted = System.nanoTime();

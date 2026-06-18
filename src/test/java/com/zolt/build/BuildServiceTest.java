@@ -8,9 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
+import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.project.QuarkusSettings;
+import com.zolt.project.SpringBootSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -133,6 +136,46 @@ final class BuildServiceTest {
                 build.time=1970-01-01T00:00:00Z
                 build.version=0.1.0
                 """, Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")));
+    }
+
+    @Test
+    void generatesDeterministicSpringBootAotOutputsWhenNativeIsEnabled() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config().withFrameworkSettings(new FrameworkSettings(
+                new SpringBootSettings(true),
+                QuarkusSettings.defaults()));
+
+        buildService.build(projectDir, config, projectDir.resolve("cache"));
+        Files.writeString(projectDir.resolve("target/spring-aot/main/resources/stale.txt"), "stale");
+        BuildResult result = buildService.build(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals("skipped", result.mainCompilationMode());
+        assertEquals("""
+                package com.zolt.springaot;
+
+                public final class ZoltSpringAotMarker {
+                    private ZoltSpringAotMarker() {
+                    }
+
+                    public static String application() {
+                        return "com.example:demo:0.1.0";
+                    }
+                }
+                """, Files.readString(projectDir.resolve(
+                "target/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
+        assertTrue(Files.exists(projectDir.resolve(
+                "target/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
+        assertEquals("[]\n", Files.readString(projectDir.resolve(
+                "target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
+        assertFalse(Files.exists(projectDir.resolve("target/spring-aot/main/resources/stale.txt")));
     }
 
     private static ProjectConfig config() {

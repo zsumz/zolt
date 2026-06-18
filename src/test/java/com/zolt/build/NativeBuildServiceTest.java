@@ -87,39 +87,17 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
-    void explicitSpringBootNativeSettingRequiresAotOutputsBeforeInvokingNativeImage() {
-        List<List<String>> commands = new ArrayList<>();
-        NativeBuildService service = service(command -> {
-            commands.add(command);
-            return new NativeImageRunner.ProcessResult(0, "native ok\n");
-        });
-
+    void springBootAotNativeInputsRequireGeneratedOutputs() {
         NativeImageException exception = assertThrows(
                 NativeImageException.class,
-                () -> service.buildNative(
-                        projectDir,
-                        new ZoltTomlParser().parse("""
-                                [project]
-                                name = "demo"
-                                version = "0.1.0"
-                                group = "com.example"
-                                java = "21"
-                                main = "com.example.Main"
+                () -> new SpringBootAotNativeInputs(projectDir).classpathEntries());
 
-                                [framework.springBoot.native]
-                                enabled = true
-                                """),
-                        projectDir.resolve("cache"),
-                        Path.of("native-image")));
-
-        assertTrue(exception.getMessage().contains("[framework.springBoot.native] enabled = true"));
         assertTrue(exception.getMessage().contains("Spring Boot native AOT output is missing"));
         assertTrue(exception.getMessage().contains("target/spring-aot/main/classes"));
-        assertTrue(commands.isEmpty());
     }
 
     @Test
-    void explicitSpringBootNativePassesAotOutputsToNativeImageClasspath() throws IOException {
+    void explicitSpringBootNativeGeneratesAndPassesAotOutputsToNativeImageClasspath() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         writeRuntimeLockfile();
         source("src/main/java/com/example/Main.java", """
@@ -130,8 +108,6 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                     }
                 }
                 """);
-        source("target/spring-aot/main/classes/com/example/Application__BeanDefinitions.class", "aot class");
-        source("target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json", "[]");
         List<List<String>> commands = new ArrayList<>();
         NativeBuildService service = service(command -> {
             commands.add(command);
@@ -150,6 +126,12 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
         Path aotResources = projectDir.resolve("target/spring-aot/main/resources");
         Path dependencyJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
         assertEquals(projectDir.resolve("target/native-custom/demo-native"), result.nativeImageResult().outputBinary());
+        assertTrue(Files.exists(projectDir.resolve(
+                "target/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
+        assertTrue(Files.exists(projectDir.resolve(
+                "target/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
+        assertTrue(Files.exists(projectDir.resolve(
+                "target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
         assertEquals(List.of(
                 "native-image",
                 "--no-fallback",
