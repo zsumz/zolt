@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.config.RepositoryOverlayConfig;
+import com.zolt.config.RepositoryOverlayConfigSource;
 import com.zolt.config.UserGlobalConfig;
 import com.zolt.config.UserGlobalConfigException;
 import com.zolt.config.UserGlobalConfigParser;
@@ -56,36 +57,60 @@ public final class ConfigCommand implements Runnable {
 
         private void print(UserGlobalConfig config, boolean configExists) {
             String configPathSource = isDefaultConfigPath(config.configPath()) ? "built-in default" : "flag";
-            String valueSource = configExists ? "user global config with built-in defaults" : "built-in default";
             spec.commandLine().getOut().println("User global config: " + config.configPath());
             spec.commandLine().getOut().println("config path source: " + configPathSource);
-            spec.commandLine().getOut().println("schema version: " + config.version() + " (source: " + valueSource + ")");
+            spec.commandLine().getOut().println("config file: " + (configExists ? "present" : "missing"));
+            spec.commandLine().getOut().println("schema version: "
+                    + config.version()
+                    + " (source: "
+                    + config.sources().version()
+                    + ")");
             spec.commandLine().getOut().println("machine preferences only: yes");
             spec.commandLine().getOut().println("project semantics source: committed zolt.toml, zolt-workspace.toml, zolt.lock, env references, and command flags");
-            spec.commandLine().getOut().println("cache.root: " + config.cacheRoot() + " (source: " + valueSource + ")");
+            spec.commandLine().getOut().println("cache.root: "
+                    + config.cacheRoot()
+                    + " (source: "
+                    + config.sources().cacheRoot()
+                    + ")");
             spec.commandLine().getOut().println("repository.downloadConcurrency: "
                     + config.repository().downloadConcurrency()
                     + " (source: "
-                    + valueSource
+                    + config.sources().repositoryDownloadConcurrency()
                     + ")");
             spec.commandLine().getOut().println("repository.executionLane: "
                     + config.repository().executionLane()
                     + " (source: "
-                    + valueSource
+                    + config.sources().repositoryExecutionLane()
                     + ")");
             for (RepositoryOverlayConfig overlay : config.repositoryOverlays().values()) {
+                RepositoryOverlayConfigSource source = config.sources()
+                        .repositoryOverlays()
+                        .getOrDefault(overlay.id(), RepositoryOverlayConfigSource.defaults());
                 spec.commandLine().getOut().println("repositoryOverlays."
                         + overlay.id()
-                        + ": kind="
+                        + ".kind: "
                         + overlay.kind()
-                        + ", enabled="
+                        + " (source: "
+                        + source.kind()
+                        + ")");
+                spec.commandLine().getOut().println("repositoryOverlays."
+                        + overlay.id()
+                        + ".enabled: "
                         + overlay.enabled()
                         + " (source: "
-                        + valueSource
+                        + source.enabled()
                         + ")");
             }
-            spec.commandLine().getOut().println("ui.color: " + config.ui().color() + " (source: " + valueSource + ")");
-            spec.commandLine().getOut().println("ui.progress: " + config.ui().progress() + " (source: " + valueSource + ")");
+            spec.commandLine().getOut().println("ui.color: "
+                    + config.ui().color()
+                    + " (source: "
+                    + config.sources().uiColor()
+                    + ")");
+            spec.commandLine().getOut().println("ui.progress: "
+                    + config.ui().progress()
+                    + " (source: "
+                    + config.sources().uiProgress()
+                    + ")");
             spec.commandLine().getOut().println("local overlay CI policy: reject with --no-local-overlays or zolt check --context ci");
             spec.commandLine().getOut().println("redaction: secret values are not read from user global config; repository credentials stay in env references from committed project config");
         }

@@ -25,11 +25,13 @@ final class ConfigCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("User global config: " + configPath.toAbsolutePath().normalize()));
         assertTrue(result.stdout().contains("config path source: flag"));
+        assertTrue(result.stdout().contains("config file: missing"));
         assertTrue(result.stdout().contains("schema version: 1 (source: built-in default)"));
         assertTrue(result.stdout().contains("machine preferences only: yes"));
         assertTrue(result.stdout().contains("project semantics source: committed zolt.toml"));
         assertTrue(result.stdout().contains("repository.downloadConcurrency: 8 (source: built-in default)"));
-        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal: kind=maven-local, enabled=false"));
+        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.kind: maven-local (source: built-in default)"));
+        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.enabled: false (source: built-in default)"));
         assertTrue(result.stdout().contains("local overlay CI policy: reject with --no-local-overlays or zolt check --context ci"));
         assertTrue(result.stdout().contains("repository credentials stay in env references from committed project config"));
     }
@@ -45,27 +47,26 @@ final class ConfigCommandTest {
 
                 [repository]
                 downloadConcurrency = 3
-                executionLane = "serial"
 
                 [repositoryOverlays.mavenLocal]
-                kind = "maven-local"
                 enabled = true
 
                 [ui]
                 color = "never"
-                progress = "always"
                 """);
 
         CommandResult result = execute("config", "show", "--config", configPath.toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("schema version: 1 (source: user global config with built-in defaults)"));
-        assertTrue(result.stdout().contains("cache.root: " + tempDir.resolve("cache").toAbsolutePath().normalize()));
-        assertTrue(result.stdout().contains("repository.downloadConcurrency: 3"));
-        assertTrue(result.stdout().contains("repository.executionLane: serial"));
-        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal: kind=maven-local, enabled=true"));
-        assertTrue(result.stdout().contains("ui.color: never"));
-        assertTrue(result.stdout().contains("ui.progress: always"));
+        assertTrue(result.stdout().contains("config file: present"));
+        assertTrue(result.stdout().contains("schema version: 1 (source: user global config)"));
+        assertTrue(result.stdout().contains("cache.root: " + tempDir.resolve("cache").toAbsolutePath().normalize() + " (source: user global config)"));
+        assertTrue(result.stdout().contains("repository.downloadConcurrency: 3 (source: user global config)"));
+        assertTrue(result.stdout().contains("repository.executionLane: platform (source: built-in default)"));
+        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.kind: maven-local (source: built-in default)"));
+        assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.enabled: true (source: user global config)"));
+        assertTrue(result.stdout().contains("ui.color: never (source: user global config)"));
+        assertTrue(result.stdout().contains("ui.progress: auto (source: built-in default)"));
     }
 
     @Test

@@ -9,7 +9,8 @@ public record UserGlobalConfig(
         Path cacheRoot,
         RepositoryExecutionConfig repository,
         Map<String, RepositoryOverlayConfig> repositoryOverlays,
-        UiConfig ui) {
+        UiConfig ui,
+        UserGlobalConfigSources sources) {
     public UserGlobalConfig {
         repositoryOverlays = Map.copyOf(repositoryOverlays);
     }
@@ -21,6 +22,7 @@ public record UserGlobalConfig(
                 UserGlobalConfigParser.expandUserHome(Path.of("~/.zolt/cache")),
                 new RepositoryExecutionConfig(8, "platform"),
                 Map.of("mavenLocal", new RepositoryOverlayConfig("mavenLocal", "maven-local", false)),
-                new UiConfig("auto", "auto"));
+                new UiConfig("auto", "auto"),
+                UserGlobalConfigSources.defaults());
     }
 }

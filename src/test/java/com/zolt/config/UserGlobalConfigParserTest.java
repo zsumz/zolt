@@ -29,6 +29,8 @@ final class UserGlobalConfigParserTest {
         assertFalse(config.repositoryOverlays().get("mavenLocal").enabled());
         assertEquals("auto", config.ui().color());
         assertEquals("auto", config.ui().progress());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().cacheRoot());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().repositoryDownloadConcurrency());
     }
 
     @Test
@@ -63,6 +65,43 @@ final class UserGlobalConfigParserTest {
         assertEquals("maven-local", config.repositoryOverlays().get("mavenLocal").kind());
         assertEquals("never", config.ui().color());
         assertEquals("always", config.ui().progress());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().cacheRoot());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().repositoryDownloadConcurrency());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().repositoryExecutionLane());
+        assertEquals(
+                UserGlobalConfigSources.USER_GLOBAL_CONFIG,
+                config.sources().repositoryOverlays().get("mavenLocal").kind());
+        assertEquals(
+                UserGlobalConfigSources.USER_GLOBAL_CONFIG,
+                config.sources().repositoryOverlays().get("mavenLocal").enabled());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().uiColor());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().uiProgress());
+    }
+
+    @Test
+    void tracksBuiltInSourcesForOmittedKeysInExistingConfig() {
+        UserGlobalConfig config = new UserGlobalConfigParser().parse("""
+                version = 1
+
+                [repository]
+                downloadConcurrency = 2
+
+                [repositoryOverlays.mavenLocal]
+                enabled = true
+                """, tempDir.resolve("config.toml"));
+
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().version());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().cacheRoot());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().repositoryDownloadConcurrency());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().repositoryExecutionLane());
+        assertEquals(
+                UserGlobalConfigSources.BUILT_IN_DEFAULT,
+                config.sources().repositoryOverlays().get("mavenLocal").kind());
+        assertEquals(
+                UserGlobalConfigSources.USER_GLOBAL_CONFIG,
+                config.sources().repositoryOverlays().get("mavenLocal").enabled());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().uiColor());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().uiProgress());
     }
 
     @Test

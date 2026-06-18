@@ -68,7 +68,8 @@ public final class UserGlobalConfigParser {
         RepositoryExecutionConfig repository = repository(optionalTable(result, "repository"), defaults.repository());
         Map<String, RepositoryOverlayConfig> overlays = repositoryOverlays(optionalTable(result, "repositoryOverlays"), defaults.repositoryOverlays());
         UiConfig ui = ui(optionalTable(result, "ui"), defaults.ui());
-        return new UserGlobalConfig(version, normalizedPath, cacheRoot, repository, overlays, ui);
+        UserGlobalConfigSources sources = sources(result, defaults.sources());
+        return new UserGlobalConfig(version, normalizedPath, cacheRoot, repository, overlays, ui, sources);
     }
 
     static Path expandUserHome(Path path) {
@@ -150,6 +151,45 @@ public final class UserGlobalConfigParser {
         return new UiConfig(
                 enumOrDefault(table, "ui", "color", defaultValue.color(), UI_MODES),
                 enumOrDefault(table, "ui", "progress", defaultValue.progress(), UI_MODES));
+    }
+
+    private static UserGlobalConfigSources sources(TomlParseResult result, UserGlobalConfigSources defaults) {
+        TomlTable cacheTable = optionalTable(result, "cache");
+        TomlTable repositoryTable = optionalTable(result, "repository");
+        TomlTable overlaysTable = optionalTable(result, "repositoryOverlays");
+        TomlTable uiTable = optionalTable(result, "ui");
+        return new UserGlobalConfigSources(
+                UserGlobalConfigSources.USER_GLOBAL_CONFIG,
+                source(cacheTable, "root"),
+                source(repositoryTable, "downloadConcurrency"),
+                source(repositoryTable, "executionLane"),
+                overlaySources(overlaysTable, defaults.repositoryOverlays()),
+                source(uiTable, "color"),
+                source(uiTable, "progress"));
+    }
+
+    private static Map<String, RepositoryOverlayConfigSource> overlaySources(
+            TomlTable table,
+            Map<String, RepositoryOverlayConfigSource> defaults) {
+        if (table == null) {
+            return defaults;
+        }
+        Map<String, RepositoryOverlayConfigSource> sources = new LinkedHashMap<>(defaults);
+        for (String id : table.keySet()) {
+            TomlTable overlayTable = table.getTable(List.of(id));
+            if (overlayTable != null) {
+                sources.put(id, new RepositoryOverlayConfigSource(
+                        source(overlayTable, "kind"),
+                        source(overlayTable, "enabled")));
+            }
+        }
+        return sources;
+    }
+
+    private static String source(TomlTable table, String key) {
+        return table != null && table.get(List.of(key)) != null
+                ? UserGlobalConfigSources.USER_GLOBAL_CONFIG
+                : UserGlobalConfigSources.BUILT_IN_DEFAULT;
     }
 
     private static int version(TomlParseResult result) {
