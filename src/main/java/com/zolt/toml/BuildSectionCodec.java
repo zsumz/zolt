@@ -3,6 +3,7 @@ package com.zolt.toml;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.TestRuntimeSettings;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,7 +11,7 @@ import java.util.TreeMap;
 import org.tomlj.TomlTable;
 
 final class BuildSectionCodec {
-    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
+    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "outputRoot", "output", "testOutput", "metadata");
     private static final Set<String> INTEGRATION_TEST_KEYS =
             Set.of("source", "sources", "resources", "output");
     private static final Set<String> TEST_RUNTIME_KEYS =
@@ -30,13 +31,16 @@ final class BuildSectionCodec {
         BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(table, "metadata"));
         String source = TomlScalars.stringOrDefault(table, "build", "source", defaults.source());
         String test = TomlScalars.stringOrDefault(table, "build", "test", defaults.test());
+        String outputRoot = TomlScalars.nonBlankStringOrDefault(table, "build", "outputRoot", defaults.outputRoot());
+        validateOutputRoot(outputRoot);
         validateSupportedSourceRoot("[build].source", source);
         validateSupportedSourceRoot("[build].test", test);
         return new BuildSettings(
                 source,
                 test,
-                TomlScalars.stringOrDefault(table, "build", "output", defaults.output()),
-                TomlScalars.stringOrDefault(table, "build", "testOutput", defaults.testOutput()),
+                outputRoot,
+                TomlScalars.stringOrDefault(table, "build", "output", outputRoot + "/classes"),
+                TomlScalars.stringOrDefault(table, "build", "testOutput", outputRoot + "/test-classes"),
                 defaults.testSources(),
                 defaults.groovyTestSources(),
                 defaults.resourceRoots(),
@@ -60,6 +64,7 @@ final class BuildSectionCodec {
         return new BuildSettings(
                 build.source(),
                 build.test(),
+                build.outputRoot(),
                 build.output(),
                 build.testOutput(),
                 javaSources,
@@ -131,6 +136,7 @@ final class BuildSectionCodec {
         toml.append("[build]\n");
         writeAssignment(toml, "source", build.source());
         writeAssignment(toml, "test", build.test());
+        writeAssignment(toml, "outputRoot", build.outputRoot());
         writeAssignment(toml, "output", build.output());
         writeAssignment(toml, "testOutput", build.testOutput());
     }
@@ -215,6 +221,22 @@ final class BuildSectionCodec {
     private static void validateSupportedSourceRoots(String subject, List<String> roots) {
         for (String root : roots) {
             validateSupportedSourceRoot(subject, root);
+        }
+    }
+
+    private static void validateOutputRoot(String outputRoot) {
+        Path path = Path.of(outputRoot).normalize();
+        String normalized = outputRoot.replace('\\', '/');
+        if (path.isAbsolute()
+                || normalized.startsWith("/")
+                || normalized.startsWith("\\\\")
+                || normalized.matches("^[A-Za-z]:[\\\\/].*")
+                || path.toString().equals(".")
+                || path.startsWith("..")) {
+            throw new ZoltConfigException(
+                    "Invalid [build].outputRoot `"
+                            + outputRoot
+                            + "` in zolt.toml. Use a project-relative output directory such as `target` or `.zolt/build`.");
         }
     }
 

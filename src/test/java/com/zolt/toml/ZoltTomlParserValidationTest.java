@@ -85,6 +85,25 @@ final class ZoltTomlParserValidationTest {
     }
 
     @Test
+    void rejectsUnsafeOutputRoot() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [build]
+                        outputRoot = "../target"
+                        """));
+
+        assertTrue(exception.getMessage().contains("[build].outputRoot"));
+        assertTrue(exception.getMessage().contains(".zolt/build"));
+    }
+
+    @Test
     void invalidTomlFailsCleanly() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

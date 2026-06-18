@@ -41,6 +41,7 @@ final class ZoltTomlWriterTest {
                 [build]
                 source = "src/main/java"
                 test = "src/test/java"
+                outputRoot = "target"
                 output = "target/classes"
                 testOutput = "target/test-classes"
                 """, toml);
@@ -120,6 +121,26 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("[test.sources]\njava = [\"src/test/java\", \"src/integration-test/java\"]"));
         assertEquals(config.build().testSources(), parsed.build().testSources());
         assertEquals("5.11.4", parsed.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+    }
+
+    @Test
+    void writesOutputRootAndDerivedOutputs() {
+        ProjectConfig config = config()
+                .build(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        ".zolt/build",
+                        ".zolt/build/classes",
+                        ".zolt/build/test-classes"))
+                .build();
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("outputRoot = \".zolt/build\""));
+        assertEquals(".zolt/build", parsed.build().outputRoot());
+        assertEquals(".zolt/build/classes", parsed.build().output());
+        assertEquals(".zolt/build/test-classes", parsed.build().testOutput());
     }
 
     @Test

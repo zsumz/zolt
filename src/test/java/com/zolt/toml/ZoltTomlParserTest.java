@@ -35,6 +35,7 @@ final class ZoltTomlParserTest {
         assertTrue(config.testAnnotationProcessors().isEmpty());
         assertTrue(config.managedTestAnnotationProcessors().isEmpty());
         assertEquals("src/main/java", config.build().source());
+        assertEquals("target", config.build().outputRoot());
         assertEquals(List.of("src/test/java"), config.build().testSources());
         assertEquals("target/test-classes", config.build().testOutput());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
@@ -69,6 +70,7 @@ final class ZoltTomlParserTest {
         assertTrue(config.managedTestAnnotationProcessors().isEmpty());
         assertFalse(config.project().main().isPresent());
         assertEquals("src/main/java", config.build().source());
+        assertEquals("target", config.build().outputRoot());
         assertEquals("target/classes", config.build().output());
         assertEquals("target/generated/sources/annotations", config.compilerSettings().generatedSources());
         assertEquals("target/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
@@ -124,6 +126,44 @@ final class ZoltTomlParserTest {
         assertEquals(
                 List.of("src/test/java", "src/integration-test/java"),
                 config.build().testSources());
+    }
+
+    @Test
+    void derivesBuildOutputsFromOutputRootWhenExplicitOutputsAreOmitted() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "migration-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [build]
+                outputRoot = ".zolt/build"
+                """);
+
+        assertEquals(".zolt/build", config.build().outputRoot());
+        assertEquals(".zolt/build/classes", config.build().output());
+        assertEquals(".zolt/build/test-classes", config.build().testOutput());
+    }
+
+    @Test
+    void explicitBuildOutputsOverrideOutputRootDerivedDefaults() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "migration-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [build]
+                outputRoot = ".zolt/build"
+                output = "out/main"
+                testOutput = "out/test"
+                """);
+
+        assertEquals(".zolt/build", config.build().outputRoot());
+        assertEquals("out/main", config.build().output());
+        assertEquals("out/test", config.build().testOutput());
     }
 
     @Test
