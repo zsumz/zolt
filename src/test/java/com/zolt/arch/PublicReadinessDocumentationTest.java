@@ -42,4 +42,15 @@ final class PublicReadinessDocumentationTest {
                 readiness.contains("- [ ] Public readiness docs list supported, experimental, planned, and non-goal surfaces."),
                 "Release readiness should not show the public support-surface docs item as incomplete");
     }
+
+    @Test
+    void testingStrategyKeepsKotlinPostMvp() throws IOException {
+        String testingStrategy = Files.readString(Path.of("docs/testing-strategy.md"));
+
+        assertTrue(testingStrategy.contains("Kotlin remains future post-MVP source-language work"));
+        assertTrue(testingStrategy.contains("should not be treated as public-beta test support"));
+        assertFalse(
+                testingStrategy.contains("Kotlin JVM source support, and multiple test engines continue to grow"),
+                "Testing strategy must not imply Kotlin is growing as current public-beta support");
+    }
 }
