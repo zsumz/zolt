@@ -8,9 +8,15 @@ import java.util.stream.Stream;
 
 final class SpringBootAotNativeInputs {
     private final Path projectRoot;
+    private final String outputRoot;
 
     SpringBootAotNativeInputs(Path projectRoot) {
+        this(projectRoot, "target");
+    }
+
+    SpringBootAotNativeInputs(Path projectRoot, String outputRoot) {
         this.projectRoot = projectRoot.toAbsolutePath().normalize();
+        this.outputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
     }
 
     List<Path> classpathEntries() {
@@ -23,11 +29,11 @@ final class SpringBootAotNativeInputs {
     }
 
     private Path classesDirectory() {
-        return projectRoot.resolve("target/spring-aot/main/classes").normalize();
+        return projectRoot.resolve(outputRoot).resolve("spring-aot/main/classes").normalize();
     }
 
     private Path resourcesDirectory() {
-        return projectRoot.resolve("target/spring-aot/main/resources").normalize();
+        return projectRoot.resolve(outputRoot).resolve("spring-aot/main/resources").normalize();
     }
 
     private static void requireDirectory(Path path, String label) {
@@ -37,7 +43,7 @@ final class SpringBootAotNativeInputs {
                             + label
                             + " at "
                             + path
-                            + ". [framework.springBoot.native] enabled = true requires Spring AOT outputs under target/spring-aot before invoking Native Image.");
+                            + ". [framework.springBoot.native] enabled = true requires Spring AOT outputs under the configured build output root before invoking Native Image.");
         }
     }
 

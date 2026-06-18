@@ -3,6 +3,8 @@ package com.zolt.build;
 import com.zolt.classpath.Classpath;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,7 +24,7 @@ final class SpringBootAotGenerationService {
             return;
         }
         Path root = projectDirectory.toAbsolutePath().normalize();
-        Path outputRoot = root.resolve("target/spring-aot/main").normalize();
+        Path outputRoot = outputRoot(root, config);
         Path sourcesRoot = outputRoot.resolve("sources");
         Path resourcesRoot = outputRoot.resolve("resources");
         Path classesRoot = outputRoot.resolve("classes");
@@ -43,6 +45,17 @@ final class SpringBootAotGenerationService {
                 List.of(source),
                 new Classpath(List.of()),
                 classesRoot);
+    }
+
+    private static Path outputRoot(Path root, ProjectConfig config) {
+        try {
+            return ProjectPaths.output(
+                    root,
+                    "Spring Boot AOT output",
+                    config.build().outputRoot() + "/spring-aot/main");
+        } catch (ProjectPathException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
     }
 
     private static String sourceContent(ProjectConfig config) {

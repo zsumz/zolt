@@ -121,17 +121,17 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 cacheRoot,
                 Path.of("native-image"));
 
-        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
-        Path aotClasses = projectDir.resolve("target/spring-aot/main/classes");
-        Path aotResources = projectDir.resolve("target/spring-aot/main/resources");
+        Path jarPath = projectDir.resolve(".zolt/build/demo-0.1.0.jar");
+        Path aotClasses = projectDir.resolve(".zolt/build/spring-aot/main/classes");
+        Path aotResources = projectDir.resolve(".zolt/build/spring-aot/main/resources");
         Path dependencyJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
-        assertEquals(projectDir.resolve("target/native-custom/demo-native"), result.nativeImageResult().outputBinary());
+        assertEquals(projectDir.resolve(".zolt/build/native/demo-native"), result.nativeImageResult().outputBinary());
         assertTrue(Files.exists(projectDir.resolve(
-                "target/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
+                ".zolt/build/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
         assertTrue(Files.exists(projectDir.resolve(
-                "target/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
+                ".zolt/build/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
         assertTrue(Files.exists(projectDir.resolve(
-                "target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
+                ".zolt/build/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
         assertEquals(List.of(
                 "native-image",
                 "--no-fallback",
@@ -139,7 +139,7 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 jarPath + ":" + aotClasses + ":" + aotResources + ":" + dependencyJar,
                 "com.example.Main",
                 "-o",
-                projectDir.resolve("target/native-custom/demo-native").toString()), commands.getFirst());
+                projectDir.resolve(".zolt/build/native/demo-native").toString()), commands.getFirst());
     }
 
     @Test
@@ -327,12 +327,14 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 java = "21"
                 main = "com.example.Main"
 
+                [build]
+                outputRoot = ".zolt/build"
+
                 [framework.springBoot.native]
                 enabled = true
 
                 [native]
                 imageName = "demo-native"
-                output = "target/native-custom"
                 args = ["--no-fallback"]
                 """);
     }

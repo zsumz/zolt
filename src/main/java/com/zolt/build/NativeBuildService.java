@@ -58,7 +58,7 @@ public final class NativeBuildService {
                 config.withPackageSettings(PackageSettings.defaults()),
                 cacheRoot);
         List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
-                ? new SpringBootAotNativeInputs(projectRoot).classpathEntries()
+                ? new SpringBootAotNativeInputs(projectRoot, config.build().outputRoot()).classpathEntries()
                 : List.of();
 
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
