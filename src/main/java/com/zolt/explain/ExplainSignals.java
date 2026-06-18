@@ -43,7 +43,7 @@ public final class ExplainSignals {
             "maven.framework-native.unsupported",
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
-            "Use Zolt's JVM framework path for the public beta; framework AOT/native modes need dedicated Zolt support.");
+            "Do not execute Maven framework-native plugins; migrate supported cases to typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`.");
 
     public static final ExplainSignalDefinition GRADLE_BUILD_SRC_DETECTED = new ExplainSignalDefinition(
             "gradle.build-src.detected",
@@ -149,7 +149,7 @@ public final class ExplainSignals {
             "gradle.framework-native.unsupported",
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
-            "Use Zolt's JVM framework path for the public beta; framework AOT/native/dev modes need dedicated Zolt support.");
+            "Do not execute Gradle framework-native or dev-mode tasks; migrate supported cases to typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`.");
 
     private static final List<ExplainSignalDefinition> DEFINITIONS = List.of(
             MAVEN_MODULE_MISSING_POM,

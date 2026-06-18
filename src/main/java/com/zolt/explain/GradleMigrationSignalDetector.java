@@ -55,14 +55,14 @@ final class GradleMigrationSignalDetector {
             if (id.equals("org.graalvm.buildtools.native") || id.equals("io.micronaut.aot")) {
                 signals.add(ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
                         project,
-                        "Gradle plugin `" + plugin.id() + "` declares native/AOT behavior that Zolt does not execute in the public beta."));
+                        "Gradle plugin `" + plugin.id() + "` declares native/AOT behavior that Zolt does not execute as Gradle task behavior; migrate supported cases to typed Zolt framework settings."));
             }
         }
         if (containsAny(content, "bootBuildImage", "processAot", "processTestAot", "nativeCompile", "nativeTest", "quarkusDev")
                 || content.contains("quarkus.native.enabled")) {
             signals.add(ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
                     project,
-                    "Gradle build declares framework AOT, native, or dev-mode tasks that Zolt does not execute in the public beta."));
+                    "Gradle build declares framework AOT, native, or dev-mode tasks that Zolt does not execute as Gradle task behavior; migrate supported cases to typed Zolt framework settings."));
         }
         return signals;
     }

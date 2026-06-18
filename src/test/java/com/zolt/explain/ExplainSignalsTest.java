@@ -1,6 +1,7 @@
 package com.zolt.explain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
@@ -39,6 +40,19 @@ final class ExplainSignalsTest {
     }
 
     @Test
+    void frameworkNativeSignalsPointToTypedZoltSettings() {
+        ExplainSignalDefinition maven = definition("maven.framework-native.unsupported");
+        ExplainSignalDefinition gradle = definition("gradle.framework-native.unsupported");
+
+        assertTrue(maven.nextStep().contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(gradle.nextStep().contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(maven.nextStep().contains("typed Zolt framework settings"));
+        assertTrue(gradle.nextStep().contains("typed Zolt framework settings"));
+        assertFalse(maven.nextStep().contains("need dedicated Zolt support"));
+        assertFalse(gradle.nextStep().contains("need dedicated Zolt support"));
+    }
+
+    @Test
     void sortsSignalsByActionabilityThenCategoryProjectIdAndMessage() {
         List<ExplainSignal> sorted = ExplainSignals.sorted(List.of(
                 signal(ExplainSignal.Severity.WARN, ExplainSignal.Category.BUILDABILITY, "b", "warn.b", "b"),
@@ -62,13 +76,17 @@ final class ExplainSignalsTest {
             String id,
             ExplainSignal.Severity severity,
             ExplainSignal.Category category) {
-        ExplainSignalDefinition definition = ExplainSignals.definitions().stream()
-                .filter(candidate -> candidate.id().equals(id))
-                .findFirst()
-                .orElseThrow();
+        ExplainSignalDefinition definition = definition(id);
 
         assertEquals(severity, definition.severity());
         assertEquals(category, definition.category());
+    }
+
+    private static ExplainSignalDefinition definition(String id) {
+        return ExplainSignals.definitions().stream()
+                .filter(candidate -> candidate.id().equals(id))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static ExplainSignal signal(
