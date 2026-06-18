@@ -4,6 +4,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
+import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.ProjectConfig;
@@ -151,8 +152,20 @@ final class DependencyRequestPlanner {
                 scope,
                 RequestOrigin.DIRECT,
                 metadata.exclusions().stream()
-                        .map(exclusion -> new DependencyExclusion(exclusion.group(), exclusion.artifact()))
+                        .map(DependencyRequestPlanner::directExclusion)
                         .toList());
+    }
+
+    private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion) {
+        if ("*".equals(exclusion.group()) || "*".equals(exclusion.artifact())) {
+            throw new ResolveException(
+                    "Wildcard dependency exclusions are not supported in zolt.toml: "
+                            + exclusion.group()
+                            + ":"
+                            + exclusion.artifact()
+                            + ". Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
+        }
+        return new DependencyExclusion(exclusion.group(), exclusion.artifact());
     }
 
     private static void validateDirectRequestsAllowed(
