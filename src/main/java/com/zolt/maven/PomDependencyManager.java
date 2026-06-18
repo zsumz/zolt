@@ -39,7 +39,6 @@ public final class PomDependencyManager {
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {
         return pom.rawPom().dependencies().stream()
-                .filter(dependency -> dependency.classifier().isEmpty())
                 .map(dependency -> applyManagedVersion(dependency, pom))
                 .toList();
     }

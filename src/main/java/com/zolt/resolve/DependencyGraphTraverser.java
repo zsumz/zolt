@@ -2,6 +2,7 @@ package com.zolt.resolve;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
+import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.PomDependencyManager;
@@ -145,7 +146,8 @@ public final class DependencyGraphTraverser {
                             packageId,
                             requestedVersion,
                             requestScope.orElseThrow(),
-                            RequestOrigin.TRANSITIVE);
+                            RequestOrigin.TRANSITIVE,
+                            artifactDescriptor(packageId, requestedVersion, dependency.rawDependency()));
                     queue.add(DependencyTraversalItem.transitive(node, transitiveRequest, dependency.exclusions(), decision));
                 }
             }
@@ -181,6 +183,18 @@ public final class DependencyGraphTraverser {
 
     private static Coordinate coordinate(RawPomDependency dependency) {
         return new Coordinate(dependency.groupId(), dependency.artifactId(), dependency.version());
+    }
+
+    private static Optional<ArtifactDescriptor> artifactDescriptor(
+            PackageId packageId,
+            String version,
+            RawPomDependency dependency) {
+        String extension = dependency.type().orElse("jar");
+        if (dependency.classifier().isEmpty() && "jar".equals(extension)) {
+            return Optional.empty();
+        }
+        Coordinate coordinate = new Coordinate(packageId.groupId(), packageId.artifactId(), Optional.of(version));
+        return Optional.of(new ArtifactDescriptor(coordinate, dependency.classifier(), extension));
     }
 
     private static Coordinate coordinate(DependencyRequest request) {

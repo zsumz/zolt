@@ -245,6 +245,35 @@ final class PackagePlanDependencyClassifier {
     }
 
     private static String coordinate(LockPackage lockPackage) {
-        return lockPackage.packageId() + ":" + lockPackage.version();
+        return classifier(lockPackage)
+                .map(classifier -> lockPackage.packageId().groupId()
+                        + ":"
+                        + lockPackage.packageId().artifactId()
+                        + ":"
+                        + classifier
+                        + ":jar:"
+                        + lockPackage.version())
+                .orElseGet(() -> lockPackage.packageId() + ":" + lockPackage.version());
+    }
+
+    private static Optional<String> classifier(LockPackage lockPackage) {
+        return lockPackage.jar()
+                .map(Path::of)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                .flatMap(fileName -> classifierFromJarName(
+                        lockPackage.packageId().artifactId(),
+                        lockPackage.version(),
+                        fileName));
+    }
+
+    private static Optional<String> classifierFromJarName(String artifactId, String version, String fileName) {
+        String prefix = artifactId + "-" + version + "-";
+        String suffix = ".jar";
+        if (!fileName.startsWith(prefix) || !fileName.endsWith(suffix)) {
+            return Optional.empty();
+        }
+        String classifier = fileName.substring(prefix.length(), fileName.length() - suffix.length());
+        return classifier.isBlank() ? Optional.empty() : Optional.of(classifier);
     }
 }

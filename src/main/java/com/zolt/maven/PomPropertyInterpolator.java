@@ -19,6 +19,14 @@ public final class PomPropertyInterpolator {
         if (!containsPropertyExpression(dependency)) {
             return dependency;
         }
+        if (dependency.classifier().map(PomPropertyInterpolator::containsPropertyExpression).orElse(false)) {
+            throw new PomInterpolationException(
+                    "Dynamic classifier selection `"
+                            + dependency.classifier().orElseThrow()
+                            + "` is not supported in the public beta while processing "
+                            + context(pom)
+                            + ". Declare a fixed OS/architecture classifier artifact, or keep this dependency outside the Zolt beta scope.");
+        }
         Map<String, String> properties = properties(pom);
         String context = context(pom);
         return new RawPomDependency(
