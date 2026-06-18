@@ -118,6 +118,78 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
+    void quarkusSupportLibrariesDoNotBlockPlainNativeBuilds() throws IOException {
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            writeNativeBinary(Path.of(command.getLast()));
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeBuildResult result = service.buildNative(
+                projectDir,
+                new ZoltTomlParser().parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+                        main = "com.example.Main"
+
+                        [provided.dependencies]
+                        "io.quarkus:quarkus-builder" = "3.33.2"
+                        "io.quarkus:quarkus-junit" = "3.33.2"
+                        """),
+                projectDir.resolve("cache"),
+                Path.of("native-image"));
+
+        assertEquals(projectDir.resolve("target/native/demo"), result.nativeImageResult().outputBinary());
+        assertTrue(Files.exists(projectDir.resolve("target/native/demo")));
+        assertEquals(1, commands.size());
+    }
+
+    @Test
+    void explicitQuarkusNativeFailsBeforeInvokingNativeImage() {
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        new ZoltTomlParser().parse("""
+                                [project]
+                                name = "demo"
+                                version = "0.1.0"
+                                group = "com.example"
+                                java = "21"
+                                main = "com.example.Main"
+
+                                [framework.quarkus]
+                                enabled = true
+                                """),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("Quarkus native images are not supported"));
+        assertTrue(exception.getMessage().contains("Quarkus JVM build/test/package path"));
+        assertTrue(exception.getMessage().contains("zolt package --mode quarkus"));
+        assertTrue(commands.isEmpty());
+    }
+
+    @Test
     void seriousNativeImageWarningsAreActionable() throws IOException {
         writeRuntimeLockfile();
         source("src/main/java/com/example/Main.java", """

@@ -148,26 +148,7 @@ public final class NativeBuildService {
     }
 
     private static boolean quarkusProject(ProjectConfig config) {
-        if (config.packageSettings().mode() == PackageMode.QUARKUS || config.frameworkSettings().quarkus().enabled()) {
-            return true;
-        }
-        return containsQuarkusCoordinate(config.platforms().keySet())
-                || containsQuarkusCoordinate(config.apiDependencies().keySet())
-                || containsQuarkusCoordinate(config.managedApiDependencies())
-                || containsQuarkusCoordinate(config.dependencies().keySet())
-                || containsQuarkusCoordinate(config.managedDependencies())
-                || containsQuarkusCoordinate(config.runtimeDependencies().keySet())
-                || containsQuarkusCoordinate(config.managedRuntimeDependencies())
-                || containsQuarkusCoordinate(config.providedDependencies().keySet())
-                || containsQuarkusCoordinate(config.managedProvidedDependencies())
-                || containsQuarkusCoordinate(config.devDependencies().keySet())
-                || containsQuarkusCoordinate(config.managedDevDependencies())
-                || containsQuarkusCoordinate(config.testDependencies().keySet())
-                || containsQuarkusCoordinate(config.managedTestDependencies())
-                || containsQuarkusCoordinate(config.annotationProcessors().keySet())
-                || containsQuarkusCoordinate(config.managedAnnotationProcessors())
-                || containsQuarkusCoordinate(config.testAnnotationProcessors().keySet())
-                || containsQuarkusCoordinate(config.managedTestAnnotationProcessors());
+        return config.packageSettings().mode() == PackageMode.QUARKUS || config.frameworkSettings().quarkus().enabled();
     }
 
     private static boolean containsSpringBootCoordinate(Iterable<String> coordinates) {
