@@ -44,6 +44,19 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void adoptionReadinessDoesNotCallImplementedGuardrailsBlockers() throws IOException {
+        String readiness = Files.readString(Path.of("docs/adoption-readiness.md"));
+
+        assertTrue(readiness.contains("Core adoption guardrails:"));
+        assertTrue(readiness.contains(""));
+        assertTrue(readiness.contains(""));
+        assertTrue(readiness.contains(""));
+        assertFalse(
+                readiness.contains("Top adoption blockers:"),
+                "Implemented cache, stale-lock, and smoke guardrails should not be labeled as active blockers");
+    }
+
+    @Test
     void testingStrategyKeepsKotlinPostMvp() throws IOException {
         String testingStrategy = Files.readString(Path.of("docs/testing-strategy.md"));
 
