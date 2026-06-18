@@ -35,7 +35,7 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
         NativeBuildResult result = service.buildNative(
                 projectDir,
                 config(Optional.of("com.example.Main"))
-                        .withPackageSettings(new com.zolt.project.PackageSettings(com.zolt.project.PackageMode.SPRING_BOOT)),
+                        .withPackageSettings(new com.zolt.project.PackageSettings(com.zolt.project.PackageMode.UBER)),
                 cacheRoot,
                 Path.of("custom-native-image"));
 
@@ -59,6 +59,29 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 "com.example.Main",
                 "-o",
                 outputBinary.toString()), commands.getFirst());
+    }
+
+    @Test
+    void springBootNativeFailsBeforeInvokingNativeImage() {
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        config(Optional.of("com.example.Main"))
+                                .withPackageSettings(new com.zolt.project.PackageSettings(com.zolt.project.PackageMode.SPRING_BOOT)),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("Spring Boot native images are not supported"));
+        assertTrue(exception.getMessage().contains("Spring Boot JVM build, test, run, and executable packaging"));
+        assertTrue(exception.getMessage().contains("zolt package --mode spring-boot"));
+        assertTrue(commands.isEmpty());
     }
 
     @Test

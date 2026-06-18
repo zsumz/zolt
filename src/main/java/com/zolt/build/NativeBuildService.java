@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.NativeSettings;
+import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
@@ -15,6 +16,7 @@ import java.util.Locale;
 
 public final class NativeBuildService {
     private static final List<String> SERIOUS_WARNING_TERMS = List.of("warning", "unsupported", "error");
+    private static final String SPRING_BOOT_GROUP = "org.springframework.boot";
 
     private final PackageService packageService;
     private final ZoltLockfileReader lockfileReader;
@@ -45,6 +47,7 @@ public final class NativeBuildService {
             ProjectConfig config,
             Path cacheRoot,
             Path nativeImageExecutable) {
+        rejectUnsupportedSpringBootNative(config);
         String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
                 "Native Image main class is missing. Add [project].main to zolt.toml."));
         PackageResult packageResult = packageService.packageJar(
@@ -70,6 +73,52 @@ public final class NativeBuildService {
                 nativeSettings.args()));
         reportSeriousWarnings(nativeImageResult);
         return new NativeBuildResult(packageResult, nativeImageResult);
+    }
+
+    private static void rejectUnsupportedSpringBootNative(ProjectConfig config) {
+        if (!springBootProject(config)) {
+            return;
+        }
+        throw new NativeImageException(
+                "Spring Boot native images are not supported by Zolt yet. "
+                        + "Zolt supports Spring Boot JVM build, test, run, and executable packaging, "
+                        + "but does not run Spring Boot AOT processing or generate Spring native reachability metadata. "
+                        + "Use `zolt package --mode spring-boot` or `zolt run` for the current beta path.");
+    }
+
+    private static boolean springBootProject(ProjectConfig config) {
+        PackageMode packageMode = config.packageSettings().mode();
+        if (packageMode == PackageMode.SPRING_BOOT || packageMode == PackageMode.SPRING_BOOT_WAR) {
+            return true;
+        }
+        if (containsSpringBootCoordinate(config.platforms().keySet())) {
+            return true;
+        }
+        return containsSpringBootCoordinate(config.apiDependencies().keySet())
+                || containsSpringBootCoordinate(config.managedApiDependencies())
+                || containsSpringBootCoordinate(config.dependencies().keySet())
+                || containsSpringBootCoordinate(config.managedDependencies())
+                || containsSpringBootCoordinate(config.runtimeDependencies().keySet())
+                || containsSpringBootCoordinate(config.managedRuntimeDependencies())
+                || containsSpringBootCoordinate(config.providedDependencies().keySet())
+                || containsSpringBootCoordinate(config.managedProvidedDependencies())
+                || containsSpringBootCoordinate(config.devDependencies().keySet())
+                || containsSpringBootCoordinate(config.managedDevDependencies())
+                || containsSpringBootCoordinate(config.testDependencies().keySet())
+                || containsSpringBootCoordinate(config.managedTestDependencies())
+                || containsSpringBootCoordinate(config.annotationProcessors().keySet())
+                || containsSpringBootCoordinate(config.managedAnnotationProcessors())
+                || containsSpringBootCoordinate(config.testAnnotationProcessors().keySet())
+                || containsSpringBootCoordinate(config.managedTestAnnotationProcessors());
+    }
+
+    private static boolean containsSpringBootCoordinate(Iterable<String> coordinates) {
+        for (String coordinate : coordinates) {
+            if (coordinate != null && coordinate.startsWith(SPRING_BOOT_GROUP + ":")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void reportSeriousWarnings(NativeImageResult result) {

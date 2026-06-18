@@ -31,6 +31,23 @@ final class NativeCommandTest {
     }
 
     @Test
+    void nativeReportsSpringBootNativeAsUnsupported() throws IOException {
+        Path projectDir = tempDir.resolve("spring-boot-demo");
+        writeSpringBootProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "native",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Spring Boot native images are not supported"));
+        assertTrue(result.stderr().contains("Spring Boot JVM build, test, run, and executable packaging"));
+        assertTrue(result.stderr().contains("zolt package --mode spring-boot"));
+    }
+
+
+    @Test
     void nativeSmokeKeepsReleaseArchiveOutputProjectRelativeFromCli() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
@@ -86,6 +103,35 @@ final class NativeCommandTest {
                 test = "%s"
 
                 [dependencies]
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """.formatted(currentJavaMajorVersion(), repositoryUrl));
+    }
+
+    private static void writeSpringBootProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.Main"
+
+                [repositories]
+                test = "%s"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = "4.0.6"
+
+                [dependencies]
+                "org.springframework.boot:spring-boot-starter-webmvc" = {}
 
                 [test.dependencies]
 
