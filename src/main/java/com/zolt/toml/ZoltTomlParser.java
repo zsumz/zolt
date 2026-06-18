@@ -37,6 +37,7 @@ public final class ZoltTomlParser {
             "dev",
             "annotationProcessors",
             "test",
+            "integrationTest",
             "build",
             "resources",
             "generated",
@@ -93,6 +94,7 @@ public final class ZoltTomlParser {
         BuildSettings build = BuildSectionCodec.parseBuild(optionalTable(result, "build"));
         build = BuildSectionCodec.parseTestSources(testTable, build);
         build = BuildSectionCodec.parseTestRuntime(testTable, build);
+        build = BuildSectionCodec.parseIntegrationTest(optionalTable(result, "integrationTest"), build);
         build = BuildSectionCodec.parseResourceRoots(optionalTable(result, "resources"), build);
         build = GeneratedSectionCodec.parse(optionalTable(result, "generated"), build, versionAliases);
         CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"));

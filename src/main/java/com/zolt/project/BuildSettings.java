@@ -9,6 +9,9 @@ public record BuildSettings(
         String testOutput,
         List<String> testSources,
         List<String> groovyTestSources,
+        String integrationTestOutput,
+        List<String> integrationTestSources,
+        List<String> integrationTestResourceRoots,
         List<String> resourceRoots,
         List<String> testResourceRoots,
         ResourceFilteringSettings resourceFiltering,
@@ -19,6 +22,11 @@ public record BuildSettings(
     public BuildSettings {
         testSources = testSources == null ? List.of(test) : List.copyOf(testSources);
         groovyTestSources = groovyTestSources == null ? List.of() : List.copyOf(groovyTestSources);
+        integrationTestOutput = integrationTestOutput == null ? "target/integration-test-classes" : integrationTestOutput;
+        integrationTestSources = integrationTestSources == null ? List.of("src/integration-test/java") : List.copyOf(integrationTestSources);
+        integrationTestResourceRoots = integrationTestResourceRoots == null
+                ? List.of("src/integration-test/resources")
+                : List.copyOf(integrationTestResourceRoots);
         resourceRoots = resourceRoots == null ? List.of("src/main/resources") : List.copyOf(resourceRoots);
         testResourceRoots = testResourceRoots == null ? List.of("src/test/resources") : List.copyOf(testResourceRoots);
         resourceFiltering = resourceFiltering == null ? ResourceFilteringSettings.defaults() : resourceFiltering;
@@ -45,6 +53,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                null,
+                null,
+                null,
                 resourceRoots,
                 testResourceRoots,
                 ResourceFilteringSettings.defaults(),
@@ -72,6 +83,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                null,
+                null,
+                null,
                 resourceRoots,
                 testResourceRoots,
                 resourceFiltering,
@@ -97,6 +111,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 List.of(),
+                null,
+                null,
+                null,
                 resourceRoots,
                 testResourceRoots,
                 ResourceFilteringSettings.defaults(),
@@ -120,6 +137,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                null,
+                null,
+                null,
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 ResourceFilteringSettings.defaults(),
@@ -143,6 +163,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 List.of(),
+                null,
+                null,
+                null,
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 ResourceFilteringSettings.defaults(),
@@ -165,6 +188,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 List.of(),
+                null,
+                null,
+                null,
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 ResourceFilteringSettings.defaults(),
@@ -186,6 +212,9 @@ public record BuildSettings(
                 testOutput,
                 List.of(test),
                 List.of(),
+                null,
+                null,
+                null,
                 List.of("src/main/resources"),
                 List.of("src/test/resources"),
                 ResourceFilteringSettings.defaults(),
@@ -213,6 +242,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                integrationTestOutput,
+                integrationTestSources,
+                integrationTestResourceRoots,
                 resourceRoots,
                 testResourceRoots,
                 resourceFiltering,
@@ -230,6 +262,9 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                integrationTestOutput,
+                integrationTestSources,
+                integrationTestResourceRoots,
                 resourceRoots,
                 testResourceRoots,
                 resourceFiltering,
@@ -247,8 +282,54 @@ public record BuildSettings(
                 testOutput,
                 testSources,
                 groovyTestSources,
+                integrationTestOutput,
+                integrationTestSources,
+                integrationTestResourceRoots,
                 resourceRoots,
                 testResourceRoots,
+                resourceFiltering,
+                testRuntime,
+                metadata,
+                generatedMainSources,
+                generatedTestSources);
+    }
+
+    public BuildSettings withIntegrationTestSettings(
+            String integrationTestOutput,
+            List<String> integrationTestSources,
+            List<String> integrationTestResourceRoots) {
+        return new BuildSettings(
+                source,
+                test,
+                output,
+                testOutput,
+                testSources,
+                groovyTestSources,
+                integrationTestOutput,
+                integrationTestSources,
+                integrationTestResourceRoots,
+                resourceRoots,
+                testResourceRoots,
+                resourceFiltering,
+                testRuntime,
+                metadata,
+                generatedMainSources,
+                generatedTestSources);
+    }
+
+    public BuildSettings asIntegrationTestBuild() {
+        return new BuildSettings(
+                source,
+                integrationTestSources.isEmpty() ? "src/integration-test/java" : integrationTestSources.getFirst(),
+                output,
+                integrationTestOutput,
+                integrationTestSources,
+                List.of(),
+                integrationTestOutput,
+                integrationTestSources,
+                integrationTestResourceRoots,
+                resourceRoots,
+                integrationTestResourceRoots,
                 resourceFiltering,
                 testRuntime,
                 metadata,

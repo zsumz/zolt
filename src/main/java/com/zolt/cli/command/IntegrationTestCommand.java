@@ -1,0 +1,262 @@
+package com.zolt.cli.command;
+
+import com.zolt.build.BuildException;
+import com.zolt.build.BuildResultWithClasspaths;
+import com.zolt.build.GroovyCompileException;
+import com.zolt.build.JavaRunException;
+import com.zolt.build.JavacException;
+import com.zolt.build.ResourceCopyException;
+import com.zolt.build.SourceDiscoveryException;
+import com.zolt.build.TestCompileResult;
+import com.zolt.build.TestCompileResultWithClasspaths;
+import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestReportSettings;
+import com.zolt.build.TestRunException;
+import com.zolt.build.TestRunResult;
+import com.zolt.build.TestRunService;
+import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.ZoltCli;
+import com.zolt.lockfile.LockfileReadException;
+import com.zolt.perf.TimingRecorder;
+import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.ResolveException;
+import com.zolt.test.TestSelection;
+import com.zolt.test.TestSelectionException;
+import com.zolt.toml.ZoltConfigException;
+import com.zolt.toml.ZoltTomlParser;
+import com.zolt.workspace.WorkspaceBuildPlan;
+import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspaceTestResult;
+import com.zolt.workspace.WorkspaceTestService;
+import java.nio.file.Path;
+import java.util.List;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+
+@Command(
+        name = "integration-test",
+        mixinStandardHelpOptions = true,
+        description = "Compile and run integration tests from configured integration-test roots.")
+public final class IntegrationTestCommand implements Runnable {
+    private final ZoltTomlParser tomlParser;
+    private final TestRunService testRunService;
+    private final WorkspaceTestService workspaceTestService;
+    private final CommandLockfiles lockfiles;
+
+    @Option(names = "--workspace", description = "Run integration tests for workspace members in dependency order.")
+    private boolean workspace;
+
+    @Option(names = "--all", description = "Select every workspace member.")
+    private boolean all;
+
+    @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+    private List<String> members = List.of();
+
+    @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+    private List<String> memberGroups = List.of();
+
+    @Option(names = "--test", description = "Select one test class or method. May be repeated.")
+    private List<String> testSelectors = List.of();
+
+    @Option(names = "--tests", description = "Select test classes by glob-style class-name pattern. May be repeated.")
+    private List<String> testPatterns = List.of();
+
+    @Option(names = "--include-tag", description = "Include tests with a JUnit Platform tag. May be repeated.")
+    private List<String> includedTags = List.of();
+
+    @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
+    private List<String> excludedTags = List.of();
+
+    @Option(names = "--jvm-arg", description = "Pass one JVM argument to the test runner process. May be repeated.")
+    private List<String> jvmArgs = List.of();
+
+    @Option(names = "--test-event", description = "Show JUnit test events: passed, skipped, or failed. May be repeated.")
+    private List<String> testEvents = List.of();
+
+    @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
+    private Path reportsDir = Path.of("target/integration-test-reports");
+
+    @Option(names = "--cwd", hidden = true)
+    private Path workingDirectory = Path.of(".");
+
+    @Option(names = "--cache-root", hidden = true)
+    private Path cacheRoot = LocalArtifactCache.defaultRoot();
+
+    @Mixin
+    private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
+
+    @Spec
+    private CommandSpec spec;
+
+    public IntegrationTestCommand() {
+        this(
+                new ZoltTomlParser(),
+                CommandFrameworkServices.testRunService(),
+                CommandFrameworkServices.workspaceTestService(),
+                new CommandLockfiles());
+    }
+
+    IntegrationTestCommand(
+            ZoltTomlParser tomlParser,
+            TestRunService testRunService,
+            WorkspaceTestService workspaceTestService,
+            CommandLockfiles lockfiles) {
+        this.tomlParser = tomlParser;
+        this.testRunService = testRunService;
+        this.workspaceTestService = workspaceTestService;
+        this.lockfiles = lockfiles;
+    }
+
+    @Override
+    public void run() {
+        TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        try {
+            TestSelection testSelection = TestSelection.fromCli(
+                    testSelectors,
+                    testPatterns,
+                    includedTags,
+                    excludedTags);
+            TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
+            List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
+            TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
+            if (workspace) {
+                runWorkspaceIntegrationTests(timings, testSelection, testJvmArguments, reportSettings, requestedTestEvents);
+                return;
+            }
+            runSingleProjectIntegrationTests(timings, testSelection, testJvmArguments, reportSettings, requestedTestEvents);
+        } catch (BuildException
+                | JavacException
+                | GroovyCompileException
+                | JavaRunException
+                | ResourceCopyException
+                | TestRunException
+                | TestSelectionException
+                | SourceDiscoveryException
+                | LockfileReadException
+                | ResolveException
+                | WorkspaceConfigException
+                | ZoltConfigException exception) {
+            throw CommandFailures.user(spec, exception);
+        } finally {
+            CommandTimings.print(spec, "integration-test", workingDirectory, timingOptions, timings);
+        }
+    }
+
+    private void runWorkspaceIntegrationTests(
+            TimingRecorder timings,
+            TestSelection testSelection,
+            TestJvmArguments testJvmArguments,
+            TestReportSettings reportSettings,
+            List<String> requestedTestEvents) {
+        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        WorkspaceTestResult result = timings.measure(
+                "integration-test workspace",
+                () -> {
+                    WorkspaceBuildPlan plan = timings.measure(
+                            "plan workspace integration tests",
+                            () -> workspaceTestService.planTests(
+                                    workingDirectory,
+                                    cacheRoot,
+                                    CommandWorkspaceSelections.from(all, members, memberGroups)),
+                            CommandBuildAttributes::workspaceBuildPlan);
+                    WorkspaceBuildResult buildResult = timings.measure(
+                            "build workspace integration-test inputs",
+                            () -> workspaceTestService.buildTestInputs(plan, cacheRoot),
+                            build -> CommandBuildAttributes.workspaceBuild(build, plan.selection()));
+                    return timings.measure(
+                            "run workspace integration-test members",
+                            () -> workspaceTestService.runIntegrationTests(
+                                    plan,
+                                    buildResult,
+                                    cacheRoot,
+                                    testSelection,
+                                    testJvmArguments,
+                                    reportSettings,
+                                    requestedTestEvents),
+                            CommandTestAttributes::workspaceTest);
+                },
+                CommandTestAttributes::workspaceTest);
+        for (WorkspaceTestResult.MemberTestRunResult member : result.members()) {
+            CommandOutput.printAndFlush(spec, member.result().output());
+            if (!member.result().output().isEmpty() && !member.result().output().endsWith("\n")) {
+                spec.commandLine().getOut().println();
+            }
+            spec.commandLine().getOut().println("Integration tests passed in " + member.member());
+            member.result().reportsDirectory().ifPresent(directory ->
+                    spec.commandLine().getOut().println("Wrote integration test reports for "
+                            + member.member()
+                            + " to "
+                            + directory));
+        }
+        spec.commandLine().getOut().println(
+                "Integration tests passed for "
+                        + result.members().size()
+                        + " workspace members");
+    }
+
+    private void runSingleProjectIntegrationTests(
+            TimingRecorder timings,
+            TestSelection testSelection,
+            TestJvmArguments testJvmArguments,
+            TestReportSettings reportSettings,
+            List<String> requestedTestEvents) {
+        ProjectConfig config = timings.measure(
+                "config read",
+                () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        ProjectConfig integrationConfig = config.withBuildSettings(config.build().asIntegrationTestBuild());
+        TestRunResult result = timings.measure(
+                "run integration tests",
+                () -> {
+                    TestCompileResultWithClasspaths compileResult = timings.measure(
+                            "compile integration tests",
+                            () -> {
+                                BuildResultWithClasspaths buildResult = timings.measure(
+                                        "build integration-test inputs",
+                                        () -> testRunService.buildTestInputs(
+                                                workingDirectory,
+                                                integrationConfig,
+                                                cacheRoot),
+                                        resultWithClasspaths -> CommandBuildAttributes.build(
+                                                resultWithClasspaths.buildResult()));
+                                TestCompileResult testCompileResult = timings.measure(
+                                        "compile integration-test sources",
+                                        () -> testRunService.compileTests(
+                                                workingDirectory,
+                                                integrationConfig,
+                                                buildResult.classpaths(),
+                                                buildResult.buildResult()),
+                                        CommandTestAttributes::testCompile);
+                                return new TestCompileResultWithClasspaths(
+                                        testCompileResult,
+                                        buildResult.classpaths());
+                            },
+                            resultWithClasspaths -> CommandTestAttributes.testCompile(
+                                    resultWithClasspaths.testCompileResult()));
+                    return timings.measure(
+                            "execute integration tests",
+                            () -> testRunService.runCompiledTests(
+                                    workingDirectory,
+                                    integrationConfig,
+                                    compileResult.classpaths(),
+                                    compileResult.testCompileResult(),
+                                    testSelection,
+                                    testJvmArguments,
+                                    reportSettings,
+                                    requestedTestEvents),
+                            CommandTestAttributes::testExecution);
+                },
+                CommandTestAttributes::testRun);
+        CommandOutput.printAndFlush(spec, result.output());
+        if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
+            spec.commandLine().getOut().println();
+        }
+        spec.commandLine().getOut().println("Integration tests passed");
+        result.reportsDirectory().ifPresent(directory ->
+                spec.commandLine().getOut().println("Wrote integration test reports to " + directory));
+    }
+}

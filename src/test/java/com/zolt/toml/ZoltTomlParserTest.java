@@ -145,4 +145,24 @@ final class ZoltTomlParserTest {
                 List.of("src/test/groovy", "src/integration-test/groovy"),
                 config.build().groovyTestSources());
     }
+
+    @Test
+    void parsesIntegrationTestSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [integrationTest]
+                sources = ["src/it/java", "src/shared-it/java"]
+                resources = ["src/it/resources"]
+                output = "target/it-classes"
+                """);
+
+        assertEquals(List.of("src/it/java", "src/shared-it/java"), config.build().integrationTestSources());
+        assertEquals(List.of("src/it/resources"), config.build().integrationTestResourceRoots());
+        assertEquals("target/it-classes", config.build().integrationTestOutput());
+    }
 }

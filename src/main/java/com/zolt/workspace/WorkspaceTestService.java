@@ -158,6 +158,41 @@ public final class WorkspaceTestService {
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }
 
+    public WorkspaceTestResult runIntegrationTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents) {
+        TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
+        TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
+        Workspace workspace = plan.workspace();
+        WorkspaceSelection selection = plan.selection();
+        Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
+        Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(buildResult);
+        List<WorkspaceTestResult.MemberTestRunResult> results = new ArrayList<>();
+        for (String memberPath : selection.selectedMembers()) {
+            WorkspaceMember member = membersByPath.get(memberPath);
+            WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
+            com.zolt.project.ProjectConfig integrationConfig = member.config()
+                    .withBuildSettings(member.config().build().asIntegrationTestBuild());
+            results.add(new WorkspaceTestResult.MemberTestRunResult(
+                    member.path(),
+                    testRunService.runTests(
+                            member.directory(),
+                            integrationConfig,
+                            memberBuild.classpaths(),
+                            memberBuild.result(),
+                            testSelection,
+                            testJvmArguments,
+                            testReportSettings.forWorkspaceMember(member.path()),
+                            cliEvents)));
+        }
+        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
+    }
+
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
         Map<String, WorkspaceMember> members = new LinkedHashMap<>();
         for (WorkspaceMember member : workspace.members()) {

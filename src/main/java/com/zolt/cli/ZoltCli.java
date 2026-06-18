@@ -11,6 +11,7 @@ import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.ExplainCommand;
 import com.zolt.cli.command.IdeCommand;
 import com.zolt.cli.command.InitCommand;
+import com.zolt.cli.command.IntegrationTestCommand;
 import com.zolt.cli.command.NativeCommand;
 import com.zolt.cli.command.NativeSmokeCommand;
 import com.zolt.cli.command.PackageCommand;
@@ -66,6 +67,7 @@ import picocli.CommandLine.Spec;
                 BuildCommand.class,
                 RunCommand.class,
                 TestCommand.class,
+                IntegrationTestCommand.class,
                 CoverageCommand.class,
                 PackageCommand.class,
                 PublishCommand.class,

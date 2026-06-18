@@ -264,6 +264,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.IntegrationTestCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.CoverageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

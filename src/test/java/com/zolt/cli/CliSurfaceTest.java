@@ -102,6 +102,7 @@ final class CliSurfaceTest {
                 "build",
                 "run",
                 "test",
+                "integration-test",
                 "coverage",
                 "package",
                 "publish",

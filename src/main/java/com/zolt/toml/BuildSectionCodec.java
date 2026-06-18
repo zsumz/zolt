@@ -17,6 +17,8 @@ import org.tomlj.TomlTable;
 final class BuildSectionCodec {
     private static final Set<String> PROJECT_KEYS = Set.of("name", "version", "group", "java", "main");
     private static final Set<String> BUILD_KEYS = Set.of("source", "test", "output", "testOutput", "metadata");
+    private static final Set<String> INTEGRATION_TEST_KEYS =
+            Set.of("source", "sources", "resources", "output");
     private static final Set<String> TEST_RUNTIME_KEYS =
             Set.of("jvmArgs", "systemProperties", "environment", "events");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
@@ -63,9 +65,16 @@ final class BuildSectionCodec {
                 build.testOutput(),
                 TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
                 TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
+                build.integrationTestOutput(),
+                build.integrationTestSources(),
+                build.integrationTestResourceRoots(),
                 build.resourceRoots(),
                 build.testResourceRoots(),
-                build.metadata());
+                build.resourceFiltering(),
+                build.testRuntime(),
+                build.metadata(),
+                build.generatedMainSources(),
+                build.generatedTestSources());
     }
 
     static BuildSettings parseTestRuntime(TomlTable testTable, BuildSettings build) {
@@ -100,12 +109,44 @@ final class BuildSectionCodec {
                 build.testOutput(),
                 build.testSources(),
                 build.groovyTestSources(),
+                build.integrationTestOutput(),
+                build.integrationTestSources(),
+                build.integrationTestResourceRoots(),
                 TomlScalars.stringListOrDefault(table, "resources", "main", build.resourceRoots()),
                 TomlScalars.stringListOrDefault(table, "resources", "test", build.testResourceRoots()),
                 parseResourceFiltering(
                         optionalTable(table, "filtering"),
                         optionalTable(table, "tokens")),
-                build.metadata());
+                build.testRuntime(),
+                build.metadata(),
+                build.generatedMainSources(),
+                build.generatedTestSources());
+    }
+
+    static BuildSettings parseIntegrationTest(TomlTable table, BuildSettings build) {
+        if (table == null) {
+            return build;
+        }
+        TomlValidation.validateKeysWithVersionRefHint("integrationTest", table, INTEGRATION_TEST_KEYS);
+        List<String> sources = TomlScalars.stringListOrDefault(
+                table,
+                "integrationTest",
+                "sources",
+                List.of(TomlScalars.stringOrDefault(
+                        table,
+                        "integrationTest",
+                        "source",
+                        build.integrationTestSources().isEmpty()
+                                ? "src/integration-test/java"
+                                : build.integrationTestSources().getFirst())));
+        return build.withIntegrationTestSettings(
+                TomlScalars.stringOrDefault(table, "integrationTest", "output", build.integrationTestOutput()),
+                sources,
+                TomlScalars.stringListOrDefault(
+                        table,
+                        "integrationTest",
+                        "resources",
+                        build.integrationTestResourceRoots()));
     }
 
     static void writeBuild(StringBuilder toml, BuildSettings build) {
