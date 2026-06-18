@@ -34,6 +34,31 @@ final class CleanCommandTest {
     }
 
     @Test
+    void cleanDeletesOutputRootWithoutDeletingMavenTargetOrGradleBuild() throws IOException {
+        Path projectDir = tempDir.resolve("migration-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("output = \"target/classes\"", "outputRoot = \".zolt/build\"\noutput = \".zolt/build/classes\"")
+                        .replace("testOutput = \"target/test-classes\"", "testOutput = \".zolt/build/test-classes\""));
+        Files.createDirectories(projectDir.resolve(".zolt/build/classes"));
+        Files.writeString(projectDir.resolve(".zolt/build/classes/Main.class"), "compiled");
+        Files.createDirectories(projectDir.resolve("target/classes"));
+        Files.writeString(projectDir.resolve("target/classes/MavenMain.class"), "maven");
+        Files.createDirectories(projectDir.resolve("build/classes/java/main"));
+        Files.writeString(projectDir.resolve("build/classes/java/main/GradleMain.class"), "gradle");
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve(".zolt/build")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/MavenMain.class")));
+        assertTrue(Files.exists(projectDir.resolve("build/classes/java/main/GradleMain.class")));
+    }
+
+    @Test
     void cleanDeletesQuarkusOutputLayoutWhenEnabled() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

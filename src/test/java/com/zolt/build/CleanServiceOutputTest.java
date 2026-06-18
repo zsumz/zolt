@@ -29,6 +29,28 @@ final class CleanServiceOutputTest extends CleanServiceTestSupport {
     }
 
     @Test
+    void deletesOutputRootWithoutDeletingMavenTargetOrGradleBuild() throws IOException {
+        file(".zolt/build/classes/com/example/Main.class");
+        file(".zolt/build/test-classes/com/example/MainTest.class");
+        file("target/classes/com/example/MavenMain.class");
+        file("build/classes/java/main/com/example/GradleMain.class");
+        BuildSettings settings = new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                ".zolt/build",
+                ".zolt/build/classes",
+                ".zolt/build/test-classes");
+
+        CleanResult result = cleanService.clean(projectDir, settings);
+
+        assertEquals(1, result.deletedCount());
+        assertEquals(projectDir.resolve(".zolt/build"), result.deletedPaths().getFirst());
+        assertFalse(Files.exists(projectDir.resolve(".zolt/build")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/MavenMain.class")));
+        assertTrue(Files.exists(projectDir.resolve("build/classes/java/main/com/example/GradleMain.class")));
+    }
+
+    @Test
     void deletesCustomOutputDirectories() throws IOException {
         file("out/main/Main.class");
         file("out-test/test/MainTest.class");
@@ -80,6 +102,28 @@ final class CleanServiceOutputTest extends CleanServiceTestSupport {
         assertFalse(Files.exists(projectDir.resolve("out-test/test")));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus")));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus-app")));
+    }
+
+    @Test
+    void deletesFrameworkOutputsUnderOutputRoot() throws IOException {
+        file(".zolt/build/classes/com/example/Main.class");
+        file(".zolt/build/quarkus/zolt-augmentation.properties");
+        file(".zolt/build/quarkus-app/quarkus-run.jar");
+        file("target/quarkus/zolt-augmentation.properties");
+        file("target/quarkus-app/quarkus-run.jar");
+        BuildSettings settings = new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                ".zolt/build",
+                ".zolt/build/classes",
+                ".zolt/build/test-classes");
+
+        CleanResult result = cleanService.clean(projectDir, config(settings, true));
+
+        assertEquals(1, result.deletedCount());
+        assertFalse(Files.exists(projectDir.resolve(".zolt/build")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus/zolt-augmentation.properties")));
+        assertTrue(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
     }
 
     @Test
