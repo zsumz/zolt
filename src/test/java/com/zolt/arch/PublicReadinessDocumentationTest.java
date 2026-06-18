@@ -66,4 +66,16 @@ final class PublicReadinessDocumentationTest {
                 testingStrategy.contains("Kotlin JVM source support, and multiple test engines continue to grow"),
                 "Testing strategy must not imply Kotlin is growing as current public-beta support");
     }
+
+    @Test
+    void commandDocsDescribeTypedFrameworkNativeMigration() throws IOException {
+        String commands = Files.readString(Path.of("docs/commands.md"));
+
+        assertTrue(commands.contains("external framework AOT/native/dev-mode tasks"));
+        assertTrue(commands.contains("typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`"));
+        assertTrue(commands.contains("instead of executing Maven or Gradle native tasks"));
+        assertFalse(
+                commands.contains("framework-native modes require dedicated Zolt support before they are accepted"),
+                "Command docs must not contradict the explicit Spring Boot native path");
+    }
 }
