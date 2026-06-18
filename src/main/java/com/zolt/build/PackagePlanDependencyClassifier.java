@@ -213,6 +213,7 @@ final class PackagePlanDependencyClassifier {
             case TEST -> "test dependency is excluded from main package artifacts";
             case PROCESSOR, TEST_PROCESSOR -> "annotation processor dependency is excluded from package artifacts";
             case QUARKUS_DEPLOYMENT -> "Quarkus deployment dependency is build-time tooling, not package runtime";
+            case TOOL_SPRING_AOT -> "Spring Boot AOT dependency is build-time tooling, not package runtime";
             case TOOL_OPENAPI -> "OpenAPI generator dependency is build-time tooling, not package runtime";
             case TOOL_PROTOBUF -> "Protobuf generator dependency is build-time tooling, not package runtime";
             case TOOL_COVERAGE -> "coverage dependency is build-time tooling, not package runtime";
@@ -230,6 +231,7 @@ final class PackagePlanDependencyClassifier {
             case TEST -> "test-omitted";
             case PROCESSOR, TEST_PROCESSOR -> "processor-omitted";
             case QUARKUS_DEPLOYMENT -> "quarkus-deployment-omitted";
+            case TOOL_SPRING_AOT -> "spring-aot-tool-omitted";
             case TOOL_OPENAPI -> "openapi-tool-omitted";
             case TOOL_PROTOBUF -> "protobuf-tool-omitted";
             case TOOL_COVERAGE -> "coverage-tool-omitted";

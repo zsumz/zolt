@@ -69,6 +69,10 @@ abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSup
         return ResolvePackagingTestConfigs.springBootWarPlatformConfig(baseUri);
     }
 
+    ProjectConfig springBootNativePlatformConfig() {
+        return ResolvePackagingTestConfigs.springBootNativePlatformConfig(baseUri);
+    }
+
     ProjectConfig processorConfig() {
         return ResolveGeneratedSourceTestConfigs.processorConfig(baseUri);
     }

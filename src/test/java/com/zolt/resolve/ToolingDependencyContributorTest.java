@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 final class ToolingDependencyContributorTest {
     private static final PackageId JUNIT_CONSOLE = new PackageId("org.junit.platform", "junit-platform-console");
     private static final PackageId SPRING_BOOT_LOADER = new PackageId("org.springframework.boot", "spring-boot-loader");
+    private static final PackageId SPRING_BOOT_AOT_TOOL = new PackageId("org.springframework.boot", "spring-boot");
     private static final PackageId OPENAPI_GENERATOR = new PackageId("org.openapitools", "openapi-generator-cli");
     private static final PackageId PROTOC = new PackageId("com.google.protobuf", "protoc");
     private static final PackageId GRPC_PLUGIN = new PackageId("io.grpc", "protoc-gen-grpc-java");
@@ -71,6 +72,36 @@ final class ToolingDependencyContributorTest {
                         false));
 
         assertTrue(exception.getMessage().contains("Spring Boot package mode requires package tool artifact"));
+        assertTrue(exception.getMessage().contains("Add the Spring Boot platform to [platforms]"));
+    }
+
+    @Test
+    void addsSpringBootAotToolFromManagedPlatformVersion() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(
+                springBootNativeConfig(),
+                Map.of(SPRING_BOOT_AOT_TOOL, "4.0.6"),
+                requests,
+                false);
+
+        DependencyRequest request = onlyRequest(requests, SPRING_BOOT_AOT_TOOL);
+        assertEquals("4.0.6", request.requestedVersion());
+        assertEquals(DependencyScope.TOOL_SPRING_AOT, request.scope());
+        assertEquals(RequestOrigin.TRANSITIVE, request.origin());
+    }
+
+    @Test
+    void springBootAotToolReportsMissingManagedVersionClearly() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> contributor.contribute(
+                        springBootNativeConfig(),
+                        Map.of(),
+                        new ArrayList<>(),
+                        false));
+
+        assertTrue(exception.getMessage().contains("Spring Boot native AOT requires tool artifact"));
         assertTrue(exception.getMessage().contains("Add the Spring Boot platform to [platforms]"));
     }
 
@@ -147,6 +178,19 @@ final class ToolingDependencyContributorTest {
 
                 [test.dependencies]
                 "com.example:app" = "1.0.0"
+                """);
+    }
+
+    private static ProjectConfig springBootNativeConfig() {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "spring-native-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.springBoot.native]
+                enabled = true
                 """);
     }
 

@@ -14,6 +14,9 @@ final class ClasspathLaneAuditFormatterJsonTest {
         String output = formatter.formatJson(lockfile());
 
         assertTrue(output.contains("\"schemaVersion\": 1"));
+        assertTrue(output.contains("\"scope\": \"tool-spring-aot\""));
+        assertTrue(output.contains("\"toolSpringAot\": true"));
+        assertTrue(output.contains("\"disposition\": \"spring-aot-tooling-only\""));
         assertTrue(output.contains("\"scope\": \"tool-openapi\""));
         assertTrue(output.contains("\"toolOpenapi\": true"));
         assertTrue(output.contains("\"disposition\": \"openapi-generator-tooling-only\""));

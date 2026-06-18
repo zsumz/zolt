@@ -28,6 +28,9 @@ public final class ClasspathLanePolicy {
         if (scope == DependencyScope.QUARKUS_DEPLOYMENT) {
             lanes.add("quarkus-deployment");
         }
+        if (scope == DependencyScope.TOOL_SPRING_AOT) {
+            lanes.add("tool-spring-aot");
+        }
         if (scope == DependencyScope.TOOL_OPENAPI) {
             lanes.add("tool-openapi");
         }
@@ -52,6 +55,7 @@ public final class ClasspathLanePolicy {
             case TEST -> "test-only";
             case PROCESSOR, TEST_PROCESSOR -> "processor-only";
             case QUARKUS_DEPLOYMENT -> "quarkus-augmentation-only";
+            case TOOL_SPRING_AOT -> "spring-aot-tooling-only";
             case TOOL_OPENAPI -> "openapi-generator-tooling-only";
             case TOOL_PROTOBUF -> "protobuf-generator-tooling-only";
             case TOOL_COVERAGE -> "coverage-tooling-only";

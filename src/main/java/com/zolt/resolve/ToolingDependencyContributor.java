@@ -20,6 +20,9 @@ final class ToolingDependencyContributor {
     private static final PackageId SPRING_BOOT_LOADER_PACKAGE = new PackageId(
             "org.springframework.boot",
             "spring-boot-loader");
+    private static final PackageId SPRING_BOOT_AOT_TOOL_PACKAGE = new PackageId(
+            "org.springframework.boot",
+            "spring-boot");
     private static final PackageId JUNIT_PLATFORM_CONSOLE_PACKAGE = new PackageId(
             "org.junit.platform",
             "junit-platform-console");
@@ -45,6 +48,7 @@ final class ToolingDependencyContributor {
             boolean includeCoverageTooling) {
         addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
+        addSpringBootAotToolRequests(config, projectManagedVersions, requests);
         addOpenApiToolRequests(config, requests);
         addProtobufToolRequests(config, requests);
         if (includeCoverageTooling) {
@@ -107,6 +111,33 @@ final class ToolingDependencyContributor {
                 parsed.version().orElseThrow(),
                 DependencyScope.TOOL_PROTOBUF,
                 RequestOrigin.DIRECT));
+    }
+
+    private void addSpringBootAotToolRequests(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            List<DependencyRequest> requests) {
+        if (!config.frameworkSettings().springBoot().nativeEnabled()) {
+            return;
+        }
+        boolean alreadyRequested = requests.stream()
+                .anyMatch(request -> request.packageId().equals(SPRING_BOOT_AOT_TOOL_PACKAGE)
+                        && request.scope() == DependencyScope.TOOL_SPRING_AOT);
+        if (alreadyRequested) {
+            return;
+        }
+        String version = projectManagedVersions.get(SPRING_BOOT_AOT_TOOL_PACKAGE);
+        if (version == null || version.isBlank()) {
+            throw new ResolveException(
+                    "Spring Boot native AOT requires tool artifact `org.springframework.boot:spring-boot`, "
+                            + "but no declared [platforms] entry manages its version. Add the Spring Boot platform to [platforms], "
+                            + "then run `zolt resolve`.");
+        }
+        requests.add(new DependencyRequest(
+                SPRING_BOOT_AOT_TOOL_PACKAGE,
+                version,
+                DependencyScope.TOOL_SPRING_AOT,
+                RequestOrigin.TRANSITIVE));
     }
 
     private void addTestToolRequests(

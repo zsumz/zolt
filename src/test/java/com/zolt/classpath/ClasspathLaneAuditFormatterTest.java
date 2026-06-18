@@ -19,6 +19,8 @@ final class ClasspathLaneAuditFormatterTest {
         assertTrue(output.contains("provided-container"));
         assertTrue(output.contains("development-only"));
         assertTrue(output.contains("processor-only"));
+        assertTrue(output.contains("tool-spring-aot"));
+        assertTrue(output.contains("spring-aot-tooling-only"));
         assertTrue(output.contains("tool-openapi"));
         assertTrue(output.contains("openapi-generator-tooling-only"));
         assertTrue(output.contains("tool-protobuf"));

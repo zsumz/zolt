@@ -9,6 +9,7 @@ import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.SpringBootSettings;
 import com.zolt.toml.ZoltTomlParser;
 import java.net.URI;
 import java.util.Map;
@@ -133,5 +134,12 @@ final class ResolvePackagingTestConfigs {
 
     static ProjectConfig springBootWarPlatformConfig(URI baseUri) {
         return platformConfig(baseUri).withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR));
+    }
+
+    static ProjectConfig springBootNativePlatformConfig(URI baseUri) {
+        return platformConfig(baseUri)
+                .withFrameworkSettings(new FrameworkSettings(
+                        new SpringBootSettings(true),
+                        QuarkusSettings.defaults()));
     }
 }

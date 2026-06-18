@@ -9,6 +9,7 @@ public enum DependencyScope {
     PROCESSOR(false, false, false, true, false, false, "processor"),
     TEST_PROCESSOR(false, false, false, false, true, false, "test-processor"),
     QUARKUS_DEPLOYMENT(false, false, false, false, false, false, "quarkus-deployment"),
+    TOOL_SPRING_AOT(false, false, false, false, false, false, "tool-spring-aot"),
     TOOL_OPENAPI(false, false, false, false, false, false, "tool-openapi"),
     TOOL_PROTOBUF(false, false, false, false, false, false, "tool-protobuf"),
     TOOL_COVERAGE(false, false, false, false, false, false, "tool-coverage");
