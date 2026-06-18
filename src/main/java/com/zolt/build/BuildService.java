@@ -8,6 +8,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.generated.GeneratedSourceException;
 import com.zolt.generated.ProtobufGeneratedSourceService;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -149,7 +150,11 @@ public final class BuildService {
         List<ResolvedClasspathPackage> classpathPackages = LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
         ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
         openApiGeneratedSourceService.generateMain(projectDirectory, config, classpathPackages);
-        protobufGeneratedSourceService.generateMain(projectDirectory, config);
+        try {
+            protobufGeneratedSourceService.generateMain(projectDirectory, config);
+        } catch (GeneratedSourceException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
         return new BuildResultWithClasspaths(
                 build(projectDirectory, config, classpaths, resolveResult),
                 classpaths,

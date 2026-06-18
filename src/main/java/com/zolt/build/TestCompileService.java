@@ -6,6 +6,7 @@ import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.generated.GeneratedSourceException;
 import com.zolt.generated.ProtobufGeneratedSourceService;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
@@ -156,9 +157,13 @@ public final class TestCompileService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult,
-            List<ResolvedClasspathPackage> classpathPackages) {
+        List<ResolvedClasspathPackage> classpathPackages) {
         openApiGeneratedSourceService.generateTest(projectDirectory, config, classpathPackages);
-        protobufGeneratedSourceService.generateTest(projectDirectory, config);
+        try {
+            protobufGeneratedSourceService.generateTest(projectDirectory, config);
+        } catch (GeneratedSourceException exception) {
+            throw new BuildException(exception.getMessage(), exception);
+        }
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

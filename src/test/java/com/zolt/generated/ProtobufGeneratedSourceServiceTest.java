@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.BuildException;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
@@ -89,7 +88,9 @@ final class ProtobufGeneratedSourceServiceTest {
                 output = "target/generated/sources/protobuf"
                 """));
 
-        BuildException exception = assertThrows(BuildException.class, () -> service.generateMain(tempDir, config));
+        GeneratedSourceException exception = assertThrows(
+                GeneratedSourceException.class,
+                () -> service.generateMain(tempDir, config));
 
         assertTrue(exception.getMessage().contains("Protobuf input src/main/proto/missing.proto does not exist"));
         assertTrue(exception.getMessage().contains("[generated.main.greeter]"));

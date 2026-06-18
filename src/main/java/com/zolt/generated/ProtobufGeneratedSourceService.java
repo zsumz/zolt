@@ -1,6 +1,5 @@
 package com.zolt.generated;
 
-import com.zolt.build.BuildException;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
@@ -74,7 +73,7 @@ public final class ProtobufGeneratedSourceService {
 
     private static void validateStep(Path root, String scope, GeneratedSourceStep step) {
         if (!"java".equals(step.language())) {
-            throw new BuildException(
+            throw new GeneratedSourceException(
                     "Protobuf generated source step [generated."
                             + scope
                             + "."
@@ -84,7 +83,7 @@ public final class ProtobufGeneratedSourceService {
                             + "`. Zolt currently supports java.");
         }
         if (step.inputs().isEmpty()) {
-            throw new BuildException(
+            throw new GeneratedSourceException(
                     "Protobuf generated source step [generated."
                             + scope
                             + "."
@@ -95,7 +94,7 @@ public final class ProtobufGeneratedSourceService {
         for (String input : step.inputs()) {
             Path path = inputPath(root, scope, step.id(), input);
             if (!Files.isRegularFile(path)) {
-                throw new BuildException(
+                throw new GeneratedSourceException(
                         "Protobuf input "
                                 + input
                                 + " does not exist for [generated."
@@ -113,14 +112,14 @@ public final class ProtobufGeneratedSourceService {
         try {
             content = Files.readString(path);
         } catch (IOException exception) {
-            throw new BuildException("Could not read Protobuf input " + input + ".", exception);
+            throw new GeneratedSourceException("Could not read Protobuf input " + input + ".", exception);
         }
         String protoPackage = first(PACKAGE, content).orElse("");
         String javaPackage = first(JAVA_PACKAGE, content).orElse("");
         List<String> messages = matches(MESSAGE, content);
         List<String> services = matches(SERVICE, content);
         if (messages.isEmpty() && services.isEmpty()) {
-            throw new BuildException(
+            throw new GeneratedSourceException(
                     "Protobuf input "
                             + input
                             + " does not declare any message or service types. "
@@ -220,7 +219,7 @@ public final class ProtobufGeneratedSourceService {
         try {
             return ProjectPaths.output(root, "[generated." + scope + "." + step.id() + "].output", step.output());
         } catch (ProjectPathException exception) {
-            throw new BuildException(exception.getMessage(), exception);
+            throw new GeneratedSourceException(exception.getMessage(), exception);
         }
     }
 
@@ -228,7 +227,7 @@ public final class ProtobufGeneratedSourceService {
         try {
             return ProjectPaths.input(root, "[generated." + scope + "." + id + "].inputs", input);
         } catch (ProjectPathException exception) {
-            throw new BuildException(exception.getMessage(), exception);
+            throw new GeneratedSourceException(exception.getMessage(), exception);
         }
     }
 
@@ -241,7 +240,7 @@ public final class ProtobufGeneratedSourceService {
                 Files.delete(path);
             }
         } catch (IOException exception) {
-            throw new BuildException(
+            throw new GeneratedSourceException(
                     "Could not clean Protobuf output "
                             + output
                             + ". Check filesystem permissions and retry `zolt build`.",
@@ -253,7 +252,7 @@ public final class ProtobufGeneratedSourceService {
         try {
             Files.createDirectories(path);
         } catch (IOException exception) {
-            throw new BuildException("Could not create Protobuf output directory " + path + ".", exception);
+            throw new GeneratedSourceException("Could not create Protobuf output directory " + path + ".", exception);
         }
     }
 
@@ -262,7 +261,7 @@ public final class ProtobufGeneratedSourceService {
             Files.createDirectories(path.getParent());
             Files.writeString(path, content);
         } catch (IOException exception) {
-            throw new BuildException("Could not write Protobuf generated file " + path + ".", exception);
+            throw new GeneratedSourceException("Could not write Protobuf generated file " + path + ".", exception);
         }
     }
 
