@@ -21,7 +21,7 @@ public final class NativeSmokeCommand implements Runnable {
     private Path binary;
 
     @Option(names = "--work-dir", description = "Directory for native smoke work.")
-    private Path workDirectory = Path.of("target/native-smoke");
+    private Path workDirectory;
 
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
@@ -46,7 +46,7 @@ public final class NativeSmokeCommand implements Runnable {
                     workingDirectory,
                     config,
                     binary,
-                    workDirectory);
+                    effectiveWorkDirectory(config));
             spec.commandLine().getOut().println("Native smoke status: ok");
             spec.commandLine().getOut().println("Smoked binary " + result.binary());
             spec.commandLine().getOut().println("Verified release archive " + result.archive());
@@ -54,5 +54,14 @@ public final class NativeSmokeCommand implements Runnable {
         } catch (NativeSmokeException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private Path effectiveWorkDirectory(ProjectConfig config) {
+        if (workDirectory != null) {
+            return workDirectory;
+        }
+        String outputRoot = config.build().outputRoot();
+        String effectiveOutputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return Path.of(effectiveOutputRoot).resolve("native-smoke");
     }
 }

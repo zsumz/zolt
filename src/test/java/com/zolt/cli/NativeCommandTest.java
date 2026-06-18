@@ -79,6 +79,25 @@ final class NativeCommandTest {
         assertTrue(Files.exists(binary));
     }
 
+    @Test
+    void nativeSmokeDefaultsWorkDirectoryFromConfiguredOutputRoot() throws IOException {
+        Path projectDir = tempDir.resolve("demo-output-root");
+        writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("[build]\n", "[build]\n                outputRoot = \".zolt/build\"\n"));
+        writeFakeNativeBinary(projectDir);
+
+        CommandResult result = execute(
+                "native-smoke",
+                "--cwd", projectDir.toString(),
+                "--binary", Path.of("target/native/zolt").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/native-smoke/release/demo-0.1.0-linux-x64.tar.gz")));
+    }
+
     private static void writeProjectConfigWithoutMain(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
