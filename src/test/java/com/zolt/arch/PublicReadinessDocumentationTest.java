@@ -78,4 +78,15 @@ final class PublicReadinessDocumentationTest {
                 commands.contains("framework-native modes require dedicated Zolt support before they are accepted"),
                 "Command docs must not contradict the explicit Spring Boot native path");
     }
+
+    @Test
+    void releasePackagingDoesNotPretendLicenseExists() throws IOException {
+        String releasePackaging = Files.readString(Path.of("docs/release-packaging.md"));
+
+        assertTrue(releasePackaging.contains("LICENSE (only after the repository has a license file)"));
+        assertTrue(releasePackaging.contains("release archives should not pretend to include a license"));
+        assertFalse(
+                releasePackaging.contains("└── LICENSE\n```"),
+                "Archive layout must not show LICENSE as unconditional before a license decision");
+    }
 }
