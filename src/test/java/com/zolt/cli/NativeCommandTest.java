@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -31,7 +32,7 @@ final class NativeCommandTest {
     }
 
     @Test
-    void nativeReportsSpringBootNativeAsUnsupported() throws IOException {
+    void nativeReportsSpringBootNativeRequiresExplicitAotFlag() throws IOException {
         Path projectDir = tempDir.resolve("spring-boot-demo");
         writeSpringBootProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
 
@@ -41,9 +42,11 @@ final class NativeCommandTest {
                 "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("Spring Boot native images are not supported"));
+        assertTrue(result.stderr().contains("Spring Boot native images require `[framework.springBoot.native] enabled = true`"));
         assertTrue(result.stderr().contains("Spring Boot JVM build, test, run, and executable packaging"));
+        assertTrue(result.stderr().contains("explicit Zolt-owned Spring Boot AOT/native canary path"));
         assertTrue(result.stderr().contains("zolt package --mode spring-boot"));
+        assertFalse(result.stderr().contains("not supported by Zolt yet"));
     }
 
     @Test

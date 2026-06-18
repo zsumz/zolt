@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -80,9 +81,11 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                         projectDir.resolve("cache"),
                         Path.of("native-image")));
 
-        assertTrue(exception.getMessage().contains("Spring Boot native images are not supported"));
+        assertTrue(exception.getMessage().contains("Spring Boot native images require `[framework.springBoot.native] enabled = true`"));
         assertTrue(exception.getMessage().contains("Spring Boot JVM build, test, run, and executable packaging"));
+        assertTrue(exception.getMessage().contains("explicit Zolt-owned Spring Boot AOT/native canary path"));
         assertTrue(exception.getMessage().contains("zolt package --mode spring-boot"));
+        assertFalse(exception.getMessage().contains("not supported by Zolt yet"));
         assertTrue(commands.isEmpty());
     }
 
