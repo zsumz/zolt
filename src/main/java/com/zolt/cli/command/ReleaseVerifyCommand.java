@@ -23,7 +23,7 @@ public final class ReleaseVerifyCommand implements Runnable {
     private List<Path> archives;
 
     @Option(names = "--work-dir", description = "Directory for unpacked verification work.")
-    private Path workDirectory = Path.of("target/release-verify");
+    private Path workDirectory;
 
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
@@ -49,7 +49,7 @@ public final class ReleaseVerifyCommand implements Runnable {
                     .toList();
             ReleaseVerificationResult result = releaseVerificationService.verify(
                     resolvedArchives,
-                    workingDirectory.resolve(workDirectory).normalize(),
+                    workingDirectory.resolve(effectiveWorkDirectory(config)).normalize(),
                     config.project().version());
             for (ReleaseVerificationResult.VerifiedArchive archive : result.archives()) {
                 spec.commandLine().getOut().println("Verified release archive " + archive.archivePath());
@@ -60,5 +60,14 @@ public final class ReleaseVerifyCommand implements Runnable {
         } catch (ReleaseVerificationException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private Path effectiveWorkDirectory(ProjectConfig config) {
+        if (workDirectory != null) {
+            return workDirectory;
+        }
+        String outputRoot = config.build().outputRoot();
+        String effectiveOutputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return Path.of(effectiveOutputRoot).resolve("release-verify");
     }
 }

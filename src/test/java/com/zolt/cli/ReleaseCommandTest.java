@@ -72,6 +72,25 @@ final class ReleaseCommandTest {
         assertTrue(result.stderr().contains("Pass a valid release archive path"));
     }
 
+    @Test
+    void releaseVerifyDefaultsWorkDirectoryFromConfiguredOutputRoot() throws IOException {
+        Path projectDir = tempDir.resolve("demo-output-root");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("[build]\n", "[build]\n                outputRoot = \".zolt/build\"\n"));
+
+        CommandResult result = execute(
+                "release-verify",
+                "--cwd", projectDir.toString(),
+                "dist/missing.tar.gz");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(Files.isDirectory(projectDir.resolve(".zolt/build/release-verify")));
+        assertTrue(result.stderr().contains("archive does not exist"));
+    }
+
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
