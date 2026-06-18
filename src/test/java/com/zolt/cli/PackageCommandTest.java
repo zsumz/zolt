@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -121,5 +122,55 @@ final class PackageCommandTest extends PackageCommandTestSupport {
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             assertNotNull(jar.getEntry("com/example/Main.class"));
         }
+    }
+
+    @Test
+    void migrationFixturePackagesUnderOutputRootWithoutTouchingMavenTarget() throws IOException {
+        Path projectDir = tempDir.resolve("migration-fixture");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>0.1.0</version>
+                </project>
+                """);
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("output = \"target/classes\"", "outputRoot = \".zolt/build\"\noutput = \".zolt/build/classes\"")
+                        .replace("testOutput = \"target/test-classes\"", "testOutput = \".zolt/build/test-classes\""));
+        Files.createDirectories(projectDir.resolve("target/classes"));
+        Files.writeString(projectDir.resolve("target/classes/MavenMain.class"), "maven output\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult packageResult = execute(
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        Path jarPath = projectDir.resolve(".zolt/build/demo-0.1.0.jar");
+        assertEquals(0, packageResult.exitCode(), packageResult.stderr());
+        assertTrue(packageResult.stdout().contains("Wrote archive to " + jarPath));
+        assertTrue(Files.exists(jarPath));
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/classes/com/example/Main.class")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/MavenMain.class")));
+        assertTrue(Files.exists(projectDir.resolve("pom.xml")));
+
+        CommandResult cleanResult = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, cleanResult.exitCode(), cleanResult.stderr());
+        assertFalse(Files.exists(projectDir.resolve(".zolt/build")));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/MavenMain.class")));
+        assertTrue(Files.exists(projectDir.resolve("pom.xml")));
     }
 }
