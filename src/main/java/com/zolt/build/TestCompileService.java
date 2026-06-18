@@ -6,6 +6,7 @@ import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.generated.ProtobufGeneratedSourceService;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Path;
@@ -19,6 +20,7 @@ public final class TestCompileService {
     private final BuildFingerprintService buildFingerprintService;
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
+    private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final TestCompileSourceExecutor sourceExecutor;
 
@@ -40,6 +42,7 @@ public final class TestCompileService {
                 new JavacRunner(),
                 new GroovyCompilerRunner(),
                 new OpenApiGeneratedSourceService(jdkDetector),
+                new ProtobufGeneratedSourceService(),
                 new IncrementalCompileStateRecorder(),
                 new IncrementalCompilePlanner());
     }
@@ -62,6 +65,7 @@ public final class TestCompileService {
                 javacRunner,
                 groovyCompilerRunner,
                 openApiGeneratedSourceService,
+                new ProtobufGeneratedSourceService(),
                 new IncrementalCompileStateRecorder(),
                 new IncrementalCompilePlanner());
     }
@@ -75,6 +79,7 @@ public final class TestCompileService {
             JavacRunner javacRunner,
             GroovyCompilerRunner groovyCompilerRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
+            ProtobufGeneratedSourceService protobufGeneratedSourceService,
             IncrementalCompileStateRecorder incrementalCompileStateRecorder,
             IncrementalCompilePlanner incrementalCompilePlanner) {
         this.buildService = buildService;
@@ -83,6 +88,7 @@ public final class TestCompileService {
         this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
+        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
         this.sourceExecutor = new TestCompileSourceExecutor(
                 javacRunner,
@@ -152,6 +158,7 @@ public final class TestCompileService {
             BuildResult buildResult,
             List<ResolvedClasspathPackage> classpathPackages) {
         openApiGeneratedSourceService.generateTest(projectDirectory, config, classpathPackages);
+        protobufGeneratedSourceService.generateTest(projectDirectory, config);
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

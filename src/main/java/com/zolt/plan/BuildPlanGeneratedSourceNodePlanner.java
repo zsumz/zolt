@@ -20,7 +20,9 @@ final class BuildPlanGeneratedSourceNodePlanner {
     private static PlanNode generatedSourceNode(Path root, String id, GeneratedSourceEvidence evidence) {
         GeneratedSourceStep step = evidence.step();
         List<PlanBlocker> blockers = new ArrayList<>();
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
+        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT
+                && step.kind() != GeneratedSourceKind.OPENAPI
+                && step.kind() != GeneratedSourceKind.PROTOBUF) {
             blockers.add(new PlanBlocker(
                     "unsupported-generated-source-kind",
                     "Generated source kind `" + step.kind().configValue() + "` is not supported yet.",
@@ -56,7 +58,9 @@ final class BuildPlanGeneratedSourceNodePlanner {
                                 + "].inputs."));
             }
         }
-        if (step.required() && step.kind() == GeneratedSourceKind.DECLARED_ROOT && !evidence.outputExists()) {
+        if (step.required()
+                && (step.kind() == GeneratedSourceKind.DECLARED_ROOT || step.kind() == GeneratedSourceKind.PROTOBUF)
+                && !evidence.outputExists()) {
             blockers.add(new PlanBlocker(
                     "missing-generated-source-output",
                     "Required generated source output `" + step.output() + "` is missing.",

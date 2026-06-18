@@ -8,6 +8,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
+import com.zolt.generated.ProtobufGeneratedSourceService;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.GeneratedSourceKind;
@@ -29,6 +30,7 @@ public final class BuildService {
     private final BuildFingerprintService buildFingerprintService;
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
+    private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
 
@@ -56,6 +58,7 @@ public final class BuildService {
                 jdkDetector,
                 new JavacRunner(),
                 new OpenApiGeneratedSourceService(jdkDetector),
+                new ProtobufGeneratedSourceService(),
                 new IncrementalCompileStateRecorder(),
                 new IncrementalCompilePlanner());
     }
@@ -82,6 +85,7 @@ public final class BuildService {
                 jdkDetector,
                 javacRunner,
                 openApiGeneratedSourceService,
+                new ProtobufGeneratedSourceService(),
                 new IncrementalCompileStateRecorder(),
                 new IncrementalCompilePlanner());
     }
@@ -97,6 +101,7 @@ public final class BuildService {
             JdkChecker jdkDetector,
             JavacRunner javacRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
+            ProtobufGeneratedSourceService protobufGeneratedSourceService,
             IncrementalCompileStateRecorder incrementalCompileStateRecorder,
             IncrementalCompilePlanner incrementalCompilePlanner) {
         this.resolveService = resolveService;
@@ -108,6 +113,7 @@ public final class BuildService {
         this.buildFingerprintService = buildFingerprintService;
         this.jdkDetector = jdkDetector;
         this.openApiGeneratedSourceService = openApiGeneratedSourceService;
+        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
         this.sourceExecutor = new MainCompileSourceExecutor(
                 javacRunner,
@@ -141,6 +147,7 @@ public final class BuildService {
         List<ResolvedClasspathPackage> classpathPackages = LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
         ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
         openApiGeneratedSourceService.generateMain(projectDirectory, config, classpathPackages);
+        protobufGeneratedSourceService.generateMain(projectDirectory, config);
         return new BuildResultWithClasspaths(
                 build(projectDirectory, config, classpaths, resolveResult),
                 classpaths,

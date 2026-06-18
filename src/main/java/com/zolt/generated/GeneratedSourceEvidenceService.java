@@ -59,10 +59,22 @@ public final class GeneratedSourceEvidenceService {
         if (step.kind() == GeneratedSourceKind.OPENAPI) {
             return "zolt-owned-openapi";
         }
+        if (step.kind() == GeneratedSourceKind.PROTOBUF) {
+            return "zolt-owned-protobuf";
+        }
         return step.clean() ? "zolt-owned-clean" : "external-declared-root";
     }
 
     private static String toolArtifact(GeneratedSourceStep step) {
+        if (step.kind() == GeneratedSourceKind.PROTOBUF) {
+            String protoc = step.protobuf().protocCoordinate()
+                    .flatMap(coordinate -> step.protobuf().protocVersion().map(version -> coordinate + ":" + version))
+                    .orElse("missing");
+            String grpc = step.protobuf().grpcPluginCoordinate()
+                    .flatMap(coordinate -> step.protobuf().grpcPluginVersion().map(version -> coordinate + ":" + version))
+                    .orElse("missing");
+            return "protoc=" + protoc + ";grpc=" + grpc;
+        }
         if (step.kind() != GeneratedSourceKind.OPENAPI) {
             return "";
         }
@@ -74,6 +86,9 @@ public final class GeneratedSourceEvidenceService {
     }
 
     private static String toolFingerprint(GeneratedSourceStep step) {
+        if (step.kind() == GeneratedSourceKind.PROTOBUF) {
+            return sha256("tool\n" + toolArtifact(step) + "\n");
+        }
         if (step.kind() != GeneratedSourceKind.OPENAPI) {
             return "";
         }
@@ -81,6 +96,13 @@ public final class GeneratedSourceEvidenceService {
     }
 
     private static String optionsFingerprint(GeneratedSourceStep step) {
+        if (step.kind() == GeneratedSourceKind.PROTOBUF) {
+            StringBuilder canonical = new StringBuilder();
+            canonical.append("protobuf-options\n");
+            line(canonical, "javaPackage", step.protobuf().javaPackage());
+            canonical.append("grpc=").append(step.protobuf().grpc()).append('\n');
+            return sha256(canonical.toString());
+        }
         if (step.kind() != GeneratedSourceKind.OPENAPI) {
             return "";
         }

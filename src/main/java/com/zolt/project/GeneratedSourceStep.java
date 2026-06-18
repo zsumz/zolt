@@ -10,7 +10,8 @@ public record GeneratedSourceStep(
         List<String> inputs,
         boolean required,
         boolean clean,
-        OpenApiGenerationSettings openApi) {
+        OpenApiGenerationSettings openApi,
+        ProtobufGenerationSettings protobuf) {
     public GeneratedSourceStep(
             String id,
             GeneratedSourceKind kind,
@@ -20,6 +21,18 @@ public record GeneratedSourceStep(
             boolean required,
             boolean clean) {
         this(id, kind, language, output, inputs, required, clean, OpenApiGenerationSettings.empty());
+    }
+
+    public GeneratedSourceStep(
+            String id,
+            GeneratedSourceKind kind,
+            String language,
+            String output,
+            List<String> inputs,
+            boolean required,
+            boolean clean,
+            OpenApiGenerationSettings openApi) {
+        this(id, kind, language, output, inputs, required, clean, openApi, ProtobufGenerationSettings.empty());
     }
 
     public GeneratedSourceStep {
@@ -32,6 +45,7 @@ public record GeneratedSourceStep(
             requireNonBlank(input, "Generated source input");
         }
         openApi = openApi == null ? OpenApiGenerationSettings.empty() : openApi;
+        protobuf = protobuf == null ? ProtobufGenerationSettings.empty() : protobuf;
     }
 
     private static String requireNonBlank(String value, String name) {

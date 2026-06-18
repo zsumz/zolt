@@ -146,7 +146,9 @@ final class GeneratedSourceQualityCheck {
             GeneratedSourceCheckStep checkStep) {
         GeneratedSourceStep step = checkStep.step();
         String subject = generatedSection(checkStep);
-        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT && step.kind() != GeneratedSourceKind.OPENAPI) {
+        if (step.kind() != GeneratedSourceKind.DECLARED_ROOT
+                && step.kind() != GeneratedSourceKind.OPENAPI
+                && step.kind() != GeneratedSourceKind.PROTOBUF) {
             return Optional.of(QualityCheckResult.failed(
                     QualityCheckService.GENERATED_SOURCES,
                     member,
