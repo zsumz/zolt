@@ -2,6 +2,7 @@ package com.zolt.maven;
 
 import static com.zolt.maven.PomDependencyManagerTestSupport.effective;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,7 @@ final class PomDependencyManagerClassifierTest {
     }
 
     @Test
-    void classifierDependenciesAreSkippedBeforeInterpolation() {
+    void classifierDependenciesFailWithActionableDiagnostic() {
         EffectiveRawPom pom = effective(parser, """
                 <project>
                   <groupId>com.example</groupId>
@@ -64,6 +65,12 @@ final class PomDependencyManagerClassifierTest {
                 </project>
                 """);
 
-        assertTrue(manager.applyManagedVersions(pom).isEmpty());
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> manager.applyManagedVersions(pom));
+
+        assertTrue(exception.getMessage().contains("Dynamic classifier selection"));
+        assertTrue(exception.getMessage().contains("${os.detected.classifier}"));
+        assertTrue(exception.getMessage().contains("fixed OS/architecture classifier"));
     }
 }
