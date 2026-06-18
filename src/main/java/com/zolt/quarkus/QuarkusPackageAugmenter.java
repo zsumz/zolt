@@ -28,7 +28,7 @@ public final class QuarkusPackageAugmenter implements FrameworkPackageAugmenter 
                         PackageMode.QUARKUS,
                         result.workerResult().packageDirectory(),
                         result.workerResult().runnerJar(),
-                        "target/quarkus-app/app"));
+                        applicationLayout(config)));
     }
 
     @Override
@@ -48,6 +48,12 @@ public final class QuarkusPackageAugmenter implements FrameworkPackageAugmenter 
     public String inspectPackageDirectoryMessage(PackageMode mode, Path packageDirectory) {
         return "Could not inspect Quarkus package directory at "
                 + packageDirectory
-                + ". Check that target/quarkus-app is readable and retry.";
+                + ". Check that the Quarkus package directory is readable and retry.";
+    }
+
+    private static String applicationLayout(ProjectConfig config) {
+        String outputRoot = config.build().outputRoot();
+        String effectiveOutputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return effectiveOutputRoot + "/quarkus-app/app";
     }
 }
