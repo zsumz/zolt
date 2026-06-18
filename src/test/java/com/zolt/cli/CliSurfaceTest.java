@@ -34,6 +34,7 @@ final class CliSurfaceTest {
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
         assertTrue(result.stdout().contains("init"));
         assertTrue(result.stdout().contains("resolve"));
+        assertTrue(result.stdout().contains("config"));
         assertTrue(result.stdout().contains("check"));
         assertTrue(result.stdout().contains("build"));
         assertTrue(result.stdout().contains("doctor"));
@@ -85,6 +86,7 @@ final class CliSurfaceTest {
                 "init",
                 "version",
                 "update",
+                "config",
                 "check",
                 "add",
                 "remove",
@@ -116,6 +118,7 @@ final class CliSurfaceTest {
                 "clean",
                 "doctor")));
         assertEquals(commandClass("classpath"), "com.zolt.cli.command.ClasspathCommand");
+        assertEquals(commandClass("config"), "com.zolt.cli.command.ConfigCommand");
         assertEquals(commandClass("version"), "com.zolt.cli.command.VersionCommand");
         assertEquals(commandClass("update"), "com.zolt.cli.command.UpdateCommand");
         assertEquals(commandClass("native-smoke"), "com.zolt.cli.command.NativeSmokeCommand");

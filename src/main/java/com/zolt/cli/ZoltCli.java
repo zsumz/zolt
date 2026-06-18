@@ -6,6 +6,7 @@ import com.zolt.cli.command.CheckCommand;
 import com.zolt.cli.command.ClasspathCommand;
 import com.zolt.cli.command.CleanCommand;
 import com.zolt.cli.command.ConflictsCommand;
+import com.zolt.cli.command.ConfigCommand;
 import com.zolt.cli.command.CoverageCommand;
 import com.zolt.cli.command.DoctorCommand;
 import com.zolt.cli.command.ExplainCommand;
@@ -50,6 +51,7 @@ import picocli.CommandLine.Spec;
                 InitCommand.class,
                 VersionCommand.class,
                 UpdateCommand.class,
+                ConfigCommand.class,
                 CheckCommand.class,
                 AddCommand.class,
                 RemoveCommand.class,

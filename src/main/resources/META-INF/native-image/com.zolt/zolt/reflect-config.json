@@ -156,6 +156,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.ConfigCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.command.ConfigCommand$ShowCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.ExplainCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
