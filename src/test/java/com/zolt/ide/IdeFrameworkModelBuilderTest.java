@@ -75,7 +75,34 @@ final class IdeFrameworkModelBuilderTest {
         assertEquals(List.of(), diagnostics);
     }
 
+    @Test
+    void exportsQuarkusFrameworkStateFromConfiguredOutputRoot() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-output-root");
+        ProjectConfig config = quarkusProject(projectDir, ".zolt/build");
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(
+                projectDir.toAbsolutePath().normalize(),
+                tempDir.resolve("cache"),
+                config,
+                diagnostics);
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        IdeModel.QuarkusInfo quarkus = frameworks.quarkus();
+        assertEquals(root.resolve(".zolt/build/quarkus/zolt-augmentation.properties"), quarkus.augmentationMetadata());
+        assertEquals(root.resolve(".zolt/build/quarkus"), quarkus.augmentationDirectory());
+        assertEquals(root.resolve(".zolt/build/quarkus-app"), quarkus.packageDirectory());
+        assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
+        assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus/generated-bytecode.jar"), quarkus.generatedBytecodeJar());
+        assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus/transformed-bytecode.jar"), quarkus.transformedBytecodeJar());
+        assertEquals("QUARKUS_AUGMENTATION_MISSING", diagnostics.getFirst().code());
+    }
+
     private ProjectConfig quarkusProject(Path projectDir) throws IOException {
+        return quarkusProject(projectDir, null);
+    }
+
+    private ProjectConfig quarkusProject(Path projectDir, String outputRoot) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
                 [project]
@@ -87,7 +114,12 @@ final class IdeFrameworkModelBuilderTest {
                 [framework.quarkus]
                 enabled = true
                 package = "fast-jar"
-                """);
+                """
+                + (outputRoot == null ? "" : """
+
+                [build]
+                outputRoot = "%s"
+                """.formatted(outputRoot)));
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
     }

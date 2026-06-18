@@ -50,7 +50,7 @@ final class IdeFrameworkModelBuilder {
                     List.of());
         }
 
-        QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(root);
+        QuarkusOutputLayout outputLayout = QuarkusOutputLayout.forProject(root, config.build().outputRoot());
         if (cacheRoot == null) {
             return quarkusInfoWithoutPlan(root, config, outputLayout, "unknown");
         }
@@ -87,7 +87,7 @@ final class IdeFrameworkModelBuilder {
             ProjectConfig config,
             QuarkusOutputLayout outputLayout,
             String status) {
-        Path metadataPath = root.resolve("target/quarkus/zolt-augmentation.properties").normalize();
+        Path metadataPath = outputLayout.augmentationDirectory().resolve("zolt-augmentation.properties").normalize();
         return new IdeModel.QuarkusInfo(
                 true,
                 config.frameworkSettings().quarkus().packageMode().configValue(),
