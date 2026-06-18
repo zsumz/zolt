@@ -49,6 +49,7 @@ public final class QuarkusPackagePlanRules implements FrameworkPackagePlanRules 
             case PROCESSOR, TEST_PROCESSOR -> "processor-omitted";
             case QUARKUS_DEPLOYMENT -> "quarkus-deployment-omitted";
             case TOOL_OPENAPI -> "openapi-tool-omitted";
+            case TOOL_PROTOBUF -> "protobuf-tool-omitted";
             case TOOL_COVERAGE -> "coverage-tool-omitted";
             case COMPILE, RUNTIME -> "non-runtime-omitted";
         };

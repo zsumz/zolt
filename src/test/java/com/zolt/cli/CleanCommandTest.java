@@ -60,6 +60,38 @@ final class CleanCommandTest {
     }
 
     @Test
+    void cleanDeletesProtobufGeneratedOutputs() throws IOException {
+        Path projectDir = tempDir.resolve("protobuf-clean");
+        Files.createDirectories(projectDir.resolve("target/generated/sources/protobuf/com/example"));
+        Files.writeString(projectDir.resolve("target/generated/sources/protobuf/com/example/HelloRequest.java"), "generated");
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "protobuf-clean"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "out/classes"
+                testOutput = "out/test-classes"
+
+                [generated.main.greeter]
+                kind = "protobuf"
+                language = "java"
+                output = "target/generated/sources/protobuf"
+                inputs = ["src/main/proto/greeter.proto"]
+                """.formatted(currentJavaMajorVersion()));
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve("target/generated/sources/protobuf")));
+    }
+
+    @Test
     void cleanHandlesMissingTargetCleanly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

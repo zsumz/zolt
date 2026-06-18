@@ -4,6 +4,7 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
+import com.zolt.project.ProtobufGenerationSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
@@ -91,6 +92,29 @@ final class ResolveGeneratedSourceTestConfigs {
                 output = "target/generated/sources/openapi/public-api"
                 generator = "spring"
                 """.formatted(baseUri, alias, alias));
+    }
+
+    static ProjectConfig protobufConfig(URI baseUri) {
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "greeter",
+                GeneratedSourceKind.PROTOBUF,
+                "java",
+                "target/generated/sources/protobuf",
+                List.of("src/main/proto/greeter.proto"),
+                true,
+                true,
+                OpenApiGenerationSettings.empty(),
+                new ProtobufGenerationSettings(
+                        Optional.of("com.google.protobuf:protoc"),
+                        Optional.of("4.28.3"),
+                        Optional.empty(),
+                        Optional.of("io.grpc:protoc-gen-grpc-java"),
+                        Optional.of("1.68.1"),
+                        Optional.empty(),
+                        Optional.empty(),
+                        true));
+        return ResolveTestConfigs.configWithDependencies(baseUri, Map.of())
+                .withBuildSettings(BuildSettings.defaults().withGeneratedSources(List.of(step), List.of()));
     }
 
     static ProjectConfig configWithDependencyAndProcessor(URI baseUri) {

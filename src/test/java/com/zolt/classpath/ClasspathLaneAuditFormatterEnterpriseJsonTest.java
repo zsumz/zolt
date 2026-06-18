@@ -63,6 +63,14 @@ final class ClasspathLaneAuditFormatterEnterpriseJsonTest {
                 "openapi-generator-tooling-only");
         assertPackageAuditContains(
                 output,
+                "com.google.protobuf:protoc:4.28.3",
+                "tool-protobuf",
+                true,
+                "[\"tool-protobuf\"]",
+                false,
+                "protobuf-generator-tooling-only");
+        assertPackageAuditContains(
+                output,
                 "org.jacoco:org.jacoco.cli:0.8.14",
                 "tool-coverage",
                 false,
@@ -174,6 +182,15 @@ final class ClasspathLaneAuditFormatterEnterpriseJsonTest {
                 scope = "tool-openapi"
                 direct = true
                 jar = "org/openapitools/openapi-generator-cli/7.11.0/openapi-generator-cli-7.11.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "com.google.protobuf:protoc"
+                version = "4.28.3"
+                source = "maven-central"
+                scope = "tool-protobuf"
+                direct = true
+                jar = "com/google/protobuf/protoc/4.28.3/protoc-4.28.3.jar"
                 dependencies = []
 
                 [[package]]

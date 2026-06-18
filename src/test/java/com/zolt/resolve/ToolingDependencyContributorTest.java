@@ -21,6 +21,8 @@ final class ToolingDependencyContributorTest {
     private static final PackageId JUNIT_CONSOLE = new PackageId("org.junit.platform", "junit-platform-console");
     private static final PackageId SPRING_BOOT_LOADER = new PackageId("org.springframework.boot", "spring-boot-loader");
     private static final PackageId OPENAPI_GENERATOR = new PackageId("org.openapitools", "openapi-generator-cli");
+    private static final PackageId PROTOC = new PackageId("com.google.protobuf", "protoc");
+    private static final PackageId GRPC_PLUGIN = new PackageId("io.grpc", "protoc-gen-grpc-java");
     private static final PackageId JACOCO_AGENT = new PackageId("org.jacoco", "org.jacoco.agent");
     private static final PackageId JACOCO_CLI = new PackageId("org.jacoco", "org.jacoco.cli");
 
@@ -82,6 +84,23 @@ final class ToolingDependencyContributorTest {
         assertEquals("7.11.0", request.requestedVersion());
         assertEquals(DependencyScope.TOOL_OPENAPI, request.scope());
         assertEquals(RequestOrigin.DIRECT, request.origin());
+    }
+
+    @Test
+    void addsProtobufToolsAsDirectToolRequests() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(protobufConfig(), Map.of(), requests, false);
+
+        DependencyRequest protoc = onlyRequest(requests, PROTOC);
+        assertEquals("4.28.3", protoc.requestedVersion());
+        assertEquals(DependencyScope.TOOL_PROTOBUF, protoc.scope());
+        assertEquals(RequestOrigin.DIRECT, protoc.origin());
+
+        DependencyRequest grpcPlugin = onlyRequest(requests, GRPC_PLUGIN);
+        assertEquals("1.68.1", grpcPlugin.requestedVersion());
+        assertEquals(DependencyScope.TOOL_PROTOBUF, grpcPlugin.scope());
+        assertEquals(RequestOrigin.DIRECT, grpcPlugin.origin());
     }
 
     @Test
@@ -149,6 +168,26 @@ final class ToolingDependencyContributorTest {
                 input = "src/main/openapi/public-api.yaml"
                 output = "target/generated/sources/openapi/public-api"
                 generator = "spring"
+                """);
+    }
+
+    private static ProjectConfig protobufConfig() {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "protobuf-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.protobufTool]
+                protocVersion = "4.28.3"
+                grpcPluginVersion = "1.68.1"
+
+                [generated.main.greeter]
+                kind = "protobuf"
+                language = "java"
+                inputs = ["src/main/proto/greeter.proto"]
+                output = "target/generated/sources/protobuf"
                 """);
     }
 }

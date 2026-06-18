@@ -10,6 +10,7 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProtobufGenerationSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,9 +46,67 @@ final class ToolingDependencyContributor {
         addTestToolRequests(config, projectManagedVersions, requests);
         addPackageModeRequests(config, projectManagedVersions, requests);
         addOpenApiToolRequests(config, requests);
+        addProtobufToolRequests(config, requests);
         if (includeCoverageTooling) {
             addCoverageToolRequests(config, requests);
         }
+    }
+
+    private void addProtobufToolRequests(
+            ProjectConfig config,
+            List<DependencyRequest> requests) {
+        List<GeneratedSourceStep> steps = protobufSteps(config);
+        if (steps.isEmpty()) {
+            return;
+        }
+        ProtobufGenerationSettings settings = steps.getFirst().protobuf();
+        addProtobufToolRequest(
+                requests,
+                "Protobuf generation requires [generated.protobufTool].protocCoordinate.",
+                "Protobuf generation requires [generated.protobufTool].protocVersion",
+                settings.protocCoordinate(),
+                settings.protocVersion());
+        if (settings.grpc()) {
+            addProtobufToolRequest(
+                    requests,
+                    "Protobuf gRPC generation requires [generated.protobufTool].grpcPluginCoordinate.",
+                    "Protobuf gRPC generation requires [generated.protobufTool].grpcPluginVersion",
+                    settings.grpcPluginCoordinate(),
+                    settings.grpcPluginVersion());
+        }
+    }
+
+    private void addProtobufToolRequest(
+            List<DependencyRequest> requests,
+            String missingCoordinateMessage,
+            String missingVersionMessage,
+            Optional<String> coordinateValue,
+            Optional<String> versionValue) {
+        String coordinate = coordinateValue
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new ResolveException(
+                        missingCoordinateMessage
+                                + " Add [generated.protobufTool] versions, run `zolt resolve`, then retry."));
+        String version = versionValue
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new ResolveException(
+                        missingVersionMessage
+                                + " for "
+                                + coordinate
+                                + ". Add version or versionRef, run `zolt resolve`, then retry."));
+        Coordinate parsed = coordinateParser.parse(coordinate + ":" + version);
+        PackageId packageId = PackageId.from(parsed);
+        boolean alreadyRequested = requests.stream()
+                .anyMatch(request -> request.packageId().equals(packageId)
+                        && request.scope() == DependencyScope.TOOL_PROTOBUF);
+        if (alreadyRequested) {
+            return;
+        }
+        requests.add(new DependencyRequest(
+                packageId,
+                parsed.version().orElseThrow(),
+                DependencyScope.TOOL_PROTOBUF,
+                RequestOrigin.DIRECT));
     }
 
     private void addTestToolRequests(
@@ -191,6 +250,17 @@ final class ToolingDependencyContributor {
                 .forEach(steps::add);
         config.build().generatedTestSources().stream()
                 .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
+                .forEach(steps::add);
+        return steps;
+    }
+
+    private static List<GeneratedSourceStep> protobufSteps(ProjectConfig config) {
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.PROTOBUF)
+                .forEach(steps::add);
+        config.build().generatedTestSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.PROTOBUF)
                 .forEach(steps::add);
         return steps;
     }

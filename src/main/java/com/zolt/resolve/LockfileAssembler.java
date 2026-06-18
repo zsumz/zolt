@@ -127,6 +127,14 @@ final class LockfileAssembler {
                         + "\t"
                         + settings.toolVersion().orElse(""))
                 .forEach(inputs::add);
+        protobufSteps(config).stream()
+                .map(GeneratedSourceStep::protobuf)
+                .flatMap(settings -> java.util.stream.Stream.of(
+                        protobufVersionRefInput("protobufProtocVersionRef", settings.protocCoordinate(), settings.protocVersionRef(), settings.protocVersion()),
+                        protobufVersionRefInput("protobufGrpcPluginVersionRef", settings.grpcPluginCoordinate(), settings.grpcPluginVersionRef(), settings.grpcPluginVersion())))
+                .flatMap(Optional::stream)
+                .sorted()
+                .forEach(inputs::add);
         if (inputs.isEmpty()) {
             return Optional.empty();
         }
@@ -143,6 +151,34 @@ final class LockfileAssembler {
                 .filter(step -> step.kind() == GeneratedSourceKind.OPENAPI)
                 .forEach(steps::add);
         return List.copyOf(steps);
+    }
+
+    private static List<GeneratedSourceStep> protobufSteps(ProjectConfig config) {
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.PROTOBUF)
+                .forEach(steps::add);
+        config.build().generatedTestSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.PROTOBUF)
+                .forEach(steps::add);
+        return List.copyOf(steps);
+    }
+
+    private static Optional<String> protobufVersionRefInput(
+            String label,
+            Optional<String> coordinate,
+            Optional<String> versionRef,
+            Optional<String> version) {
+        if (versionRef.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(label
+                + "\t"
+                + coordinate.orElse("")
+                + "\t"
+                + versionRef.orElseThrow()
+                + "\t"
+                + version.orElse(""));
     }
 
     private static String nullToEmpty(String value) {

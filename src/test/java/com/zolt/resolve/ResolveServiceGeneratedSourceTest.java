@@ -116,6 +116,66 @@ final class ResolveServiceGeneratedSourceTest extends ResolveServiceTestSupport 
     }
 
     @Test
+    void protobufToolsResolveToToolScopeOnly() {
+        addArtifact("com.google.protobuf", "protoc", "4.28.3", """
+                <project>
+                  <groupId>com.google.protobuf</groupId>
+                  <artifactId>protoc</artifactId>
+                  <version>4.28.3</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>protobuf-tool-helper</artifactId>
+                      <version>1.0.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("io.grpc", "protoc-gen-grpc-java", "1.68.1", """
+                <project>
+                  <groupId>io.grpc</groupId>
+                  <artifactId>protoc-gen-grpc-java</artifactId>
+                  <version>1.68.1</version>
+                </project>
+                """);
+        addArtifact("com.example", "protobuf-tool-helper", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>protobuf-tool-helper</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(projectDir, ResolveGeneratedSourceTestConfigs.protobufConfig(baseUri), cacheRoot);
+
+        assertEquals(3, result.resolvedCount());
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.google.protobuf", "protoc"))
+                        && lockPackage.scope() == DependencyScope.TOOL_PROTOBUF
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("io.grpc", "protoc-gen-grpc-java"))
+                        && lockPackage.scope() == DependencyScope.TOOL_PROTOBUF
+                        && lockPackage.direct()));
+        assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                lockPackage.packageId().equals(new PackageId("com.example", "protobuf-tool-helper"))
+                        && lockPackage.scope() == DependencyScope.TOOL_PROTOBUF
+                        && !lockPackage.direct()));
+
+        ClasspathSet classpaths = new ClasspathBuilder().build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
+        assertEquals(List.of(), classpaths.compile().entries());
+        assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+        assertEquals(List.of(), classpaths.quarkusDeployment().entries());
+    }
+
+    @Test
     void projectPlatformProvidesManagedVersionForAnnotationProcessor() {
         addPom("com.example", "platform", "1.0.0", """
                 <project>
