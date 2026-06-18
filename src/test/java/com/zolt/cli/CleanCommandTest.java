@@ -60,6 +60,30 @@ final class CleanCommandTest {
     }
 
     @Test
+    void cleanDeletesSpringBootAotOutputLayoutWhenNativeIsEnabled() throws IOException {
+        Path projectDir = tempDir.resolve("spring-aot-clean");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(
+                projectDir.resolve("zolt.toml"),
+                Files.readString(projectDir.resolve("zolt.toml"))
+                        .replace("output = \"target/classes\"", "output = \"out/main\"")
+                        .replace("testOutput = \"target/test-classes\"", "testOutput = \"out/test\""));
+        enableSpringBootNative(projectDir);
+        Files.createDirectories(projectDir.resolve("target/spring-aot/main/sources/com/example"));
+        Files.writeString(projectDir.resolve("target/spring-aot/main/sources/com/example/Application__BeanDefinitions.java"), "aot");
+        Files.createDirectories(projectDir.resolve("target/spring-aot/main/resources/META-INF/native-image"));
+        Files.writeString(projectDir.resolve("target/spring-aot/main/resources/META-INF/native-image/reflect-config.json"), "[]");
+        Files.createDirectories(projectDir.resolve("target/spring-aot/main/classes"));
+        Files.writeString(projectDir.resolve("target/spring-aot/main/classes/Application__BeanDefinitions.class"), "class");
+
+        CommandResult result = execute("clean", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve("target/spring-aot")));
+    }
+
+    @Test
     void cleanDeletesProtobufGeneratedOutputs() throws IOException {
         Path projectDir = tempDir.resolve("protobuf-clean");
         Files.createDirectories(projectDir.resolve("target/generated/sources/protobuf/com/example"));
@@ -133,6 +157,14 @@ final class CleanCommandTest {
                 [framework.quarkus]
                 enabled = true
                 package = "fast-jar"
+                """);
+    }
+
+    private static void enableSpringBootNative(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [framework.springBoot.native]
+                enabled = true
                 """);
     }
 
