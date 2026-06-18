@@ -32,16 +32,19 @@ public final class QuarkusUnsupportedTestScanner {
                     .sorted(Comparator.comparing(test -> test.relativePath().toString()))
                     .toList();
         } catch (UncheckedIOException exception) {
-            throw scanException(exception.getCause());
+            throw scanException(testOutputDirectory, exception.getCause());
         } catch (IOException exception) {
-            throw scanException(exception);
+            throw scanException(testOutputDirectory, exception);
         }
     }
 
-    private static QuarkusPlanException scanException(IOException exception) {
+    static QuarkusPlanException scanException(Path testOutputDirectory, IOException exception) {
+        Path output = testOutputDirectory.toAbsolutePath().normalize();
         return new QuarkusPlanException(
                 "Could not inspect compiled test classes for Quarkus test annotations. "
-                        + "Clean target/test-classes, run `zolt test` again, and check that target/ is readable.",
+                        + "Clean "
+                        + output
+                        + ", run `zolt test` again, and check that the configured test output directory is readable.",
                 exception);
     }
 

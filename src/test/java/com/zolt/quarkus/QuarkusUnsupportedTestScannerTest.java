@@ -46,6 +46,18 @@ final class QuarkusUnsupportedTestScannerTest {
         assertTrue(exception.getMessage().contains("test output directory"));
     }
 
+    @Test
+    void scanFailureMessageUsesConfiguredTestOutputDirectory() {
+        Path testOutput = projectDir.resolve(".zolt/build/test-classes");
+
+        QuarkusPlanException exception = QuarkusUnsupportedTestScanner.scanException(
+                testOutput,
+                new IOException("denied"));
+
+        assertTrue(exception.getMessage().contains(testOutput.toAbsolutePath().normalize().toString()));
+        assertTrue(exception.getMessage().contains("configured test output directory"));
+    }
+
     private void writeClass(String relativePath, String content) throws IOException {
         Path classFile = projectDir.resolve("target/test-classes").resolve(relativePath);
         Files.createDirectories(classFile.getParent());
