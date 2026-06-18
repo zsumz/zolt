@@ -119,4 +119,15 @@ final class PublicReadinessDocumentationTest {
                 roadmap.contains("The Gradle fallback `nativeImage` task delegates"),
                 "Roadmap must not describe a removed Gradle fallback native task as current status");
     }
+
+    @Test
+    void frameworkReadinessDoesNotPublishQuarkusAnnotationTests() throws IOException {
+        String frameworkReadiness = Files.readString(Path.of("docs/framework-readiness.md"));
+
+        assertTrue(frameworkReadiness.contains("exercise descriptor-enabled `@QuarkusTest` probes only to explicit Zolt-shaped blocker diagnostics without public enablement"));
+        assertTrue(frameworkReadiness.contains("public Quarkus `@QuarkusTest` enablement"));
+        assertFalse(
+                frameworkReadiness.contains("pass the descriptor-enabled `@QuarkusTest` REST Assured probe"),
+                "Framework readiness must not imply public Quarkus annotation-test support is complete");
+    }
 }
