@@ -130,4 +130,16 @@ final class PublicReadinessDocumentationTest {
                 frameworkReadiness.contains("pass the descriptor-enabled `@QuarkusTest` REST Assured probe"),
                 "Framework readiness must not imply public Quarkus annotation-test support is complete");
     }
+
+    @Test
+    void roadmapDoesNotTreatSpringBootAotNativeAsWhollyFuture() throws IOException {
+        String roadmap = Files.readString(Path.of("docs/roadmap.md"));
+
+        assertTrue(roadmap.contains("Explicit Spring Boot AOT/native canaries now generate Zolt-owned AOT outputs"));
+        assertTrue(roadmap.contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(roadmap.contains("broader real-application AOT/native coverage remains future hardening work"));
+        assertFalse(
+                roadmap.contains("AOT/native processing remains future work."),
+                "Roadmap must distinguish the implemented Spring Boot native canary path from broader future hardening");
+    }
 }
