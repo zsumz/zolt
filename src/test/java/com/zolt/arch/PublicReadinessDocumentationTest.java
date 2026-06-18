@@ -89,4 +89,15 @@ final class PublicReadinessDocumentationTest {
                 releasePackaging.contains("└── LICENSE\n```"),
                 "Archive layout must not show LICENSE as unconditional before a license decision");
     }
+
+    @Test
+    void productVisionDoesNotClaimGradleMavenBootstrapForV01() throws IOException {
+        String productVision = Files.readString(Path.of("docs/product-vision.md"));
+
+        assertTrue(productVision.contains("Gradle-free JVM bootstrap"));
+        assertTrue(productVision.contains("Zolt builds, tests, packages, smokes, and parity-checks itself"));
+        assertFalse(
+                productVision.contains("v0.1: built with Gradle/Maven bootstrap"),
+                "Product vision must not describe v0.1 as Gradle/Maven-bootstrapped after Zolt-owned self-hosting landed");
+    }
 }
