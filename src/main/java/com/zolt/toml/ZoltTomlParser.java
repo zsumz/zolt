@@ -147,9 +147,27 @@ public final class ZoltTomlParser {
 
     private static void validateTopLevelSections(TomlParseResult result) {
         for (String key : result.keySet()) {
+            validateSupportedTopLevelSection(key);
             if (!TOP_LEVEL_SECTIONS.contains(key)) {
                 throw new ZoltConfigException(
                         "Unknown top-level section [" + key + "] in zolt.toml. Remove it or check the spelling.");
+            }
+        }
+    }
+
+    private static void validateSupportedTopLevelSection(String key) {
+        switch (key) {
+            case "plugins", "plugin", "buildscript" -> throw new ZoltConfigException(
+                    "Unsupported build plugin configuration ["
+                            + key
+                            + "] in zolt.toml. Zolt does not execute Maven or Gradle plugins, build scripts, or custom DSLs in the public beta. Use typed Zolt sections such as [generated], [resources], [package], and [framework], or keep this project outside the beta scope.");
+            case "kotlin" -> throw new ZoltConfigException(
+                    "Unsupported Kotlin configuration [kotlin] in zolt.toml. Kotlin is not supported in the public beta. Use Java source roots or keep Kotlin modules outside the Zolt beta scope.");
+            case "scala" -> throw new ZoltConfigException(
+                    "Unsupported Scala configuration [scala] in zolt.toml. Scala is not supported in the public beta. Use Java source roots or keep Scala modules outside the Zolt beta scope.");
+            case "android" -> throw new ZoltConfigException(
+                    "Unsupported Android configuration [android] in zolt.toml. Android projects are not supported in the public beta. Use normal Java application modules with Zolt, or keep Android modules outside the Zolt beta scope.");
+            default -> {
             }
         }
     }

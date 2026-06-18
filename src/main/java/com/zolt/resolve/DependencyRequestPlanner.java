@@ -8,6 +8,7 @@ import com.zolt.project.DependencyExclusionSpec;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.DependencyPolicyExclusion;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.VersionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +142,7 @@ final class DependencyRequestPlanner {
             PackageId packageId,
             String version,
             DependencyScope scope) {
+        validateSupportedVersion(section, packageId, version);
         DependencyMetadata metadata = config.dependencyMetadata()
                 .get(DependencyMetadata.key(section, packageId.toString()));
         if (metadata == null || metadata.exclusions().isEmpty()) {
@@ -153,7 +155,22 @@ final class DependencyRequestPlanner {
                 RequestOrigin.DIRECT,
                 metadata.exclusions().stream()
                         .map(DependencyRequestPlanner::directExclusion)
-                        .toList());
+                .toList());
+    }
+
+    private static void validateSupportedVersion(String section, PackageId packageId, String version) {
+        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version).ifPresent(violation -> {
+            throw new ResolveException(
+                    "Unsupported external dependency version `"
+                            + version
+                            + "` for `"
+                            + packageId
+                            + "` in ["
+                            + section
+                            + "]. "
+                            + violation.guidance()
+                            + " Use a fixed released version, then run `zolt resolve` again.");
+        });
     }
 
     private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion) {

@@ -116,7 +116,15 @@ public final class MavenStaticProjectInspector {
             }
         }
         for (MavenPluginInspection plugin : inspection.plugins()) {
-            if (!plugin.phases().isEmpty() && !plugin.pluginManagement()) {
+            if (unsupportedLanguagePlugin(plugin.coordinate())) {
+                signals.add(ExplainSignals.MAVEN_LANGUAGE_UNSUPPORTED.signal(
+                        project,
+                        "Plugin `" + plugin.coordinate() + "` declares an unsupported public-beta language or Android build."));
+            } else if (unsupportedFrameworkNativePlugin(plugin)) {
+                signals.add(ExplainSignals.MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
+                        project,
+                        "Plugin `" + plugin.coordinate() + "` declares framework AOT/native behavior that Zolt does not execute in the public beta."));
+            } else if (!plugin.phases().isEmpty() && !plugin.pluginManagement()) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_LIFECYCLE_BINDING.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` runs in lifecycle phase(s) " + plugin.phases() + "."));
@@ -158,6 +166,26 @@ public final class MavenStaticProjectInspector {
                 || coordinate.contains(":maven-surefire-plugin")
                 || coordinate.contains(":maven-failsafe-plugin")
                 || coordinate.contains(":spring-boot-maven-plugin");
+    }
+
+    private static boolean unsupportedLanguagePlugin(String coordinate) {
+        String lower = coordinate.toLowerCase();
+        return lower.contains(":kotlin-maven-plugin")
+                || lower.contains(":scala-maven-plugin")
+                || lower.contains(":android-maven-plugin");
+    }
+
+    private static boolean unsupportedFrameworkNativePlugin(MavenPluginInspection plugin) {
+        String lower = plugin.coordinate().toLowerCase();
+        if (lower.contains(":native-maven-plugin") || lower.contains(":micronaut-maven-plugin")) {
+            return true;
+        }
+        if (!lower.contains(":spring-boot-maven-plugin")) {
+            return false;
+        }
+        return plugin.goals().stream()
+                .map(String::toLowerCase)
+                .anyMatch(goal -> goal.contains("aot") || goal.contains("build-image") || goal.contains("native"));
     }
 
     private static List<MavenDependencyInspection> concat(

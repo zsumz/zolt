@@ -17,6 +17,8 @@ import java.util.Locale;
 public final class NativeBuildService {
     private static final List<String> SERIOUS_WARNING_TERMS = List.of("warning", "unsupported", "error");
     private static final String SPRING_BOOT_GROUP = "org.springframework.boot";
+    private static final String MICRONAUT_GROUP = "io.micronaut";
+    private static final String QUARKUS_GROUP = "io.quarkus";
 
     private final PackageService packageService;
     private final ZoltLockfileReader lockfileReader;
@@ -47,7 +49,7 @@ public final class NativeBuildService {
             ProjectConfig config,
             Path cacheRoot,
             Path nativeImageExecutable) {
-        rejectUnsupportedSpringBootNative(config);
+        rejectUnsupportedFrameworkNative(config);
         String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
                 "Native Image main class is missing. Add [project].main to zolt.toml."));
         PackageResult packageResult = packageService.packageJar(
@@ -75,15 +77,28 @@ public final class NativeBuildService {
         return new NativeBuildResult(packageResult, nativeImageResult);
     }
 
-    private static void rejectUnsupportedSpringBootNative(ProjectConfig config) {
-        if (!springBootProject(config)) {
-            return;
+    private static void rejectUnsupportedFrameworkNative(ProjectConfig config) {
+        if (springBootProject(config)) {
+            throw new NativeImageException(
+                    "Spring Boot native images are not supported by Zolt yet. "
+                            + "Zolt supports Spring Boot JVM build, test, run, and executable packaging, "
+                            + "but does not run Spring Boot AOT processing or generate Spring native reachability metadata. "
+                            + "Use `zolt package --mode spring-boot` or `zolt run` for the current beta path.");
         }
-        throw new NativeImageException(
-                "Spring Boot native images are not supported by Zolt yet. "
-                        + "Zolt supports Spring Boot JVM build, test, run, and executable packaging, "
-                        + "but does not run Spring Boot AOT processing or generate Spring native reachability metadata. "
-                        + "Use `zolt package --mode spring-boot` or `zolt run` for the current beta path.");
+        if (micronautProject(config)) {
+            throw new NativeImageException(
+                    "Micronaut native images are not supported by Zolt yet. "
+                            + "Zolt supports basic Micronaut JVM build/test flows through Java annotation processors, "
+                            + "but does not run Micronaut AOT or framework-native processing in the public beta. "
+                            + "Use `zolt build`, `zolt test`, or `zolt package --mode thin` for the current beta path.");
+        }
+        if (quarkusProject(config)) {
+            throw new NativeImageException(
+                    "Quarkus native images are not supported by Zolt yet. "
+                            + "Zolt supports the experimental Quarkus JVM build/test/package path, "
+                            + "but does not run Quarkus native augmentation, dev mode, or advanced native modes in the public beta. "
+                            + "Use `zolt package --mode quarkus` or `zolt run` for the current beta path.");
+        }
     }
 
     private static boolean springBootProject(ProjectConfig config) {
@@ -112,9 +127,64 @@ public final class NativeBuildService {
                 || containsSpringBootCoordinate(config.managedTestAnnotationProcessors());
     }
 
+    private static boolean micronautProject(ProjectConfig config) {
+        return containsMicronautCoordinate(config.platforms().keySet())
+                || containsMicronautCoordinate(config.apiDependencies().keySet())
+                || containsMicronautCoordinate(config.managedApiDependencies())
+                || containsMicronautCoordinate(config.dependencies().keySet())
+                || containsMicronautCoordinate(config.managedDependencies())
+                || containsMicronautCoordinate(config.runtimeDependencies().keySet())
+                || containsMicronautCoordinate(config.managedRuntimeDependencies())
+                || containsMicronautCoordinate(config.providedDependencies().keySet())
+                || containsMicronautCoordinate(config.managedProvidedDependencies())
+                || containsMicronautCoordinate(config.devDependencies().keySet())
+                || containsMicronautCoordinate(config.managedDevDependencies())
+                || containsMicronautCoordinate(config.testDependencies().keySet())
+                || containsMicronautCoordinate(config.managedTestDependencies())
+                || containsMicronautCoordinate(config.annotationProcessors().keySet())
+                || containsMicronautCoordinate(config.managedAnnotationProcessors())
+                || containsMicronautCoordinate(config.testAnnotationProcessors().keySet())
+                || containsMicronautCoordinate(config.managedTestAnnotationProcessors());
+    }
+
+    private static boolean quarkusProject(ProjectConfig config) {
+        if (config.packageSettings().mode() == PackageMode.QUARKUS || config.frameworkSettings().quarkus().enabled()) {
+            return true;
+        }
+        return containsQuarkusCoordinate(config.platforms().keySet())
+                || containsQuarkusCoordinate(config.apiDependencies().keySet())
+                || containsQuarkusCoordinate(config.managedApiDependencies())
+                || containsQuarkusCoordinate(config.dependencies().keySet())
+                || containsQuarkusCoordinate(config.managedDependencies())
+                || containsQuarkusCoordinate(config.runtimeDependencies().keySet())
+                || containsQuarkusCoordinate(config.managedRuntimeDependencies())
+                || containsQuarkusCoordinate(config.providedDependencies().keySet())
+                || containsQuarkusCoordinate(config.managedProvidedDependencies())
+                || containsQuarkusCoordinate(config.devDependencies().keySet())
+                || containsQuarkusCoordinate(config.managedDevDependencies())
+                || containsQuarkusCoordinate(config.testDependencies().keySet())
+                || containsQuarkusCoordinate(config.managedTestDependencies())
+                || containsQuarkusCoordinate(config.annotationProcessors().keySet())
+                || containsQuarkusCoordinate(config.managedAnnotationProcessors())
+                || containsQuarkusCoordinate(config.testAnnotationProcessors().keySet())
+                || containsQuarkusCoordinate(config.managedTestAnnotationProcessors());
+    }
+
     private static boolean containsSpringBootCoordinate(Iterable<String> coordinates) {
+        return containsGroupCoordinate(coordinates, SPRING_BOOT_GROUP);
+    }
+
+    private static boolean containsMicronautCoordinate(Iterable<String> coordinates) {
+        return containsGroupCoordinate(coordinates, MICRONAUT_GROUP);
+    }
+
+    private static boolean containsQuarkusCoordinate(Iterable<String> coordinates) {
+        return containsGroupCoordinate(coordinates, QUARKUS_GROUP);
+    }
+
+    private static boolean containsGroupCoordinate(Iterable<String> coordinates, String group) {
         for (String coordinate : coordinates) {
-            if (coordinate != null && coordinate.startsWith(SPRING_BOOT_GROUP + ":")) {
+            if (coordinate != null && coordinate.startsWith(group + ":")) {
                 return true;
             }
         }

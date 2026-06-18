@@ -37,9 +37,13 @@ final class BuildSectionCodec {
 
         TomlValidation.validateKeysWithVersionRefHint("build", table, BUILD_KEYS);
         BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(table, "metadata"));
+        String source = TomlScalars.stringOrDefault(table, "build", "source", defaults.source());
+        String test = TomlScalars.stringOrDefault(table, "build", "test", defaults.test());
+        validateSupportedSourceRoot("[build].source", source);
+        validateSupportedSourceRoot("[build].test", test);
         return new BuildSettings(
-                TomlScalars.stringOrDefault(table, "build", "source", defaults.source()),
-                TomlScalars.stringOrDefault(table, "build", "test", defaults.test()),
+                source,
+                test,
                 TomlScalars.stringOrDefault(table, "build", "output", defaults.output()),
                 TomlScalars.stringOrDefault(table, "build", "testOutput", defaults.testOutput()),
                 defaults.testSources(),
@@ -57,13 +61,17 @@ final class BuildSectionCodec {
         if (sourcesTable == null) {
             return build;
         }
+        validateSupportedTestSourceLanguages(sourcesTable);
         TomlValidation.validateKeysWithVersionRefHint("test.sources", sourcesTable, Set.of("java", "groovy"));
+        List<String> javaSources =
+                TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources());
+        validateSupportedSourceRoots("[test.sources].java", javaSources);
         return new BuildSettings(
                 build.source(),
                 build.test(),
                 build.output(),
                 build.testOutput(),
-                TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "java", build.testSources()),
+                javaSources,
                 TomlScalars.stringListOrDefault(sourcesTable, "test.sources", "groovy", build.groovyTestSources()),
                 build.integrationTestOutput(),
                 build.integrationTestSources(),
@@ -139,6 +147,7 @@ final class BuildSectionCodec {
                         build.integrationTestSources().isEmpty()
                                 ? "src/integration-test/java"
                                 : build.integrationTestSources().getFirst())));
+        validateSupportedSourceRoots("[integrationTest].sources", sources);
         return build.withIntegrationTestSettings(
                 TomlScalars.stringOrDefault(table, "integrationTest", "output", build.integrationTestOutput()),
                 sources,
@@ -345,6 +354,63 @@ final class BuildSectionCodec {
 
     private static TomlTable optionalTable(TomlTable table, String key) {
         return table.getTable(List.of(key));
+    }
+
+    private static void validateSupportedTestSourceLanguages(TomlTable table) {
+        for (String key : table.keySet()) {
+            switch (key) {
+                case "kotlin" -> throw new ZoltConfigException(
+                        "Unsupported Kotlin test source roots [test.sources].kotlin in zolt.toml. Kotlin is not supported in the public beta. Use Java test roots under [test.sources].java or keep Kotlin modules outside the Zolt beta scope.");
+                case "scala" -> throw new ZoltConfigException(
+                        "Unsupported Scala test source roots [test.sources].scala in zolt.toml. Scala is not supported in the public beta. Use Java test roots under [test.sources].java or keep Scala modules outside the Zolt beta scope.");
+                default -> {
+                }
+            }
+        }
+    }
+
+    private static void validateSupportedSourceRoots(String subject, List<String> roots) {
+        for (String root : roots) {
+            validateSupportedSourceRoot(subject, root);
+        }
+    }
+
+    private static void validateSupportedSourceRoot(String subject, String root) {
+        String normalized = root.replace('\\', '/').toLowerCase();
+        if (hasPathSegment(normalized, "kotlin") || normalized.endsWith(".kt")) {
+            throw new ZoltConfigException(
+                    "Unsupported Kotlin source root "
+                            + subject
+                            + " = \""
+                            + root
+                            + "\" in zolt.toml. Kotlin is not supported in the public beta. Use Java source roots such as src/main/java, or keep Kotlin modules outside the Zolt beta scope.");
+        }
+        if (hasPathSegment(normalized, "scala") || normalized.endsWith(".scala")) {
+            throw new ZoltConfigException(
+                    "Unsupported Scala source root "
+                            + subject
+                            + " = \""
+                            + root
+                            + "\" in zolt.toml. Scala is not supported in the public beta. Use Java source roots such as src/main/java, or keep Scala modules outside the Zolt beta scope.");
+        }
+        if (normalized.startsWith("src/android/")
+                || normalized.contains("/src/android/")
+                || normalized.contains("/android/")
+                || normalized.startsWith("android/")) {
+            throw new ZoltConfigException(
+                    "Unsupported Android source root "
+                            + subject
+                            + " = \""
+                            + root
+                            + "\" in zolt.toml. Android projects are not supported in the public beta. Use normal Java application source roots, or keep Android modules outside the Zolt beta scope.");
+        }
+    }
+
+    private static boolean hasPathSegment(String path, String segment) {
+        return path.equals(segment)
+                || path.startsWith(segment + "/")
+                || path.endsWith("/" + segment)
+                || path.contains("/" + segment + "/");
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {

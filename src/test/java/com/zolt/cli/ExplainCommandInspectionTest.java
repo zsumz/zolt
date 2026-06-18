@@ -103,6 +103,93 @@ final class ExplainCommandInspectionTest {
     }
 
     @Test
+    void explainMavenClassifiesUnsupportedBetaShapes() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <artifactId>demo</artifactId>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>dynamic-lib</artifactId>
+                      <version>[1.0,2.0)</version>
+                    </dependency>
+                  </dependencies>
+                  <build>
+                    <plugins>
+                      <plugin>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-maven-plugin</artifactId>
+                        <version>2.2.0</version>
+                      </plugin>
+                      <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <version>4.0.0</version>
+                        <executions>
+                          <execution>
+                            <goals>
+                              <goal>process-aot</goal>
+                            </goals>
+                          </execution>
+                        </executions>
+                      </plugin>
+                    </plugins>
+                  </build>
+                  <profiles>
+                    <profile>
+                      <id>ci</id>
+                    </profile>
+                  </profiles>
+                </project>
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "maven",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"id\": \"maven.dependency.dynamic-version\""));
+        assertTrue(result.stdout().contains("\"id\": \"maven.language.unsupported\""));
+        assertTrue(result.stdout().contains("\"id\": \"maven.framework-native.unsupported\""));
+        assertTrue(result.stdout().contains("\"id\": \"maven.profile.detected\""));
+        assertTrue(result.stdout().contains("\"status\": \"blocked\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void explainGradleClassifiesUnsupportedBetaShapes() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'org.jetbrains.kotlin.jvm' version '2.2.0'
+                    id 'com.android.application' version '8.8.0'
+                    id 'org.graalvm.buildtools.native' version '0.10.6'
+                }
+                repositories { mavenCentral() }
+                dependencies { implementation 'com.example:dynamic-lib:1.+' }
+                tasks.named('bootBuildImage') { }
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "gradle",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"id\": \"gradle.language.unsupported\""));
+        assertTrue(result.stdout().contains("\"id\": \"gradle.android.unsupported\""));
+        assertTrue(result.stdout().contains("\"id\": \"gradle.framework-native.unsupported\""));
+        assertTrue(result.stdout().contains("\"id\": \"gradle.dependency.dynamic-version\""));
+        assertTrue(result.stdout().contains("\"status\": \"blocked\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void explainGradleScorecardJsonReportsReadinessConcerns() throws IOException {
         Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
         Files.writeString(tempDir.resolve("build.gradle"), """

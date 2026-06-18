@@ -15,6 +15,7 @@ final class GradleMigrationSignalDetector {
             List<GradlePluginInspection> plugins) {
         List<ExplainSignal> signals = new ArrayList<>();
         signals.addAll(conventionPluginSignals(project, plugins));
+        signals.addAll(unsupportedPluginSignals(project, content, plugins));
         signals.addAll(dynamicSignals(project, content));
         signals.addAll(dependencySignals(project, dependencies));
         signals.addAll(pluginSignals(project, plugins));
@@ -30,6 +31,38 @@ final class GradleMigrationSignalDetector {
                         project,
                         "Plugin `" + plugin.id() + "` looks like a convention plugin."));
             }
+        }
+        return signals;
+    }
+
+    private static List<ExplainSignal> unsupportedPluginSignals(
+            String project,
+            String content,
+            List<GradlePluginInspection> plugins) {
+        List<ExplainSignal> signals = new ArrayList<>();
+        for (GradlePluginInspection plugin : plugins) {
+            String id = plugin.id().toLowerCase();
+            if (id.startsWith("com.android.") || id.equals("android")) {
+                signals.add(ExplainSignals.GRADLE_ANDROID_UNSUPPORTED.signal(
+                        project,
+                        "Gradle plugin `" + plugin.id() + "` declares an Android project, which is outside the Zolt public beta."));
+            }
+            if (id.startsWith("org.jetbrains.kotlin") || id.equals("kotlin") || id.equals("scala")) {
+                signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(
+                        project,
+                        "Gradle plugin `" + plugin.id() + "` declares an unsupported public-beta language."));
+            }
+            if (id.equals("org.graalvm.buildtools.native") || id.equals("io.micronaut.aot")) {
+                signals.add(ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
+                        project,
+                        "Gradle plugin `" + plugin.id() + "` declares native/AOT behavior that Zolt does not execute in the public beta."));
+            }
+        }
+        if (containsAny(content, "bootBuildImage", "processAot", "processTestAot", "nativeCompile", "nativeTest", "quarkusDev")
+                || content.contains("quarkus.native.enabled")) {
+            signals.add(ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
+                    project,
+                    "Gradle build declares framework AOT, native, or dev-mode tasks that Zolt does not execute in the public beta."));
         }
         return signals;
     }

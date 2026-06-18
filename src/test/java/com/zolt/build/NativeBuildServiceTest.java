@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,6 +82,38 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
         assertTrue(exception.getMessage().contains("Spring Boot native images are not supported"));
         assertTrue(exception.getMessage().contains("Spring Boot JVM build, test, run, and executable packaging"));
         assertTrue(exception.getMessage().contains("zolt package --mode spring-boot"));
+        assertTrue(commands.isEmpty());
+    }
+
+    @Test
+    void micronautNativeFailsBeforeInvokingNativeImage() {
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        new ZoltTomlParser().parse("""
+                                [project]
+                                name = "demo"
+                                version = "0.1.0"
+                                group = "com.example"
+                                java = "21"
+                                main = "com.example.Main"
+
+                                [dependencies]
+                                "io.micronaut:micronaut-http-server-netty" = "4.9.4"
+                                """),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("Micronaut native images are not supported"));
+        assertTrue(exception.getMessage().contains("Micronaut JVM build/test flows"));
+        assertTrue(exception.getMessage().contains("zolt package --mode thin"));
         assertTrue(commands.isEmpty());
     }
 

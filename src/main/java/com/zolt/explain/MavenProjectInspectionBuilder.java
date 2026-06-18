@@ -137,16 +137,24 @@ final class MavenProjectInspectionBuilder {
             String groupId = text(plugin, "groupId").orElse("org.apache.maven.plugins");
             String artifactId = text(plugin, "artifactId").orElse("unknown-plugin");
             String version = text(plugin, "version").orElse("");
-            List<String> phases = child(plugin, "executions")
-                    .map(executions -> children(executions, "execution").stream()
-                            .map(execution -> text(execution, "phase"))
-                            .flatMap(Optional::stream)
-                            .sorted()
-                            .toList())
+            List<Element> executions = child(plugin, "executions")
+                    .map(executionsElement -> children(executionsElement, "execution"))
                     .orElseGet(List::of);
+            List<String> phases = executions.stream()
+                    .map(execution -> text(execution, "phase"))
+                    .flatMap(Optional::stream)
+                    .sorted()
+                    .toList();
+            List<String> goals = executions.stream()
+                    .map(execution -> child(execution, "goals"))
+                    .flatMap(Optional::stream)
+                    .flatMap(goalsElement -> texts(Optional.of(goalsElement), "goal").stream())
+                    .sorted()
+                    .toList();
             plugins.add(new MavenPluginInspection(
                     groupId + ":" + artifactId + (version.isBlank() ? "" : ":" + version),
                     phases,
+                    goals,
                     pluginManagement));
         }
         return plugins;

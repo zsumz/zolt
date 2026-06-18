@@ -61,9 +61,27 @@ final class ZoltTomlParserValidationTest {
                         kotlin = ["src/test/kotlin"]
                         """));
 
-        assertEquals(
-                "Unknown field [test.sources].kotlin in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
+        assertTrue(exception.getMessage().contains("Unsupported Kotlin test source roots"));
+        assertTrue(exception.getMessage().contains("public beta"));
+    }
+
+    @Test
+    void rejectsUnsupportedSourceRootLanguage() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [build]
+                        source = "src/main/scala"
+                        """));
+
+        assertTrue(exception.getMessage().contains("Unsupported Scala source root"));
+        assertTrue(exception.getMessage().contains("src/main/scala"));
     }
 
     @Test
@@ -110,9 +128,27 @@ final class ZoltTomlParserValidationTest {
                         custom = "nope"
                         """));
 
-        assertEquals(
-                "Unknown top-level section [plugins] in zolt.toml. Remove it or check the spelling.",
-                exception.getMessage());
+        assertTrue(exception.getMessage().contains("Unsupported build plugin configuration [plugins]"));
+        assertTrue(exception.getMessage().contains("does not execute Maven or Gradle plugins"));
+    }
+
+    @Test
+    void androidTopLevelSectionFailsAsUnsupportedBetaShape() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [android]
+                        namespace = "com.example"
+                        """));
+
+        assertTrue(exception.getMessage().contains("Unsupported Android configuration [android]"));
+        assertTrue(exception.getMessage().contains("public beta"));
     }
 
     @Test

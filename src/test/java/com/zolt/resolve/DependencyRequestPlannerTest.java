@@ -74,6 +74,17 @@ final class DependencyRequestPlannerTest {
     }
 
     @Test
+    void rejectsUnsupportedManagedVersionFromPlanningInputs() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> planner.plan(managedTestDependencyConfig(), Map.of(TEST_APP, "1.+"), false));
+
+        assertTrue(exception.getMessage().contains("Unsupported external dependency version `1.+`"));
+        assertTrue(exception.getMessage().contains("com.example:test-app"));
+        assertTrue(exception.getMessage().contains("fixed released version"));
+    }
+
+    @Test
     void rejectsPolicyExcludedRequestsAfterToolingContribution() {
         ProjectConfig config = testDependencyConfig().withDependencyPolicy(new DependencyPolicySettings(
                 List.of(new DependencyPolicyExclusion(

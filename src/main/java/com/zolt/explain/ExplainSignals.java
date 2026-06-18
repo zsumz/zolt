@@ -34,6 +34,16 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.NON_DETERMINISM,
             "Move profile-specific behavior into explicit Zolt configuration or keep it in manual-review scope.");
+    public static final ExplainSignalDefinition MAVEN_LANGUAGE_UNSUPPORTED = new ExplainSignalDefinition(
+            "maven.language.unsupported",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Keep Kotlin, Scala, and Android modules outside the public beta or migrate a plain Java module first.");
+    public static final ExplainSignalDefinition MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED = new ExplainSignalDefinition(
+            "maven.framework-native.unsupported",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Use Zolt's JVM framework path for the public beta; framework AOT/native modes need dedicated Zolt support.");
 
     public static final ExplainSignalDefinition GRADLE_BUILD_SRC_DETECTED = new ExplainSignalDefinition(
             "gradle.build-src.detected",
@@ -125,6 +135,21 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Map Maven Publish configuration to Zolt publication metadata, dry-run routing, and credential policy.");
+    public static final ExplainSignalDefinition GRADLE_LANGUAGE_UNSUPPORTED = new ExplainSignalDefinition(
+            "gradle.language.unsupported",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Keep Kotlin and Scala modules outside the public beta or migrate a plain Java module first.");
+    public static final ExplainSignalDefinition GRADLE_ANDROID_UNSUPPORTED = new ExplainSignalDefinition(
+            "gradle.android.unsupported",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Android is outside the public beta; migrate normal Java application modules first.");
+    public static final ExplainSignalDefinition GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED = new ExplainSignalDefinition(
+            "gradle.framework-native.unsupported",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Use Zolt's JVM framework path for the public beta; framework AOT/native/dev modes need dedicated Zolt support.");
 
     private static final List<ExplainSignalDefinition> DEFINITIONS = List.of(
             MAVEN_MODULE_MISSING_POM,
@@ -133,6 +158,8 @@ public final class ExplainSignals {
             MAVEN_PLUGIN_LIFECYCLE_BINDING,
             MAVEN_PLUGIN_STATIC_SIGNAL,
             MAVEN_PROFILE_DETECTED,
+            MAVEN_LANGUAGE_UNSUPPORTED,
+            MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED,
             GRADLE_BUILD_SRC_DETECTED,
             GRADLE_PROJECT_MISSING_BUILD_FILE,
             GRADLE_PLUGIN_CONVENTION,
@@ -150,7 +177,10 @@ public final class ExplainSignals {
             GRADLE_RESOURCE_FILTERING,
             GRADLE_TEST_RUNTIME_SETTINGS,
             GRADLE_PACKAGE_ARCHIVE_MUTATION,
-            GRADLE_PUBLICATION_DETECTED);
+            GRADLE_PUBLICATION_DETECTED,
+            GRADLE_LANGUAGE_UNSUPPORTED,
+            GRADLE_ANDROID_UNSUPPORTED,
+            GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED);
     private static final Comparator<ExplainSignal> COMPARATOR = Comparator
             .comparingInt((ExplainSignal signal) -> severityRank(signal.severity()))
             .thenComparingInt(signal -> categoryRank(signal.category()))
