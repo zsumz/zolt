@@ -44,13 +44,13 @@ public final class BuildPlanService {
             addTestNodes(nodes, root, config, reportsDir, generatedSources);
         }
         if (target.includesCoverage()) {
-            addCoverageNode(nodes);
+            addCoverageNode(nodes, config.build());
         }
         if (target.includesPackage()) {
             addPackageNode(nodes, config);
         }
         if (target.includesPublish()) {
-            addPublishNode(nodes);
+            addPublishNode(nodes, config);
         }
         return new BuildPlan(1, root, config.project().name(), target, nodes);
     }
@@ -194,14 +194,14 @@ public final class BuildPlanService {
                 List.of()));
     }
 
-    private static void addCoverageNode(List<PlanNode> nodes) {
+    private static void addCoverageNode(List<PlanNode> nodes, BuildSettings build) {
         nodes.add(new PlanNode(
                 "coverage",
                 "coverage",
                 PlanNodeStatus.PLANNED,
                 "Coverage runs only through the explicit zolt coverage command, not hidden work after tests.",
-                List.of("target/test-classes", "zolt.lock"),
-                List.of("target/coverage"),
+                List.of(build.testOutput(), "zolt.lock"),
+                List.of(outputRoot(build) + "/coverage"),
                 List.of("command: zolt coverage"),
                 List.of()));
     }
@@ -227,14 +227,16 @@ public final class BuildPlanService {
                 blockers));
     }
 
-    private static void addPublishNode(List<PlanNode> nodes) {
+    private static void addPublishNode(List<PlanNode> nodes, ProjectConfig config) {
+        List<String> inputs = new ArrayList<>(packageOutputs(config));
+        inputs.add("zolt.lock");
         nodes.add(new PlanNode(
                 "publish-dry-run",
                 "publish",
                 PlanNodeStatus.PLANNED,
                 "Publication dry run is planned as explicit Zolt behavior.",
-                List.of("target/package-artifact", "zolt.lock"),
-                List.of("publish request preview"),
+                inputs,
+                List.of(outputRoot(config.build()) + "/publish"),
                 List.of("mode: dry-run"),
                 List.of()));
     }
@@ -264,7 +266,7 @@ public final class BuildPlanService {
             case WAR, SPRING_BOOT_WAR -> ".war";
             default -> ".jar";
         };
-        String base = "target/" + config.project().name() + "-" + config.project().version();
+        String base = outputRoot(config.build()) + "/" + config.project().name() + "-" + config.project().version();
         List<String> outputs = new ArrayList<>();
         outputs.add(base + extension);
         if (config.packageSettings().sources()) {
@@ -277,5 +279,10 @@ public final class BuildPlanService {
             outputs.add(base + "-tests.jar");
         }
         return List.copyOf(outputs);
+    }
+
+    private static String outputRoot(BuildSettings build) {
+        String outputRoot = build.outputRoot();
+        return outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
     }
 }
