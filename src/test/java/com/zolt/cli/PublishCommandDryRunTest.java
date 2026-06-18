@@ -58,15 +58,15 @@ final class PublishCommandDryRunTest {
         assertTrue(result.stdout().contains("Version kind: release"));
         assertTrue(result.stdout().contains("Target repository: company-releases"));
         assertTrue(result.stdout().contains("Target URL: https://repo.example.test/releases"));
-        assertTrue(result.stdout().contains("Artifact path: target/demo-0.1.0.jar"));
+        assertTrue(result.stdout().contains("Artifact path: .zolt/build/demo-0.1.0.jar"));
         assertTrue(result.stdout().contains("Artifact upload path: com/example/demo/0.1.0/demo-0.1.0.jar"));
-        assertTrue(result.stdout().contains("Evidence: target/demo-0.1.0.jar.zolt-package.json"));
-        assertTrue(result.stdout().contains("Generated POM: target/publish/demo-0.1.0.pom"));
+        assertTrue(result.stdout().contains("Evidence: .zolt/build/demo-0.1.0.jar.zolt-package.json"));
+        assertTrue(result.stdout().contains("Generated POM: .zolt/build/publish/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("POM checksum: sha256:"));
         assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
-        assertTrue(Files.exists(projectDir.resolve("target/publish/demo-0.1.0.pom")));
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/publish/demo-0.1.0.pom")));
         assertEquals("", result.stderr());
     }
 
@@ -83,10 +83,11 @@ final class PublishCommandDryRunTest {
                 [test.dependencies]
 
                 [build]
+                outputRoot = ".zolt/build"
                 source = "src/main/java"
                 test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
+                output = ".zolt/build/classes"
+                testOutput = ".zolt/build/test-classes"
                 """);
     }
 

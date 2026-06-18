@@ -143,7 +143,7 @@ public final class PublishDryRunService {
         PackagePlan packagePlan = packagePlan(root, config);
         Path artifactPath = packagePlan.archivePath();
         Path evidencePath = PackageEvidenceManifestWriter.evidenceManifestPath(artifactPath);
-        Path pomPath = root.resolve("target/publish")
+        Path pomPath = root.resolve(config.build().outputRoot()).resolve("publish")
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")
                 .normalize();
         String pomSha256 = writePom(root, pomPath, config, lockfile);
