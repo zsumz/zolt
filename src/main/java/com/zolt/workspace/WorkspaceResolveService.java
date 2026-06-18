@@ -9,6 +9,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveMetrics;
+import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.ResolveOutput;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.resolve.ResolveService;
@@ -57,6 +58,14 @@ public final class WorkspaceResolveService {
     }
 
     public ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, boolean offline) {
+        return resolve(startDirectory, cacheRoot, locked, ResolveOptions.offline(offline));
+    }
+
+    public ResolveResult resolveWithCoverageTooling(Path startDirectory, Path cacheRoot) {
+        return resolve(startDirectory, cacheRoot, false, ResolveOptions.defaults().withCoverageTooling());
+    }
+
+    private ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, ResolveOptions options) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find zolt-workspace.toml. Run `zolt resolve --workspace` from a workspace directory or create zolt-workspace.toml."));
@@ -77,7 +86,7 @@ public final class WorkspaceResolveService {
             ResolveOutput output = resolveService.resolveLockfile(
                     policyMerger.merge(workspace, member),
                     cacheRoot,
-                    offline);
+                    options);
             memberOutputs.add(new WorkspaceMemberResolveOutput(
                     member.path(),
                     output.lockfile(),

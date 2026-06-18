@@ -64,7 +64,31 @@ public final class CoverageService {
         CoverageReportSettings settings = reportSettings == null ? CoverageReportSettings.defaults() : reportSettings;
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         toolingResolver.resolve(projectRoot, config, cacheRoot);
-        List<ResolvedClasspathPackage> coveragePackages = coveragePackages(projectRoot, cacheRoot);
+        CoverageTooling tooling = lockedCoverageTooling(projectRoot, cacheRoot);
+
+        Path execFile = settings.absoluteExecFile(projectRoot);
+        createParent(execFile);
+        TestJvmArguments coverageJvmArguments = coverageJvmArguments(tooling.agentJar(), execFile, false);
+        TestRunResult testResult = testRunner.runTests(
+                projectRoot,
+                config,
+                cacheRoot,
+                selection,
+                coverageJvmArguments,
+                settings.testReports(),
+                cliEvents);
+        JavaRunResult reportResult = runReport(projectRoot, config, settings, execFile, tooling.cliClasspath());
+        return new CoverageResult(
+                testResult,
+                reportResult.output(),
+                execFile,
+                settings.absoluteXmlReport(projectRoot),
+                settings.absoluteHtmlDirectory(projectRoot));
+    }
+
+    public CoverageTooling lockedCoverageTooling(Path lockfileDirectory, Path cacheRoot) {
+        Path lockfileRoot = lockfileDirectory.toAbsolutePath().normalize();
+        List<ResolvedClasspathPackage> coveragePackages = coveragePackages(lockfileRoot, cacheRoot);
         Path agentJar = coverageArtifact(coveragePackages, JACOCO_AGENT_PACKAGE)
                 .orElseThrow(() -> missingTool("org.jacoco:org.jacoco.agent"));
         if (!agentJar.getFileName().toString().contains("-runtime")) {
@@ -79,34 +103,43 @@ public final class CoverageService {
         if (coverageArtifact(coveragePackages, JACOCO_CLI_PACKAGE).isEmpty()) {
             throw missingTool("org.jacoco:org.jacoco.cli");
         }
-
-        Path execFile = settings.absoluteExecFile(projectRoot);
-        createParent(execFile);
-        TestJvmArguments coverageJvmArguments = new TestJvmArguments(List.of(
-                "-javaagent:" + agentJar.toAbsolutePath().normalize() + "=destfile=" + execFile + ",append=false"));
-        TestRunResult testResult = testRunner.runTests(
-                projectRoot,
-                config,
-                cacheRoot,
-                selection,
-                coverageJvmArguments,
-                settings.testReports(),
-                cliEvents);
-        JavaRunResult reportResult = runReport(projectRoot, config, settings, execFile, cliClasspath);
-        return new CoverageResult(
-                testResult,
-                reportResult.output(),
-                execFile,
-                settings.absoluteXmlReport(projectRoot),
-                settings.absoluteHtmlDirectory(projectRoot));
+        return new CoverageTooling(agentJar, cliClasspath);
     }
 
-    private JavaRunResult runReport(
+    public TestJvmArguments coverageJvmArguments(Path agentJar, Path execFile, boolean append) {
+        return new TestJvmArguments(List.of(
+                "-javaagent:"
+                        + agentJar.toAbsolutePath().normalize()
+                        + "=destfile="
+                        + execFile.toAbsolutePath().normalize()
+                        + ",append="
+                        + append));
+    }
+
+    public JavaRunResult runReport(
             Path projectRoot,
             ProjectConfig config,
             CoverageReportSettings settings,
             Path execFile,
             List<Path> cliClasspath) {
+        return runReport(
+                projectRoot,
+                config,
+                settings,
+                execFile,
+                cliClasspath,
+                List.of(projectRoot.resolve(config.build().output()).normalize()),
+                List.of(projectRoot.resolve(config.build().source()).normalize()));
+    }
+
+    public JavaRunResult runReport(
+            Path projectRoot,
+            ProjectConfig config,
+            CoverageReportSettings settings,
+            Path execFile,
+            List<Path> cliClasspath,
+            List<Path> classfileRoots,
+            List<Path> sourceRoots) {
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
             throw new CoverageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
@@ -114,10 +147,14 @@ public final class CoverageService {
         List<String> arguments = new ArrayList<>();
         arguments.add("report");
         arguments.add(execFile.toString());
-        arguments.add("--classfiles");
-        arguments.add(projectRoot.resolve(config.build().output()).normalize().toString());
-        arguments.add("--sourcefiles");
-        arguments.add(projectRoot.resolve(config.build().source()).normalize().toString());
+        for (Path classfileRoot : classfileRoots) {
+            arguments.add("--classfiles");
+            arguments.add(classfileRoot.toAbsolutePath().normalize().toString());
+        }
+        for (Path sourceRoot : sourceRoots) {
+            arguments.add("--sourcefiles");
+            arguments.add(sourceRoot.toAbsolutePath().normalize().toString());
+        }
         settings.absoluteXmlReport(projectRoot).ifPresent(path -> {
             createParent(path);
             arguments.add("--xml");
