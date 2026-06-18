@@ -78,6 +78,20 @@ final class ResolveServiceBetaFixtureMatrixTest extends ResolveServiceTestSuppor
         assertOrder(firstLockfile, "id = \"com.acme:runtime-helper\"", "id = \"com.acme:service-core\"");
         assertOrder(firstLockfile, "id = \"com.acme:service-core\"", "id = \"com.acme:service-starter\"");
         assertOrder(firstLockfile, "id = \"com.modern:relocated-api\"", "id = \"jakarta.servlet:jakarta.servlet-api\"");
+        assertEquals("""
+                packages
+                com.acme:runtime-helper:1.0.0 scope=runtime direct=false dependencies=[]
+                com.acme:service-core:1.1.0 scope=compile direct=false dependencies=[]
+                com.acme:service-starter:1.0.0 scope=compile direct=true dependencies=[com.acme:runtime-helper:1.0.0, com.acme:service-core:1.1.0]
+                com.modern:relocated-api:2.0.0 scope=compile direct=true dependencies=[]
+                jakarta.servlet:jakarta.servlet-api:6.1.0 scope=provided direct=true dependencies=[]
+                org.junit.jupiter:junit-jupiter-api:5.11.4 scope=test direct=true dependencies=[]
+                org.junit.platform:junit-platform-console:1.11.4 scope=test direct=false dependencies=[]
+                org.slf4j:slf4j-simple:2.0.17 scope=runtime direct=true dependencies=[]
+                policies
+                edge-exclusion com.acme:legacy-logging requested=1.0.0 source=com.acme:service-starter:1.0.0
+                conflicts
+                """, goldenSummary(lockfile));
     }
 
     private void addBetaPlatform() {
@@ -244,5 +258,45 @@ final class ResolveServiceBetaFixtureMatrixTest extends ResolveServiceTestSuppor
         assertTrue(output.indexOf(first) >= 0, first);
         assertTrue(output.indexOf(second) >= 0, second);
         assertTrue(output.indexOf(first) < output.indexOf(second));
+    }
+
+    private static String goldenSummary(ZoltLockfile lockfile) {
+        StringBuilder summary = new StringBuilder();
+        summary.append("packages\n");
+        for (LockPackage lockPackage : lockfile.packages()) {
+            summary.append(lockPackage.packageId())
+                    .append(':')
+                    .append(lockPackage.version())
+                    .append(" scope=")
+                    .append(lockPackage.scope().name().toLowerCase().replace('_', '-'))
+                    .append(" direct=")
+                    .append(lockPackage.direct())
+                    .append(" dependencies=")
+                    .append(lockPackage.dependencies())
+                    .append('\n');
+        }
+        summary.append("policies\n");
+        for (var effect : lockfile.policyEffects()) {
+            summary.append(effect.kind())
+                    .append(' ')
+                    .append(effect.packageId())
+                    .append(" requested=")
+                    .append(effect.requestedVersion().orElse("<none>"))
+                    .append(" source=")
+                    .append(effect.source().orElse("<none>"))
+                    .append('\n');
+        }
+        summary.append("conflicts\n");
+        for (var conflict : lockfile.conflicts()) {
+            summary.append(conflict.packageId())
+                    .append(" selected=")
+                    .append(conflict.selectedVersion())
+                    .append(" requested=")
+                    .append(conflict.requestedVersions())
+                    .append(" reason=")
+                    .append(conflict.reason())
+                    .append('\n');
+        }
+        return summary.toString();
     }
 }
