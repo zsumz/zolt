@@ -42,6 +42,7 @@ final class ResolveServiceBomFailureTest extends ResolveServiceTestSupport {
 
         assertTrue(exception.getMessage().contains("Imported BOM com.example:bom"));
         assertTrue(exception.getMessage().contains("is missing a version"));
+        assertTrue(exception.getMessage().contains("Add a version before resolving"));
     }
 
     @Test

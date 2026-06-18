@@ -164,4 +164,35 @@ final class ResolveServicePlatformTest extends ResolveServiceTestSupport {
                         && lockPackage.scope() == DependencyScope.TEST
                         && lockPackage.direct()));
     }
+
+    @Test
+    void unmanagedDirectDependencyFailsBeforeFetchingDirectPackagePom() {
+        addPom("com.example", "platform", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>platform</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>other</artifactId>
+                        <version>1.0.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project-platform-diagnostic");
+        Path cacheRoot = tempDir.resolve("cache-platform-diagnostic");
+        createDirectory(projectDir);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, platformConfig(), cacheRoot));
+
+        assertTrue(exception.getMessage().contains("Dependency com.example:app in [dependencies]"));
+        assertTrue(exception.getMessage().contains("uses a platform-managed version"));
+        assertEquals(0, requestCount(pomRepositoryPath("com.example", "app", "1.0.0")));
+    }
 }
