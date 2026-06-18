@@ -112,7 +112,10 @@ final class LockfileClasspathPackageConverterTest {
                 () -> LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
 
         assertTrue(exception.getMessage().contains("Cached jar integrity check failed for com.example:demo:1.0.0"));
+        assertTrue(exception.getMessage().contains("Expected " + sha256("expected jar bytes")));
         assertTrue(exception.getMessage().contains("but found " + sha256(jar)));
+        assertTrue(exception.getMessage().contains(jar.toAbsolutePath().normalize().toString()));
+        assertTrue(exception.getMessage().contains("Remove the cache entry or run `zolt resolve`"));
     }
 
     @Test
