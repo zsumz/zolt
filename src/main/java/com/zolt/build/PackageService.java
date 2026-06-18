@@ -328,7 +328,7 @@ public final class PackageService {
         return ProjectPaths.output(
                 projectDirectory,
                 "package archive",
-                "target/" + artifactBaseName(config) + "." + extension);
+                config.build().outputRoot() + "/" + artifactBaseName(config) + "." + extension);
     }
 
     private static String artifactBaseName(ProjectConfig config) {

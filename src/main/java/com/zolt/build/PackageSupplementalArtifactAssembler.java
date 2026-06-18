@@ -74,7 +74,10 @@ final class PackageSupplementalArtifactAssembler {
             Optional<List<ResolvedClasspathPackage>> classpathPackages,
             Optional<ClasspathSet> classpaths) {
         Path sourceRoot = ProjectPaths.existingRoot(projectDirectory, "[build].source", config.build().source());
-        Path javadocDirectory = ProjectPaths.output(projectDirectory, "package javadoc output", "target/javadoc");
+        Path javadocDirectory = ProjectPaths.output(
+                projectDirectory,
+                "package javadoc output",
+                config.build().outputRoot() + "/javadoc");
         Path jarPath = classifierJarPath(projectDirectory, config, "javadoc");
         try {
             Files.createDirectories(jarPath.getParent());
@@ -196,7 +199,7 @@ final class PackageSupplementalArtifactAssembler {
         return ProjectPaths.output(
                 projectDirectory,
                 "package artifact",
-                "target/" + artifactBaseName(config) + "-" + classifier + ".jar");
+                config.build().outputRoot() + "/" + artifactBaseName(config) + "-" + classifier + ".jar");
     }
 
     private static String artifactBaseName(ProjectConfig config) {

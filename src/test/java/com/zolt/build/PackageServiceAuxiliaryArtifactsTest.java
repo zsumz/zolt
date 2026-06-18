@@ -6,6 +6,7 @@ import static com.zolt.build.PackageServiceTestSupport.readEntry;
 import static com.zolt.build.PackageServiceTestSupport.source;
 import static com.zolt.build.PackageServiceTestSupport.writeLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -92,6 +93,47 @@ final class PackageServiceAuxiliaryArtifactsTest {
         try (JarFile tests = new JarFile(projectDir.resolve("target/demo-0.1.0-tests.jar").toFile())) {
             assertNotNull(tests.getEntry("com/example/CalculatorTest.class"));
         }
+    }
+
+    @Test
+    void packagesSupplementalArtifactsUnderOutputRoot() throws IOException {
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Calculator.java", """
+                package com.example;
+
+                /** Adds numbers. */
+                public final class Calculator {
+                    /** Adds two integers. */
+                    public int add(int left, int right) {
+                        return left + right;
+                    }
+                }
+                """);
+        source(projectDir, "src/test/java/com/example/CalculatorTest.java", """
+                package com.example;
+
+                public final class CalculatorTest {
+                }
+                """);
+        Files.createDirectories(projectDir.resolve(".zolt/build/test-classes/com/example"));
+        Files.write(projectDir.resolve(".zolt/build/test-classes/com/example/CalculatorTest.class"), new byte[] {0});
+        BuildSettings build = new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                ".zolt/build",
+                ".zolt/build/classes",
+                ".zolt/build/test-classes");
+        ProjectConfig config = config(Optional.empty())
+                .withBuildSettings(build)
+                .withPackageSettings(new PackageSettings(PackageMode.THIN, true, true, true, null));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(projectDir.resolve(".zolt/build/demo-0.1.0-sources.jar"), result.artifacts().get(0).path());
+        assertEquals(projectDir.resolve(".zolt/build/demo-0.1.0-javadoc.jar"), result.artifacts().get(1).path());
+        assertEquals(projectDir.resolve(".zolt/build/demo-0.1.0-tests.jar"), result.artifacts().get(2).path());
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/javadoc")));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0-sources.jar")));
     }
 
     @Test

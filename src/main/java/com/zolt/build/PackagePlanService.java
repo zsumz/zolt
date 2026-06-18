@@ -132,15 +132,15 @@ public final class PackagePlanService {
             case WAR, SPRING_BOOT_WAR -> ProjectPaths.output(
                     projectRoot,
                     "package archive",
-                    "target/" + artifactBaseName(config) + ".war");
+                    config.build().outputRoot() + "/" + artifactBaseName(config) + ".war");
             case QUARKUS -> ProjectPaths.output(
                     projectRoot,
                     "package archive",
-                    "target/" + artifactBaseName(config) + ".jar");
+                    config.build().outputRoot() + "/" + artifactBaseName(config) + ".jar");
             default -> ProjectPaths.output(
                     projectRoot,
                     "package archive",
-                    "target/" + artifactBaseName(config) + ".jar");
+                    config.build().outputRoot() + "/" + artifactBaseName(config) + ".jar");
         };
     }
 
@@ -151,7 +151,7 @@ public final class PackagePlanService {
         return Optional.of(ProjectPaths.output(
                 projectRoot,
                 "package runtime classpath",
-                "target/" + artifactBaseName(config) + ".runtime-classpath"));
+                config.build().outputRoot() + "/" + artifactBaseName(config) + ".runtime-classpath"));
     }
 
     private static String artifactBaseName(ProjectConfig config) {

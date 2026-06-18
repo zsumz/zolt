@@ -67,6 +67,35 @@ final class PackageServiceTest {
     }
 
     @Test
+    void packagesArchiveAndRuntimeClasspathUnderOutputRoot() throws IOException {
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        ProjectConfig config = config(Optional.of("com.example.Main"))
+                .withBuildSettings(new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        ".zolt/build",
+                        ".zolt/build/classes",
+                        ".zolt/build/test-classes"));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(projectDir.resolve(".zolt/build/demo-0.1.0.jar"), result.jarPath());
+        assertEquals(Optional.of(projectDir.resolve(".zolt/build/demo-0.1.0.runtime-classpath")), result.runtimeClasspathPath());
+        assertEquals(Optional.of(projectDir.resolve(".zolt/build/demo-0.1.0.jar.zolt-package.json")), result.evidenceManifestPath());
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/demo-0.1.0.jar")));
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/demo-0.1.0.runtime-classpath")));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
     void packagesCustomManifestAttributesInThinJar() throws IOException {
         writeLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Main.java", """

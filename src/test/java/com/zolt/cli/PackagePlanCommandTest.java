@@ -123,4 +123,31 @@ final class PackagePlanCommandTest extends PackagePlanCommandTestSupport {
         assertTrue(result.stdout().contains("com.example:processor:1.0.0 [processor] omitted rule=processor-omitted"));
         assertFalse(Files.exists(projectDir.resolve("target/package-plan-uber-0.1.0.jar")));
     }
+
+    @Test
+    void packagePlanUsesOutputRootForArchiveAndRuntimeClasspath() throws IOException {
+        Path projectDir = tempDir.resolve("package-plan-output-root");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("package-plan-output-root") + """
+
+                [build]
+                outputRoot = ".zolt/build"
+
+                [package]
+                mode = "thin"
+                """);
+        writePackagePlanLockfile(projectDir, false, false);
+
+        CommandResult result = execute(
+                "package",
+                "--plan",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Archive: " + projectDir.resolve(".zolt/build/package-plan-output-root-0.1.0.jar")));
+        assertTrue(result.stdout().contains(
+                "Runtime classpath sidecar: " + projectDir.resolve(".zolt/build/package-plan-output-root-0.1.0.runtime-classpath")));
+        assertFalse(Files.exists(projectDir.resolve("target/package-plan-output-root-0.1.0.jar")));
+    }
 }
