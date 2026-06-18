@@ -1,5 +1,6 @@
 package com.zolt.toml;
 
+import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import java.util.List;
 import java.util.Set;
@@ -36,7 +37,11 @@ final class CompilerSectionCodec {
     }
 
     static CompilerSettings parse(TomlTable table) {
-        CompilerSettings defaults = CompilerSettings.defaults();
+        return parse(table, BuildSettings.defaults());
+    }
+
+    static CompilerSettings parse(TomlTable table, BuildSettings build) {
+        CompilerSettings defaults = CompilerSettings.defaultsForOutputRoot(build.outputRoot());
         if (table == null) {
             return defaults;
         }
@@ -64,7 +69,11 @@ final class CompilerSectionCodec {
     }
 
     static void write(StringBuilder toml, CompilerSettings settings) {
-        CompilerSettings defaults = CompilerSettings.defaults();
+        write(toml, settings, BuildSettings.defaults());
+    }
+
+    static void write(StringBuilder toml, CompilerSettings settings, BuildSettings build) {
+        CompilerSettings defaults = CompilerSettings.defaultsForOutputRoot(build.outputRoot());
         if (settings == null || settings.equals(defaults)) {
             return;
         }

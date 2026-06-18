@@ -43,7 +43,7 @@ public final class ZoltTomlWriter {
         BuildSectionCodec.writeBuildMetadata(toml, config.build().metadata());
         BuildSectionCodec.writeResources(toml, config.build());
         GeneratedSectionCodec.write(toml, config.build());
-        CompilerSectionCodec.write(toml, config.compilerSettings());
+        CompilerSectionCodec.write(toml, config.compilerSettings(), config.build());
         PackageSectionCodec.write(toml, config.packageSettings());
         FrameworkSectionCodec.write(toml, config.frameworkSettings());
         NativeSectionCodec.write(toml, config.nativeSettings());

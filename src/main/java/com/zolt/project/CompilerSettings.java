@@ -35,6 +35,17 @@ public record CompilerSettings(
                 List.of());
     }
 
+    public static CompilerSettings defaultsForOutputRoot(String outputRoot) {
+        String root = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return new CompilerSettings(
+                root + "/generated/sources/annotations",
+                root + "/generated/test-sources/annotations",
+                "",
+                "",
+                List.of(),
+                List.of());
+    }
+
     private static String stringOrDefault(String value, String defaultValue) {
         return value == null || value.isBlank() ? defaultValue : value;
     }

@@ -2,6 +2,7 @@ package com.zolt.toml;
 
 import static com.zolt.toml.ProjectConfigFixture.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.BuildSettings;
@@ -132,6 +133,7 @@ final class ZoltTomlWriterTest {
                         ".zolt/build",
                         ".zolt/build/classes",
                         ".zolt/build/test-classes"))
+                .compilerSettings(CompilerSettings.defaultsForOutputRoot(".zolt/build"))
                 .build();
 
         String toml = writer.write(config);
@@ -141,6 +143,9 @@ final class ZoltTomlWriterTest {
         assertEquals(".zolt/build", parsed.build().outputRoot());
         assertEquals(".zolt/build/classes", parsed.build().output());
         assertEquals(".zolt/build/test-classes", parsed.build().testOutput());
+        assertEquals(".zolt/build/generated/sources/annotations", parsed.compilerSettings().generatedSources());
+        assertEquals(".zolt/build/generated/test-sources/annotations", parsed.compilerSettings().generatedTestSources());
+        assertFalse(toml.contains("[compiler]"));
     }
 
     @Test

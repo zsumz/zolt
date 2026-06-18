@@ -97,7 +97,7 @@ public final class ZoltTomlParser {
         build = BuildSectionCodec.parseIntegrationTest(optionalTable(result, "integrationTest"), build);
         build = BuildSectionCodec.parseResourceRoots(optionalTable(result, "resources"), build);
         build = GeneratedSectionCodec.parse(optionalTable(result, "generated"), build, versionAliases);
-        CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"));
+        CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"), build);
         PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
         NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name());

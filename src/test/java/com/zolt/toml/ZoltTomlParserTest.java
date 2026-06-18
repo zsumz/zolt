@@ -144,6 +144,8 @@ final class ZoltTomlParserTest {
         assertEquals(".zolt/build", config.build().outputRoot());
         assertEquals(".zolt/build/classes", config.build().output());
         assertEquals(".zolt/build/test-classes", config.build().testOutput());
+        assertEquals(".zolt/build/generated/sources/annotations", config.compilerSettings().generatedSources());
+        assertEquals(".zolt/build/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
     }
 
     @Test
@@ -164,6 +166,8 @@ final class ZoltTomlParserTest {
         assertEquals(".zolt/build", config.build().outputRoot());
         assertEquals("out/main", config.build().output());
         assertEquals("out/test", config.build().testOutput());
+        assertEquals(".zolt/build/generated/sources/annotations", config.compilerSettings().generatedSources());
+        assertEquals(".zolt/build/generated/test-sources/annotations", config.compilerSettings().generatedTestSources());
     }
 
     @Test
