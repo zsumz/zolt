@@ -47,7 +47,7 @@ final class NativeCommandTest {
     }
 
     @Test
-    void nativeReportsExplicitSpringBootNativeSettingAsUnsupported() throws IOException {
+    void nativeReportsMissingSpringBootAotOutputsClearly() throws IOException {
         Path projectDir = tempDir.resolve("spring-boot-native-demo");
         writeExplicitSpringBootNativeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
 
@@ -58,8 +58,8 @@ final class NativeCommandTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("[framework.springBoot.native] enabled = true"));
-        assertTrue(result.stderr().contains("Spring Boot AOT/native request"));
-        assertTrue(result.stderr().contains("Remove [framework.springBoot.native]"));
+        assertTrue(result.stderr().contains("Spring Boot native AOT output is missing"));
+        assertTrue(result.stderr().contains("target/spring-aot/main/classes"));
     }
 
     @Test

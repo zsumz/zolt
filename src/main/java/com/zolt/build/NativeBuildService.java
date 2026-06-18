@@ -52,6 +52,10 @@ public final class NativeBuildService {
         rejectUnsupportedFrameworkNative(config);
         String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
                 "Native Image main class is missing. Add [project].main to zolt.toml."));
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
+                ? new SpringBootAotNativeInputs(projectRoot).classpathEntries()
+                : List.of();
         PackageResult packageResult = packageService.packageJar(
                 projectDirectory,
                 config.withPackageSettings(PackageSettings.defaults()),
@@ -62,13 +66,14 @@ public final class NativeBuildService {
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList());
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
-        Path projectRoot = ProjectPaths.root(projectDirectory);
+        List<Path> runtimeClasspath = new java.util.ArrayList<>(classpaths.runtime().entries());
+        runtimeClasspath.addAll(0, springBootAotClasspath);
         Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
         String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
         NativeImageResult nativeImageResult = nativeImageRunner.build(new NativeImageRequest(
                 nativeImageExecutable,
                 packageResult.jarPath(),
-                classpaths.runtime().entries(),
+                runtimeClasspath,
                 mainClass,
                 outputDirectory.resolve(imageName),
                 outputDirectory.resolve("native-image.log"),
@@ -78,16 +83,7 @@ public final class NativeBuildService {
     }
 
     private static void rejectUnsupportedFrameworkNative(ProjectConfig config) {
-        if (config.frameworkSettings().springBoot().nativeEnabled()) {
-            throw new NativeImageException(
-                    "Spring Boot native images are not supported by Zolt yet. "
-                            + "[framework.springBoot.native] enabled = true declares a Spring Boot AOT/native request, "
-                            + "but Zolt does not yet run Spring Boot AOT processing, compile generated AOT sources, "
-                            + "or pass Spring reachability metadata to Native Image. "
-                            + "Remove [framework.springBoot.native] for the current beta path, "
-                            + "or use `zolt package --mode spring-boot` / `zolt run` for Spring Boot JVM apps.");
-        }
-        if (springBootProject(config)) {
+        if (!config.frameworkSettings().springBoot().nativeEnabled() && springBootProject(config)) {
             throw new NativeImageException(
                     "Spring Boot native images are not supported by Zolt yet. "
                             + "Zolt supports Spring Boot JVM build, test, run, and executable packaging, "
