@@ -34,6 +34,10 @@ final class PublicReadinessDocumentationTest {
         assertTrue(readiness.contains("| Quarkus JVM applications | Experimental |"));
         assertTrue(readiness.contains("| Groovy and Spock | Planned |"));
         assertTrue(readiness.contains("Non-goal for public beta"));
+        assertTrue(readiness.contains("Kotlin, Scala, Android, SNAPSHOTs, and version ranges in the public MVP"));
+        assertFalse(
+                readiness.contains("Kotlin JVM source support."),
+                "Kotlin must stay out of planned public-MVP readiness docs");
         assertFalse(
                 readiness.contains("- [ ] Public readiness docs list supported, experimental, planned, and non-goal surfaces."),
                 "Release readiness should not show the public support-surface docs item as incomplete");
