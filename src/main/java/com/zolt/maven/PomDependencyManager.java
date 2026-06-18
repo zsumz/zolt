@@ -39,6 +39,7 @@ public final class PomDependencyManager {
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {
         return pom.rawPom().dependencies().stream()
+                .filter(dependency -> !hasDynamicClassifier(dependency))
                 .map(dependency -> applyManagedVersion(dependency, pom))
                 .toList();
     }
@@ -61,6 +62,10 @@ public final class PomDependencyManager {
                 dependency.artifactId(),
                 dependency.type().orElse("jar"),
                 dependency.classifier());
+    }
+
+    private static boolean hasDynamicClassifier(RawPomDependency dependency) {
+        return dependency.classifier().map(value -> value.contains("${")).orElse(false);
     }
 
     private record ManagedDependencyKey(
