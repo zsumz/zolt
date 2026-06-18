@@ -78,16 +78,16 @@ final class IdeProjectModelBuilder {
         }
         PackageSettings settings = config.packageSettings();
         String artifactBaseName = artifactBaseName(root, config, diagnostics);
-        Path mainJar = artifactPath(root, artifactBaseName, "", diagnostics);
+        Path mainJar = artifactPath(root, config, artifactBaseName, "", diagnostics);
         return new IdeModel.PackageInfo(
                 settings.mode().configValue(),
                 settings.sources(),
                 settings.javadoc(),
                 settings.tests(),
                 mainJar,
-                settings.sources() ? artifactPath(root, artifactBaseName, "sources", diagnostics) : null,
-                settings.javadoc() ? artifactPath(root, artifactBaseName, "javadoc", diagnostics) : null,
-                settings.tests() ? artifactPath(root, artifactBaseName, "tests", diagnostics) : null,
+                settings.sources() ? artifactPath(root, config, artifactBaseName, "sources", diagnostics) : null,
+                settings.javadoc() ? artifactPath(root, config, artifactBaseName, "javadoc", diagnostics) : null,
+                settings.tests() ? artifactPath(root, config, artifactBaseName, "tests", diagnostics) : null,
                 publicationInfo(settings.metadata()),
                 settings.manifestAttributes());
     }
@@ -103,7 +103,7 @@ final class IdeProjectModelBuilder {
         return new IdeModel.OutputInfo(
                 outputPath(root, "[build].output", config.build().output(), diagnostics),
                 outputPath(root, "[build].testOutput", config.build().testOutput(), diagnostics),
-                artifactPath(root, artifactBaseName, "", diagnostics));
+                artifactPath(root, config, artifactBaseName, "", diagnostics));
     }
 
     private static IdeModel.PublicationInfo publicationInfo(PublicationMetadata metadata) {
@@ -131,6 +131,7 @@ final class IdeProjectModelBuilder {
 
     private static Path artifactPath(
             Path root,
+            ProjectConfig config,
             String artifactBaseName,
             String classifier,
             List<IdeModel.Diagnostic> diagnostics) {
@@ -138,7 +139,11 @@ final class IdeProjectModelBuilder {
             return null;
         }
         String suffix = classifier == null || classifier.isBlank() ? "" : "-" + classifier;
-        return outputPath(root, "package artifact", "target/" + artifactBaseName + suffix + ".jar", diagnostics);
+        return outputPath(
+                root,
+                "package artifact",
+                config.build().outputRoot() + "/" + artifactBaseName + suffix + ".jar",
+                diagnostics);
     }
 
     private static String blankToNull(String value) {

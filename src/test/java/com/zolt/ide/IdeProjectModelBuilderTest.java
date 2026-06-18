@@ -62,6 +62,9 @@ final class IdeProjectModelBuilderTest {
                 group = "com.example"
                 java = "21"
 
+                [build]
+                outputRoot = ".zolt/build"
+
                 [package]
                 sources = true
                 javadoc = true
@@ -89,10 +92,10 @@ final class IdeProjectModelBuilderTest {
                         true,
                         true,
                         true,
-                        root.resolve("target/library-package-0.1.0.jar"),
-                        root.resolve("target/library-package-0.1.0-sources.jar"),
-                        root.resolve("target/library-package-0.1.0-javadoc.jar"),
-                        root.resolve("target/library-package-0.1.0-tests.jar"),
+                        root.resolve(".zolt/build/library-package-0.1.0.jar"),
+                        root.resolve(".zolt/build/library-package-0.1.0-sources.jar"),
+                        root.resolve(".zolt/build/library-package-0.1.0-javadoc.jar"),
+                        root.resolve(".zolt/build/library-package-0.1.0-tests.jar"),
                         new IdeModel.PublicationInfo(
                                 "Library Package",
                                 "Library packaging fixture",
@@ -105,9 +108,9 @@ final class IdeProjectModelBuilderTest {
                 packageInfo);
         assertEquals(
                 new IdeModel.OutputInfo(
-                        root.resolve("target/classes"),
-                        root.resolve("target/test-classes"),
-                        root.resolve("target/library-package-0.1.0.jar")),
+                        root.resolve(".zolt/build/classes"),
+                        root.resolve(".zolt/build/test-classes"),
+                        root.resolve(".zolt/build/library-package-0.1.0.jar")),
                 builder.outputInfo(root, config, diagnostics));
         assertEquals(List.of(), diagnostics);
 
