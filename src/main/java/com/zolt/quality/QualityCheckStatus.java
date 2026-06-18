@@ -2,6 +2,7 @@ package com.zolt.quality;
 
 public enum QualityCheckStatus {
     PASSED("passed", "ok"),
+    WARNING("warning", "warning"),
     FAILED("failed", "error"),
     SKIPPED("skipped", "skip");
 

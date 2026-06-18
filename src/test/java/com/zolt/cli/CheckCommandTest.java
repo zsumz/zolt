@@ -56,6 +56,39 @@ final class CheckCommandTest extends CheckCommandTestSupport {
     }
 
     @Test
+    void checkWarnsWhenLegacyBuildFilesShareDefaultTargetOutputRoot() throws IOException {
+        Path projectDir = createProject("check-output-root-migration");
+        Files.writeString(projectDir.resolve("pom.xml"), "<project></project>\n");
+
+        CommandResult result = execute("check", "--check", "project-model", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok project-model check-output-root-migration Project model is valid"));
+        assertTrue(result.stdout().contains("warning project-model [build].outputRoot Maven or Gradle project files are present (pom.xml) while Zolt outputRoot is `target`"));
+        assertTrue(result.stdout().contains("next: For side-by-side migration, set [build].outputRoot = \".zolt/build\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkDoesNotWarnWhenMigrationOutputRootIsIsolated() throws IOException {
+        Path projectDir = createProject("check-output-root-isolated");
+        Files.writeString(projectDir.resolve("pom.xml"), "<project></project>\n");
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-output-root-isolated")
+                + """
+
+                [build]
+                outputRoot = ".zolt/build"
+                """);
+
+        CommandResult result = execute("check", "--check", "project-model", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok project-model check-output-root-isolated Project model is valid"));
+        assertTrue(!result.stdout().contains("warning project-model [build].outputRoot"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkReportsMalformedConfigAsFailedCheck() throws IOException {
         Path projectDir = createProject("check-malformed");
         Files.writeString(projectDir.resolve("zolt.toml"), """

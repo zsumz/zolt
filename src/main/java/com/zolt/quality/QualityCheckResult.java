@@ -27,6 +27,15 @@ public record QualityCheckResult(
         return new QualityCheckResult(id, QualityCheckSeverity.ERROR, QualityCheckStatus.FAILED, member, subject, message, nextStep);
     }
 
+    public static QualityCheckResult warning(
+            String id,
+            Optional<String> member,
+            String subject,
+            String message,
+            String nextStep) {
+        return new QualityCheckResult(id, QualityCheckSeverity.WARN, QualityCheckStatus.WARNING, member, subject, message, nextStep);
+    }
+
     public static QualityCheckResult skipped(
             String id,
             Optional<String> member,

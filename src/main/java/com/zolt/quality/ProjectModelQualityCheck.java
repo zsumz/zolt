@@ -7,6 +7,7 @@ import com.zolt.project.DependencyMetadata;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -35,8 +36,42 @@ final class ProjectModelQualityCheck {
                 member,
                 config.project().name(),
                 "Project model is valid for Zolt-owned checks at " + projectRoot.toAbsolutePath().normalize() + "."));
+        migrationOutputRootDiagnostic(member, projectRoot, config).ifPresent(results::add);
         results.addAll(unusedVersionAliasDiagnostics(member, config));
         return List.copyOf(results);
+    }
+
+    private static Optional<QualityCheckResult> migrationOutputRootDiagnostic(
+            Optional<String> member,
+            Path projectRoot,
+            ProjectConfig config) {
+        if (!Path.of(config.build().outputRoot()).normalize().equals(Path.of("target"))) {
+            return Optional.empty();
+        }
+        List<String> legacyFiles = legacyBuildFiles(projectRoot);
+        if (legacyFiles.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(QualityCheckResult.warning(
+                PROJECT_MODEL,
+                member,
+                "[build].outputRoot",
+                "Maven or Gradle project files are present ("
+                        + String.join(", ", legacyFiles)
+                        + ") while Zolt outputRoot is `target`, so tools may write into the same output tree.",
+                "For side-by-side migration, set [build].outputRoot = \".zolt/build\" in zolt.toml so Zolt-owned outputs stay separate."));
+    }
+
+    private static List<String> legacyBuildFiles(Path projectRoot) {
+        List<String> names = List.of(
+                "pom.xml",
+                "settings.gradle",
+                "settings.gradle.kts",
+                "build.gradle",
+                "build.gradle.kts");
+        return names.stream()
+                .filter(name -> Files.isRegularFile(projectRoot.resolve(name)))
+                .toList();
     }
 
     private static List<QualityCheckResult> unusedVersionAliasDiagnostics(
