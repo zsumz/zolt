@@ -78,7 +78,7 @@ public final class IntegrationTestCommand implements Runnable {
     private List<String> testEvents = List.of();
 
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
-    private Path reportsDir = Path.of("target/integration-test-reports");
+    private Path reportsDir;
 
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
@@ -122,12 +122,16 @@ public final class IntegrationTestCommand implements Runnable {
                     excludedTags);
             TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
-            TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
             if (workspace) {
-                runWorkspaceIntegrationTests(timings, testSelection, testJvmArguments, reportSettings, requestedTestEvents);
+                runWorkspaceIntegrationTests(
+                        timings,
+                        testSelection,
+                        testJvmArguments,
+                        TestReportSettings.reportsDirectory(workspaceReportsDir()),
+                        requestedTestEvents);
                 return;
             }
-            runSingleProjectIntegrationTests(timings, testSelection, testJvmArguments, reportSettings, requestedTestEvents);
+            runSingleProjectIntegrationTests(timings, testSelection, testJvmArguments, requestedTestEvents);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -202,13 +206,13 @@ public final class IntegrationTestCommand implements Runnable {
             TimingRecorder timings,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
-            TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
         lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         ProjectConfig integrationConfig = config.withBuildSettings(config.build().asIntegrationTestBuild());
+        TestReportSettings reportSettings = TestReportSettings.reportsDirectory(integrationReportsDir(config));
         TestRunResult result = timings.measure(
                 "run integration tests",
                 () -> {
@@ -258,5 +262,15 @@ public final class IntegrationTestCommand implements Runnable {
         spec.commandLine().getOut().println("Integration tests passed");
         result.reportsDirectory().ifPresent(directory ->
                 spec.commandLine().getOut().println("Wrote integration test reports to " + directory));
+    }
+
+    private Path integrationReportsDir(ProjectConfig config) {
+        return reportsDir == null
+                ? Path.of(config.build().outputRoot()).resolve("integration-test-reports")
+                : reportsDir;
+    }
+
+    private Path workspaceReportsDir() {
+        return reportsDir == null ? Path.of("target/integration-test-reports") : reportsDir;
     }
 }

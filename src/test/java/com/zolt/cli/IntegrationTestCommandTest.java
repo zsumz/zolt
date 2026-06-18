@@ -35,6 +35,9 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
 
                 [test.dependencies]
 
+                [build]
+                outputRoot = ".zolt/build"
+
                 [integrationTest]
                 sources = ["src/it/java"]
                 resources = ["src/it/resources"]
@@ -63,10 +66,10 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Integration tests passed"));
         assertTrue(result.stdout().contains("Wrote integration test reports to "
-                + projectDir.resolve("target/integration-test-reports").toAbsolutePath().normalize()));
+                + projectDir.resolve(".zolt/build/integration-test-reports").toAbsolutePath().normalize()));
         assertTrue(Files.exists(projectDir.resolve("target/it-classes/com/example/AppIT.class")));
         assertTrue(Files.exists(projectDir.resolve("target/it-classes/it.properties")));
-        assertTrue(Files.exists(projectDir.resolve("target/integration-test-reports/TEST-fake-console.xml")));
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/integration-test-reports/TEST-fake-console.xml")));
         assertFalse(Files.exists(projectDir.resolve("target/test-classes/com/example/AppTest.class")));
     }
 

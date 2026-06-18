@@ -10,7 +10,6 @@ import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
-import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunException;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.ZoltCli;
@@ -77,16 +76,16 @@ public final class CoverageCommand implements Runnable {
     private boolean noHtml;
 
     @Option(names = "--exec-file", description = "Project-relative Jacoco execution data path.")
-    private Path execFile = Path.of("target/coverage/jacoco.exec");
+    private Path execFile;
 
     @Option(names = "--xml-report", description = "Project-relative Jacoco XML report path.")
-    private Path xmlReport = Path.of("target/coverage/jacoco.xml");
+    private Path xmlReport;
 
     @Option(names = "--html-dir", description = "Project-relative Jacoco HTML report directory.")
-    private Path htmlDirectory = Path.of("target/coverage/html");
+    private Path htmlDirectory;
 
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
-    private Path reportsDir = Path.of("target/coverage/test-reports");
+    private Path reportsDir;
 
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
@@ -123,20 +122,14 @@ public final class CoverageCommand implements Runnable {
                     includedTags,
                     excludedTags);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
-            CoverageReportSettings reportSettings = new CoverageReportSettings(
-                    !noXml,
-                    !noHtml,
-                    execFile,
-                    xmlReport,
-                    htmlDirectory,
-                    TestReportSettings.reportsDirectory(reportsDir));
             if (workspace) {
-                runWorkspaceCoverage(timings, testSelection, reportSettings, requestedTestEvents);
+                runWorkspaceCoverage(timings, testSelection, coverageReportSettings(Path.of("target")), requestedTestEvents);
                 return;
             }
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+            CoverageReportSettings reportSettings = coverageReportSettings(Path.of(config.build().outputRoot()));
             CoverageResult result = timings.measure(
                     "run coverage",
                     () -> coverageService.runCoverage(
@@ -183,6 +176,17 @@ public final class CoverageCommand implements Runnable {
         } finally {
             CommandTimings.print(spec, "coverage", workingDirectory, timingOptions, timings);
         }
+    }
+
+    private CoverageReportSettings coverageReportSettings(Path outputRoot) {
+        return CoverageReportSettings.forOutputRoot(
+                !noXml,
+                !noHtml,
+                outputRoot,
+                execFile,
+                xmlReport,
+                htmlDirectory,
+                reportsDir);
     }
 
     private void runWorkspaceCoverage(

@@ -61,7 +61,9 @@ public final class CoverageService {
             TestSelection selection,
             CoverageReportSettings reportSettings,
             List<String> cliEvents) {
-        CoverageReportSettings settings = reportSettings == null ? CoverageReportSettings.defaults() : reportSettings;
+        CoverageReportSettings settings = reportSettings == null
+                ? CoverageReportSettings.defaultsForOutputRoot(config.build().outputRoot())
+                : reportSettings;
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         toolingResolver.resolve(projectRoot, config, cacheRoot);
         CoverageTooling tooling = lockedCoverageTooling(projectRoot, cacheRoot);

@@ -28,13 +28,34 @@ public record CoverageReportSettings(
     }
 
     public static CoverageReportSettings defaults() {
+        return defaultsForOutputRoot(Path.of("target"));
+    }
+
+    public static CoverageReportSettings defaultsForOutputRoot(String outputRoot) {
+        return defaultsForOutputRoot(Path.of(outputRoot));
+    }
+
+    public static CoverageReportSettings defaultsForOutputRoot(Path outputRoot) {
+        return forOutputRoot(true, true, outputRoot, null, null, null, null);
+    }
+
+    public static CoverageReportSettings forOutputRoot(
+            boolean xml,
+            boolean html,
+            Path outputRoot,
+            Path execFile,
+            Path xmlReport,
+            Path htmlDirectory,
+            Path reportsDirectory) {
+        Path coverageRoot = (outputRoot == null ? Path.of("target") : outputRoot).resolve("coverage");
         return new CoverageReportSettings(
-                true,
-                true,
-                DEFAULT_ROOT.resolve("jacoco.exec"),
-                DEFAULT_ROOT.resolve("jacoco.xml"),
-                DEFAULT_ROOT.resolve("html"),
-                TestReportSettings.reportsDirectory(DEFAULT_ROOT.resolve("test-reports")));
+                xml,
+                html,
+                execFile == null ? coverageRoot.resolve("jacoco.exec") : execFile,
+                xmlReport == null ? coverageRoot.resolve("jacoco.xml") : xmlReport,
+                htmlDirectory == null ? coverageRoot.resolve("html") : htmlDirectory,
+                TestReportSettings.reportsDirectory(
+                        reportsDirectory == null ? coverageRoot.resolve("test-reports") : reportsDirectory));
     }
 
     public Optional<Path> absoluteXmlReport(Path projectDirectory) {

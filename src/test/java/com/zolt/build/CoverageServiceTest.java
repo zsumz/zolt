@@ -95,6 +95,43 @@ final class CoverageServiceTest {
         assertTrue(!reportCommands.getFirst().contains("--html"));
     }
 
+    @Test
+    void omittedCoverageSettingsDefaultUnderBuildOutputRoot() throws IOException {
+        writeCoverageLockfile();
+        List<TestReportSettings> testReportSettings = new ArrayList<>();
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) -> {
+                    testReportSettings.add(reportSettings);
+                    return new TestRunResult(null, "Tests passed\n");
+                },
+                reportCommands);
+
+        ProjectConfig config = configWithBuild(new BuildSettings(
+                "src/main/java",
+                "src/test/java",
+                ".zolt/build",
+                ".zolt/build/classes",
+                ".zolt/build/test-classes"));
+        CoverageResult result = service.runCoverage(
+                projectDir,
+                config,
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                null,
+                List.of());
+
+        Path execFile = projectDir.resolve(".zolt/build/coverage/jacoco.exec").toAbsolutePath().normalize();
+        assertEquals(execFile, result.execFile());
+        assertEquals(Optional.of(projectDir.resolve(".zolt/build/coverage/jacoco.xml").toAbsolutePath().normalize()), result.xmlReport());
+        assertEquals(Optional.of(projectDir.resolve(".zolt/build/coverage/html").toAbsolutePath().normalize()), result.htmlDirectory());
+        assertEquals(Optional.of(Path.of(".zolt/build/coverage/test-reports")), testReportSettings.getFirst().reportsDirectory());
+        List<String> command = reportCommands.getFirst();
+        assertEquals(projectDir.resolve(".zolt/build/classes").toAbsolutePath().normalize().toString(), argumentAfter(command, "--classfiles"));
+        assertEquals(projectDir.resolve(".zolt/build/coverage/jacoco.xml").toAbsolutePath().normalize().toString(), argumentAfter(command, "--xml"));
+        assertEquals(projectDir.resolve(".zolt/build/coverage/html").toAbsolutePath().normalize().toString(), argumentAfter(command, "--html"));
+    }
+
     private CoverageService service(
             CoverageService.CoverageTestRunner testRunner,
             List<List<String>> reportCommands) {
@@ -155,12 +192,16 @@ final class CoverageServiceTest {
     }
 
     private static ProjectConfig config() {
+        return configWithBuild(BuildSettings.defaults());
+    }
+
+    private static ProjectConfig configWithBuild(BuildSettings buildSettings) {
         return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.of("com.example.Main")),
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
                 Map.of(),
                 Map.of("org.junit.jupiter:junit-jupiter", "5.11.4"),
-                BuildSettings.defaults());
+                buildSettings);
     }
 
     private static String argumentAfter(List<String> command, String argument) {
