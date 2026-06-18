@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package com.example.greeter;
+
+option java_package = "com.example.greeter.api";
+
+message HelloReply {
+  string message = 1;
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+}
