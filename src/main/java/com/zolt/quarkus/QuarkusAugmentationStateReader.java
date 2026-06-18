@@ -11,7 +11,14 @@ public final class QuarkusAugmentationStateReader {
     public static final String METADATA_PATH = "target/quarkus/zolt-augmentation.properties";
 
     public QuarkusAugmentationState read(Path projectDirectory, String currentInputFingerprint) {
-        Path metadataPath = projectDirectory.resolve(METADATA_PATH).normalize();
+        return read(projectDirectory, "target", currentInputFingerprint);
+    }
+
+    public QuarkusAugmentationState read(
+            Path projectDirectory,
+            String outputRoot,
+            String currentInputFingerprint) {
+        Path metadataPath = metadataPath(projectDirectory, outputRoot);
         if (!Files.isRegularFile(metadataPath)) {
             return new QuarkusAugmentationState(
                     metadataPath,
@@ -42,5 +49,10 @@ public final class QuarkusAugmentationStateReader {
                 ? QuarkusAugmentationState.Status.CURRENT
                 : QuarkusAugmentationState.Status.STALE;
         return new QuarkusAugmentationState(metadataPath, status, Optional.of(recorded));
+    }
+
+    public static Path metadataPath(Path projectDirectory, String outputRoot) {
+        String effectiveOutputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return projectDirectory.resolve(effectiveOutputRoot).resolve("quarkus/zolt-augmentation.properties").normalize();
     }
 }

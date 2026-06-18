@@ -113,7 +113,9 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
                     request.mainOutputDirectory(),
                     request.testOutputDirectory(),
                     modelPath,
-                    request.projectDirectory().resolve("target/quarkus/zolt-bootstrap.properties"),
+                    request.projectDirectory()
+                            .resolve(request.config().build().outputRoot())
+                            .resolve("quarkus/zolt-bootstrap.properties"),
                     request.testRuntimeClasspath(),
                     request.testRuntimeClasspath().stream().anyMatch(QuarkusFrameworkTestRunner::isJbossLogManagerJar),
                     testSelection(request),
@@ -122,7 +124,7 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
         } catch (QuarkusAugmentationException exception) {
             throw new TestRunException(
                     "Could not write Quarkus test runner descriptor. "
-                            + "Clean target/quarkus, run `zolt build`, then run `zolt test` again. "
+                            + "Clean the configured Quarkus output directory, run `zolt build`, then run `zolt test` again. "
                             + exception.getMessage(),
                     exception);
         }

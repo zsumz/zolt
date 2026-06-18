@@ -70,13 +70,13 @@ public final class QuarkusPlanService {
                 root,
                 applicationClasses,
                 config.frameworkSettings().quarkus().packageMode(),
-                outputLayout(root),
+                outputLayout(root, config),
                 new QuarkusApplicationArtifact(
                         new PackageId(config.project().group(), config.project().name()),
                         config.project().version(),
                         applicationClasses),
                 fingerprint,
-                augmentationStateReader.read(root, fingerprint),
+                augmentationStateReader.read(root, config.build().outputRoot(), fingerprint),
                 classpaths.runtime().entries(),
                 classpaths.quarkusDeployment().entries(),
                 platformPropertiesArtifacts(lockfile, cache),
@@ -84,8 +84,8 @@ public final class QuarkusPlanService {
                 extensions(lockfile, cache));
     }
 
-    private static QuarkusOutputLayout outputLayout(Path projectRoot) {
-        return QuarkusOutputLayout.forProject(projectRoot);
+    private static QuarkusOutputLayout outputLayout(Path projectRoot, ProjectConfig config) {
+        return QuarkusOutputLayout.forProject(projectRoot, config.build().outputRoot());
     }
 
     private static Path outputPath(Path root, String key, String configuredPath) {

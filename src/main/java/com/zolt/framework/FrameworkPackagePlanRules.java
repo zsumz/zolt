@@ -8,9 +8,9 @@ import java.nio.file.Path;
 public interface FrameworkPackagePlanRules {
     boolean supports(PackageMode mode);
 
-    FrameworkPackagePlanDependency dependency(LockPackage lockPackage);
+    FrameworkPackagePlanDependency dependency(LockPackage lockPackage, ProjectConfig config);
 
     Path archivePath(Path projectRoot, ProjectConfig config);
 
-    String applicationLayout();
+    String applicationLayout(ProjectConfig config);
 }

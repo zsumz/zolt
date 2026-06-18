@@ -35,7 +35,10 @@ public final class QuarkusTestPlanService {
         }
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path testOutputDirectory = outputPath(root, "[build].testOutput", config.build().testOutput());
-        Path quarkusDirectory = outputPath(root, "Quarkus test output", "target/quarkus");
+        Path quarkusDirectory = outputPath(
+                root,
+                "Quarkus test output",
+                config.build().outputRoot() + "/quarkus");
         return new QuarkusTestPlan(
                 root,
                 testOutputDirectory,

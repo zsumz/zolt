@@ -56,14 +56,15 @@ public final class PackagePlanService {
                         mode,
                         lockPackage,
                         providedPackageIds,
-                        modeRules))
+                        modeRules,
+                        config))
                 .toList();
         return new PackagePlan(
                 projectRoot,
                 mode,
                 archivePath(projectRoot, config, mode, modeRules),
                 projectRoot.resolve(config.build().output()).normalize(),
-                applicationLayout(mode, modeRules),
+                applicationLayout(mode, modeRules, config),
                 runtimeClasspathPath(projectRoot, config, mode),
                 dependencies,
                 warnings(mode, dependencies));
@@ -160,9 +161,12 @@ public final class PackagePlanService {
                 + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
-    private static String applicationLayout(PackageMode mode, Optional<FrameworkPackagePlanRules> packagePlanRules) {
+    private static String applicationLayout(
+            PackageMode mode,
+            Optional<FrameworkPackagePlanRules> packagePlanRules,
+            ProjectConfig config) {
         if (packagePlanRules.isPresent()) {
-            return packagePlanRules.orElseThrow().applicationLayout();
+            return packagePlanRules.orElseThrow().applicationLayout(config);
         }
         return switch (mode) {
             case THIN, UBER -> "archive root";

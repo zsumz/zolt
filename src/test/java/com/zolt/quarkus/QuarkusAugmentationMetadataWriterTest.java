@@ -34,11 +34,12 @@ final class QuarkusAugmentationMetadataWriterTest {
     void writtenMetadataReadsAsCurrent() {
         String fingerprint = "sha256:" + "2".repeat(64);
 
-        writer.write(tempDir, fingerprint);
+        writer.write(tempDir, ".zolt/build", fingerprint);
 
-        QuarkusAugmentationState state = reader.read(tempDir, fingerprint);
+        QuarkusAugmentationState state = reader.read(tempDir, ".zolt/build", fingerprint);
         assertEquals(QuarkusAugmentationState.Status.CURRENT, state.status());
         assertEquals(fingerprint, state.recordedInputFingerprint().orElseThrow());
+        assertEquals(tempDir.resolve(".zolt/build/quarkus/zolt-augmentation.properties"), state.metadataPath());
     }
 
     @Test

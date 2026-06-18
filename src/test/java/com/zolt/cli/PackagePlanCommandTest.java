@@ -53,6 +53,9 @@ final class PackagePlanCommandTest extends PackagePlanCommandTestSupport {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("package-plan-quarkus") + """
 
+                [build]
+                outputRoot = ".zolt/build"
+
                 [package]
                 mode = "quarkus"
 
@@ -89,10 +92,10 @@ final class PackagePlanCommandTest extends PackagePlanCommandTestSupport {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Mode: quarkus"));
         assertTrue(result.stdout().contains(
-                "Archive: " + projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
-        assertTrue(result.stdout().contains("Application layout: target/quarkus-app/app"));
+                "Archive: " + projectDir.resolve(".zolt/build/quarkus-app/quarkus-run.jar")));
+        assertTrue(result.stdout().contains("Application layout: .zolt/build/quarkus-app/app"));
         assertTrue(result.stdout().contains(
-                "io.quarkus:quarkus-rest:3.33.0 [runtime] included -> target/quarkus-app/lib/quarkus-rest-3.33.0.jar rule=quarkus-runtime-lib"));
+                "io.quarkus:quarkus-rest:3.33.0 [runtime] included -> .zolt/build/quarkus-app/lib/quarkus-rest-3.33.0.jar rule=quarkus-runtime-lib"));
         assertTrue(result.stdout().contains(
                 "io.quarkus:quarkus-rest-deployment:3.33.0 [quarkus-deployment] omitted rule=quarkus-deployment-omitted"));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));

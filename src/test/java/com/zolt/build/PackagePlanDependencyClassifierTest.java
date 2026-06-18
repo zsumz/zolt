@@ -28,7 +28,8 @@ final class PackagePlanDependencyClassifierTest {
                         true,
                         "jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar"),
                 Set.of(),
-                Optional.empty());
+                Optional.empty(),
+                null);
 
         assertEquals("jakarta.servlet:jakarta.servlet-api:6.1.0", dependency.coordinate());
         assertEquals("provided", dependency.disposition());
@@ -51,7 +52,8 @@ final class PackagePlanDependencyClassifierTest {
                         false,
                         "org/apache/tomcat/embed/tomcat-embed-core/10.1.40/tomcat-embed-core-10.1.40.jar"),
                 Set.of(shared),
-                Optional.empty());
+                Optional.empty(),
+                null);
 
         assertEquals("org.apache.tomcat.embed:tomcat-embed-core:10.1.40", dependency.coordinate());
         assertEquals("omitted", dependency.disposition());
@@ -68,7 +70,7 @@ final class PackagePlanDependencyClassifierTest {
             }
 
             @Override
-            public FrameworkPackagePlanDependency dependency(LockPackage lockPackage) {
+            public FrameworkPackagePlanDependency dependency(LockPackage lockPackage, ProjectConfig config) {
                 return new FrameworkPackagePlanDependency(
                         "io.quarkus:quarkus-rest:3.33.0",
                         "3.33.0",
@@ -86,7 +88,7 @@ final class PackagePlanDependencyClassifierTest {
             }
 
             @Override
-            public String applicationLayout() {
+            public String applicationLayout(ProjectConfig config) {
                 return "target/quarkus-app/app";
             }
         };
@@ -101,7 +103,8 @@ final class PackagePlanDependencyClassifierTest {
                         true,
                         "io/quarkus/quarkus-rest/3.33.0/quarkus-rest-3.33.0.jar"),
                 Set.of(),
-                Optional.of(rules));
+                Optional.of(rules),
+                null);
 
         assertEquals("included", dependency.disposition());
         assertEquals("quarkus-runtime-lib", dependency.ruleName());

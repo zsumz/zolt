@@ -23,11 +23,11 @@ final class QuarkusTestRunnerDescriptorWriterTest {
         Path jbossLogManager = projectDir.resolve("cache/jboss-logmanager-3.1.2.Final.jar");
         QuarkusTestRunnerRequest request = new QuarkusTestRunnerRequest(
                 projectDir,
-                projectDir.resolve("target/classes"),
-                projectDir.resolve("target/test-classes"),
-                projectDir.resolve("target/quarkus/test-application-model.dat"),
-                projectDir.resolve("target/quarkus/zolt-bootstrap.properties"),
-                List.of(projectDir.resolve("target/test-classes"), projectDir.resolve("target/classes"), junitConsole, jbossLogManager),
+                projectDir.resolve(".zolt/build/classes"),
+                projectDir.resolve(".zolt/build/test-classes"),
+                projectDir.resolve(".zolt/build/quarkus/test-application-model.dat"),
+                projectDir.resolve(".zolt/build/quarkus/zolt-bootstrap.properties"),
+                List.of(projectDir.resolve(".zolt/build/test-classes"), projectDir.resolve(".zolt/build/classes"), junitConsole, jbossLogManager),
                 true,
                 TestSelection.fromFields(
                         List.of("com.example.MainTest"),
@@ -40,8 +40,8 @@ final class QuarkusTestRunnerDescriptorWriterTest {
         QuarkusTestRunnerDescriptor descriptor = new QuarkusTestRunnerDescriptorWriter().write(request);
 
         Path root = projectDir.toAbsolutePath().normalize();
-        assertEquals(root.resolve("target/quarkus/zolt-test-bootstrap.properties"), descriptor.descriptorFile());
-        assertEquals(root.resolve("target/quarkus/test-runtime-classpath.txt"), descriptor.testRuntimeClasspathFile());
+        assertEquals(root.resolve(".zolt/build/quarkus/zolt-test-bootstrap.properties"), descriptor.descriptorFile());
+        assertEquals(root.resolve(".zolt/build/quarkus/test-runtime-classpath.txt"), descriptor.testRuntimeClasspathFile());
         assertEquals(QuarkusTestRunnerRequest.RUNNER_MODE, descriptor.runnerMode());
         assertFalse(descriptor.supportsQuarkusTestAnnotations());
         assertTrue(descriptor.jbossLogManagerPresent());
@@ -65,11 +65,11 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 environment=
                 """.formatted(
                 root,
-                root.resolve("target/classes"),
-                root.resolve("target/test-classes"),
-                root.resolve("target/quarkus/test-application-model.dat"),
-                root.resolve("target/quarkus/zolt-bootstrap.properties"),
-                root.resolve("target/quarkus/test-runtime-classpath.txt")),
+                root.resolve(".zolt/build/classes"),
+                root.resolve(".zolt/build/test-classes"),
+                root.resolve(".zolt/build/quarkus/test-application-model.dat"),
+                root.resolve(".zolt/build/quarkus/zolt-bootstrap.properties"),
+                root.resolve(".zolt/build/quarkus/test-runtime-classpath.txt")),
                 Files.readString(descriptor.descriptorFile()));
         assertEquals("""
                 %s
@@ -77,8 +77,8 @@ final class QuarkusTestRunnerDescriptorWriterTest {
                 %s
                 %s
                 """.formatted(
-                root.resolve("target/test-classes"),
-                root.resolve("target/classes"),
+                root.resolve(".zolt/build/test-classes"),
+                root.resolve(".zolt/build/classes"),
                 junitConsole.toAbsolutePath().normalize(),
                 jbossLogManager.toAbsolutePath().normalize()),
                 Files.readString(descriptor.testRuntimeClasspathFile()));

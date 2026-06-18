@@ -6,6 +6,7 @@ import com.zolt.framework.FrameworkPackagePlanDependency;
 import com.zolt.framework.FrameworkPackagePlanRules;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.project.PackageMode;
+import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
@@ -21,7 +22,8 @@ final class PackagePlanDependencyClassifier {
             PackageMode mode,
             LockPackage lockPackage,
             Set<PackageId> providedPackageIds,
-            Optional<FrameworkPackagePlanRules> packagePlanRules) {
+            Optional<FrameworkPackagePlanRules> packagePlanRules,
+            ProjectConfig config) {
         String nestedJar = nestedJarName(lockPackage);
         return switch (mode) {
             case THIN -> thinDependency(lockPackage);
@@ -29,7 +31,7 @@ final class PackagePlanDependencyClassifier {
             case WAR -> warDependency(lockPackage, nestedJar, providedPackageIds);
             case SPRING_BOOT_WAR -> springBootWarDependency(lockPackage, nestedJar, providedPackageIds);
             case QUARKUS -> packagePlanRules
-                    .map(rules -> dependency(rules.dependency(lockPackage)))
+                    .map(rules -> dependency(rules.dependency(lockPackage, config)))
                     .orElseGet(() -> unsupportedFrameworkDependency(mode, lockPackage));
             case UBER -> uberDependency(lockPackage);
         };

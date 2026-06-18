@@ -38,7 +38,7 @@ public final class QuarkusAugmentationExecutor {
         QuarkusBootstrapDescriptor descriptor = descriptorWriter.write(request);
         QuarkusBootstrapWorkerResult workerResult = augmentor.augment(request, descriptor);
         validateWorkerResult(request, workerResult);
-        metadataWriter.write(request.projectDirectory(), request.inputFingerprint());
+        metadataWriter.writeMetadata(request.metadataPath(), request.inputFingerprint());
         return new QuarkusAugmentationResult(
                 request.outputLayout().augmentationDirectory(),
                 request.metadataPath(),
@@ -54,7 +54,7 @@ public final class QuarkusAugmentationExecutor {
             throw new QuarkusAugmentationException(
                     "Could not create Quarkus augmentation output directory at "
                             + request.outputLayout().augmentationDirectory()
-                            + ". Check that target/ is writable and try again.",
+                            + ". Check that the configured output root is writable and try again.",
                     exception);
         }
     }

@@ -40,6 +40,23 @@ final class QuarkusTestPlanServiceTest {
     }
 
     @Test
+    void derivesQuarkusTestPlanOutputFromBuildOutputRoot() {
+        QuarkusTestPlan plan = new QuarkusTestPlanService().plan(
+                projectDir,
+                config(true, new BuildSettings(
+                        "src/main/java",
+                        "src/test/java",
+                        ".zolt/build",
+                        ".zolt/build/classes",
+                        ".zolt/build/test-classes")));
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        assertEquals(root.resolve(".zolt/build/test-classes"), plan.testOutputDirectory());
+        assertEquals(root.resolve(".zolt/build/quarkus/test-application-model.dat"), plan.serializedApplicationModel());
+        assertEquals(root.resolve(".zolt/build/quarkus/zolt-test-bootstrap.properties"), plan.testRunnerDescriptor());
+    }
+
+    @Test
     void usesSharedScannerForUnsupportedQuarkusTests() {
         Path testOutput = projectDir.toAbsolutePath().normalize().resolve("target/test-classes");
         QuarkusTestPlan plan = new QuarkusTestPlanService(path -> List.of(new QuarkusUnsupportedTest(

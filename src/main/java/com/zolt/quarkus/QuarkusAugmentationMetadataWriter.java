@@ -7,13 +7,18 @@ import java.nio.file.Path;
 
 public final class QuarkusAugmentationMetadataWriter {
     public void write(Path projectDirectory, String inputFingerprint) {
+        write(projectDirectory, "target", inputFingerprint);
+    }
+
+    public void write(Path projectDirectory, String outputRoot, String inputFingerprint) {
+        writeMetadata(QuarkusAugmentationStateReader.metadataPath(projectDirectory, outputRoot), inputFingerprint);
+    }
+
+    public void writeMetadata(Path metadataPath, String inputFingerprint) {
         if (inputFingerprint == null || inputFingerprint.isBlank()) {
             throw new QuarkusPlanException("Quarkus augmentation metadata requires an input fingerprint.");
         }
 
-        Path metadataPath = projectDirectory
-                .resolve(QuarkusAugmentationStateReader.METADATA_PATH)
-                .normalize();
         try {
             Files.createDirectories(metadataPath.getParent());
             Files.writeString(metadataPath, """
@@ -24,7 +29,7 @@ public final class QuarkusAugmentationMetadataWriter {
             throw new QuarkusPlanException(
                     "Could not write Quarkus augmentation metadata at "
                             + metadataPath
-                            + ". Check that target/ is writable and try again.");
+                            + ". Check that the configured output root is writable and try again.");
         }
     }
 }

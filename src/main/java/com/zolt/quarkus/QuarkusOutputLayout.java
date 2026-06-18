@@ -17,11 +17,16 @@ public record QuarkusOutputLayout(
     }
 
     public static QuarkusOutputLayout forProject(Path projectRoot) {
+        return forProject(projectRoot, "target");
+    }
+
+    public static QuarkusOutputLayout forProject(Path projectRoot, String outputRoot) {
         Path root = projectRoot.toAbsolutePath().normalize();
+        String effectiveOutputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
         try {
             return new QuarkusOutputLayout(
-                    ProjectPaths.output(root, "Quarkus augmentation output", "target/quarkus"),
-                    ProjectPaths.output(root, "Quarkus package output", "target/quarkus-app"));
+                    ProjectPaths.output(root, "Quarkus augmentation output", effectiveOutputRoot + "/quarkus"),
+                    ProjectPaths.output(root, "Quarkus package output", effectiveOutputRoot + "/quarkus-app"));
         } catch (ProjectPathException exception) {
             throw new QuarkusPlanException(exception.getMessage(), exception);
         }

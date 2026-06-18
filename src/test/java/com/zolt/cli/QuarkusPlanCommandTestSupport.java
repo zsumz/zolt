@@ -13,7 +13,13 @@ final class QuarkusPlanCommandTestSupport {
     private QuarkusPlanCommandTestSupport() {}
 
     static void writeProjectConfig(Path projectDir) throws IOException {
+        writeProjectConfig(projectDir, "target");
+    }
+
+    static void writeProjectConfig(Path projectDir, String outputRoot) throws IOException {
         Files.createDirectories(projectDir);
+        String output = outputRoot + "/classes";
+        String testOutput = outputRoot + "/test-classes";
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
                 main = "com.example.Main"
 
@@ -25,11 +31,12 @@ final class QuarkusPlanCommandTestSupport {
                 [test.dependencies]
 
                 [build]
+                outputRoot = "%s"
                 source = "src/main/java"
                 test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """);
+                output = "%s"
+                testOutput = "%s"
+                """.formatted(outputRoot, output, testOutput));
     }
 
     static void enableQuarkus(Path projectDir) throws IOException {
@@ -83,7 +90,14 @@ final class QuarkusPlanCommandTestSupport {
     }
 
     static void writeQuarkusAugmentationMetadata(Path projectDir, String inputFingerprint) throws IOException {
-        Path metadata = projectDir.resolve("target/quarkus/zolt-augmentation.properties");
+        writeQuarkusAugmentationMetadata(projectDir, "target", inputFingerprint);
+    }
+
+    static void writeQuarkusAugmentationMetadata(
+            Path projectDir,
+            String outputRoot,
+            String inputFingerprint) throws IOException {
+        Path metadata = projectDir.resolve(outputRoot).resolve("quarkus/zolt-augmentation.properties");
         Files.createDirectories(metadata.getParent());
         Files.writeString(metadata, """
                 version=1

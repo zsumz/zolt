@@ -68,7 +68,10 @@ public final class QuarkusTestApplicationModelService {
                     "JDK check failed for Quarkus test application model. " + String.join(" ", status.problems()));
         }
         Path root = ProjectPaths.root(projectDirectory);
-        Path quarkusDirectory = outputPath(root, "Quarkus test application model output", "target/quarkus");
+        Path quarkusDirectory = outputPath(
+                root,
+                "Quarkus test application model output",
+                config.build().outputRoot() + "/quarkus");
         QuarkusBootstrapDescriptor descriptor = descriptorReader.read(
                 quarkusDirectory.resolve("zolt-bootstrap.properties"));
         Path outputPath = quarkusDirectory.resolve("test-application-model.dat");
@@ -80,7 +83,7 @@ public final class QuarkusTestApplicationModelService {
         Path root = ProjectPaths.root(projectDirectory);
         return new QuarkusWorkspaceModuleInputs(
                 root,
-                outputPath(root, "Quarkus build directory", "target"),
+                outputPath(root, "Quarkus build directory", config.build().outputRoot()),
                 inputRoot(root, "[build].source", config.build().source()),
                 inputRoot(root, "[resources].main", first(config.build().resourceRoots(), "src/main/resources")),
                 outputPath(root, "[build].output", config.build().output()),

@@ -15,7 +15,7 @@ public final class QuarkusTestRunnerDescriptorWriter {
             throw new QuarkusAugmentationException("Quarkus test runner request is required.");
         }
 
-        Path quarkusDirectory = request.projectDirectory().resolve("target/quarkus");
+        Path quarkusDirectory = request.bootstrapDescriptorFile().getParent();
         Path descriptorFile = quarkusDirectory.resolve("zolt-test-bootstrap.properties");
         Path testRuntimeClasspathFile = quarkusDirectory.resolve("test-runtime-classpath.txt");
         try {
@@ -29,7 +29,7 @@ public final class QuarkusTestRunnerDescriptorWriter {
             throw new QuarkusAugmentationException(
                     "Could not write Quarkus test runner descriptor under "
                             + quarkusDirectory
-                            + ". Check that target/ is writable and try again.",
+                            + ". Check that the configured output root is writable and try again.",
                     exception);
         }
 

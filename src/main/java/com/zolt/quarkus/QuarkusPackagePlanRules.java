@@ -16,7 +16,7 @@ public final class QuarkusPackagePlanRules implements FrameworkPackagePlanRules 
     }
 
     @Override
-    public FrameworkPackagePlanDependency dependency(LockPackage lockPackage) {
+    public FrameworkPackagePlanDependency dependency(LockPackage lockPackage, ProjectConfig config) {
         boolean included = lockPackage.scope().entersMainRuntimeClasspath();
         return new FrameworkPackagePlanDependency(
                 coordinate(lockPackage),
@@ -24,7 +24,7 @@ public final class QuarkusPackagePlanRules implements FrameworkPackagePlanRules 
                 lockPackage.scope(),
                 included ? "included" : "omitted",
                 included ? "quarkus-runtime-lib" : omissionRule(lockPackage.scope()),
-                included ? "target/quarkus-app/lib/" + nestedJarName(lockPackage) : "",
+                included ? outputRoot(config) + "/quarkus-app/lib/" + nestedJarName(lockPackage) : "",
                 included
                         ? "main runtime dependency for Quarkus augmentation output"
                         : "scope `" + lockPackage.scope().lockfileName() + "` does not enter Quarkus runtime packaging",
@@ -33,12 +33,16 @@ public final class QuarkusPackagePlanRules implements FrameworkPackagePlanRules 
 
     @Override
     public Path archivePath(Path projectRoot, ProjectConfig config) {
-        return ProjectPaths.output(projectRoot, "package archive", "target/quarkus-app/quarkus-run.jar");
+        return ProjectPaths.output(projectRoot, "package archive", outputRoot(config) + "/quarkus-app/quarkus-run.jar");
     }
 
     @Override
-    public String applicationLayout() {
-        return "target/quarkus-app/app";
+    public String applicationLayout(ProjectConfig config) {
+        return outputRoot(config) + "/quarkus-app/app";
+    }
+
+    private static String outputRoot(ProjectConfig config) {
+        return config == null || config.build().outputRoot().isBlank() ? "target" : config.build().outputRoot();
     }
 
     private static String omissionRule(DependencyScope scope) {

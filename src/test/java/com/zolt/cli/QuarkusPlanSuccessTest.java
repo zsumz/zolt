@@ -24,7 +24,7 @@ final class QuarkusPlanSuccessTest {
     void quarkusPlanPrintsAugmentationInputsFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
-        writeProjectConfig(projectDir);
+        writeProjectConfig(projectDir, ".zolt/build");
         enableQuarkus(projectDir);
         writeQuarkusPlanLockfile(projectDir);
         Path root = projectDir.toAbsolutePath().normalize();
@@ -65,11 +65,11 @@ final class QuarkusPlanSuccessTest {
                     deployment jar: %s
                 Next: implement the Zolt-owned Quarkus augmentation runner with these inputs.
                 """.formatted(
-                root.resolve("target/classes"),
-                root.resolve("target/quarkus"),
-                root.resolve("target/quarkus-app"),
+                root.resolve(".zolt/build/classes"),
+                root.resolve(".zolt/build/quarkus"),
+                root.resolve(".zolt/build/quarkus-app"),
                 inputFingerprint,
-                root.resolve("target/quarkus/zolt-augmentation.properties"),
+                root.resolve(".zolt/build/quarkus/zolt-augmentation.properties"),
                 runtimeJar,
                 deploymentJar,
                 runtimeJar,

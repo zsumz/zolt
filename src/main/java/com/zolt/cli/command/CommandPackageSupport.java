@@ -85,7 +85,7 @@ final class CommandPackageSupport {
                     "Spring Boot WAR: runtime dependencies are under WEB-INF/lib and provided dependencies are under WEB-INF/lib-provided.",
                     Optional.empty());
             case QUARKUS -> new PackageModeDetail(
-                    "Quarkus fast-jar: deploy the whole target/quarkus-app directory.",
+                    "Quarkus fast-jar: deploy the whole directory containing the generated quarkus-run.jar.",
                     Optional.empty());
             case UBER -> new PackageModeDetail(
                     "Uber jar: runtime dependency classes and resources are merged into the archive root.",
