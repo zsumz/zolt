@@ -86,6 +86,38 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
+    void explicitSpringBootNativeSettingFailsBeforeInvokingNativeImage() {
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        new ZoltTomlParser().parse("""
+                                [project]
+                                name = "demo"
+                                version = "0.1.0"
+                                group = "com.example"
+                                java = "21"
+                                main = "com.example.Main"
+
+                                [framework.springBoot.native]
+                                enabled = true
+                                """),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(exception.getMessage().contains("Spring Boot AOT/native request"));
+        assertTrue(exception.getMessage().contains("Remove [framework.springBoot.native]"));
+        assertTrue(commands.isEmpty());
+    }
+
+    @Test
     void micronautNativeFailsBeforeInvokingNativeImage() {
         List<List<String>> commands = new ArrayList<>();
         NativeBuildService service = service(command -> {

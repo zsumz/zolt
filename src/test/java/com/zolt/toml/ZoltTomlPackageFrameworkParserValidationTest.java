@@ -107,4 +107,24 @@ final class ZoltTomlPackageFrameworkParserValidationTest {
                 "Unknown field [framework.quarkus].devMode in zolt.toml. Remove it or check the spelling.",
                 exception.getMessage());
     }
+
+    @Test
+    void rejectsUnknownSpringBootNativeField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [framework.springBoot.native]
+                        mode = "maven"
+                        """));
+
+        assertEquals(
+                "Unknown field [framework.springBoot.native].mode in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
+    }
 }

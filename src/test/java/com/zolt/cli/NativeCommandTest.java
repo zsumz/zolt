@@ -46,6 +46,21 @@ final class NativeCommandTest {
         assertTrue(result.stderr().contains("zolt package --mode spring-boot"));
     }
 
+    @Test
+    void nativeReportsExplicitSpringBootNativeSettingAsUnsupported() throws IOException {
+        Path projectDir = tempDir.resolve("spring-boot-native-demo");
+        writeExplicitSpringBootNativeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "native",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(result.stderr().contains("Spring Boot AOT/native request"));
+        assertTrue(result.stderr().contains("Remove [framework.springBoot.native]"));
+    }
 
     @Test
     void nativeSmokeKeepsReleaseArchiveOutputProjectRelativeFromCli() throws IOException {
@@ -132,6 +147,34 @@ final class NativeCommandTest {
 
                 [dependencies]
                 "org.springframework.boot:spring-boot-starter-webmvc" = {}
+
+                [test.dependencies]
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                """.formatted(currentJavaMajorVersion(), repositoryUrl));
+    }
+
+    private static void writeExplicitSpringBootNativeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.Main"
+
+                [repositories]
+                test = "%s"
+
+                [framework.springBoot.native]
+                enabled = true
+
+                [dependencies]
 
                 [test.dependencies]
 

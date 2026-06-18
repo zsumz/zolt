@@ -16,6 +16,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.PublicationMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.project.SpringBootSettings;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -108,6 +109,21 @@ final class ZoltTomlPackageFrameworkWriterTest {
         assertTrue(toml.contains("[framework.quarkus]\n"));
         assertTrue(toml.contains("enabled = true"));
         assertTrue(toml.contains("package = \"fast-jar\""));
+        assertEquals(original.frameworkSettings(), parsed.frameworkSettings());
+    }
+
+    @Test
+    void writesSpringBootNativeFrameworkSettingsWhenConfigured() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withFrameworkSettings(new FrameworkSettings(
+                        new SpringBootSettings(true),
+                        QuarkusSettings.defaults()));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[framework.springBoot.native]\n"));
+        assertTrue(toml.contains("enabled = true"));
         assertEquals(original.frameworkSettings(), parsed.frameworkSettings());
     }
 

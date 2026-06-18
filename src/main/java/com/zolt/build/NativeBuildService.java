@@ -78,6 +78,15 @@ public final class NativeBuildService {
     }
 
     private static void rejectUnsupportedFrameworkNative(ProjectConfig config) {
+        if (config.frameworkSettings().springBoot().nativeEnabled()) {
+            throw new NativeImageException(
+                    "Spring Boot native images are not supported by Zolt yet. "
+                            + "[framework.springBoot.native] enabled = true declares a Spring Boot AOT/native request, "
+                            + "but Zolt does not yet run Spring Boot AOT processing, compile generated AOT sources, "
+                            + "or pass Spring reachability metadata to Native Image. "
+                            + "Remove [framework.springBoot.native] for the current beta path, "
+                            + "or use `zolt package --mode spring-boot` / `zolt run` for Spring Boot JVM apps.");
+        }
         if (springBootProject(config)) {
             throw new NativeImageException(
                     "Spring Boot native images are not supported by Zolt yet. "

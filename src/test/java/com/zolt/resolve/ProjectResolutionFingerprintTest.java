@@ -38,6 +38,9 @@ final class ProjectResolutionFingerprintTest {
                 new Case("processor", baseToml().replace("1.6.3", "1.6.4")),
                 new Case("generated source tool", baseToml().replace("7.11.0", "7.12.0")),
                 new Case("package mode", baseToml().replace("mode = \"spring-boot\"", "mode = \"thin\"")),
+                new Case("spring boot native setting", baseToml().replace(
+                        "enabled = false\n\n[framework.quarkus]",
+                        "enabled = true\n\n[framework.quarkus]")),
                 new Case("quarkus setting", baseToml().replace("enabled = true", "enabled = false")),
                 new Case("java input", baseToml().replace("java = \"21\"", "java = \"22\"")));
 
@@ -121,6 +124,9 @@ final class ProjectResolutionFingerprintTest {
                 [package]
                 mode = "spring-boot"
 
+                [framework.springBoot.native]
+                enabled = false
+
                 [framework.quarkus]
                 enabled = true
                 package = "fast-jar"
@@ -141,6 +147,9 @@ final class ProjectResolutionFingerprintTest {
 
                 [package]
                 mode = "spring-boot"
+
+                [framework.springBoot.native]
+                enabled = false
 
                 [versions]
                 spring = "3.3.6"

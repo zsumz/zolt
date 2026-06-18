@@ -121,6 +121,22 @@ final class ZoltTomlPackageFrameworkParserTest {
     }
 
     @Test
+    void parsesSpringBootNativeFrameworkSettings() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "spring-native-app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [framework.springBoot.native]
+                enabled = true
+                """);
+
+        assertTrue(config.frameworkSettings().springBoot().nativeEnabled());
+    }
+
+    @Test
     void defaultsQuarkusFrameworkSettingsWhenOmitted() {
         ProjectConfig config = parser.parse("""
                 [project]
@@ -132,6 +148,7 @@ final class ZoltTomlPackageFrameworkParserTest {
 
         assertFalse(config.frameworkSettings().quarkus().enabled());
         assertEquals(QuarkusPackageMode.FAST_JAR, config.frameworkSettings().quarkus().packageMode());
+        assertFalse(config.frameworkSettings().springBoot().nativeEnabled());
     }
 
     @Test
