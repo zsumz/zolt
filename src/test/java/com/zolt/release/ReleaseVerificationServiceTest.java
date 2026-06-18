@@ -53,7 +53,7 @@ final class ReleaseVerificationServiceTest {
         ReleaseVerificationResult.VerifiedArchive verified = result.archives().getFirst();
         assertEquals(archive.archivePath(), verified.archivePath());
         assertTrue(Files.exists(verified.unpackDirectory().resolve("zolt-0.1.0-macos-arm64/bin/zolt")));
-        assertEquals(2, commands.size());
+        assertEquals(3, commands.size());
         assertEquals(List.of(verified.binaryPath().toString(), "--version"), commands.getFirst());
         assertEquals(List.of(
                 verified.binaryPath().toString(),
@@ -61,6 +61,49 @@ final class ReleaseVerificationServiceTest {
                 "--cwd",
                 verified.unpackDirectory().resolve("smoke-work").toString(),
                 "smoke"), commands.get(1));
+        assertEquals(List.of(
+                verified.binaryPath().toString(),
+                "build",
+                "--cwd",
+                verified.unpackDirectory().resolve("smoke-work/smoke").toString()), commands.get(2));
+    }
+
+    @Test
+    void verifiesWindowsZipArchive() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = writeBinary(projectDir, "target/native/zolt.exe");
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.WINDOWS_X64,
+                binary,
+                Path.of("dist"));
+        List<List<String>> commands = new ArrayList<>();
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            commands.add(command);
+            if (command.contains("init")) {
+                Path cwd = Path.of(command.get(command.indexOf("--cwd") + 1));
+                try {
+                    Files.createDirectories(cwd.resolve("smoke"));
+                    Files.writeString(cwd.resolve("smoke/zolt.toml"), "[project]\n");
+                } catch (IOException exception) {
+                    throw new AssertionError(exception);
+                }
+            }
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationResult result = service.verify(
+                List.of(archive.archivePath()),
+                projectDir.resolve("verify-windows"),
+                "0.1.0");
+
+        assertEquals(1, result.verifiedCount());
+        ReleaseVerificationResult.VerifiedArchive verified = result.archives().getFirst();
+        assertTrue(Files.exists(verified.unpackDirectory().resolve("zolt-0.1.0-windows-x64/bin/zolt.exe")));
+        assertTrue(Files.exists(verified.unpackDirectory().resolve("zolt-0.1.0-windows-x64/VERSION")));
+        assertEquals(List.of(verified.binaryPath().toString(), "--version"), commands.getFirst());
+        assertTrue(commands.stream().anyMatch(command -> command.contains("build")));
     }
 
 }

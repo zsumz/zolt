@@ -43,7 +43,8 @@ public final class ReleaseArchiveService {
         String rootDirectory = releaseBaseName + "-" + target.id();
         Path output = releaseOutput(projectRoot, "--output", outputDirectory.toString());
         Path archivePath = output.resolve(rootDirectory + target.archiveExtension());
-        List<ArchiveEntry> entries = entries(projectRoot, binary, rootDirectory, target.binaryName());
+        String version = ProjectPaths.filenameComponent("[project].version", config.project().version());
+        List<ArchiveEntry> entries = entries(projectRoot, binary, rootDirectory, target.binaryName(), version);
 
         try {
             Files.createDirectories(output);
@@ -57,7 +58,7 @@ public final class ReleaseArchiveService {
             Path manifestPath = manifestWriter.writeManifest(
                     output,
                     ProjectPaths.filenameComponent("[project].name", config.project().name()),
-                    ProjectPaths.filenameComponent("[project].version", config.project().version()));
+                    version);
             return new ReleaseArchiveResult(
                     target,
                     archivePath,
@@ -194,11 +195,16 @@ public final class ReleaseArchiveService {
             Path projectDirectory,
             Path binary,
             String rootDirectory,
-            String binaryName) {
+            String binaryName,
+            String version) {
         List<ArchiveEntry> entries = new ArrayList<>();
         entries.add(ArchiveEntry.directory(rootDirectory + "/"));
         entries.add(ArchiveEntry.directory(rootDirectory + "/bin/"));
         entries.add(ArchiveEntry.file(binary, rootDirectory + "/bin/" + binaryName, 0755));
+        entries.add(ArchiveEntry.content(
+                (version + "\n").getBytes(StandardCharsets.UTF_8),
+                rootDirectory + "/VERSION",
+                0644));
         addIfPresent(entries, projectDirectory.resolve("README.md"), rootDirectory + "/README.md", 0644);
         addIfPresent(entries, projectDirectory.resolve("LICENSE"), rootDirectory + "/LICENSE", 0644);
         return entries;
@@ -217,7 +223,7 @@ public final class ReleaseArchiveService {
                 zipEntry.setTime(0);
                 zip.putNextEntry(zipEntry);
                 if (!entry.directory()) {
-                    Files.copy(entry.source(), zip);
+                    entry.writeTo(zip);
                 }
                 zip.closeEntry();
             }
@@ -227,10 +233,10 @@ public final class ReleaseArchiveService {
     private static void writeTarGz(Path archivePath, List<ArchiveEntry> entries) throws IOException {
         try (OutputStream output = new GZIPOutputStream(Files.newOutputStream(archivePath))) {
             for (ArchiveEntry entry : entries) {
-                long size = entry.directory() ? 0 : Files.size(entry.source());
+                long size = entry.size();
                 output.write(tarHeader(entry.name(), entry.mode(), size, entry.directory()));
                 if (!entry.directory()) {
-                    Files.copy(entry.source(), output);
+                    entry.writeTo(output);
                     pad(output, size);
                 }
             }
@@ -292,13 +298,32 @@ public final class ReleaseArchiveService {
         return (int) entries.stream().filter(entry -> !entry.directory()).count();
     }
 
-    private record ArchiveEntry(Path source, String name, int mode, boolean directory) {
+    private record ArchiveEntry(Path source, byte[] content, String name, int mode, boolean directory) {
         private static ArchiveEntry file(Path source, String name, int mode) {
-            return new ArchiveEntry(source, name, mode, false);
+            return new ArchiveEntry(source, null, name, mode, false);
+        }
+
+        private static ArchiveEntry content(byte[] content, String name, int mode) {
+            return new ArchiveEntry(null, content.clone(), name, mode, false);
         }
 
         private static ArchiveEntry directory(String name) {
-            return new ArchiveEntry(null, name, 0755, true);
+            return new ArchiveEntry(null, null, name, 0755, true);
+        }
+
+        private long size() throws IOException {
+            if (directory) {
+                return 0;
+            }
+            return content == null ? Files.size(source) : content.length;
+        }
+
+        private void writeTo(OutputStream output) throws IOException {
+            if (content == null) {
+                Files.copy(source, output);
+            } else {
+                output.write(content);
+            }
         }
     }
 

@@ -32,7 +32,7 @@ final class ReleaseCommandTest {
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Assembled linux-x64 release archive"));
-        assertTrue(result.stdout().contains("Included 2 files under demo-0.1.0-linux-x64"));
+        assertTrue(result.stdout().contains("Included 3 files under demo-0.1.0-linux-x64"));
         assertTrue(result.stdout().contains("Wrote archive to " + archive));
         assertTrue(result.stdout().contains("Wrote checksum to " + archive + ".sha256"));
         assertTrue(result.stdout().contains("Wrote manifest to " + projectDir.resolve("dist/release-manifest.json")));

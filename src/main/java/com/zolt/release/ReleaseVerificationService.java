@@ -76,8 +76,10 @@ public final class ReleaseVerificationService {
             throw archiveFailure(archive, "expected binary at " + binary + " after unpacking.");
         }
         binary.toFile().setExecutable(true);
+        verifyVersionMetadata(archive, unpackDirectory.resolve(rootName), expectedVersion);
         verifyVersion(archive, binary, expectedVersion);
-        verifyInit(archive, binary, unpackDirectory);
+        Path smokeProject = verifyInit(archive, binary, unpackDirectory);
+        verifyBuild(archive, binary, unpackDirectory, smokeProject);
         return new ReleaseVerificationResult.VerifiedArchive(archive, unpackDirectory, binary);
     }
 
@@ -120,7 +122,23 @@ public final class ReleaseVerificationService {
         }
     }
 
-    private void verifyInit(Path archive, Path binary, Path unpackDirectory) {
+    private static void verifyVersionMetadata(Path archive, Path rootDirectory, String expectedVersion) {
+        Path versionFile = rootDirectory.resolve("VERSION");
+        if (!Files.isRegularFile(versionFile)) {
+            throw archiveFailure(archive, "expected VERSION metadata at " + versionFile + " after unpacking.");
+        }
+        try {
+            String version = Files.readString(versionFile, StandardCharsets.UTF_8).trim();
+            if (!version.equals(expectedVersion)) {
+                throw archiveFailure(archive, "VERSION metadata did not match expected version "
+                        + expectedVersion + ". Found " + version + ".");
+            }
+        } catch (IOException exception) {
+            throw archiveFailure(archive, "could not read VERSION metadata at " + versionFile + ".");
+        }
+    }
+
+    private Path verifyInit(Path archive, Path binary, Path unpackDirectory) {
         Path initDirectory = unpackDirectory.resolve("smoke-work");
         try {
             Files.createDirectories(initDirectory);
@@ -136,6 +154,17 @@ public final class ReleaseVerificationService {
         }
         if (!Files.isRegularFile(initDirectory.resolve("smoke/zolt.toml"))) {
             throw archiveFailure(archive, "`zolt init smoke` did not create smoke/zolt.toml.");
+        }
+        return initDirectory.resolve("smoke");
+    }
+
+    private void verifyBuild(Path archive, Path binary, Path unpackDirectory, Path smokeProject) {
+        ProcessResult result = processRunner.run(
+                List.of(binary.toString(), "build", "--cwd", smokeProject.toString()),
+                unpackDirectory);
+        if (result.exitCode() != 0) {
+            throw archiveFailure(archive, "`zolt build` on the initialized smoke project failed with exit code "
+                    + result.exitCode() + ". Output:\n" + result.output());
         }
     }
 

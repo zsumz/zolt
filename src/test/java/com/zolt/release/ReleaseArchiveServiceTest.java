@@ -29,7 +29,7 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
         assertEquals(projectDir.resolve("dist/release-manifest.json"), result.manifestPath());
         assertEquals("zolt-0.1.0-macos-arm64", result.rootDirectory());
         assertEquals(64, result.sha256().length());
-        assertEquals(3, result.fileCount());
+        assertEquals(4, result.fileCount());
         assertEquals(
                 result.sha256() + "  zolt-0.1.0-macos-arm64.tar.gz\n",
                 Files.readString(result.checksumPath()));
@@ -39,6 +39,7 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                 "zolt-0.1.0-macos-arm64/",
                 "zolt-0.1.0-macos-arm64/bin/",
                 "zolt-0.1.0-macos-arm64/bin/zolt",
+                "zolt-0.1.0-macos-arm64/VERSION",
                 "zolt-0.1.0-macos-arm64/README.md",
                 "zolt-0.1.0-macos-arm64/LICENSE"), tarEntries(result.archivePath()));
     }
@@ -61,6 +62,7 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
         assertTrue(Files.readString(result.manifestPath()).contains("\"format\": \"zip\""));
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(result.archivePath().toFile())) {
             assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/bin/zolt.exe")));
+            assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/VERSION")));
             assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/README.md")));
             assertTrue(zip.stream().anyMatch(entry -> entry.getName().equals("zolt-0.1.0-windows-x64/LICENSE")));
         }
@@ -101,6 +103,7 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                 "zolt-0.1.0-linux-arm64/",
                 "zolt-0.1.0-linux-arm64/bin/",
                 "zolt-0.1.0-linux-arm64/bin/zolt",
+                "zolt-0.1.0-linux-arm64/VERSION",
                 "zolt-0.1.0-linux-arm64/README.md",
                 "zolt-0.1.0-linux-arm64/LICENSE"), tarEntries(result.archivePath()));
     }
