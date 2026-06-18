@@ -18,6 +18,11 @@ public record NativeSettings(
         return new NativeSettings("", DEFAULT_OUTPUT, List.of());
     }
 
+    public static NativeSettings defaultsForOutputRoot(String outputRoot) {
+        String root = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        return new NativeSettings("", root + "/native", List.of());
+    }
+
     public NativeSettings withDefaultImageName(String defaultImageName) {
         if (imageName == null || imageName.isBlank()) {
             return new NativeSettings(defaultImageName, output, args);

@@ -215,6 +215,46 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
+    void defaultNativeOutputUsesBuildOutputRoot() throws IOException {
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            writeNativeBinary(Path.of(command.getLast()));
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeBuildResult result = service.buildNative(
+                projectDir,
+                new ZoltTomlParser().parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+                        main = "com.example.Main"
+
+                        [build]
+                        outputRoot = ".zolt/build"
+                        """),
+                projectDir.resolve("cache"),
+                Path.of("native-image"));
+
+        assertEquals(projectDir.resolve(".zolt/build/native/demo"), result.nativeImageResult().outputBinary());
+        assertEquals(projectDir.resolve(".zolt/build/native/native-image.log"), result.nativeImageResult().logFile());
+        assertTrue(Files.exists(projectDir.resolve(".zolt/build/native/demo")));
+        assertTrue(commands.getFirst().contains(projectDir.resolve(".zolt/build/native/demo").toString()));
+    }
+
+    @Test
     void explicitQuarkusNativeFailsBeforeInvokingNativeImage() {
         List<List<String>> commands = new ArrayList<>();
         NativeBuildService service = service(command -> {

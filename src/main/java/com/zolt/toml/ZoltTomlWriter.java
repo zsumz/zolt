@@ -46,7 +46,7 @@ public final class ZoltTomlWriter {
         CompilerSectionCodec.write(toml, config.compilerSettings(), config.build());
         PackageSectionCodec.write(toml, config.packageSettings());
         FrameworkSectionCodec.write(toml, config.frameworkSettings());
-        NativeSectionCodec.write(toml, config.nativeSettings());
+        NativeSectionCodec.write(toml, config.nativeSettings(), config.build());
         return toml.toString();
     }
 

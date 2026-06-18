@@ -100,7 +100,7 @@ public final class ZoltTomlParser {
         CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"), build);
         PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
-        NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name());
+        NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name(), build);
 
         return new ProjectConfig(
                 project,

@@ -1,5 +1,6 @@
 package com.zolt.toml;
 
+import com.zolt.project.BuildSettings;
 import com.zolt.project.NativeSettings;
 import java.util.List;
 import java.util.Set;
@@ -12,11 +13,16 @@ final class NativeSectionCodec {
     }
 
     static NativeSettings parse(TomlTable table, String projectName) {
+        return parse(table, projectName, BuildSettings.defaults());
+    }
+
+    static NativeSettings parse(TomlTable table, String projectName, BuildSettings build) {
+        NativeSettings buildDefaults = NativeSettings.defaultsForOutputRoot(build.outputRoot());
         if (table == null) {
-            return NativeSettings.defaults();
+            return buildDefaults;
         }
 
-        NativeSettings defaults = NativeSettings.defaults().withDefaultImageName(projectName);
+        NativeSettings defaults = buildDefaults.withDefaultImageName(projectName);
         TomlValidation.validateKeys("native", table, NATIVE_KEYS);
         return new NativeSettings(
                 TomlScalars.nonBlankStringOrDefault(table, "native", "imageName", defaults.imageName()),
@@ -25,7 +31,11 @@ final class NativeSectionCodec {
     }
 
     static void write(StringBuilder toml, NativeSettings nativeSettings) {
-        NativeSettings defaults = NativeSettings.defaults();
+        write(toml, nativeSettings, BuildSettings.defaults());
+    }
+
+    static void write(StringBuilder toml, NativeSettings nativeSettings, BuildSettings build) {
+        NativeSettings defaults = NativeSettings.defaultsForOutputRoot(build.outputRoot());
         if (nativeSettings == null
                 || ((nativeSettings.imageName() == null || nativeSettings.imageName().isBlank())
                 && nativeSettings.output().equals(defaults.output())
