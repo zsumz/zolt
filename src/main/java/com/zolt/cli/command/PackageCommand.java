@@ -192,6 +192,9 @@ public final class PackageCommand implements Runnable {
                         "config read",
                         () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
                 packageModeOverride);
+        if (!planOnly) {
+            packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
+        }
         lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         if (planOnly) {
             PackagePlan packagePlan = timings.measure(
@@ -208,7 +211,6 @@ public final class PackageCommand implements Runnable {
         PackageResult result = timings.measure(
                 "package",
                 () -> {
-                    packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
                     BuildResultWithClasspaths buildResult = timings.measure(
                             "build package inputs",
                             () -> buildService.buildWithClasspaths(

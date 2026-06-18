@@ -53,9 +53,9 @@ final class UserGlobalConfigDocumentationTest {
 
         assertTrue(docs.contains(""));
         assertTrue(docs.contains(""));
-        assertTrue(parserFollowUp.contains("Status: Open"));
+        assertTrue(parserFollowUp.contains("Status: Implemented"));
         assertTrue(parserFollowUp.contains("Rejected semantic sections fail"));
-        assertTrue(diagnosticsFollowUp.contains("Status: Open"));
+        assertTrue(diagnosticsFollowUp.contains("Status: Implemented"));
         assertTrue(diagnosticsFollowUp.contains("Output distinguishes machine preferences from committed project semantics."));
     }
 }
