@@ -22,6 +22,9 @@ final class PublicReadinessDocumentationTest {
         assertTrue(
                 readme.contains("broader real-app AOT/native coverage is still beta-hardening work"),
                 "README should keep the remaining Spring Boot native support limit visible");
+        assertTrue(
+                readme.contains("not broad real-app native-image support"),
+                "README should not over-claim Spring Boot native-image support");
     }
 
     @Test
@@ -30,7 +33,7 @@ final class PublicReadinessDocumentationTest {
 
         assertTrue(readiness.contains("## Public Support Surface"));
         assertTrue(readiness.contains("| Plain Java applications | Supported |"));
-        assertTrue(readiness.contains("| Spring Boot AOT/native | Supported canary path |"));
+        assertTrue(readiness.contains("| Spring Boot AOT/native | Supported canary path, not broad real-app support |"));
         assertTrue(readiness.contains("| Quarkus JVM applications | Experimental |"));
         assertTrue(readiness.contains("| Groovy and Spock | Planned |"));
         assertTrue(readiness.contains("Non-goal for public beta"));
@@ -141,5 +144,19 @@ final class PublicReadinessDocumentationTest {
         assertFalse(
                 roadmap.contains("AOT/native processing remains future work."),
                 "Roadmap must distinguish the implemented Spring Boot native canary path from broader future hardening");
+    }
+
+    @Test
+    void springBootNativeDocsStayCanaryOnlyUntilRealAppSmokeExists() throws IOException {
+        String frameworkReadiness = Files.readString(Path.of("docs/framework-readiness.md"));
+        String nativeGraalvm = Files.readString(Path.of("docs/native-graalvm.md"));
+        String springBootReadiness = Files.readString(Path.of("docs/spring-boot-readiness.md"));
+
+        assertTrue(frameworkReadiness.contains("not broad real-app native-image support"));
+        assertTrue(frameworkReadiness.contains("real-app native executable smoke proves the supported subset"));
+        assertTrue(nativeGraalvm.contains("not broad real-app native-image support"));
+        assertTrue(nativeGraalvm.contains("real-app native executable smoke proves the supported subset"));
+        assertTrue(springBootReadiness.contains("This is canary support, not broad real-app native-image support"));
+        assertTrue(springBootReadiness.contains("until a real-app native executable smoke proves a wider supported subset"));
     }
 }
