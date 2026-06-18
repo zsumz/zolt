@@ -56,4 +56,28 @@ final class DependencyGraphTraverserRelocationTest extends DependencyGraphTraver
                 "Dependency relocation cycle detected: com.example:a:1.0.0 -> com.example:b:1.0.0 -> com.example:a:1.0.0. Replace the dependency with the final relocated coordinate.",
                 exception.getMessage());
     }
+
+    @Test
+    void excessiveRelocationChainFailsActionably() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        for (int index = 0; index < 16; index++) {
+            source.put(
+                    "com.example:lib-" + index + ":1.0.0",
+                    relocatedPom(
+                            "com.example",
+                            "lib-" + index,
+                            "1.0.0",
+                            "com.example",
+                            "lib-" + (index + 1),
+                            "1.0.0"));
+        }
+
+        GraphTraversalException exception = assertThrows(
+                GraphTraversalException.class,
+                () -> traverser(source).traverse(List.of(direct("com.example", "lib-0", "1.0.0"))));
+
+        assertEquals(
+                "Dependency relocation chain is too deep starting at com.example:lib-0:1.0.0. Replace the dependency with the final relocated coordinate.",
+                exception.getMessage());
+    }
 }
