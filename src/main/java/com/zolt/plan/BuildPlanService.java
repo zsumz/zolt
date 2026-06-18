@@ -209,12 +209,6 @@ public final class BuildPlanService {
     private static void addPackageNode(List<PlanNode> nodes, ProjectConfig config) {
         PackageMode mode = config.packageSettings().mode();
         List<PlanBlocker> blockers = new ArrayList<>();
-        if (mode == PackageMode.UBER) {
-            blockers.add(new PlanBlocker(
-                    "unsupported-package-mode",
-                    "Package mode `uber` is recognized but not implemented.",
-                    "Use thin, spring-boot, war, spring-boot-war, or quarkus until uber packaging is implemented."));
-        }
         if ((mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR)
                 && config.project().main().isEmpty()) {
             blockers.add(new PlanBlocker(

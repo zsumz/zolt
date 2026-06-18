@@ -281,7 +281,14 @@ public final class PackageService {
                                     + "` requires dependency jar access from zolt.lock. Use single-project `zolt package --mode "
                                     + mode.configValue()
                                     + "` for now; workspace framework packaging is not wired yet.")));
-            case UBER -> throw PackageModeSupport.unsupported(mode);
+            case UBER -> archiveModePackager.packageUberJar(
+                    projectDirectory,
+                    config,
+                    buildResult,
+                    jarPath(projectDirectory, config),
+                    cacheRoot.orElseThrow(() -> new PackageException(
+                            "Uber package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode uber` for now; workspace uber packaging is not wired yet.")),
+                    classpathPackages);
         };
         List<PackageArtifact> artifacts = supplementalArtifactAssembler.assemble(
                 projectDirectory,

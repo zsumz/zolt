@@ -31,15 +31,7 @@ final class PackagePlanDependencyClassifier {
             case QUARKUS -> packagePlanRules
                     .map(rules -> dependency(rules.dependency(lockPackage)))
                     .orElseGet(() -> unsupportedFrameworkDependency(mode, lockPackage));
-            case UBER -> new PackagePlanDependency(
-                    coordinate(lockPackage),
-                    lockPackage.version(),
-                    lockPackage.scope(),
-                    "unsupported",
-                    "uber-unsupported",
-                    "",
-                    "package mode `uber` is not implemented yet",
-                    lockPackage.policies());
+            case UBER -> uberDependency(lockPackage);
         };
     }
 
@@ -81,6 +73,21 @@ final class PackagePlanDependencyClassifier {
                 included ? "runtime-classpath sidecar" : "",
                 included
                         ? "dependency remains outside the thin jar and is written to the runtime classpath sidecar"
+                        : omissionReason(lockPackage.scope(), false),
+                lockPackage.policies());
+    }
+
+    private static PackagePlanDependency uberDependency(LockPackage lockPackage) {
+        boolean included = lockPackage.scope().packagedByDefault();
+        return new PackagePlanDependency(
+                coordinate(lockPackage),
+                lockPackage.version(),
+                lockPackage.scope(),
+                included ? "included" : "omitted",
+                included ? "uber-runtime-merged" : omissionRule(lockPackage.scope(), false),
+                included ? "archive root" : "",
+                included
+                        ? "runtime dependency classes and resources are merged into the uber jar"
                         : omissionReason(lockPackage.scope(), false),
                 lockPackage.policies());
     }

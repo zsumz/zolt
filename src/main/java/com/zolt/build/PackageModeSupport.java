@@ -9,10 +9,7 @@ final class PackageModeSupport {
     }
 
     static void ensureSupported(PackageMode mode) {
-        if (mode != PackageMode.UBER) {
-            return;
-        }
-        throw unsupported(mode);
+        // All recognized package modes are implemented.
     }
 
     static PackageException unsupported(PackageMode mode) {

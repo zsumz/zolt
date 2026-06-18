@@ -106,7 +106,8 @@ public final class RunPackageService {
         }
 
         if (packageResult.mode() == PackageMode.SPRING_BOOT
-                || packageResult.mode() == PackageMode.SPRING_BOOT_WAR) {
+                || packageResult.mode() == PackageMode.SPRING_BOOT_WAR
+                || packageResult.mode() == PackageMode.UBER) {
             JavaRunResult javaRunResult = javaRunner.runJar(
                     jdkStatus.java().orElseThrow(),
                     packageResult.jarPath(),

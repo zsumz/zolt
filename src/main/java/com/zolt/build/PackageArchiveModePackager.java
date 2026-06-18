@@ -18,6 +18,7 @@ final class PackageArchiveModePackager {
     private final SpringBootJarLayoutAssembler springBootJarLayoutAssembler;
     private final SpringBootWarLayoutAssembler springBootWarLayoutAssembler;
     private final QuarkusFastJarLayoutAssembler quarkusFastJarLayoutAssembler;
+    private final UberJarLayoutAssembler uberJarLayoutAssembler;
     private final PackageRuntimeJarSelector runtimeJarSelector;
 
     PackageArchiveModePackager(
@@ -30,6 +31,7 @@ final class PackageArchiveModePackager {
         this.springBootJarLayoutAssembler = new SpringBootJarLayoutAssembler();
         this.springBootWarLayoutAssembler = new SpringBootWarLayoutAssembler();
         this.quarkusFastJarLayoutAssembler = new QuarkusFastJarLayoutAssembler();
+        this.uberJarLayoutAssembler = new UberJarLayoutAssembler(manifestGenerator);
         this.runtimeJarSelector = new PackageRuntimeJarSelector();
     }
 
@@ -65,6 +67,22 @@ final class PackageArchiveModePackager {
                         cacheRoot));
         List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
         return warLayoutAssembler.assemble(config, buildResult, outputDirectory, warPath, runtimeJars);
+    }
+
+    PackageResult packageUberJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            Path jarPath,
+            Path cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+        Path outputDirectory = requireOutputDirectory(buildResult);
+        List<PackageRuntimeJar> runtimeJars = classpathPackages
+                .map(runtimeJarSelector::runtimeJars)
+                .orElseGet(() -> runtimeJarSelector.runtimeJars(
+                        lockfileReader.read(projectDirectory.resolve("zolt.lock")),
+                        cacheRoot));
+        return uberJarLayoutAssembler.assemble(config, buildResult, outputDirectory, jarPath, runtimeJars);
     }
 
     PackageResult packageSpringBootWar(

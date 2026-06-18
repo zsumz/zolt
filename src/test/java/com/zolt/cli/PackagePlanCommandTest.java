@@ -97,4 +97,30 @@ final class PackagePlanCommandTest extends PackagePlanCommandTestSupport {
                 "io.quarkus:quarkus-rest-deployment:3.33.0 [quarkus-deployment] omitted rule=quarkus-deployment-omitted"));
         assertFalse(Files.exists(projectDir.resolve("target/quarkus-app/quarkus-run.jar")));
     }
+
+    @Test
+    void packagePlanPrintsUberDependencyDispositions() throws IOException {
+        Path projectDir = tempDir.resolve("package-plan-uber");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("package-plan-uber") + """
+
+                [package]
+                mode = "uber"
+                """);
+        writePackagePlanLockfile(projectDir, false, false);
+
+        CommandResult result = execute(
+                "package",
+                "--plan",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Mode: uber"));
+        assertTrue(result.stdout().contains("Application layout: archive root"));
+        assertTrue(result.stdout().contains(
+                "com.example:runtime-lib:1.0.0 [runtime] included -> archive root rule=uber-runtime-merged"));
+        assertTrue(result.stdout().contains("jakarta.servlet:jakarta.servlet-api:6.1.0 [provided] omitted rule=provided-container-omitted"));
+        assertTrue(result.stdout().contains("com.example:processor:1.0.0 [processor] omitted rule=processor-omitted"));
+        assertFalse(Files.exists(projectDir.resolve("target/package-plan-uber-0.1.0.jar")));
+    }
 }
