@@ -100,4 +100,19 @@ final class PublicReadinessDocumentationTest {
                 productVision.contains("v0.1: built with Gradle/Maven bootstrap"),
                 "Product vision must not describe v0.1 as Gradle/Maven-bootstrapped after Zolt-owned self-hosting landed");
     }
+
+    @Test
+    void roadmapKeepsSelfHostingStatusCurrent() throws IOException {
+        String roadmap = Files.readString(Path.of("docs/roadmap.md"));
+
+        assertTrue(roadmap.contains("the current repository has since removed that bootstrap"));
+        assertTrue(roadmap.contains("The old Gradle fallback native task was removed with the root Gradle bootstrap"));
+        assertTrue(roadmap.contains("native self-hosting now runs through `scripts/self-host-native`"));
+        assertFalse(
+                roadmap.contains("Goal: make the current Zolt repository buildable by Zolt without removing the Gradle bootstrap."),
+                "Roadmap must not present the removed Gradle bootstrap as a current constraint");
+        assertFalse(
+                roadmap.contains("The Gradle fallback `nativeImage` task delegates"),
+                "Roadmap must not describe a removed Gradle fallback native task as current status");
+    }
 }
