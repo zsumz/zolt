@@ -71,11 +71,19 @@ final class PackageServiceTestSupport {
     }
 
     static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
+        createJarWithEntries(jarPath, Map.of(entryName, "\0"));
+    }
+
+    static void createJarWithEntries(Path jarPath, Map<String, String> entries) throws IOException {
         Files.createDirectories(jarPath.getParent());
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(new byte[] {0});
-            output.closeEntry();
+            for (Map.Entry<String, String> entry : entries.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .toList()) {
+                output.putNextEntry(new JarEntry(entry.getKey()));
+                output.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+                output.closeEntry();
+            }
         }
     }
 

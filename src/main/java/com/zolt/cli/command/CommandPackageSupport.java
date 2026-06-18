@@ -60,7 +60,8 @@ final class CommandPackageSupport {
             case SPRING_BOOT -> Optional.of("Run with Zolt: zolt run-package --mode spring-boot -- [args]");
             case SPRING_BOOT_WAR -> Optional.of("Run with Zolt: zolt run-package --mode spring-boot-war -- [args]");
             case QUARKUS -> Optional.of("Run with Zolt: zolt run");
-            case THIN, UBER -> Optional.of("Run with dependencies: zolt run-package -- [args]");
+            case THIN -> Optional.of("Run with dependencies: zolt run-package -- [args]");
+            case UBER -> Optional.of("Run as a self-contained jar: java -jar " + result.jarPath() + " [args]");
             case WAR -> Optional.empty();
         };
     }
@@ -85,6 +86,9 @@ final class CommandPackageSupport {
                     Optional.empty());
             case QUARKUS -> new PackageModeDetail(
                     "Quarkus fast-jar: deploy the whole target/quarkus-app directory.",
+                    Optional.empty());
+            case UBER -> new PackageModeDetail(
+                    "Uber jar: runtime dependency classes and resources are merged into the archive root.",
                     Optional.empty());
             default -> new PackageModeDetail(
                     "Thin jar: dependencies are not bundled.",

@@ -90,4 +90,36 @@ final class PackageCommandTest extends PackageCommandTestSupport {
         assertTrue(Files.readString(projectDir.resolve("zolt.toml")).contains("mode = \"spring-boot\""));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
+
+    @Test
+    void packageModeOverrideBuildsUberJar() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--mode", "uber",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as uber jar"));
+        assertTrue(result.stdout().contains("Run as a self-contained jar: java -jar " + jarPath + " [args]"));
+        assertTrue(result.stdout().contains(
+                "Uber jar: runtime dependency classes and resources are merged into the archive root."));
+        assertTrue(Files.exists(jarPath));
+        try (JarFile jar = new JarFile(jarPath.toFile())) {
+            assertNotNull(jar.getEntry("com/example/Main.class"));
+        }
+    }
 }
