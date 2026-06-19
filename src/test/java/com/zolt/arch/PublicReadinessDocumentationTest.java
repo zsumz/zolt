@@ -20,7 +20,10 @@ final class PublicReadinessDocumentationTest {
                 readme.contains("[framework.springBoot.native] enabled = true"),
                 "README should name the explicit Spring Boot native support flag");
         assertTrue(
-                readme.contains("broader real-app AOT/native coverage is still beta-hardening work"),
+                readme.contains("one real Spring Boot 3.3 WebMVC Java 21 native executable canary passes"),
+                "README should mention the proven narrow Spring Boot native executable canary");
+        assertTrue(
+                readme.contains("broader Spring native coverage is still beta-hardening work"),
                 "README should keep the remaining Spring Boot native support limit visible");
         assertTrue(
                 readme.contains("not broad real-app native-image support"),
@@ -138,8 +141,9 @@ final class PublicReadinessDocumentationTest {
     void roadmapDoesNotTreatSpringBootAotNativeAsWhollyFuture() throws IOException {
         String roadmap = Files.readString(Path.of("docs/roadmap.md"));
 
-        assertTrue(roadmap.contains("Explicit Spring Boot AOT/native canaries now generate Zolt-owned AOT outputs"));
+        assertTrue(roadmap.contains("Explicit Spring Boot AOT/native canaries now run Spring Boot AOT through Zolt-owned tooling"));
         assertTrue(roadmap.contains("[framework.springBoot.native] enabled = true"));
+        assertTrue(roadmap.contains("Spring Boot 3.3 WebMVC Java 21 real native executable canary passes"));
         assertTrue(roadmap.contains("broader real-application AOT/native coverage remains future hardening work"));
         assertFalse(
                 roadmap.contains("AOT/native processing remains future work."),
@@ -147,16 +151,16 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
-    void springBootNativeDocsStayCanaryOnlyUntilRealAppSmokeExists() throws IOException {
+    void springBootNativeDocsStayNarrowAfterRealAppSmokeExists() throws IOException {
         String frameworkReadiness = Files.readString(Path.of("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(Path.of("docs/native-graalvm.md"));
         String springBootReadiness = Files.readString(Path.of("docs/spring-boot-readiness.md"));
 
-        assertTrue(frameworkReadiness.contains("not broad real-app native-image support"));
-        assertTrue(frameworkReadiness.contains("real-app native executable smoke proves the supported subset"));
+        assertTrue(frameworkReadiness.contains("not broad Spring native-image support"));
+        assertTrue(frameworkReadiness.contains("Spring Boot 3.3 WebMVC HTTP app on Java 21"));
         assertTrue(nativeGraalvm.contains("not broad real-app native-image support"));
-        assertTrue(nativeGraalvm.contains("real-app native executable smoke proves the supported subset"));
+        assertTrue(nativeGraalvm.contains("Spring Boot 3.3 WebMVC Java 21 smoke"));
         assertTrue(springBootReadiness.contains("This is canary support, not broad real-app native-image support"));
-        assertTrue(springBootReadiness.contains("until a real-app native executable smoke proves a wider supported subset"));
+        assertTrue(springBootReadiness.contains("proven Spring Boot 3.3 WebMVC Java 21 shape until broader fixtures pass"));
     }
 }
