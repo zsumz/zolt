@@ -17,6 +17,7 @@ import com.zolt.quarkus.QuarkusPackagePlanRules;
 import com.zolt.quarkus.QuarkusRunAugmenter;
 import com.zolt.resolve.ResolveService;
 import com.zolt.workspace.WorkspaceBuildService;
+import com.zolt.workspace.WorkspaceNativeBuildService;
 import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceRunPackageService;
 import com.zolt.workspace.WorkspaceRunService;
@@ -77,6 +78,10 @@ final class CommandFrameworkServices {
 
     static WorkspacePackageService workspacePackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
         return new WorkspacePackageService(resolveService(), frameworkPackageAugmenter, packagePlanService());
+    }
+
+    static WorkspaceNativeBuildService workspaceNativeBuildService() {
+        return new WorkspaceNativeBuildService(resolveService(), new QuarkusPackageAugmenter(), packagePlanService());
     }
 
     static WorkspaceRunPackageService workspaceRunPackageService() {

@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.NativeSettings;
@@ -9,8 +10,8 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -50,36 +51,55 @@ public final class NativeBuildService {
             Path cacheRoot,
             Path nativeImageExecutable) {
         rejectUnsupportedFrameworkNative(config);
-        String mainClass = config.project().main().orElseThrow(() -> new NativeImageException(
-                "Native Image main class is missing. Add [project].main to zolt.toml."));
-        Path projectRoot = ProjectPaths.root(projectDirectory);
+        nativeMainClass(config);
         PackageResult packageResult = packageService.packageJar(
                 projectDirectory,
                 config.withPackageSettings(PackageSettings.defaults()),
                 cacheRoot);
-        List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
-                ? new SpringBootAotNativeInputs(projectRoot, config.build().outputRoot()).classpathEntries()
-                : List.of();
-
         ZoltLockfile lockfile = lockfileReader.read(projectDirectory.resolve("zolt.lock"));
         ClasspathSet classpaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot).stream()
                 .filter(dependency -> dependency.scope().packagedByDefault())
                 .toList());
+        return buildNativeImage(
+                projectDirectory,
+                config,
+                packageResult,
+                classpaths.runtime().entries(),
+                nativeImageExecutable);
+    }
+
+    public NativeBuildResult buildNativeImage(
+            Path projectDirectory,
+            ProjectConfig config,
+            PackageResult packageResult,
+            List<Path> runtimeClasspath,
+            Path nativeImageExecutable) {
+        rejectUnsupportedFrameworkNative(config);
+        String mainClass = nativeMainClass(config);
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
-        List<Path> runtimeClasspath = new java.util.ArrayList<>(classpaths.runtime().entries());
-        runtimeClasspath.addAll(0, springBootAotClasspath);
+        Path projectRoot = ProjectPaths.root(projectDirectory);
+        List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
+                ? new SpringBootAotNativeInputs(projectRoot, config.build().outputRoot()).classpathEntries()
+                : List.of();
+        List<Path> nativeRuntimeClasspath = new ArrayList<>(runtimeClasspath == null ? List.of() : runtimeClasspath);
+        nativeRuntimeClasspath.addAll(0, springBootAotClasspath);
         Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
         String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
         NativeImageResult nativeImageResult = nativeImageRunner.build(new NativeImageRequest(
                 nativeImageExecutable,
                 packageResult.jarPath(),
-                runtimeClasspath,
+                nativeRuntimeClasspath,
                 mainClass,
                 outputDirectory.resolve(imageName),
                 outputDirectory.resolve("native-image.log"),
                 nativeSettings.args()));
         reportSeriousWarnings(nativeImageResult);
         return new NativeBuildResult(packageResult, nativeImageResult);
+    }
+
+    private static String nativeMainClass(ProjectConfig config) {
+        return config.project().main().orElseThrow(() -> new NativeImageException(
+                "Native Image main class is missing. Add [project].main to zolt.toml."));
     }
 
     private static void rejectUnsupportedFrameworkNative(ProjectConfig config) {

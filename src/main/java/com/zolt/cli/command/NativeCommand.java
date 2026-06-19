@@ -15,7 +15,11 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
+import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspaceNativeBuildResult;
+import com.zolt.workspace.WorkspaceNativeBuildService;
 import java.nio.file.Path;
+import java.util.List;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -25,9 +29,23 @@ import picocli.CommandLine.Spec;
 public final class NativeCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final NativeBuildService nativeBuildService;
+    private final WorkspaceNativeBuildService workspaceNativeBuildService;
+    private final CommandLockfiles lockfiles;
 
     @Option(names = "--native-image", description = "Path to the native-image executable.")
     private Path nativeImageExecutable;
+
+    @Option(names = "--workspace", description = "Build native binaries for selected workspace members.")
+    private boolean workspace;
+
+    @Option(names = "--all", description = "Select every workspace member.")
+    private boolean all;
+
+    @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+    private List<String> members = List.of();
+
+    @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+    private List<String> memberGroups = List.of();
 
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
@@ -39,17 +57,52 @@ public final class NativeCommand implements Runnable {
     private CommandSpec spec;
 
     public NativeCommand() {
-        this(new ZoltTomlParser(), new NativeBuildService());
+        this(
+                new ZoltTomlParser(),
+                new NativeBuildService(),
+                CommandFrameworkServices.workspaceNativeBuildService(),
+                new CommandLockfiles());
     }
 
-    NativeCommand(ZoltTomlParser tomlParser, NativeBuildService nativeBuildService) {
+    NativeCommand(
+            ZoltTomlParser tomlParser,
+            NativeBuildService nativeBuildService,
+            WorkspaceNativeBuildService workspaceNativeBuildService,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.nativeBuildService = nativeBuildService;
+        this.workspaceNativeBuildService = workspaceNativeBuildService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
     public void run() {
         try {
+            if (workspace) {
+                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+                WorkspaceNativeBuildResult result = workspaceNativeBuildService.buildNative(
+                        workingDirectory,
+                        cacheRoot,
+                        CommandWorkspaceSelections.from(all, members, memberGroups),
+                        nativeImageExecutable);
+                if (result.resolvedLockfile()) {
+                    spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                }
+                for (WorkspaceNativeBuildResult.MemberNativeBuildResult member : result.members()) {
+                    spec.commandLine().getOut().println("Built native binary at "
+                            + member.result().nativeImageResult().outputBinary()
+                            + " in "
+                            + member.member());
+                    spec.commandLine().getOut().println("Native Image log written to "
+                            + member.result().nativeImageResult().logFile()
+                            + " in "
+                            + member.member());
+                }
+                spec.commandLine().getOut().println("Built native binaries for "
+                        + result.members().size()
+                        + " workspace members");
+                return;
+            }
             ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             NativeBuildResult result = nativeBuildService.buildNative(
                     workingDirectory,
@@ -73,6 +126,7 @@ public final class NativeCommand implements Runnable {
                 | SourceDiscoveryException
                 | LockfileReadException
                 | ResolveException
+                | WorkspaceConfigException
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }

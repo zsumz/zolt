@@ -65,6 +65,47 @@ final class NativeCommandTest {
     }
 
     @Test
+    void nativeBuildsSelectedWorkspaceMemberFromCli() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-native");
+        writeWorkspaceNativeFixture(workspaceDir);
+        Path nativeImage = writeFakeNativeImage(tempDir.resolve("native-image"));
+
+        CommandResult result = execute(
+                "native",
+                "--workspace",
+                "--member", "apps/api",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--native-image", nativeImage.toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Resolved workspace dependencies because zolt.lock was missing"));
+        assertTrue(result.stdout().contains("Built native binary at "
+                + workspaceDir.resolve("apps/api/target/native/api")
+                + " in apps/api"));
+        assertTrue(result.stdout().contains("Built native binaries for 1 workspace members"));
+        assertTrue(Files.exists(workspaceDir.resolve("apps/api/target/native/api")));
+        assertFalse(Files.exists(workspaceDir.resolve("modules/core/target/native/core")));
+    }
+
+    @Test
+    void nativeWorkspaceRejectsAllWithExplicitMemberSelection() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-native-selection");
+        writeWorkspaceNativeFixture(workspaceDir);
+
+        CommandResult result = execute(
+                "native",
+                "--workspace",
+                "--all",
+                "--member", "apps/api",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Use either --all or member selection for workspace selection, not both."));
+    }
+
+    @Test
     void nativeSmokeKeepsReleaseArchiveOutputProjectRelativeFromCli() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
@@ -205,6 +246,89 @@ final class NativeCommandTest {
                 output = "target/classes"
                 testOutput = "target/test-classes"
                 """.formatted(currentJavaMajorVersion(), repositoryUrl));
+    }
+
+    private static void writeWorkspaceNativeFixture(Path workspaceDir) throws IOException {
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace-native"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), """
+                [project]
+                name = "core"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                """.formatted(currentJavaMajorVersion()));
+        Files.createDirectories(coreDir.resolve("src/main/java/com/example/core"));
+        Files.writeString(coreDir.resolve("src/main/java/com/example/core/Core.java"), """
+                package com.example.core;
+
+                public final class Core {
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.api.Api"
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """.formatted(currentJavaMajorVersion()));
+        Files.createDirectories(apiDir.resolve("src/main/java/com/example/api"));
+        Files.writeString(apiDir.resolve("src/main/java/com/example/api/Api.java"), """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    public static void main(String[] args) {
+                        System.out.println(Core.message());
+                    }
+                }
+                """);
+    }
+
+    private static Path writeFakeNativeImage(Path binary) throws IOException {
+        Files.writeString(binary, """
+                #!/usr/bin/env bash
+                set -euo pipefail
+
+                classpath=""
+                output=""
+                while [[ "$#" -gt 0 ]]; do
+                  case "$1" in
+                    -cp)
+                      shift
+                      classpath="$1"
+                      ;;
+                    -o)
+                      shift
+                      output="$1"
+                      ;;
+                  esac
+                  shift || true
+                done
+
+                mkdir -p "$(dirname "$output")"
+                printf 'native\\n' > "$output"
+                printf 'classpath=%s\\n' "$classpath"
+                printf 'output=%s\\n' "$output"
+                """);
+        assertTrue(binary.toFile().setExecutable(true));
+        return binary;
     }
 
     private static Path writeFakeNativeBinary(Path projectDir) throws IOException {
