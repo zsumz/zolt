@@ -139,7 +139,7 @@ final class BuildServiceTest {
     }
 
     @Test
-    void generatesDeterministicSpringBootAotOutputsWhenNativeIsEnabled() throws IOException {
+    void springBootNativeRequiresLockedAotTooling() throws IOException {
         writeLockfile("version = 1\n");
         source("src/main/java/com/example/Main.java", """
                 package com.example;
@@ -153,29 +153,13 @@ final class BuildServiceTest {
                 new SpringBootSettings(true),
                 QuarkusSettings.defaults()));
 
-        buildService.build(projectDir, config, projectDir.resolve("cache"));
-        Files.writeString(projectDir.resolve("target/spring-aot/main/resources/stale.txt"), "stale");
-        BuildResult result = buildService.build(projectDir, config, projectDir.resolve("cache"));
+        BuildException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                BuildException.class,
+                () -> buildService.build(projectDir, config, projectDir.resolve("cache")));
 
-        assertEquals("skipped", result.mainCompilationMode());
-        assertEquals("""
-                package com.zolt.springaot;
-
-                public final class ZoltSpringAotMarker {
-                    private ZoltSpringAotMarker() {
-                    }
-
-                    public static String application() {
-                        return "com.example:demo:0.1.0";
-                    }
-                }
-                """, Files.readString(projectDir.resolve(
-                "target/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
-        assertTrue(Files.exists(projectDir.resolve(
-                "target/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
-        assertEquals("[]\n", Files.readString(projectDir.resolve(
-                "target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
-        assertFalse(Files.exists(projectDir.resolve("target/spring-aot/main/resources/stale.txt")));
+        assertTrue(exception.getMessage().contains("Spring Boot AOT processing requires locked tool artifacts"));
+        assertTrue(exception.getMessage().contains("tool-spring-aot"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve`"));
     }
 
     private static ProjectConfig config() {

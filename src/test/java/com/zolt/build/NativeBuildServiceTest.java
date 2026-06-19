@@ -100,7 +100,7 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
-    void explicitSpringBootNativeGeneratesAndPassesAotOutputsToNativeImageClasspath() throws IOException {
+    void explicitSpringBootNativeRequiresLockedAotToolingBeforeNativeImage() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         writeRuntimeLockfile();
         source("src/main/java/com/example/Main.java", """
@@ -118,31 +118,18 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
             return new NativeImageRunner.ProcessResult(0, "native ok\n");
         });
 
-        NativeBuildResult result = service.buildNative(
-                projectDir,
-                springBootNativeConfig(),
-                cacheRoot,
-                Path.of("native-image"));
+        BuildException exception = assertThrows(
+                BuildException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        springBootNativeConfig(),
+                        cacheRoot,
+                        Path.of("native-image")));
 
-        Path jarPath = projectDir.resolve(".zolt/build/demo-0.1.0.jar");
-        Path aotClasses = projectDir.resolve(".zolt/build/spring-aot/main/classes");
-        Path aotResources = projectDir.resolve(".zolt/build/spring-aot/main/resources");
-        Path dependencyJar = cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar");
-        assertEquals(projectDir.resolve(".zolt/build/native/demo-native"), result.nativeImageResult().outputBinary());
-        assertTrue(Files.exists(projectDir.resolve(
-                ".zolt/build/spring-aot/main/sources/com/zolt/springaot/ZoltSpringAotMarker.java")));
-        assertTrue(Files.exists(projectDir.resolve(
-                ".zolt/build/spring-aot/main/classes/com/zolt/springaot/ZoltSpringAotMarker.class")));
-        assertTrue(Files.exists(projectDir.resolve(
-                ".zolt/build/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json")));
-        assertEquals(List.of(
-                "native-image",
-                "--no-fallback",
-                "-cp",
-                jarPath + ":" + aotClasses + ":" + aotResources + ":" + dependencyJar,
-                "com.example.Main",
-                "-o",
-                projectDir.resolve(".zolt/build/native/demo-native").toString()), commands.getFirst());
+        assertTrue(exception.getMessage().contains("Spring Boot AOT processing requires locked tool artifacts"));
+        assertTrue(exception.getMessage().contains("tool-spring-aot"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve`"));
+        assertTrue(commands.isEmpty());
     }
 
     @Test

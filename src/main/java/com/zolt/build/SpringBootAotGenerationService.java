@@ -38,6 +38,11 @@ final class SpringBootAotGenerationService {
         if (!config.frameworkSettings().springBoot().nativeEnabled()) {
             return;
         }
+        if (springBootAotClasspath.entries().isEmpty()) {
+            throw new BuildException(
+                    "Spring Boot AOT processing requires locked tool artifacts in scope `tool-spring-aot`, "
+                            + "but zolt.lock does not contain them. Run `zolt resolve` without --offline to seed Spring Boot AOT tooling, then retry.");
+        }
         String mainClass = config.project().main().orElseThrow(() -> new BuildException(
                 "Spring Boot AOT processing requires [project].main. Add the application main class to zolt.toml."));
         Path root = projectDirectory.toAbsolutePath().normalize();
