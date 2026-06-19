@@ -44,6 +44,8 @@ final class UberJarLayoutAssemblerTest {
                         "META-INF/INDEX.LIST", "ignored",
                         "META-INF/DEMO.SF", "ignored",
                         "MODULE-INFO.CLASS", "ignored",
+                        "META-INF/versions/9/module-info.class", "ignored",
+                        "META-INF/LICENSE.txt", "license",
                         "com/example/runtime/Runtime.class", "runtime",
                         "runtime.properties", "merged=true\n"));
 
@@ -67,15 +69,25 @@ final class UberJarLayoutAssemblerTest {
                     "com/example/Main.class",
                     "config/",
                     "config/app.properties",
+                    "META-INF/zolt-uber/",
+                    "META-INF/zolt-uber/com/",
+                    "META-INF/zolt-uber/com/example/",
+                    "META-INF/zolt-uber/com/example/runtime/",
+                    "META-INF/zolt-uber/com/example/runtime/1.0.0/",
+                    "META-INF/zolt-uber/com/example/runtime/1.0.0/LICENSE.txt",
                     "com/example/runtime/",
                     "com/example/runtime/Runtime.class",
                     "runtime.properties"), jar.stream().map(java.util.jar.JarEntry::getName).toList());
             assertEquals("main", readEntry(jar, "com/example/Main.class"));
             assertEquals("runtime", readEntry(jar, "com/example/runtime/Runtime.class"));
             assertEquals("merged=true\n", readEntry(jar, "runtime.properties"));
+            assertEquals(
+                    "license",
+                    readEntry(jar, "META-INF/zolt-uber/com/example/runtime/1.0.0/LICENSE.txt"));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals(".zolt-build-main.fingerprint")));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("META-INF/DEMO.SF")));
             assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("MODULE-INFO.CLASS")));
+            assertFalse(jar.stream().anyMatch(entry -> entry.getName().equals("META-INF/versions/9/module-info.class")));
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
         }
@@ -103,6 +115,57 @@ final class UberJarLayoutAssemblerTest {
         assertTrue(exception.getMessage().contains("Duplicate uber jar entry `shared.txt`"));
         assertTrue(exception.getMessage().contains("Move one dependency out of the runtime classpath"));
         assertTrue(exception.getMessage().contains("thin"));
+    }
+
+    @Test
+    void mergesServiceDescriptorsAndNettyVersionMetadataDeterministically() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        PackageServiceTestSupport.source(
+                outputDirectory,
+                "META-INF/services/com.example.Plugin",
+                "com.example.AppPlugin\n");
+        Path first = projectDir.resolve("cache/com/example/first/1.0.0/first-1.0.0.jar");
+        Path second = projectDir.resolve("cache/com/example/second/1.0.0/second-1.0.0.jar");
+        createJarWithEntries(first, Map.of(
+                "META-INF/services/com.example.Plugin", "com.example.FirstPlugin\ncom.example.SharedPlugin\n",
+                "META-INF/io.netty.versions.properties", """
+                        # generated
+                        netty-common.version=4.1.115.Final
+                        netty-common.repoStatus=clean
+                        """));
+        createJarWithEntries(second, Map.of(
+                "META-INF/services/com.example.Plugin", "com.example.SecondPlugin\ncom.example.SharedPlugin\n",
+                "META-INF/io.netty.versions.properties", """
+                        # generated
+                        netty-buffer.version=4.1.115.Final
+                        netty-buffer.repoStatus=clean
+                        """));
+
+        PackageResult result = assembler.assemble(
+                PackageServiceTestSupport.config(Optional.empty())
+                        .withPackageSettings(new PackageSettings(PackageMode.UBER)),
+                new BuildResult(Optional.empty(), 0, 0, outputDirectory, ""),
+                outputDirectory,
+                projectDir.resolve("target/demo-0.1.0.jar"),
+                List.of(
+                        runtimeDependency("com.example", "first", "1.0.0", first),
+                        runtimeDependency("com.example", "second", "1.0.0", second)));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("""
+                    com.example.AppPlugin
+                    com.example.FirstPlugin
+                    com.example.SecondPlugin
+                    com.example.SharedPlugin
+                    """, readEntry(jar, "META-INF/services/com.example.Plugin"));
+            assertEquals("""
+                    # Merged by Zolt uber jar packaging
+                    netty-buffer.repoStatus=clean
+                    netty-buffer.version=4.1.115.Final
+                    netty-common.repoStatus=clean
+                    netty-common.version=4.1.115.Final
+                    """, readEntry(jar, "META-INF/io.netty.versions.properties"));
+        }
     }
 
     private static PackageRuntimeJar runtimeDependency(String group, String artifact, String version, Path jar) {
