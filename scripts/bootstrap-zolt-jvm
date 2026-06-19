@@ -114,8 +114,19 @@ fi
 
 mkdir -p "$BOOTSTRAP_CLASSES"
 mkdir -p "$BOOTSTRAP_DIR"
-find "$BOOTSTRAP_CLASSES" -mindepth 1 -delete
-find src/main/java -name '*.java' -print | sort > "$SOURCE_LIST"
+case "$BOOTSTRAP_CLASSES" in
+  "" | "." | "/" | "$ROOT" | "$ROOT"/src | "$ROOT"/src/*)
+    printf 'error: refusing unsafe bootstrap classes directory: %s\n' "$BOOTSTRAP_CLASSES" >&2
+    exit 1
+    ;;
+esac
+rm -rf "$BOOTSTRAP_CLASSES"
+mkdir -p "$BOOTSTRAP_CLASSES"
+
+shopt -s globstar nullglob
+source_files=(src/main/java/**/*.java)
+shopt -u globstar nullglob
+printf '%s\n' "${source_files[@]}" | sort > "$SOURCE_LIST"
 
 if [[ ! -s "$SOURCE_LIST" ]]; then
   printf 'error: no Java source files found under src/main/java\n' >&2
