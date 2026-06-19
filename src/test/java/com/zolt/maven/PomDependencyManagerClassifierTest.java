@@ -73,4 +73,35 @@ final class PomDependencyManagerClassifierTest {
         assertTrue(exception.getMessage().contains("${os.detected.classifier}"));
         assertTrue(exception.getMessage().contains("fixed OS/architecture classifier"));
     }
+
+    @Test
+    void optionalClassifierDependenciesAreSkippedBeforeInterpolation() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.netty</groupId>
+                      <artifactId>netty-tcnative-boringssl-static</artifactId>
+                      <version>2.0.69.Final</version>
+                      <classifier>${tcnative.classifier}</classifier>
+                      <optional>true</optional>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>2.0.17</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        java.util.List<RawPomDependency> dependencies = manager.applyManagedVersions(pom);
+
+        assertEquals(1, dependencies.size());
+        assertEquals("org.slf4j", dependencies.getFirst().groupId());
+        assertEquals("slf4j-api", dependencies.getFirst().artifactId());
+    }
 }

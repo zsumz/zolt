@@ -270,7 +270,12 @@ final class NativeCommandTest {
                   resolve|build)
                     printf 'ok\\n'
                     ;;
-                  run)
+                  package)
+                    cwd="$(option_value --cwd "$@")"
+                    mkdir -p "$cwd/target"
+                    printf 'jar\\n' > "$cwd/target/hello-native-0.1.0.jar"
+                    ;;
+                  run|run-package)
                     printf 'Hello from hello-native!\\n'
                     ;;
                   *)

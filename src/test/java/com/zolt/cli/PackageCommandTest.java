@@ -125,6 +125,38 @@ final class PackageCommandTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageModeOverrideRefreshesExistingLockfileForCurrentCommand() throws IOException {
+        Path projectDir = tempDir.resolve("demo-existing-lock");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+        CommandResult resolve = execute(
+                "resolve",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+        assertEquals(0, resolve.exitCode(), resolve.stderr());
+        String thinLockfile = Files.readString(projectDir.resolve("zolt.lock"));
+
+        CommandResult result = execute(
+                "package",
+                "--mode", "uber",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as uber jar"));
+        assertFalse(Files.readString(projectDir.resolve("zolt.lock")).equals(thinLockfile));
+    }
+
+
+    @Test
     void migrationFixturePackagesUnderOutputRootWithoutTouchingMavenTarget() throws IOException {
         Path projectDir = tempDir.resolve("migration-fixture");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

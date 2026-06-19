@@ -125,6 +125,30 @@ public final class NativeSmokeService {
                     "Native smoke failed: expected generated project run output to contain `Hello from hello-native!`. Output was:\n"
                             + run.output());
         }
+        run("package", workRoot, resolvedBinary, List.of(
+                "package",
+                "--cwd",
+                generatedProject.toString(),
+                "--cache-root",
+                cacheRoot.toString()));
+        Path generatedJar = generatedProject.resolve("target/hello-native-0.1.0.jar");
+        if (!Files.isRegularFile(generatedJar)) {
+            throw new NativeSmokeException(
+                    "Native smoke failed: expected generated project package to write "
+                            + generatedJar
+                            + ".");
+        }
+        ProcessResult runPackage = run("run-package", workRoot, resolvedBinary, List.of(
+                "run-package",
+                "--cwd",
+                generatedProject.toString(),
+                "--cache-root",
+                cacheRoot.toString()));
+        if (!runPackage.output().contains("Hello from hello-native!")) {
+            throw new NativeSmokeException(
+                    "Native smoke failed: expected generated project run-package output to contain `Hello from hello-native!`. Output was:\n"
+                            + runPackage.output());
+        }
 
         return new NativeSmokeResult(resolvedBinary, workRoot, archive, generatedProject);
     }

@@ -44,6 +44,18 @@ final class CommandLockfiles {
         resolveService.resolve(workingDirectory, config, cacheRoot, true, offline);
     }
 
+    void refreshExistingLockfile(
+            Path workingDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            boolean offline) {
+        Path lockfilePath = workingDirectory.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
+            return;
+        }
+        resolveService.resolve(workingDirectory, config, cacheRoot, false, offline);
+    }
+
     void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
         Optional<Workspace> workspace = workspaceDiscoveryService.discover(workingDirectory.toAbsolutePath().normalize());
         if (workspace.isEmpty()) {

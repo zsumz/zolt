@@ -97,8 +97,13 @@ public final class ZoltCli implements Runnable {
     static CommandLine newCommandLine() {
         return new CommandLine(new ZoltCli())
                 .setCaseInsensitiveEnumValuesAllowed(true)
-                .setExecutionExceptionHandler((exception, commandLine, parseResult) ->
-                        commandLine.getCommandSpec().exitCodeOnExecutionException());
+                .setExecutionExceptionHandler((exception, commandLine, parseResult) -> {
+                    if (!(exception instanceof CommandLine.ExecutionException)) {
+                        commandLine.getErr().println("error: " + exception.getMessage());
+                        commandLine.getErr().flush();
+                    }
+                    return commandLine.getCommandSpec().exitCodeOnExecutionException();
+                });
     }
 
     @Override

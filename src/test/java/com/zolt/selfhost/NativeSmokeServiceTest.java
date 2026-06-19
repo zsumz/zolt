@@ -62,6 +62,20 @@ final class NativeSmokeServiceTest extends NativeSmokeServiceTestSupport {
                 tempDir.resolve("target/native-smoke/hello-native").toString(),
                 "--cache-root",
                 tempDir.resolve("target/native-smoke/cache").toString()), commands.get(7));
+        assertEquals(List.of(
+                binary.toString(),
+                "package",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--cache-root",
+                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(10));
+        assertEquals(List.of(
+                binary.toString(),
+                "run-package",
+                "--cwd",
+                tempDir.resolve("target/native-smoke/hello-native").toString(),
+                "--cache-root",
+                tempDir.resolve("target/native-smoke/cache").toString()), commands.get(11));
     }
 
     @Test
@@ -133,7 +147,17 @@ final class NativeSmokeServiceTest extends NativeSmokeServiceTestSupport {
             if (command.contains("--version")) {
                 return new NativeSmokeService.ProcessResult(0, "0.1.0\n");
             }
-            if (command.contains("run")) {
+            if (command.size() > 1 && "package".equals(command.get(1))) {
+                Path cwd = Path.of(command.get(command.indexOf("--cwd") + 1));
+                try {
+                    Files.createDirectories(cwd.resolve("target"));
+                    Files.writeString(cwd.resolve("target/hello-native-0.1.0.jar"), "jar");
+                } catch (IOException exception) {
+                    throw new AssertionError(exception);
+                }
+                return new NativeSmokeService.ProcessResult(0, "Packaged hello-native\n");
+            }
+            if (command.size() > 1 && ("run".equals(command.get(1)) || "run-package".equals(command.get(1)))) {
                 return new NativeSmokeService.ProcessResult(0, "Hello from hello-native!\n");
             }
             return new NativeSmokeService.ProcessResult(0, "ok\n");
