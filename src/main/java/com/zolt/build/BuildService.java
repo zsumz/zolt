@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
@@ -156,7 +157,7 @@ public final class BuildService {
             throw new BuildException(exception.getMessage(), exception);
         }
         return new BuildResultWithClasspaths(
-                build(projectDirectory, config, classpaths, resolveResult),
+                build(projectDirectory, config, classpaths, resolveResult, classpathPackages),
                 classpaths,
                 classpathPackages);
     }
@@ -194,14 +195,15 @@ public final class BuildService {
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {
-        return build(projectDirectory, config, classpaths, Optional.empty());
+        return build(projectDirectory, config, classpaths, Optional.empty(), List.of());
     }
 
     private BuildResult build(
             Path projectDirectory,
             ProjectConfig config,
             ClasspathSet classpaths,
-            Optional<ResolveResult> resolveResult) {
+            Optional<ResolveResult> resolveResult,
+            List<ResolvedClasspathPackage> classpathPackages) {
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
@@ -232,7 +234,12 @@ public final class BuildService {
                 jdkStatus);
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
-        springBootAotGenerationService.generate(projectDirectory, config, jdkStatus);
+        springBootAotGenerationService.generate(
+                projectDirectory,
+                config,
+                jdkStatus,
+                classpaths,
+                springBootAotClasspath(config, classpathPackages));
         long fingerprintWriteNanos = 0L;
         if (!compileSkipped) {
             long fingerprintWriteStarted = System.nanoTime();
@@ -265,6 +272,18 @@ public final class BuildService {
                 javacResult.diagnostics(),
                 fingerprintCheckNanos,
                 fingerprintWriteNanos);
+    }
+
+    private static Classpath springBootAotClasspath(
+            ProjectConfig config,
+            List<ResolvedClasspathPackage> classpathPackages) {
+        if (!config.frameworkSettings().springBoot().nativeEnabled()) {
+            return new Classpath(List.of());
+        }
+        return new Classpath(classpathPackages.stream()
+                .filter(dependency -> dependency.scope() == DependencyScope.TOOL_SPRING_AOT)
+                .map(dependency -> dependency.resolvedPackage().jarPath())
+                .toList());
     }
 
     private static long elapsedSince(long started) {
