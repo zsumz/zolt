@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +14,7 @@ final class ZoltTomlParserTest {
 
     @Test
     void parsesValidExampleConfig() {
-        ProjectConfig config = parser.parse(Path.of("examples/hello-zolt/zolt.toml"));
+        ProjectConfig config = parser.parse(ZoltTomlTestPaths.fixture("examples/hello-zolt/zolt.toml"));
 
         assertEquals("hello-zolt", config.project().name());
         assertEquals("0.1.0", config.project().version());

@@ -1,6 +1,6 @@
 version = 1
-projectResolutionFingerprint = "sha256:ce6b4ed4ebb71fbf9d670ce33ff2485ff46dd00e0f8563b45768436bdcbadb92"
-projectResolutionInputFingerprints = ["dependencies.compile.workspace=sha256:91aee3e0a86efafd1c0e46f9fae0f3632c04ba5591cc2939334cd0249910ba58", "dependencies.compile=sha256:e15818114f5720bdf943dabd6f2ae4e290acf2b61c08ea79099b43ad118a0a3c", "dependencies.provided=sha256:32bc6ceacff9357e60cd18b23d733be7cc2139ccdc98e26ecf5b7ceccc739406", "dependencies.test=sha256:69f65d3cd20b0496cf9af740d0b582e8684093f4542ad004d704b2f7ed728718", "framework.quarkus=sha256:094f65149ee6871b1326828e038b04add0c5a827e13db9d2b2a1e94a83e9642f", "framework.springBoot.native=sha256:cba1dfbfd392af0847abb232f48f01dbc8535b2415c0f1da3f140e454df2d0dd", "java=sha256:257698ec7b7c4834f99de79f4b0c695a3e9eea202ad494020778e502ae934db2", "package=sha256:90f6f1462b47c2f834191b576aa724fd47b41e44ba9d3188ed214550cf4baa62", "repositories=sha256:0a9fb7095c4b9736daae58c6aa685fa0a409977c8470d38c906dbe3a90d27e3e", "schema=sha256:2e0b267c81fae6f18530d197a9444b16fc6cd88e5f105930bcf32d11b9896039"]
+projectResolutionFingerprint = "sha256:3f16986c8c3fa7ab4f0fe0c516163e82b09a9c94b1b1f6fc1a44f154be72e964"
+projectResolutionInputFingerprints = ["dependencies.compile.workspace=sha256:e5ad1358883db3b225d0fa75c61753454bcb785dcc4aa628772fb0352ae728ef", "dependencies.compile=sha256:6d24b20e80b569844cb2f335e3eecc551bf88616553bda539016d9c01af50fe8", "dependencies.provided=sha256:32bc6ceacff9357e60cd18b23d733be7cc2139ccdc98e26ecf5b7ceccc739406", "dependencies.test=sha256:c8dfedcf2c694c74fd834809eeedd698daf3267c668d6f1c7fb26d5fdf408f24", "framework.quarkus=sha256:eeac11a188dd5e7ccb3a8d718361655a11434a4c6af2dd3426f72ab1d78b24e4", "framework.springBoot.native=sha256:09473a3db05d1878944ba8b46ff1320200c069278e6a81caa07a5dd22ed70833", "java=sha256:c60a79f0ed36ef13b5feea5834ffa30054597d7d4e27b71340f3ec92ea71f092", "package=sha256:3c7576019377cafa32f00e9a2d90d9d13ccd9ea4565d55ba77bf35c7f071db51", "repositories=sha256:9db5bf1b7137682d23788785bb23610578ed659931fc1f6a299ef8d2837531b0", "schema=sha256:cac4653301d6eed009c7271fd1f22011dbc657209df29448bce3b36b69c8fdde"]
 
 [[package]]
 id = "com.zolt:zolt-model"
@@ -9,6 +9,17 @@ source = "workspace"
 scope = "compile"
 direct = true
 workspace = "modules/zolt-model"
+workspaceOutput = "target/classes"
+members = [".", "modules/zolt-toml"]
+dependencies = []
+
+[[package]]
+id = "com.zolt:zolt-toml"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-toml"
 workspaceOutput = "target/classes"
 members = ["."]
 dependencies = []
@@ -88,7 +99,7 @@ jar = "org/antlr/antlr4-runtime/4.11.1/antlr4-runtime-4.11.1.jar"
 pom = "org/antlr/antlr4-runtime/4.11.1/antlr4-runtime-4.11.1.pom"
 jarSha256 = "e06c6553c1ccc14d36052ec4b0fc6f13b808cf957b5b1dc3f61bf401996ada59"
 pomSha256 = "c456ec2959078c591fbd7ef69ad9400a727920068d746989c74ab804ed681b34"
-members = ["."]
+members = [".", "modules/zolt-toml"]
 dependencies = []
 
 [[package]]
@@ -101,7 +112,7 @@ jar = "org/checkerframework/checker-qual/3.21.2/checker-qual-3.21.2.jar"
 pom = "org/checkerframework/checker-qual/3.21.2/checker-qual-3.21.2.pom"
 jarSha256 = "7e8554c902b9b839e61396cfe3a64c84ecabfb8eb652c410bfd8e4f5c1a8ece8"
 pomSha256 = "81c7d4709177f65a40bcd584d89a857f1ac389c545c5ae6940cb6f143723a395"
-members = ["."]
+members = [".", "modules/zolt-toml"]
 dependencies = []
 
 [[package]]
@@ -114,7 +125,7 @@ jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platfor
 pom = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.pom"
 jarSha256 = "b016ef6b1c3454d6d7c2c88ce081dabf289699686af6622d6e4e2e1b54b4a2fc"
 pomSha256 = "f44619c18edb94360cc382e6baf943e9300625d1a0a949ee158977eace5713d1"
-members = [".", "modules/zolt-model"]
+members = [".", "modules/zolt-model", "modules/zolt-toml"]
 dependencies = []
 
 [[package]]
@@ -127,6 +138,6 @@ jar = "org/tomlj/tomlj/1.1.1/tomlj-1.1.1.jar"
 pom = "org/tomlj/tomlj/1.1.1/tomlj-1.1.1.pom"
 jarSha256 = "383b7c66966c42ee4913ec977a7b6573631866bddc5318ec4a6215b688dd0d6c"
 pomSha256 = "1393089af1f9260c004c22313197cae9db1385ccbb30499a82d5a931d1762f66"
-members = ["."]
+members = [".", "modules/zolt-toml"]
 dependencies = ["org.antlr:antlr4-runtime:4.11.1", "org.checkerframework:checker-qual:3.21.2"]
 

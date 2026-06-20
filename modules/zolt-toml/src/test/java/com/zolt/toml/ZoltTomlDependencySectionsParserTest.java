@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.ProjectConfig;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -15,14 +14,14 @@ final class ZoltTomlDependencySectionsParserTest {
 
     @Test
     void parsesTestDependencies() {
-        ProjectConfig config = parser.parse(Path.of("examples/junit-basic/zolt.toml"));
+        ProjectConfig config = parser.parse(ZoltTomlTestPaths.fixture("examples/junit-basic/zolt.toml"));
 
         assertEquals("1.11.4", config.testDependencies().get("org.junit.platform:junit-platform-console-standalone"));
     }
 
     @Test
     void petclinicFixtureDeclaresH2AsRuntimeOnly() {
-        ProjectConfig config = parser.parse(Path.of("examples/spring-boot-petclinic-lite/zolt.toml"));
+        ProjectConfig config = parser.parse(ZoltTomlTestPaths.fixture("examples/spring-boot-petclinic-lite/zolt.toml"));
 
         assertTrue(config.managedRuntimeDependencies().contains("com.h2database:h2"));
         assertFalse(config.dependencies().containsKey("com.h2database:h2"));
