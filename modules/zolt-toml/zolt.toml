@@ -9,6 +9,8 @@ central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+
+[api.dependencies]
 "org.tomlj:tomlj" = "1.1.1"
 
 [test.dependencies]
