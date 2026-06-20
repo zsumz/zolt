@@ -21,6 +21,7 @@ central = "https://repo.maven.apache.org/maven2"
 "com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
+"com.zolt:zolt-tree" = { workspace = "modules/zolt-tree" }
 "com.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
 "info.picocli:picocli" = "4.7.6"
 "org.tomlj:tomlj" = "1.1.1"
