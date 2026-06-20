@@ -1,6 +1,17 @@
 version = 1
-projectResolutionFingerprint = "sha256:9d659744fc8b8749bf21e1d161323f56f6f3785f7652b432d7681c91ca1e243d"
-projectResolutionInputFingerprints = ["dependencies.compile=sha256:e1de0f06248c7145a3542f6a9f0199fa15a6da1d356fd0025c64348377e12c11", "dependencies.provided=sha256:6041cc04e0b71c2ea5a4431daeee0dd48a6068ffae86ef788d5c5297ea245e62", "dependencies.test=sha256:e5516a403420e89a8b33189dcf163f06078935e4e6bcd5907dab410bee6e5a9e", "framework.quarkus=sha256:68d7c5d5cedc29b433b63ce5b53c7054a4c27e79e03430701582a1b1d5cea01f", "framework.springBoot.native=sha256:92f88357bc81a539a14f201ee0d0a7525b5e4e2acaf07f0e9b826964bb5a4b63", "java=sha256:fda3a3e438244e08721bfc730e9f34ef4ee260820f6fbcd44a4c64601a93bf71", "package=sha256:1ae86c65b1e6e588a2c7b97e49de5aa12a31ace329e1253d80d6be0028c0ec59", "repositories=sha256:e01822fdeeed818adfc2169ed3a3c6e24d67f4455bfc41e52af4d25221a85c51", "schema=sha256:5c48b263086f330542d7f620f6e05a9d4f2ffe1ca79d8b531d03ea3cbc6f9b15"]
+projectResolutionFingerprint = "sha256:ce6b4ed4ebb71fbf9d670ce33ff2485ff46dd00e0f8563b45768436bdcbadb92"
+projectResolutionInputFingerprints = ["dependencies.compile.workspace=sha256:91aee3e0a86efafd1c0e46f9fae0f3632c04ba5591cc2939334cd0249910ba58", "dependencies.compile=sha256:e15818114f5720bdf943dabd6f2ae4e290acf2b61c08ea79099b43ad118a0a3c", "dependencies.provided=sha256:32bc6ceacff9357e60cd18b23d733be7cc2139ccdc98e26ecf5b7ceccc739406", "dependencies.test=sha256:69f65d3cd20b0496cf9af740d0b582e8684093f4542ad004d704b2f7ed728718", "framework.quarkus=sha256:094f65149ee6871b1326828e038b04add0c5a827e13db9d2b2a1e94a83e9642f", "framework.springBoot.native=sha256:cba1dfbfd392af0847abb232f48f01dbc8535b2415c0f1da3f140e454df2d0dd", "java=sha256:257698ec7b7c4834f99de79f4b0c695a3e9eea202ad494020778e502ae934db2", "package=sha256:90f6f1462b47c2f834191b576aa724fd47b41e44ba9d3188ed214550cf4baa62", "repositories=sha256:0a9fb7095c4b9736daae58c6aa685fa0a409977c8470d38c906dbe3a90d27e3e", "schema=sha256:2e0b267c81fae6f18530d197a9444b16fc6cd88e5f105930bcf32d11b9896039"]
+
+[[package]]
+id = "com.zolt:zolt-model"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-model"
+workspaceOutput = "target/classes"
+members = ["."]
+dependencies = []
 
 [[package]]
 id = "info.picocli:picocli"
@@ -12,6 +23,7 @@ jar = "info/picocli/picocli/4.7.6/picocli-4.7.6.jar"
 pom = "info/picocli/picocli/4.7.6/picocli-4.7.6.pom"
 jarSha256 = "ed441183f309b93f104ca9e071e314a4062a893184e18a3c7ad72ec9cba12ba0"
 pomSha256 = "2d2248cccf487ad9ce208dec751745df15cd1e1924a4cc3d36841b5f1990c6fb"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -24,6 +36,7 @@ jar = "io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.jar"
 pom = "io/quarkus/quarkus-builder/3.33.2/quarkus-builder-3.33.2.pom"
 jarSha256 = "2f10a8ee6d5ecfa0fc4b4d51f9ab0c2def7ec879128ce6f999ce9aa1b4ec4928"
 pomSha256 = "8676462f2559cd6e51bff0e50afda15396a55ad9897ba1d7b9bdc6550cff6164"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -36,6 +49,7 @@ jar = "io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.
 pom = "io/quarkus/quarkus-core-deployment/3.33.2/quarkus-core-deployment-3.33.2.pom"
 jarSha256 = "d73e8090cd13594f5e7ef7f9e8f5a5bbc2d1d7ba39f549b3814fff2498f144a0"
 pomSha256 = "027af06e691fc12e1eeaedb3a9938a9a4e2cd6002b3c21f673b98244f02f4fad"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -48,6 +62,7 @@ jar = "io/quarkus/quarkus-junit/3.33.2/quarkus-junit-3.33.2.jar"
 pom = "io/quarkus/quarkus-junit/3.33.2/quarkus-junit-3.33.2.pom"
 jarSha256 = "3ffe1fcae45fe825b2359764a19635c2fc34793465d89712ff44b9b845f8e5dd"
 pomSha256 = "a0d599ce2e2c0eeeddbffb994a92d0805252a0dc081afbdd7a1a8df011b0f4a5"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -60,6 +75,7 @@ jar = "io/smallrye/jandex/3.5.3/jandex-3.5.3.jar"
 pom = "io/smallrye/jandex/3.5.3/jandex-3.5.3.pom"
 jarSha256 = "45c2bf6d360cd9d4cb836273af712c5f9734e04b592030c12ac04601e60578a3"
 pomSha256 = "47c886cb6c896a178c98b09be28db9571dc8e827d91efeb0004086e44163bb76"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -72,6 +88,7 @@ jar = "org/antlr/antlr4-runtime/4.11.1/antlr4-runtime-4.11.1.jar"
 pom = "org/antlr/antlr4-runtime/4.11.1/antlr4-runtime-4.11.1.pom"
 jarSha256 = "e06c6553c1ccc14d36052ec4b0fc6f13b808cf957b5b1dc3f61bf401996ada59"
 pomSha256 = "c456ec2959078c591fbd7ef69ad9400a727920068d746989c74ab804ed681b34"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -84,6 +101,7 @@ jar = "org/checkerframework/checker-qual/3.21.2/checker-qual-3.21.2.jar"
 pom = "org/checkerframework/checker-qual/3.21.2/checker-qual-3.21.2.pom"
 jarSha256 = "7e8554c902b9b839e61396cfe3a64c84ecabfb8eb652c410bfd8e4f5c1a8ece8"
 pomSha256 = "81c7d4709177f65a40bcd584d89a857f1ac389c545c5ae6940cb6f143723a395"
+members = ["."]
 dependencies = []
 
 [[package]]
@@ -96,6 +114,7 @@ jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platfor
 pom = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.pom"
 jarSha256 = "b016ef6b1c3454d6d7c2c88ce081dabf289699686af6622d6e4e2e1b54b4a2fc"
 pomSha256 = "f44619c18edb94360cc382e6baf943e9300625d1a0a949ee158977eace5713d1"
+members = [".", "modules/zolt-model"]
 dependencies = []
 
 [[package]]
@@ -108,5 +127,6 @@ jar = "org/tomlj/tomlj/1.1.1/tomlj-1.1.1.jar"
 pom = "org/tomlj/tomlj/1.1.1/tomlj-1.1.1.pom"
 jarSha256 = "383b7c66966c42ee4913ec977a7b6573631866bddc5318ec4a6215b688dd0d6c"
 pomSha256 = "1393089af1f9260c004c22313197cae9db1385ccbb30499a82d5a931d1762f66"
+members = ["."]
 dependencies = ["org.antlr:antlr4-runtime:4.11.1", "org.checkerframework:checker-qual:3.21.2"]
 

@@ -9,6 +9,7 @@ main = "com.zolt.cli.ZoltCli"
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
+"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "info.picocli:picocli" = "4.7.6"
 "org.tomlj:tomlj" = "1.1.1"
 

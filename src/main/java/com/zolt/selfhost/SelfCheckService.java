@@ -104,6 +104,11 @@ public final class SelfCheckService {
             return new SelfCheckResult(steps);
         }
 
+        if (WorkspaceSelfCheckService.usesRealWorkspace(root)) {
+            return new WorkspaceSelfCheckService(nativeBinaryRunner)
+                    .check(root, cacheRoot, offline, nativeCheck, nativeImageExecutable, config, steps);
+        }
+
         ResolveResult resolveResult;
         try {
             resolveResult = lockedResolver.resolve(root, config, cacheRoot, offline);

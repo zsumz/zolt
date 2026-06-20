@@ -124,7 +124,7 @@ rm -rf "$BOOTSTRAP_CLASSES"
 mkdir -p "$BOOTSTRAP_CLASSES"
 
 shopt -s globstar nullglob
-source_files=(src/main/java/**/*.java)
+source_files=(modules/*/src/main/java/**/*.java src/main/java/**/*.java)
 shopt -u globstar nullglob
 printf '%s\n' "${source_files[@]}" | sort > "$SOURCE_LIST"
 
