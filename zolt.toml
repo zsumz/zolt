@@ -14,6 +14,7 @@ central = "https://repo.maven.apache.org/maven2"
 "com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
 "com.zolt:zolt-ide" = { workspace = "modules/zolt-ide" }
 "com.zolt:zolt-policy" = { workspace = "modules/zolt-policy" }
+"com.zolt:zolt-plan" = { workspace = "modules/zolt-plan" }
 "com.zolt:zolt-publish" = { workspace = "modules/zolt-publish" }
 "com.zolt:zolt-quality" = { workspace = "modules/zolt-quality" }
 "com.zolt:zolt-quarkus" = { workspace = "modules/zolt-quarkus" }
