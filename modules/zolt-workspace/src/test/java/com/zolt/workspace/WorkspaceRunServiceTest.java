@@ -4,23 +4,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.RunPackageException;
-import com.zolt.testkit.CachingJdkChecker;
+import com.zolt.build.RunException;
+import com.zolt.workspace.WorkspaceTestServiceTestSupport.CachingJdkChecker;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-final class WorkspaceRunPackageServiceTest {
-    private final WorkspaceRunPackageService service = new WorkspaceRunPackageService();
+final class WorkspaceRunServiceTest {
+    private final WorkspaceRunService service = new WorkspaceRunService();
 
     @TempDir
     private Path tempDir;
 
     @Test
-    void runsSelectedPackagedWorkspaceApplicationWithWorkspaceRuntimeClasspath() throws IOException {
+    void runsSelectedWorkspaceApplicationWithWorkspaceRuntimeClasspath() throws IOException {
         workspace("""
                 [workspace]
                 name = "acme-platform"
@@ -59,12 +60,14 @@ final class WorkspaceRunPackageServiceTest {
                     }
                 }
                 """);
+        List<String> streamed = new ArrayList<>();
 
-        WorkspaceRunPackageResult result = service.runPackages(
+        WorkspaceRunResult result = service.run(
                 tempDir.resolve("apps/api"),
                 tempDir.resolve("cache"),
                 new WorkspaceSelectionRequest(false, List.of("apps/api")),
-                List.of("hello"));
+                List.of("hello"),
+                streamed::add);
 
         assertTrue(result.resolvedLockfile());
         assertEquals(List.of("modules/core", "apps/api"), result.builtMembers().stream()
@@ -73,10 +76,12 @@ final class WorkspaceRunPackageServiceTest {
         assertTrue(result.builtMembers().get(1).classpaths().runtime().entries()
                 .contains(tempDir.resolve("modules/core/target/classes")));
         assertEquals(List.of("apps/api"), result.members().stream()
-                .map(WorkspaceRunPackageResult.MemberRunPackageResult::member)
+                .map(WorkspaceRunResult.MemberRunResult::member)
                 .toList());
         assertEquals("core:hello\n", result.members().getFirst().result().javaRunResult().output());
-        assertTrue(Files.exists(tempDir.resolve("apps/api/target/api-0.1.0.jar")));
+        assertEquals(List.of("core:hello\n"), streamed);
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
+        assertTrue(Files.exists(tempDir.resolve("modules/core/target/classes/com/acme/core/Core.class")));
     }
 
     @Test
@@ -94,13 +99,15 @@ final class WorkspaceRunPackageServiceTest {
                 }
                 """);
 
-        RunPackageException exception = assertThrows(
-                RunPackageException.class,
-                () -> service.runPackages(
+        RunException exception = assertThrows(
+                RunException.class,
+                () -> service.run(
                         tempDir,
                         tempDir.resolve("cache"),
                         new WorkspaceSelectionRequest(false, List.of("modules/core")),
-                        List.of()));
+                        List.of(),
+                        ignored -> {
+                        }));
 
         assertEquals(
                 "Workspace member `modules/core` has no main class configured. Add [project].main to its zolt.toml or choose an application member.",
@@ -108,7 +115,7 @@ final class WorkspaceRunPackageServiceTest {
     }
 
     @Test
-    void sharesCachedJdkDetectionAcrossWorkspacePackageAndLaunch() throws IOException {
+    void sharesCachedJdkDetectionAcrossWorkspaceBuildAndLaunch() throws IOException {
         workspace("""
                 [workspace]
                 name = "acme-platform"
@@ -142,13 +149,15 @@ final class WorkspaceRunPackageServiceTest {
                 }
                 """);
         CachingJdkChecker jdkChecker = new CachingJdkChecker();
-        WorkspaceRunPackageService service = new WorkspaceRunPackageService(jdkChecker);
+        WorkspaceRunService service = new WorkspaceRunService(jdkChecker);
 
-        service.runPackages(
+        service.run(
                 tempDir,
                 tempDir.resolve("cache"),
                 new WorkspaceSelectionRequest(false, List.of("apps/api")),
-                List.of());
+                List.of(),
+                ignored -> {
+                });
 
         assertEquals(3, jdkChecker.detectCalls());
         assertEquals(1, jdkChecker.toolchainReads());
