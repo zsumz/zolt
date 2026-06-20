@@ -20,6 +20,10 @@ import java.util.Set;
 
 final class WorkspaceLockfileAggregator {
     ZoltLockfile aggregate(Workspace workspace, List<WorkspaceMemberResolveOutput> memberOutputs) {
+        if (isTransitionalRootWorkspace(workspace, memberOutputs)) {
+            return memberOutputs.getFirst().lockfile();
+        }
+
         Map<String, LockPackage> packages = new LinkedHashMap<>();
         Map<String, LockConflict> conflicts = new LinkedHashMap<>();
         Map<String, LockPolicyEffect> policyEffects = new LinkedHashMap<>();
@@ -65,6 +69,16 @@ final class WorkspaceLockfileAggregator {
                 List.copyOf(packages.values()),
                 List.copyOf(conflicts.values()),
                 List.copyOf(policyEffects.values()));
+    }
+
+    private static boolean isTransitionalRootWorkspace(
+            Workspace workspace,
+            List<WorkspaceMemberResolveOutput> memberOutputs) {
+        return workspace.members().size() == 1
+                && workspace.edges().isEmpty()
+                && workspace.members().getFirst().path().equals(".")
+                && memberOutputs.size() == 1
+                && memberOutputs.getFirst().member().equals(".");
     }
 
     private static List<LockPackage> workspacePackages(Workspace workspace) {
