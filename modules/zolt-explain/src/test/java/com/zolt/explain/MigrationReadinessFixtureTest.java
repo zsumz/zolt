@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 final class MigrationReadinessFixtureTest {
-    private static final Path FIXTURE_ROOT = Path.of("examples/migration-explain").toAbsolutePath().normalize();
+    private static final Path FIXTURE_ROOT = MigrationExplainTestPaths.fixtureRoot();
 
     @Test
     void gradleEnterpriseSpringFixtureReportsReadinessScorecardWithoutExecutingGradle() throws IOException {
