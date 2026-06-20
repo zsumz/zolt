@@ -23,6 +23,8 @@ public final class SelfHostingParityService {
             ".zolt-build-test.fingerprint.state",
             ".zolt-incremental-main.state",
             ".zolt-incremental-test.state");
+    private static final Set<String> LOCAL_RUNTIME_RESOURCES = Set.of(
+            "META-INF/services/io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer");
 
     private final ZoltTomlParser tomlParser;
     private final ProjectPackager projectPackager;
@@ -119,7 +121,9 @@ public final class SelfHostingParityService {
             stream.filter(Files::isRegularFile)
                     .filter(path -> !LOCAL_BUILD_FINGERPRINTS.contains(path.getFileName().toString()))
                     .sorted(Comparator.comparing(path -> root.relativize(path).normalize().toString()))
-                    .forEach(path -> entries.add(root.relativize(path).normalize().toString().replace('\\', '/')));
+                    .map(path -> root.relativize(path).normalize().toString().replace('\\', '/'))
+                    .filter(SelfHostingParityService::isComparableEntry)
+                    .forEach(entries::add);
             return entries;
         } catch (IOException exception) {
             throw new SelfHostingParityException(
@@ -146,7 +150,9 @@ public final class SelfHostingParityService {
         try (ZipFile zip = new ZipFile(jar.toFile())) {
             Set<String> entries = new TreeSet<>();
             zip.entries().asIterator().forEachRemaining(entry -> {
-                if (!entry.isDirectory() && !MANIFEST_ENTRY.equals(entry.getName())) {
+                if (!entry.isDirectory()
+                        && !MANIFEST_ENTRY.equals(entry.getName())
+                        && isComparableEntry(entry.getName())) {
                     entries.add(entry.getName());
                 }
             });
@@ -158,6 +164,10 @@ public final class SelfHostingParityService {
                             + ". Check that the jar is readable and not corrupt.",
                     exception);
         }
+    }
+
+    private static boolean isComparableEntry(String entry) {
+        return !LOCAL_RUNTIME_RESOURCES.contains(entry);
     }
 
     @FunctionalInterface
