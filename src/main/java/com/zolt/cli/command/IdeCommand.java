@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.ZoltCli;
+import com.zolt.ide.IdeFrameworkModelBuilder;
 import com.zolt.ide.IdeModel;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
@@ -71,10 +72,18 @@ public final class IdeCommand implements Runnable {
 
         public ModelCommand() {
             this(
-                    new WorkspaceIdeModelService(),
+                    workspaceIdeModelService(),
                     new WorkspaceIdeModelJsonWriter(),
-                    new IdeModelService(),
+                    ideModelService(),
                     new IdeModelJsonWriter());
+        }
+
+        private static IdeModelService ideModelService() {
+            return new IdeModelService(new IdeFrameworkModelBuilder());
+        }
+
+        private static WorkspaceIdeModelService workspaceIdeModelService() {
+            return new WorkspaceIdeModelService(ideModelService());
         }
 
         ModelCommand(

@@ -4,7 +4,6 @@ import com.zolt.cache.ArtifactCacheException;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.perf.TimingRecorder;
 import com.zolt.resolve.ResolveException;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceClasspathService;
@@ -30,9 +29,13 @@ public final class WorkspaceIdeModelService {
     private final WorkspaceResolveService workspaceResolveService;
 
     public WorkspaceIdeModelService() {
+        this(new IdeModelService());
+    }
+
+    public WorkspaceIdeModelService(IdeModelService ideModelService) {
         this(
                 new WorkspaceDiscoveryService(),
-                new IdeModelService(),
+                ideModelService,
                 new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
                 new WorkspaceResolveService());
@@ -52,7 +55,7 @@ public final class WorkspaceIdeModelService {
     }
 
     public WorkspaceIdeModel export(Path startDirectory, Path cacheRoot, boolean checkLock, boolean offline) {
-        return export(startDirectory, cacheRoot, checkLock, offline, new TimingRecorder(false));
+        return export(startDirectory, cacheRoot, checkLock, offline, IdeTimingRecorder.disabled());
     }
 
     public WorkspaceIdeModel export(
@@ -60,9 +63,9 @@ public final class WorkspaceIdeModelService {
             Path cacheRoot,
             boolean checkLock,
             boolean offline,
-            TimingRecorder timings) {
+            IdeTimingRecorder timings) {
         Path start = startDirectory.toAbsolutePath().normalize();
-        TimingRecorder recorder = timings == null ? new TimingRecorder(false) : timings;
+        IdeTimingRecorder recorder = timings == null ? IdeTimingRecorder.disabled() : timings;
         try {
             Optional<Workspace> discovered = recorder.measure(
                     "discover ide workspace",
@@ -112,7 +115,7 @@ public final class WorkspaceIdeModelService {
             Workspace workspace,
             Path cacheRoot,
             WorkspaceLockState lockState,
-            TimingRecorder timings) {
+            IdeTimingRecorder timings) {
         List<WorkspaceIdeModel.ProjectModel> projects = new ArrayList<>();
         Map<String, IdeModel.ClasspathInfo> classpathsByMember = timings.measure(
                 "plan workspace ide classpaths",

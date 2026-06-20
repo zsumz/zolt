@@ -10,10 +10,10 @@ import com.zolt.quarkus.QuarkusPlanService;
 import java.nio.file.Path;
 import java.util.List;
 
-final class IdeFrameworkModelBuilder {
+public final class IdeFrameworkModelBuilder implements IdeFrameworkModelProvider {
     private final QuarkusPlanService quarkusPlanService;
 
-    IdeFrameworkModelBuilder() {
+    public IdeFrameworkModelBuilder() {
         this(new QuarkusPlanService());
     }
 
@@ -21,7 +21,8 @@ final class IdeFrameworkModelBuilder {
         this.quarkusPlanService = quarkusPlanService;
     }
 
-    IdeModel.FrameworkInfo build(
+    @Override
+    public IdeModel.FrameworkInfo build(
             Path root,
             Path cacheRoot,
             ProjectConfig config,

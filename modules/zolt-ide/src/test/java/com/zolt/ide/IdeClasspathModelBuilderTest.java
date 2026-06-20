@@ -25,7 +25,7 @@ final class IdeClasspathModelBuilderTest {
         Path projectDir = tempDir.resolve("spring-boot-webmvc");
         Path cacheRoot = tempDir.resolve("cache");
         Files.createDirectories(projectDir);
-        Files.copy(Path.of("examples/spring-boot-webmvc/zolt.toml"), projectDir.resolve("zolt.toml"));
+        Files.copy(exampleProjectConfig(), projectDir.resolve("zolt.toml"));
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
 
@@ -160,6 +160,14 @@ final class IdeClasspathModelBuilderTest {
 
     private ProjectConfig parse(Path projectDir) {
         return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
+    }
+
+    private static Path exampleProjectConfig() {
+        Path fromRoot = Path.of("examples/spring-boot-webmvc/zolt.toml");
+        if (Files.exists(fromRoot)) {
+            return fromRoot;
+        }
+        return Path.of("../..").resolve(fromRoot).normalize();
     }
 
     private IdeModel modelWith(IdeModel.ClasspathInfo classpaths, List<IdeModel.Diagnostic> diagnostics) {

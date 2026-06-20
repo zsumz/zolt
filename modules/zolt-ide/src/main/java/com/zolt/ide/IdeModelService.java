@@ -4,7 +4,6 @@ import com.zolt.cache.ArtifactCacheException;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
@@ -26,9 +25,13 @@ public final class IdeModelService {
     private final IdeProjectModelBuilder projectModelBuilder;
     private final IdeClasspathModelBuilder classpathModelBuilder;
     private final IdeDependencyModelBuilder dependencyModelBuilder;
-    private final IdeFrameworkModelBuilder frameworkModelBuilder;
+    private final IdeFrameworkModelProvider frameworkModelProvider;
 
     public IdeModelService() {
+        this(IdeFrameworkModelProvider.none());
+    }
+
+    public IdeModelService(IdeFrameworkModelProvider frameworkModelProvider) {
         this(
                 new ZoltTomlParser(),
                 new ZoltLockfileReader(),
@@ -37,7 +40,7 @@ public final class IdeModelService {
                 new IdeProjectModelBuilder(),
                 new IdeClasspathModelBuilder(),
                 new IdeDependencyModelBuilder(),
-                new IdeFrameworkModelBuilder());
+                frameworkModelProvider);
     }
 
     IdeModelService(
@@ -48,7 +51,7 @@ public final class IdeModelService {
             IdeProjectModelBuilder projectModelBuilder,
             IdeClasspathModelBuilder classpathModelBuilder,
             IdeDependencyModelBuilder dependencyModelBuilder,
-            IdeFrameworkModelBuilder frameworkModelBuilder) {
+            IdeFrameworkModelProvider frameworkModelProvider) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
         this.resolveService = resolveService;
@@ -56,7 +59,7 @@ public final class IdeModelService {
         this.projectModelBuilder = projectModelBuilder;
         this.classpathModelBuilder = classpathModelBuilder;
         this.dependencyModelBuilder = dependencyModelBuilder;
-        this.frameworkModelBuilder = frameworkModelBuilder;
+        this.frameworkModelProvider = frameworkModelProvider;
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot) {
@@ -64,7 +67,7 @@ public final class IdeModelService {
     }
 
     public IdeModel export(Path projectDirectory, Path cacheRoot, boolean checkLock, boolean offline) {
-        return export(projectDirectory, cacheRoot, checkLock, offline, new TimingRecorder(false));
+        return export(projectDirectory, cacheRoot, checkLock, offline, IdeTimingRecorder.disabled());
     }
 
     public IdeModel export(
@@ -72,14 +75,14 @@ public final class IdeModelService {
             Path cacheRoot,
             boolean checkLock,
             boolean offline,
-            TimingRecorder timings) {
+            IdeTimingRecorder timings) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         Path configPath = root.resolve("zolt.toml").normalize();
         Path lockfilePath = root.resolve("zolt.lock").normalize();
         Path normalizedCacheRoot = cacheRoot.toAbsolutePath().normalize();
         List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
 
-        TimingRecorder recorder = timings == null ? new TimingRecorder(false) : timings;
+        IdeTimingRecorder recorder = timings == null ? IdeTimingRecorder.disabled() : timings;
         ProjectConfig config = recorder.measure(
                 "read ide project config",
                 () -> readConfig(configPath, diagnostics));
@@ -94,7 +97,7 @@ public final class IdeModelService {
         }
         IdeModel.FrameworkInfo frameworkInfo = recorder.measure(
                 "build ide framework model",
-                () -> frameworkModelBuilder.build(root, normalizedCacheRoot, config, diagnostics));
+                () -> frameworkModelProvider.build(root, normalizedCacheRoot, config, diagnostics));
 
         return recorder.measure(
                 "assemble ide model",
@@ -155,7 +158,7 @@ public final class IdeModelService {
                 projectModelBuilder.outputInfo(root, config, modelDiagnostics),
                 dependencyModelBuilder.build(config),
                 classpaths,
-                frameworkModelBuilder.build(root, null, config, modelDiagnostics),
+                frameworkModelProvider.build(root, null, config, modelDiagnostics),
                 modelDiagnostics);
     }
 

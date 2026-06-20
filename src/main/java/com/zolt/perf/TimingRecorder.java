@@ -1,5 +1,6 @@
 package com.zolt.perf;
 
+import com.zolt.ide.IdeTimingRecorder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +8,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-public final class TimingRecorder {
+public final class TimingRecorder implements IdeTimingRecorder {
     private final boolean enabled;
     private final LongSupplier nanoTime;
     private final List<TimingEvent> events = new ArrayList<>();
