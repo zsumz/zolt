@@ -10,6 +10,7 @@ central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 "info.picocli:picocli" = "4.7.6"
 "org.tomlj:tomlj" = "1.1.1"
