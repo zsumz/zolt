@@ -78,7 +78,7 @@ final class RunServiceFailureTest extends RunServiceTestSupport {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         ProjectConfig config = config(false, Optional.of("com.example.Main"));
-        com.zolt.testkit.CachingJdkChecker jdkChecker = new com.zolt.testkit.CachingJdkChecker();
+        TestRunServiceTestSupport.CachingJdkChecker jdkChecker = new TestRunServiceTestSupport.CachingJdkChecker();
         RunService service = service(
                 (actualProjectDirectory, actualConfig, actualCacheRoot) -> Optional.empty(),
                 (actualCommand, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),

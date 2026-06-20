@@ -58,6 +58,32 @@ final class SelfHostingParityServiceTest {
     }
 
     @Test
+    void packagesWorkspaceDefaultMemberWhenProjectUsesRealWorkspace() throws IOException {
+        writeProject();
+        Path bootstrapJar = tempDir.resolve("build/modules/demo.jar");
+        Path zoltJar = tempDir.resolve("target/demo-0.1.0.jar");
+        Path workspaceClasses = tempDir.resolve("modules/core/target/classes");
+        Path runtimeClasspath = tempDir.resolve("target/demo-0.1.0.runtime-classpath");
+        writeClass(workspaceClasses.resolve("com/example/Core.class"));
+        Files.createDirectories(runtimeClasspath.getParent());
+        Files.writeString(runtimeClasspath, workspaceClasses + "\n" + tempDir.resolve("cache/external.jar") + "\n");
+        writeJar(bootstrapJar, List.of("com/example/Main.class", "com/example/Core.class"));
+        writeJar(zoltJar, List.of("com/example/Main.class"));
+        SelfHostingParityService service = new SelfHostingParityService(
+                new ZoltTomlParser(),
+                (projectDirectory, config, cacheRoot) -> {
+                    throw new AssertionError("real workspace parity should use workspace packaging");
+                },
+                projectDirectory -> true,
+                (projectDirectory, cacheRoot) -> packageResult(zoltJar, Optional.of(runtimeClasspath)));
+
+        SelfHostingParityResult result = service.compare(tempDir, tempDir.resolve("cache"), bootstrapJar);
+
+        assertTrue(result.ok());
+        assertEquals(zoltJar, result.zoltJar());
+    }
+
+    @Test
     void missingBootstrapJarIsActionable() throws IOException {
         writeProject();
         SelfHostingParityService service = service(tempDir.resolve("target/demo-0.1.0.jar"));
@@ -73,16 +99,29 @@ final class SelfHostingParityServiceTest {
     private SelfHostingParityService service(Path zoltJar) {
         return new SelfHostingParityService(
                 new ZoltTomlParser(),
-                (projectDirectory, config, cacheRoot) -> new PackageResult(
-                        new BuildResult(
-                                Optional.empty(),
-                                1,
-                                0,
-                                projectDirectory.resolve("target/classes"),
-                                ""),
-                        zoltJar,
+                (projectDirectory, config, cacheRoot) -> packageResult(zoltJar),
+                projectDirectory -> false,
+                (projectDirectory, cacheRoot) -> {
+                    throw new AssertionError("single-project parity should not use workspace packaging");
+                });
+    }
+
+    private static PackageResult packageResult(Path zoltJar) {
+        return packageResult(zoltJar, Optional.empty());
+    }
+
+    private static PackageResult packageResult(Path zoltJar, Optional<Path> runtimeClasspathPath) {
+        return new PackageResult(
+                new BuildResult(
+                        Optional.empty(),
                         1,
-                        true));
+                        0,
+                        zoltJar.getParent().resolve("classes"),
+                        ""),
+                zoltJar,
+                runtimeClasspathPath,
+                1,
+                true);
     }
 
     private void writeProject() throws IOException {
@@ -108,5 +147,10 @@ final class SelfHostingParityServiceTest {
                 output.closeEntry();
             }
         }
+    }
+
+    private static void writeClass(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.write(path, new byte[] {0});
     }
 }

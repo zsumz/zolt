@@ -45,7 +45,8 @@ final class ThinJarLayoutAssembler {
             BuildResult buildResult,
             Path jarPath,
             Optional<Path> cacheRoot,
-            Optional<List<ResolvedClasspathPackage>> classpathPackages) {
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            Optional<ClasspathSet> classpaths) {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path runtimeClasspathPath = runtimeClasspathPath(jarPath);
         GeneratedManifest manifest = manifestGenerator.generate(config);
@@ -60,12 +61,14 @@ final class ThinJarLayoutAssembler {
                 }
             }
             Optional<Path> writtenRuntimeClasspathPath = Optional.empty();
-            if (cacheRoot.isPresent()) {
-                if (classpathPackages.isPresent()) {
-                    writeRuntimeClasspath(runtimeClasspathPath, classpathPackages.orElseThrow());
-                } else {
-                    writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
-                }
+            if (classpathPackages.isPresent()) {
+                writeRuntimeClasspath(runtimeClasspathPath, classpathPackages.orElseThrow());
+                writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
+            } else if (classpaths.isPresent()) {
+                writeRuntimeClasspath(runtimeClasspathPath, classpaths.orElseThrow());
+                writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
+            } else if (cacheRoot.isPresent()) {
+                writeRuntimeClasspath(projectDirectory, cacheRoot.orElseThrow(), runtimeClasspathPath);
                 writtenRuntimeClasspathPath = Optional.of(runtimeClasspathPath);
             }
             return new PackageResult(
@@ -107,6 +110,12 @@ final class ThinJarLayoutAssembler {
             Path runtimeClasspathPath,
             List<ResolvedClasspathPackage> classpathPackages) throws IOException {
         ClasspathSet classpaths = classpathBuilder.build(packagedClasspathPackages(classpathPackages));
+        writeRuntimeClasspath(runtimeClasspathPath, classpaths);
+    }
+
+    private void writeRuntimeClasspath(
+            Path runtimeClasspathPath,
+            ClasspathSet classpaths) throws IOException {
         String content = classpaths.runtime().entries().stream()
                 .map(Path::toString)
                 .collect(Collectors.joining("\n"));

@@ -104,7 +104,7 @@ final class RunPackageServiceFailureTest extends RunPackageServiceTestSupport {
                     }
                 }
                 """);
-        com.zolt.testkit.CachingJdkChecker jdkChecker = new com.zolt.testkit.CachingJdkChecker();
+        TestRunServiceTestSupport.CachingJdkChecker jdkChecker = new TestRunServiceTestSupport.CachingJdkChecker();
         RunPackageService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),
                 jdkChecker);

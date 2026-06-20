@@ -49,7 +49,8 @@ final class ThinJarLayoutAssemblerTest {
                 Optional.of(projectDir.resolve("cache")),
                 Optional.of(List.of(
                         packageWithScope("com.example", "runtime-lib", DependencyScope.RUNTIME),
-                        packageWithScope("com.example", "provided-api", DependencyScope.PROVIDED))));
+                        packageWithScope("com.example", "provided-api", DependencyScope.PROVIDED))),
+                Optional.empty());
 
         assertEquals(PackageMode.THIN, result.mode());
         assertEquals(jarPath, result.jarPath());

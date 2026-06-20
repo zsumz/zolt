@@ -1,27 +1,17 @@
 [project]
-name = "zolt"
+name = "zolt-build"
 version = "0.1.0-SNAPSHOT"
 group = "com.zolt"
 java = "21"
-main = "com.zolt.cli.ZoltCli"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
 "com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
-"info.picocli:picocli" = "4.7.6"
-"org.tomlj:tomlj" = "1.1.1"
-
-[provided.dependencies]
-"io.quarkus:quarkus-builder" = "3.33.2"
-"io.quarkus:quarkus-junit" = "3.33.2"
-"io.quarkus:quarkus-core-deployment" = "3.33.2"
-"io.smallrye:jandex" = "3.5.3"
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
@@ -31,8 +21,3 @@ source = "src/main/java"
 test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
-
-[native]
-imageName = "zolt"
-output = "target/native"
-args = ["--no-fallback", "--native-image-info"]

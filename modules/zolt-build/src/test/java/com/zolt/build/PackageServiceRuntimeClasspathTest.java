@@ -8,10 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.classpath.Classpath;
+import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.jar.JarFile;
 import org.junit.jupiter.api.Test;
@@ -148,5 +151,32 @@ final class PackageServiceRuntimeClasspathTest {
         assertTrue(buildResult.classpaths().runtime().entries().contains(devJar));
         assertTrue(runtimeClasspath.contains(runtimeJar.toString()));
         assertFalse(runtimeClasspath.contains(devJar.toString()));
+    }
+
+    @Test
+    void writesRuntimeClasspathFromPrecomputedWorkspaceClasspaths() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        Path runtimeJar = projectDir.resolve("modules/runtime.jar");
+        Files.createDirectories(outputDirectory.resolve("com/example"));
+        Files.write(outputDirectory.resolve("com/example/Main.class"), new byte[] {0, 1, 2, 3});
+        createJarWithEntry(runtimeJar, "com/example/runtime/RuntimeLib.class");
+        ProjectConfig config = config(Optional.of("com.example.Main"));
+        ClasspathSet classpaths = new ClasspathSet(
+                new Classpath(List.of()),
+                new Classpath(List.of(runtimeJar)),
+                new Classpath(List.of()),
+                new Classpath(List.of()),
+                new Classpath(List.of()),
+                new Classpath(List.of()));
+
+        PackageResult result = packageService.packageJar(
+                projectDir,
+                config,
+                new BuildResult(Optional.empty(), 1, 0, outputDirectory, ""),
+                classpaths);
+
+        Path runtimeClasspathPath = projectDir.resolve("target/demo-0.1.0.runtime-classpath");
+        assertEquals(Optional.of(runtimeClasspathPath), result.runtimeClasspathPath());
+        assertEquals(runtimeJar + "\n", Files.readString(runtimeClasspathPath));
     }
 }

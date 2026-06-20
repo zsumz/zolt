@@ -245,7 +245,8 @@ public final class PackageService {
                     buildResult,
                     jarPath(projectDirectory, config),
                     cacheRoot,
-                    classpathPackages);
+                    classpathPackages,
+                    classpaths);
             case SPRING_BOOT -> archiveModePackager.packageSpringBootJar(
                     projectDirectory,
                     config,

@@ -1,0 +1,41 @@
+version = 1
+projectResolutionFingerprint = "sha256:project-inputs"
+projectResolutionInputFingerprints = ["dependencies.compile=sha256:compile-inputs", "repositories=sha256:repo-inputs"]
+
+[[package]]
+id = "com.google.guava:failureaccess"
+version = "1.0.2"
+source = "maven-central"
+scope = "compile"
+direct = false
+jar = "com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar"
+pom = "com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.pom"
+dependencies = []
+
+[[package]]
+id = "com.google.guava:guava"
+version = "33.4.0-jre"
+source = "maven-central"
+scope = "compile"
+direct = true
+jar = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"
+pom = "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom"
+jarSha256 = "jar-checksum"
+pomSha256 = "pom-checksum"
+dependencies = ["com.google.guava:failureaccess:1.0.2", "org.slf4j:slf4j-api:2.0.16"]
+
+[[package]]
+id = "org.slf4j:slf4j-api"
+version = "2.0.16"
+source = "maven-central"
+scope = "runtime"
+direct = false
+jar = "org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.jar"
+pom = "org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.pom"
+dependencies = []
+
+[[conflict]]
+id = "org.slf4j:slf4j-api"
+selected = "2.0.16"
+requested = ["1.7.36", "2.0.16"]
+reason = "direct dependency wins"
