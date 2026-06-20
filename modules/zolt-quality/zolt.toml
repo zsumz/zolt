@@ -1,29 +1,20 @@
 [project]
-name = "zolt"
+name = "zolt-quality"
 version = "0.1.0-SNAPSHOT"
 group = "com.zolt"
 java = "21"
-main = "com.zolt.cli.ZoltCli"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
-"com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
-"com.zolt:zolt-ide" = { workspace = "modules/zolt-ide" }
+"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-policy" = { workspace = "modules/zolt-policy" }
 "com.zolt:zolt-publish" = { workspace = "modules/zolt-publish" }
-"com.zolt:zolt-quality" = { workspace = "modules/zolt-quality" }
-"com.zolt:zolt-quarkus" = { workspace = "modules/zolt-quarkus" }
-"com.zolt:zolt-release" = { workspace = "modules/zolt-release" }
-"com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 "com.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
-"info.picocli:picocli" = "4.7.6"
-"org.tomlj:tomlj" = "1.1.1"
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
@@ -33,8 +24,3 @@ source = "src/main/java"
 test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
-
-[native]
-imageName = "zolt"
-output = "target/native"
-args = ["--no-fallback", "--native-image-info"]
