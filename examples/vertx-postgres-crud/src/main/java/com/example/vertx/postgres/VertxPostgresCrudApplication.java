@@ -88,7 +88,10 @@ public final class VertxPostgresCrudApplication {
         }
         NoteInput noteInput = input.orElseThrow();
         repository.create(noteInput.title(), noteInput.body())
-                .onSuccess(note -> json(context, 201, note.toJson()))
+                .onSuccess(note -> {
+                    context.response().putHeader("location", "/notes/" + note.id());
+                    json(context, 201, note.toJson());
+                })
                 .onFailure(error -> serverError(context, error));
     }
 

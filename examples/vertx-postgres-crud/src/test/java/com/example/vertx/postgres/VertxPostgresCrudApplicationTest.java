@@ -212,6 +212,7 @@ final class VertxPostgresCrudApplicationTest {
             assertTrue(created.body().contains("\"id\":1"));
             assertTrue(created.body().contains("\"title\":\"first note\""));
             assertTrue(created.body().contains("\"body\":\"hello\""));
+            assertEquals("/notes/1", created.location());
 
             HttpResult listed = request("GET", server.port(), "/notes", null);
             assertEquals(200, listed.status());
@@ -491,13 +492,14 @@ final class VertxPostgresCrudApplicationTest {
                 response.body(),
                 response.headers().firstValue("content-type").orElse(""),
                 response.headers().firstValue("cache-control").orElse(""),
-                response.headers().firstValue("allow").orElse(""));
+                response.headers().firstValue("allow").orElse(""),
+                response.headers().firstValue("location").orElse(""));
     }
 
     private record ServerContext(int port) {
     }
 
-    private record HttpResult(int status, String body, String contentType, String cacheControl, String allow) {
+    private record HttpResult(int status, String body, String contentType, String cacheControl, String allow, String location) {
     }
 
     @FunctionalInterface
