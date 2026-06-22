@@ -189,6 +189,14 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, malformedBody.status());
             assertTrue(malformedBody.body().contains("body must be a non-empty string"));
 
+            HttpResult invalidJson = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{not-json");
+            assertEquals(400, invalidJson.status());
+            assertTrue(invalidJson.body().contains("request body must be a JSON object"));
+
             HttpResult badId = request("GET", server.port(), "/notes/not-a-number", null);
             assertEquals(400, badId.status());
             assertTrue(badId.body().contains("note id must be a positive integer"));

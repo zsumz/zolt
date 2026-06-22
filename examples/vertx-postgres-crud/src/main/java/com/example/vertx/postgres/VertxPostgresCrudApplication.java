@@ -3,6 +3,7 @@ package com.example.vertx.postgres;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -74,14 +75,12 @@ public final class VertxPostgresCrudApplication {
     }
 
     private static void createNote(RoutingContext context, NotesRepository repository) {
-        NoteInput input;
-        try {
-            input = NoteInput.from(context.getBodyAsJson());
-        } catch (IllegalArgumentException exception) {
-            badRequest(context, exception.getMessage());
+        Optional<NoteInput> input = noteInput(context);
+        if (input.isEmpty()) {
             return;
         }
-        repository.create(input.title(), input.body())
+        NoteInput noteInput = input.orElseThrow();
+        repository.create(noteInput.title(), noteInput.body())
                 .onSuccess(note -> json(context, 201, note.toJson()))
                 .onFailure(error -> serverError(context, error));
     }
@@ -115,14 +114,12 @@ public final class VertxPostgresCrudApplication {
         if (id.isEmpty()) {
             return;
         }
-        NoteInput input;
-        try {
-            input = NoteInput.from(context.getBodyAsJson());
-        } catch (IllegalArgumentException exception) {
-            badRequest(context, exception.getMessage());
+        Optional<NoteInput> input = noteInput(context);
+        if (input.isEmpty()) {
             return;
         }
-        repository.update(id.orElseThrow(), input.title(), input.body())
+        NoteInput noteInput = input.orElseThrow();
+        repository.update(id.orElseThrow(), noteInput.title(), noteInput.body())
                 .onSuccess(note -> note.ifPresentOrElse(
                         value -> json(context, 200, value.toJson()),
                         () -> notFound(context, id.orElseThrow())))
@@ -156,6 +153,18 @@ public final class VertxPostgresCrudApplication {
             return Optional.of(id);
         } catch (NumberFormatException exception) {
             badRequest(context, "note id must be a positive integer");
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<NoteInput> noteInput(RoutingContext context) {
+        try {
+            return Optional.of(NoteInput.from(context.getBodyAsJson()));
+        } catch (DecodeException exception) {
+            badRequest(context, "request body must be a JSON object");
+            return Optional.empty();
+        } catch (IllegalArgumentException exception) {
+            badRequest(context, exception.getMessage());
             return Optional.empty();
         }
     }
