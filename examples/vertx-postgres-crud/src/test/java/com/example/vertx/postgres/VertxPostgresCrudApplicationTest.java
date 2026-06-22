@@ -193,6 +193,15 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(unknownRoute);
             assertTrue(unknownRoute.body().contains("route was not found"));
 
+            HttpResult healthMethodNotAllowed = request("POST", server.port(), "/health", null);
+            assertMethodNotAllowed(healthMethodNotAllowed, "GET");
+
+            HttpResult collectionMethodNotAllowed = request("PATCH", server.port(), "/notes", null);
+            assertMethodNotAllowed(collectionMethodNotAllowed, "GET, POST");
+
+            HttpResult itemMethodNotAllowed = request("PATCH", server.port(), "/notes/1", null);
+            assertMethodNotAllowed(itemMethodNotAllowed, "DELETE, GET, PUT");
+
             HttpResult created = request(
                     "POST",
                     server.port(),
@@ -425,6 +434,13 @@ final class VertxPostgresCrudApplicationTest {
         assertTrue(response.body().contains("database operation failed: simulated repository failure"));
     }
 
+    private static void assertMethodNotAllowed(HttpResult response, String allow) {
+        assertEquals(405, response.status());
+        assertJson(response);
+        assertEquals(allow, response.allow());
+        assertTrue(response.body().contains("method not allowed"));
+    }
+
     private static void assertJson(HttpResult response) {
         assertTrue(
                 response.contentType().contains("application/json"),
@@ -474,13 +490,14 @@ final class VertxPostgresCrudApplicationTest {
                 response.statusCode(),
                 response.body(),
                 response.headers().firstValue("content-type").orElse(""),
-                response.headers().firstValue("cache-control").orElse(""));
+                response.headers().firstValue("cache-control").orElse(""),
+                response.headers().firstValue("allow").orElse(""));
     }
 
     private record ServerContext(int port) {
     }
 
-    private record HttpResult(int status, String body, String contentType, String cacheControl) {
+    private record HttpResult(int status, String body, String contentType, String cacheControl, String allow) {
     }
 
     @FunctionalInterface

@@ -65,19 +65,20 @@ public final class VertxPostgresCrudApplication {
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         router.get("/health").handler(VertxPostgresCrudApplication::health);
+        router.route("/health").handler(context -> methodNotAllowed(context, "GET"));
         router.post("/notes").handler(context -> createNote(context, repository));
         router.get("/notes").handler(context -> listNotes(context, repository));
+        router.route("/notes").handler(context -> methodNotAllowed(context, "GET, POST"));
         router.get("/notes/:id").handler(context -> findNote(context, repository));
         router.put("/notes/:id").handler(context -> updateNote(context, repository));
         router.delete("/notes/:id").handler(context -> deleteNote(context, repository));
+        router.route("/notes/:id").handler(context -> methodNotAllowed(context, "DELETE, GET, PUT"));
         router.route().handler(VertxPostgresCrudApplication::unknownRoute);
         return router;
     }
 
     private static void health(RoutingContext context) {
-        context.response()
-                .putHeader("content-type", "application/json")
-                .end(new JsonObject().put("status", "ok").encode());
+        json(context, 200, new JsonObject().put("status", "ok"));
     }
 
     private static void createNote(RoutingContext context, NotesRepository repository) {
@@ -217,6 +218,11 @@ public final class VertxPostgresCrudApplication {
 
     private static void unknownRoute(RoutingContext context) {
         json(context, 404, new JsonObject().put("error", "route was not found"));
+    }
+
+    private static void methodNotAllowed(RoutingContext context, String allow) {
+        context.response().putHeader("allow", allow);
+        json(context, 405, new JsonObject().put("error", "method not allowed"));
     }
 
     private static void serverError(RoutingContext context, Throwable error) {

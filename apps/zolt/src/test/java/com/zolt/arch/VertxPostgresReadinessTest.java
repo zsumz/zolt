@@ -72,10 +72,11 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("PGNOTES_TABLE"));
         assertTrue(readme.contains("Updating or deleting a missing note returns a `404` JSON error."));
         assertTrue(readme.contains("Unknown routes return a `404` JSON error."));
+        assertTrue(readme.contains("Known routes reject unsupported HTTP methods with a `405` JSON error and an `Allow` header."));
         assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
-        assertTrue(readme.contains("probe the CRUD API plus validation responses, unknown-route responses, read-after-update, and post-delete list removal"));
+        assertTrue(readme.contains("probe the CRUD API plus validation responses, unknown-route responses, method-not-allowed responses, read-after-update, and post-delete list removal"));
         assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
         assertTrue(readme.contains("smoke script does not inject hidden native-image arguments"));
     }
