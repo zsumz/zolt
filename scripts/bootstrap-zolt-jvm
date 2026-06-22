@@ -123,9 +123,25 @@ esac
 rm -rf "$BOOTSTRAP_CLASSES"
 mkdir -p "$BOOTSTRAP_CLASSES"
 
-shopt -s globstar nullglob
-source_files=(modules/*/src/main/java/**/*.java apps/*/src/main/java/**/*.java src/main/java/**/*.java)
-shopt -u globstar nullglob
+source_files=()
+collect_java_sources() {
+  local source_root="$1"
+  local entry
+
+  [[ -d "$source_root" ]] || return 0
+  for entry in "$source_root"/*; do
+    [[ -e "$entry" ]] || continue
+    if [[ -d "$entry" ]]; then
+      collect_java_sources "$entry"
+    elif [[ "$entry" == *.java ]]; then
+      source_files+=("$entry")
+    fi
+  done
+}
+
+for source_root in modules/*/src/main/java apps/*/src/main/java src/main/java; do
+  collect_java_sources "$source_root"
+done
 printf '%s\n' "${source_files[@]}" | sort > "$SOURCE_LIST"
 
 if [[ ! -s "$SOURCE_LIST" ]]; then

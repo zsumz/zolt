@@ -178,7 +178,7 @@ public final class VertxPostgresCrudApplication {
         }
         try {
             return Optional.of(NoteInput.from(context.getBodyAsJson()));
-        } catch (DecodeException exception) {
+        } catch (DecodeException | ClassCastException exception) {
             badRequest(context, "request body must be a JSON object");
             return Optional.empty();
         } catch (IllegalArgumentException exception) {
@@ -242,6 +242,8 @@ public final class VertxPostgresCrudApplication {
         Throwable failure = context.failure();
         if (failure == null) {
             json(context, 500, new JsonObject().put("error", "request failed"));
+        } else if (failure instanceof DecodeException || failure instanceof ClassCastException) {
+            badRequest(context, "request body must be a JSON object");
         } else {
             serverError(context, failure);
         }

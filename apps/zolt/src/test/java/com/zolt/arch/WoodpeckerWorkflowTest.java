@@ -1,5 +1,6 @@
 package com.zolt.arch;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -33,7 +34,6 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("ZOLT_VERTX_POSTGRES_PASSWORD: zolt"));
         assertTrue(workflow.contains("scripts/ci-ensure-curl"));
         assertTrue(workflow.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
-        assertTrue(workflow.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
         assertTrue(workflow.contains("depends_on:"));
         assertTrue(workflow.contains("- vertx_postgres_jvm_smoke"));
         assertTrue(workflow.contains("vertx_postgres_jvm_logs:"));
@@ -41,11 +41,24 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.json"));
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.headers"));
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.body"));
-        assertTrue(workflow.contains("vertx_postgres_native_logs:"));
-        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.json"));
-        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.headers"));
-        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.body"));
-        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*/target/native/native-image.log"));
+        assertFalse(workflow.contains("vertx_postgres_native_smoke"));
+        assertFalse(workflow.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
+        assertFalse(workflow.contains("vertx_postgres_native_logs:"));
+    }
+
+    @Test
+    void manualNativeEntryPointsArePausedTemporarily() throws IOException {
+        String nativeWorkflow = Files.readString(WOODPECKER.resolve("native.yml"));
+        String coldResolveWorkflow = Files.readString(WOODPECKER.resolve("perf-cold-resolve.yml"));
+
+        assertFalse(nativeWorkflow.contains("event: manual"));
+        assertFalse(coldResolveWorkflow.contains("scripts/self-host-native"));
+        assertFalse(coldResolveWorkflow.contains("native_self_host"));
+        assertTrue(coldResolveWorkflow.contains("jvm_self_host:"));
+        assertTrue(coldResolveWorkflow.contains("scripts/self-host-jvm"));
+        assertTrue(coldResolveWorkflow.contains(
+                "scripts/perf-cold-resolve-gate --zolt scripts/run-zolt-built --zolt-tool zolt-jvm --repeat"));
+        assertTrue(coldResolveWorkflow.contains("- jvm_self_host"));
     }
 
     @Test
