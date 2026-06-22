@@ -20,6 +20,7 @@ import java.util.Optional;
 
 public final class VertxPostgresCrudApplication {
     private static final int DEFAULT_HTTP_PORT = 18092;
+    private static final String DEFAULT_NOTES_TABLE = "zolt_notes";
 
     private VertxPostgresCrudApplication() {
     }
@@ -36,7 +37,7 @@ public final class VertxPostgresCrudApplication {
 
         Vertx vertx = Vertx.vertx();
         PgPool pool = PgPool.pool(vertx, config.pgConnectOptions(), new PoolOptions().setMaxSize(5));
-        PgNotesRepository repository = new PgNotesRepository(pool);
+        PgNotesRepository repository = new PgNotesRepository(pool, config.pgNotesTable());
         repository.init()
                 .compose(ignored -> start(vertx, repository, config.httpPort()))
                 .onSuccess(server -> System.out.println("Vert.x PostgreSQL CRUD API listening on " + server.actualPort()))
@@ -191,7 +192,8 @@ public final class VertxPostgresCrudApplication {
             int pgPort,
             String pgDatabase,
             String pgUser,
-            String pgPassword) {
+            String pgPassword,
+            String pgNotesTable) {
         static AppConfig from(String[] args, Map<String, String> env) {
             int httpPort = parsePort("PORT", valueOrDefault(portArg(args), env.get("PORT"), Integer.toString(DEFAULT_HTTP_PORT)));
             String pgHost = required(env, "PGHOST");
@@ -199,7 +201,10 @@ public final class VertxPostgresCrudApplication {
             String pgDatabase = required(env, "PGDATABASE");
             String pgUser = required(env, "PGUSER");
             String pgPassword = required(env, "PGPASSWORD");
-            return new AppConfig(httpPort, pgHost, pgPort, pgDatabase, pgUser, pgPassword);
+            String pgNotesTable = parseSqlIdentifier(
+                    "PGNOTES_TABLE",
+                    valueOrDefault(env.get("PGNOTES_TABLE"), null, DEFAULT_NOTES_TABLE));
+            return new AppConfig(httpPort, pgHost, pgPort, pgDatabase, pgUser, pgPassword, pgNotesTable);
         }
 
         PgConnectOptions pgConnectOptions() {
@@ -239,6 +244,14 @@ public final class VertxPostgresCrudApplication {
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(name + " must be between 1 and 65535", exception);
             }
+        }
+
+        private static String parseSqlIdentifier(String name, String value) {
+            if (!value.matches("[a-z][a-z0-9_]{0,62}")) {
+                throw new IllegalArgumentException(name
+                        + " must be a lowercase PostgreSQL identifier up to 63 characters");
+            }
+            return value;
         }
 
         private static String valueOrDefault(String primary, String fallback, String defaultValue) {
@@ -303,34 +316,36 @@ public final class VertxPostgresCrudApplication {
 
     static final class PgNotesRepository implements NotesRepository {
         private final PgPool pool;
+        private final String tableName;
 
-        PgNotesRepository(PgPool pool) {
+        PgNotesRepository(PgPool pool, String tableName) {
             this.pool = pool;
+            this.tableName = tableName;
         }
 
         @Override
         public Future<Void> init() {
             return pool.query("""
-                    CREATE TABLE IF NOT EXISTS zolt_notes (
+                    CREATE TABLE IF NOT EXISTS %s (
                       id BIGSERIAL PRIMARY KEY,
                       title TEXT NOT NULL,
                       body TEXT NOT NULL
                     )
-                    """)
+                    """.formatted(tableName))
                     .execute()
                     .mapEmpty();
         }
 
         @Override
         public Future<Note> create(String title, String body) {
-            return pool.preparedQuery("INSERT INTO zolt_notes (title, body) VALUES ($1, $2) RETURNING id, title, body")
+            return pool.preparedQuery("INSERT INTO " + tableName + " (title, body) VALUES ($1, $2) RETURNING id, title, body")
                     .execute(Tuple.of(title, body))
                     .map(rows -> Note.from(rows.iterator().next()));
         }
 
         @Override
         public Future<List<Note>> list() {
-            return pool.query("SELECT id, title, body FROM zolt_notes ORDER BY id")
+            return pool.query("SELECT id, title, body FROM " + tableName + " ORDER BY id")
                     .execute()
                     .map(rows -> {
                         List<Note> notes = new ArrayList<>();
@@ -343,7 +358,7 @@ public final class VertxPostgresCrudApplication {
 
         @Override
         public Future<Optional<Note>> find(long id) {
-            return pool.preparedQuery("SELECT id, title, body FROM zolt_notes WHERE id = $1")
+            return pool.preparedQuery("SELECT id, title, body FROM " + tableName + " WHERE id = $1")
                     .execute(Tuple.of(id))
                     .map(rows -> rows.iterator().hasNext()
                             ? Optional.of(Note.from(rows.iterator().next()))
@@ -352,7 +367,7 @@ public final class VertxPostgresCrudApplication {
 
         @Override
         public Future<Optional<Note>> update(long id, String title, String body) {
-            return pool.preparedQuery("UPDATE zolt_notes SET title = $1, body = $2 WHERE id = $3 RETURNING id, title, body")
+            return pool.preparedQuery("UPDATE " + tableName + " SET title = $1, body = $2 WHERE id = $3 RETURNING id, title, body")
                     .execute(Tuple.of(title, body, id))
                     .map(rows -> rows.iterator().hasNext()
                             ? Optional.of(Note.from(rows.iterator().next()))
@@ -361,7 +376,7 @@ public final class VertxPostgresCrudApplication {
 
         @Override
         public Future<Boolean> delete(long id) {
-            return pool.preparedQuery("DELETE FROM zolt_notes WHERE id = $1")
+            return pool.preparedQuery("DELETE FROM " + tableName + " WHERE id = $1")
                     .execute(Tuple.of(id))
                     .map(rows -> rows.rowCount() > 0);
         }

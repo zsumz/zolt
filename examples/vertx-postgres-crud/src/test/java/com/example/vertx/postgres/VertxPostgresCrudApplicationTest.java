@@ -35,7 +35,8 @@ final class VertxPostgresCrudApplicationTest {
                         "PGPORT", "15432",
                         "PGDATABASE", "zolt_vertx",
                         "PGUSER", "zolt",
-                        "PGPASSWORD", "secret"));
+                        "PGPASSWORD", "secret",
+                        "PGNOTES_TABLE", "zolt_notes_smoke"));
 
         assertEquals(18100, config.httpPort());
         assertEquals("127.0.0.1", config.pgHost());
@@ -43,6 +44,7 @@ final class VertxPostgresCrudApplicationTest {
         assertEquals("zolt_vertx", config.pgDatabase());
         assertEquals("zolt", config.pgUser());
         assertEquals("secret", config.pgPassword());
+        assertEquals("zolt_notes_smoke", config.pgNotesTable());
     }
 
     @Test
@@ -73,6 +75,38 @@ final class VertxPostgresCrudApplicationTest {
                                 "PGPASSWORD", "secret")));
 
         assertEquals("PORT must be between 1 and 65535", exception.getMessage());
+    }
+
+    @Test
+    void defaultsNotesTable() {
+        VertxPostgresCrudApplication.AppConfig config = VertxPostgresCrudApplication.AppConfig.from(
+                new String[0],
+                Map.of(
+                        "PGHOST", "127.0.0.1",
+                        "PGPORT", "15432",
+                        "PGDATABASE", "zolt_vertx",
+                        "PGUSER", "zolt",
+                        "PGPASSWORD", "secret"));
+
+        assertEquals("zolt_notes", config.pgNotesTable());
+    }
+
+    @Test
+    void rejectsUnsafeNotesTable() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(
+                        new String[0],
+                        Map.of(
+                                "PGHOST", "127.0.0.1",
+                                "PGPORT", "15432",
+                                "PGDATABASE", "zolt_vertx",
+                                "PGUSER", "zolt",
+                                "PGPASSWORD", "secret",
+                                "PGNOTES_TABLE", "zolt-notes")));
+
+        assertEquals(
+                "PGNOTES_TABLE must be a lowercase PostgreSQL identifier up to 63 characters",
+                exception.getMessage());
     }
 
     @Test
