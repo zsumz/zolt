@@ -180,6 +180,7 @@ final class PublicReadinessDocumentationTest {
         assertTrue(vertxReadiness.contains("The fixture project now exists with Vert.x Web routes"));
         assertTrue(vertxReadiness.contains("`scripts/smoke-vertx-postgres-crud` and `scripts/smoke-vertx-postgres-native` also exist and fail early with setup guidance"));
         assertTrue(vertxReadiness.contains("A local build check has produced a real `vertx-postgres-crud` Native Image executable"));
+        assertTrue(vertxReadiness.contains("Woodpecker has a manual heavy pipeline for the database-backed gates"));
         assertTrue(vertxReadiness.contains("--initialize-at-run-time=io.netty.channel,io.netty.handler.ssl"));
         assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
