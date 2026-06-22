@@ -188,6 +188,11 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(health);
             assertTrue(health.body().contains("\"status\":\"ok\""));
 
+            HttpResult unknownRoute = request("GET", server.port(), "/missing", null);
+            assertEquals(404, unknownRoute.status());
+            assertJson(unknownRoute);
+            assertTrue(unknownRoute.body().contains("route was not found"));
+
             HttpResult created = request(
                     "POST",
                     server.port(),

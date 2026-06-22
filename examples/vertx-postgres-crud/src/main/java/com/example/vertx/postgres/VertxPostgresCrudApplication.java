@@ -70,6 +70,7 @@ public final class VertxPostgresCrudApplication {
         router.get("/notes/:id").handler(context -> findNote(context, repository));
         router.put("/notes/:id").handler(context -> updateNote(context, repository));
         router.delete("/notes/:id").handler(context -> deleteNote(context, repository));
+        router.route().handler(VertxPostgresCrudApplication::unknownRoute);
         return router;
     }
 
@@ -212,6 +213,10 @@ public final class VertxPostgresCrudApplication {
 
     private static void notFound(RoutingContext context, long id) {
         json(context, 404, new JsonObject().put("error", "note " + id + " was not found"));
+    }
+
+    private static void unknownRoute(RoutingContext context) {
+        json(context, 404, new JsonObject().put("error", "route was not found"));
     }
 
     private static void serverError(RoutingContext context, Throwable error) {
