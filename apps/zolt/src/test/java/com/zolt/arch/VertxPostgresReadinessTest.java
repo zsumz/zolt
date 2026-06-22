@@ -64,6 +64,7 @@ final class VertxPostgresReadinessTest {
 
         assertTrue(readme.contains("Malformed create/update bodies, invalid JSON, and invalid note ids return `400` JSON errors"));
         assertTrue(readme.contains("PGNOTES_TABLE"));
+        assertTrue(readme.contains("Updating or deleting a missing note returns a `404` JSON error."));
         assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
