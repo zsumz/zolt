@@ -35,6 +35,10 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
         assertTrue(workflow.contains("depends_on:"));
         assertTrue(workflow.contains("- vertx_postgres_jvm_smoke"));
+        assertTrue(workflow.contains("vertx_postgres_jvm_logs:"));
+        assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.txt"));
+        assertTrue(workflow.contains("vertx_postgres_native_logs:"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*/target/native/native-image.log"));
     }
 
     @Test
