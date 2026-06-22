@@ -172,6 +172,17 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void rejectsUnknownNoteInputFields() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.NoteInput.from(new JsonObject()
+                        .put("title", "first")
+                        .put("body", "hello")
+                        .put("extra", true)));
+
+        assertEquals("request body may only contain title and body", exception.getMessage());
+    }
+
+    @Test
     void serializesNoteResponse() {
         JsonObject json = new VertxPostgresCrudApplication.Note(42, "first", "hello").toJson();
 
@@ -291,6 +302,15 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(invalidJson);
             assertTrue(invalidJson.body().contains("request body must be a JSON object"));
 
+            HttpResult unknownCreateField = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first\",\"body\":\"hello\",\"extra\":true}");
+            assertEquals(400, unknownCreateField.status());
+            assertJson(unknownCreateField);
+            assertTrue(unknownCreateField.body().contains("request body may only contain title and body"));
+
             HttpResult missingCreateContentType = requestWithContentType(
                     "POST",
                     server.port(),
@@ -328,6 +348,15 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, invalidJsonUpdate.status());
             assertJson(invalidJsonUpdate);
             assertTrue(invalidJsonUpdate.body().contains("request body must be a JSON object"));
+
+            HttpResult unknownUpdateField = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"first\",\"body\":\"hello\",\"extra\":true}");
+            assertEquals(400, unknownUpdateField.status());
+            assertJson(unknownUpdateField);
+            assertTrue(unknownUpdateField.body().contains("request body may only contain title and body"));
 
             HttpResult textUpdateContentType = requestWithContentType(
                     "PUT",

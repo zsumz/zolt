@@ -338,6 +338,11 @@ public final class VertxPostgresCrudApplication {
             if (json == null) {
                 throw new IllegalArgumentException("request body must be a JSON object");
             }
+            for (String field : json.fieldNames()) {
+                if (!field.equals("title") && !field.equals("body")) {
+                    throw new IllegalArgumentException("request body may only contain title and body");
+                }
+            }
             String title = stringField(json, "title");
             String body = stringField(json, "body");
             return new NoteInput(title, body);

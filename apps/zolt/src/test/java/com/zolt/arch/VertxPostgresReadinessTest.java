@@ -68,6 +68,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("JSON responses use `content-type: application/json` and `cache-control: no-store`; successful deletes return `204` with no response body."));
         assertTrue(readme.contains("Successful creates return `201` with `Location: /notes/<id>`."));
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
+        assertTrue(readme.contains("Create/update JSON bodies may only contain `title` and `body`."));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
         assertTrue(readme.contains("Unsupported or duplicate command-line arguments fail with a usage hint instead of being ignored."));
         assertTrue(readme.contains("PGNOTES_TABLE"));
