@@ -13,10 +13,10 @@ fi
 
 if [[ -z "$JAR_PATH" ]]; then
   shopt -s nullglob
-  jars=(target/*.jar)
+  jars=(apps/zolt/target/*.jar)
   shopt -u nullglob
   if [[ "${#jars[@]}" -ne 1 ]]; then
-    printf 'error: expected exactly one Zolt-built jar under target/, found %s\n' "${#jars[@]}" >&2
+    printf 'error: expected exactly one Zolt-built jar under apps/zolt/target/, found %s\n' "${#jars[@]}" >&2
     printf 'hint: run zolt self-check or zolt package before scripts/run-zolt-built\n' >&2
     exit 1
   fi

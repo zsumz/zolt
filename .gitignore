@@ -1,5 +1,7 @@
 # Java / Zolt output
 /target/
+/apps/*/target/
+/modules/*/target/
 /build/
 /out/
 /.gradle/

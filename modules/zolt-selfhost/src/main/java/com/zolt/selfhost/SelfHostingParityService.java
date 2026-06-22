@@ -61,10 +61,13 @@ public final class SelfHostingParityService {
                             + ". Build the bootstrap jar or pass --bootstrap-jar <path>.");
         }
 
-        ProjectConfig config = tomlParser.parse(root.resolve("zolt.toml"));
-        PackageResult packageResult = workspaceDetector.usesRealWorkspace(root)
-                ? workspacePackager.packageJar(root, cacheRoot)
-                : projectPackager.packageJar(root, config, cacheRoot);
+        PackageResult packageResult;
+        if (workspaceDetector.usesRealWorkspace(root)) {
+            packageResult = workspacePackager.packageJar(root, cacheRoot);
+        } else {
+            ProjectConfig config = tomlParser.parse(root.resolve("zolt.toml"));
+            packageResult = projectPackager.packageJar(root, config, cacheRoot);
+        }
         Path zoltJar = packageResult.jarPath();
         if (!Files.isRegularFile(zoltJar)) {
             throw new SelfHostingParityException(

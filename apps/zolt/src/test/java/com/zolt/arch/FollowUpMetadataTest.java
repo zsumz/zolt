@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class FollowUpMetadataTest {
-    private static final Path FOLLOW_UPS = Path.of("followUps");
+    private static final Path FOLLOW_UPS = RepositoryPaths.root().resolve("followUps");
     private static final int MODERN_FOLLOW_UP_MIN_ID = 503;
     private static final Set<String> VALID_STATUSES = Set.of("Open", "Done", "Blocked", "Implemented");
     private static final List<String> REQUIRED_SECTIONS = List.of(

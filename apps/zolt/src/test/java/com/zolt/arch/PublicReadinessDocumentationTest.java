@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 final class PublicReadinessDocumentationTest {
     @Test
     void readmeDoesNotPublishStaleSpringBootNativeStatus() throws IOException {
-        String readme = Files.readString(Path.of("README.md"));
+        String readme = Files.readString(RepositoryPaths.root().resolve("README.md"));
 
         assertFalse(
                 readme.contains("Spring Boot AOT/native is explicitly unsupported in the public beta"),
@@ -32,7 +32,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void adoptionReadinessListsPublicSupportSurfaceBoundaries() throws IOException {
-        String readiness = Files.readString(Path.of("docs/adoption-readiness.md"));
+        String readiness = Files.readString(RepositoryPaths.root().resolve("docs/adoption-readiness.md"));
 
         assertTrue(readiness.contains("## Public Support Surface"));
         assertTrue(readiness.contains("| Plain Java applications | Supported |"));
@@ -51,7 +51,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void adoptionReadinessDoesNotCallImplementedGuardrailsBlockers() throws IOException {
-        String readiness = Files.readString(Path.of("docs/adoption-readiness.md"));
+        String readiness = Files.readString(RepositoryPaths.root().resolve("docs/adoption-readiness.md"));
 
         assertTrue(readiness.contains("Core adoption guardrails:"));
         assertTrue(readiness.contains(""));
@@ -64,7 +64,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void testingStrategyKeepsKotlinPostMvp() throws IOException {
-        String testingStrategy = Files.readString(Path.of("docs/testing-strategy.md"));
+        String testingStrategy = Files.readString(RepositoryPaths.root().resolve("docs/testing-strategy.md"));
 
         assertTrue(testingStrategy.contains("Kotlin remains future post-MVP source-language work"));
         assertTrue(testingStrategy.contains("should not be treated as public-beta test support"));
@@ -75,7 +75,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void commandDocsDescribeTypedFrameworkNativeMigration() throws IOException {
-        String commands = Files.readString(Path.of("docs/commands.md"));
+        String commands = Files.readString(RepositoryPaths.root().resolve("docs/commands.md"));
 
         assertTrue(commands.contains("external framework AOT/native/dev-mode tasks"));
         assertTrue(commands.contains("typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`"));
@@ -87,7 +87,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void releasePackagingDoesNotPretendLicenseExists() throws IOException {
-        String releasePackaging = Files.readString(Path.of("docs/release-packaging.md"));
+        String releasePackaging = Files.readString(RepositoryPaths.root().resolve("docs/release-packaging.md"));
 
         assertTrue(releasePackaging.contains("LICENSE (only after the repository has a license file)"));
         assertTrue(releasePackaging.contains("release archives should not pretend to include a license"));
@@ -98,7 +98,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void productVisionDoesNotClaimGradleMavenBootstrapForV01() throws IOException {
-        String productVision = Files.readString(Path.of("docs/product-vision.md"));
+        String productVision = Files.readString(RepositoryPaths.root().resolve("docs/product-vision.md"));
 
         assertTrue(productVision.contains("Gradle-free JVM bootstrap"));
         assertTrue(productVision.contains("Zolt builds, tests, packages, smokes, and parity-checks itself"));
@@ -109,7 +109,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void roadmapKeepsSelfHostingStatusCurrent() throws IOException {
-        String roadmap = Files.readString(Path.of("docs/roadmap.md"));
+        String roadmap = Files.readString(RepositoryPaths.root().resolve("docs/roadmap.md"));
 
         assertTrue(roadmap.contains("the current repository has since removed that bootstrap"));
         assertTrue(roadmap.contains("The old Gradle fallback native task was removed with the root Gradle bootstrap"));
@@ -128,7 +128,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void frameworkReadinessDoesNotPublishQuarkusAnnotationTests() throws IOException {
-        String frameworkReadiness = Files.readString(Path.of("docs/framework-readiness.md"));
+        String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
 
         assertTrue(frameworkReadiness.contains("exercise descriptor-enabled `@QuarkusTest` probes only to explicit Zolt-shaped blocker diagnostics without public enablement"));
         assertTrue(frameworkReadiness.contains("public Quarkus `@QuarkusTest` enablement"));
@@ -139,7 +139,7 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void roadmapDoesNotTreatSpringBootAotNativeAsWhollyFuture() throws IOException {
-        String roadmap = Files.readString(Path.of("docs/roadmap.md"));
+        String roadmap = Files.readString(RepositoryPaths.root().resolve("docs/roadmap.md"));
 
         assertTrue(roadmap.contains("Explicit Spring Boot AOT/native canaries now run Spring Boot AOT through Zolt-owned tooling"));
         assertTrue(roadmap.contains("[framework.springBoot.native] enabled = true"));
@@ -152,9 +152,9 @@ final class PublicReadinessDocumentationTest {
 
     @Test
     void springBootNativeDocsStayNarrowAfterRealAppSmokeExists() throws IOException {
-        String frameworkReadiness = Files.readString(Path.of("docs/framework-readiness.md"));
-        String nativeGraalvm = Files.readString(Path.of("docs/native-graalvm.md"));
-        String springBootReadiness = Files.readString(Path.of("docs/spring-boot-readiness.md"));
+        String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
+        String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
+        String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
 
         assertTrue(frameworkReadiness.contains("not broad Spring native-image support"));
         assertTrue(frameworkReadiness.contains("Spring Boot 3.3 WebMVC HTTP app on Java 21"));

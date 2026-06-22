@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -12,8 +13,8 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class ArchitectureBoundaryTest {
-    private static final Path MAIN_SOURCES = Path.of("src/main/java");
-    private static final Path ARCHITECTURE_DOC = Path.of("docs/architecture.md");
+    private static final List<Path> MAIN_SOURCES = mainSourceRoots();
+    private static final Path ARCHITECTURE_DOC = RepositoryPaths.root().resolve("docs/architecture.md");
 
     /*
      * Architecture tests are product guardrails: Zolt owns resolver, lockfile,
@@ -106,6 +107,21 @@ final class ArchitectureBoundaryTest {
 
     private static Map<PackageEdge, String> allowedForbiddenImports() {
         return Map.of();
+    }
+
+    private static List<Path> mainSourceRoots() {
+        Path root = RepositoryPaths.root();
+        List<Path> sourceRoots = new ArrayList<>();
+        sourceRoots.add(root.resolve("apps/zolt/src/main/java"));
+        try (var paths = Files.list(root.resolve("modules"))) {
+            paths.map(path -> path.resolve("src/main/java"))
+                    .filter(Files::isDirectory)
+                    .sorted()
+                    .forEach(sourceRoots::add);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not list library source roots.", exception);
+        }
+        return List.copyOf(sourceRoots);
     }
 
     private static String describeCycles(PackageGraph graph, List<Set<String>> cycles) {

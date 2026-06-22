@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 final class UserGlobalConfigDocumentationTest {
     @Test
     void documentsAllowedSectionsRejectedSemanticsAndPrecedence() throws IOException {
-        String docs = Files.readString(Path.of("docs/user-global-config.md"));
+        String docs = Files.readString(RepositoryPaths.root().resolve("docs/user-global-config.md"));
 
         assertTrue(docs.contains("## Allowed Sections"));
         assertTrue(docs.contains("[cache]"));
@@ -34,7 +34,7 @@ final class UserGlobalConfigDocumentationTest {
 
     @Test
     void documentsLocalOverlayAndNativeImageBoundaries() throws IOException {
-        String docs = Files.readString(Path.of("docs/user-global-config.md"));
+        String docs = Files.readString(RepositoryPaths.root().resolve("docs/user-global-config.md"));
 
         assertTrue(docs.contains("Local overlays are disabled by default."));
         assertTrue(docs.contains("--no-local-overlays"));
@@ -47,9 +47,9 @@ final class UserGlobalConfigDocumentationTest {
 
     @Test
     void recordsImplementationFollowUps() throws IOException {
-        String docs = Files.readString(Path.of("docs/user-global-config.md"));
-        String parserFollowUp = Files.readString(Path.of("followUps/-implement-user-global-config-parser.md"));
-        String diagnosticsFollowUp = Files.readString(Path.of("followUps/-expose-user-global-config-diagnostics.md"));
+        String docs = Files.readString(RepositoryPaths.root().resolve("docs/user-global-config.md"));
+        String parserFollowUp = Files.readString(RepositoryPaths.root().resolve("followUps/-implement-user-global-config-parser.md"));
+        String diagnosticsFollowUp = Files.readString(RepositoryPaths.root().resolve("followUps/-expose-user-global-config-diagnostics.md"));
 
         assertTrue(docs.contains(""));
         assertTrue(docs.contains(""));
