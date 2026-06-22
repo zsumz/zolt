@@ -211,6 +211,7 @@ final class VertxPostgresCrudApplicationTest {
 
             HttpResult deleted = request("DELETE", server.port(), "/notes/1", null);
             assertEquals(204, deleted.status());
+            assertEquals("", deleted.body());
 
             HttpResult missing = request("GET", server.port(), "/notes/1", null);
             assertEquals(404, missing.status());
