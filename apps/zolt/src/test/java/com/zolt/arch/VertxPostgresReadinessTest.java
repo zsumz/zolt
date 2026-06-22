@@ -57,4 +57,16 @@ final class VertxPostgresReadinessTest {
                 zoltToml.contains("native-image-agent"),
                 "Vert.x PostgreSQL readiness should not depend on tracing-agent generated configuration");
     }
+
+    @Test
+    void postgresCrudReadmeNamesReadinessGatesAndValidationScope() throws IOException {
+        String readme = Files.readString(EXAMPLE.resolve("README.md"));
+
+        assertTrue(readme.contains("Malformed create bodies and invalid note ids return `400` JSON errors"));
+        assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
+        assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
+        assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
+        assertTrue(readme.contains("probe the CRUD API plus validation responses"));
+        assertTrue(readme.contains("smoke script does not inject hidden native-image arguments"));
+    }
 }
