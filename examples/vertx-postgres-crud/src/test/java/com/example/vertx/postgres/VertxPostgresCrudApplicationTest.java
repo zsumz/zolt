@@ -302,6 +302,15 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(invalidJson);
             assertTrue(invalidJson.body().contains("request body must be a JSON object"));
 
+            HttpResult arrayJson = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "[]");
+            assertEquals(400, arrayJson.status());
+            assertJson(arrayJson);
+            assertTrue(arrayJson.body().contains("request body must be a JSON object"));
+
             HttpResult unknownCreateField = request(
                     "POST",
                     server.port(),
@@ -348,6 +357,15 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, invalidJsonUpdate.status());
             assertJson(invalidJsonUpdate);
             assertTrue(invalidJsonUpdate.body().contains("request body must be a JSON object"));
+
+            HttpResult arrayJsonUpdate = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "[]");
+            assertEquals(400, arrayJsonUpdate.status());
+            assertJson(arrayJsonUpdate);
+            assertTrue(arrayJsonUpdate.body().contains("request body must be a JSON object"));
 
             HttpResult unknownUpdateField = request(
                     "PUT",
