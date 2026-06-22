@@ -2,7 +2,6 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.ZoltCli;
-import com.zolt.ide.IdeFrameworkModelBuilder;
 import com.zolt.ide.IdeModel;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.ide.IdeModelService;
@@ -10,6 +9,7 @@ import com.zolt.ide.WorkspaceIdeModel;
 import com.zolt.ide.WorkspaceIdeModelJsonWriter;
 import com.zolt.ide.WorkspaceIdeModelService;
 import com.zolt.perf.TimingRecorder;
+import com.zolt.quarkus.QuarkusIdeFrameworkModelProvider;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -79,7 +79,7 @@ public final class IdeCommand implements Runnable {
         }
 
         private static IdeModelService ideModelService() {
-            return new IdeModelService(new IdeFrameworkModelBuilder());
+            return new IdeModelService(new QuarkusIdeFrameworkModelProvider());
         }
 
         private static WorkspaceIdeModelService workspaceIdeModelService() {

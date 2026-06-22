@@ -1,23 +1,20 @@
-package com.zolt.ide;
+package com.zolt.quarkus;
 
+import com.zolt.ide.IdeFrameworkModelProvider;
+import com.zolt.ide.IdeModel;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationState;
-import com.zolt.quarkus.QuarkusOutputLayout;
-import com.zolt.quarkus.QuarkusPlan;
-import com.zolt.quarkus.QuarkusPlanException;
-import com.zolt.quarkus.QuarkusPlanService;
 import java.nio.file.Path;
 import java.util.List;
 
-public final class IdeFrameworkModelBuilder implements IdeFrameworkModelProvider {
+public final class QuarkusIdeFrameworkModelProvider implements IdeFrameworkModelProvider {
     private final QuarkusPlanService quarkusPlanService;
 
-    public IdeFrameworkModelBuilder() {
+    public QuarkusIdeFrameworkModelProvider() {
         this(new QuarkusPlanService());
     }
 
-    IdeFrameworkModelBuilder(QuarkusPlanService quarkusPlanService) {
+    QuarkusIdeFrameworkModelProvider(QuarkusPlanService quarkusPlanService) {
         this.quarkusPlanService = quarkusPlanService;
     }
 

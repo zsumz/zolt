@@ -1,10 +1,11 @@
-package com.zolt.ide;
+package com.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.ide.IdeModel;
+import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusAugmentationMetadataWriter;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,8 +16,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-final class IdeFrameworkModelBuilderTest {
-    private final IdeFrameworkModelBuilder builder = new IdeFrameworkModelBuilder();
+final class QuarkusIdeFrameworkModelProviderTest {
+    private final QuarkusIdeFrameworkModelProvider builder = new QuarkusIdeFrameworkModelProvider();
 
     @TempDir
     private Path tempDir;
