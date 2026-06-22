@@ -46,6 +46,7 @@ final class WoodpeckerWorkflowTest {
     void jvmPipelineRunsVertxPostgresSmokeScriptTests() throws IOException {
         String workflow = Files.readString(WOODPECKER.resolve("jvm.yml"));
 
+        assertTrue(workflow.contains("scripts/ci-ensure-curl-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-common-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-crud-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-native-test"));
