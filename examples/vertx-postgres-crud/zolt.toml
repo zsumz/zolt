@@ -28,3 +28,12 @@ source = "src/main/java"
 test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
+
+[native]
+imageName = "vertx-postgres-crud"
+output = "target/native"
+args = [
+  "--no-fallback",
+  "--initialize-at-run-time=io.netty.channel,io.netty.handler.ssl,io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess",
+  "--initialize-at-build-time=io.netty.buffer.UnpooledByteBufAllocator,io.netty.buffer.AbstractByteBufAllocator,io.netty.buffer.Unpooled,io.netty.buffer.EmptyByteBuf,io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess,org.slf4j"
+]
