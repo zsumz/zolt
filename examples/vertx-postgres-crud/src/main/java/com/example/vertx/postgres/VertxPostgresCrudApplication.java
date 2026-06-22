@@ -39,8 +39,7 @@ public final class VertxPostgresCrudApplication {
         Vertx vertx = Vertx.vertx();
         PgPool pool = PgPool.pool(vertx, config.pgConnectOptions(), new PoolOptions().setMaxSize(5));
         PgNotesRepository repository = new PgNotesRepository(pool, config.pgNotesTable());
-        repository.init()
-                .compose(ignored -> start(vertx, repository, config.httpPort()))
+        startInitialized(vertx, repository, config.httpPort())
                 .onSuccess(server -> System.out.println("Vert.x PostgreSQL CRUD API listening on " + server.actualPort()))
                 .onFailure(error -> {
                     error.printStackTrace(System.err);
@@ -48,6 +47,11 @@ public final class VertxPostgresCrudApplication {
                     vertx.close();
                     System.exit(1);
                 });
+    }
+
+    static Future<HttpServer> startInitialized(Vertx vertx, NotesRepository repository, int port) {
+        return repository.init()
+                .compose(ignored -> start(vertx, repository, port));
     }
 
     static Future<HttpServer> start(Vertx vertx, NotesRepository repository, int port) {

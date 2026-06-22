@@ -312,6 +312,22 @@ final class VertxPostgresCrudApplicationTest {
         });
     }
 
+    @Test
+    void failsBeforeListeningWhenRepositoryInitializationFails() throws Exception {
+        Vertx vertx = Vertx.vertx();
+        try {
+            ExecutionException exception = assertThrows(ExecutionException.class, () ->
+                    VertxPostgresCrudApplication.startInitialized(vertx, new FailingInitNotesRepository(), 0)
+                            .toCompletionStage()
+                            .toCompletableFuture()
+                            .get(10, TimeUnit.SECONDS));
+
+            assertTrue(exception.getCause().getMessage().contains("simulated init failure"));
+        } finally {
+            vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+        }
+    }
+
     private static void assertRepositoryFailure(HttpResult response) {
         assertEquals(500, response.status());
         assertJson(response);
@@ -373,7 +389,7 @@ final class VertxPostgresCrudApplicationTest {
         void run(ServerContext server) throws Exception;
     }
 
-    private static final class FakeNotesRepository implements VertxPostgresCrudApplication.NotesRepository {
+    private static class FakeNotesRepository implements VertxPostgresCrudApplication.NotesRepository {
         private final Map<Long, VertxPostgresCrudApplication.Note> notes = new LinkedHashMap<>();
         private long nextId = 1;
 
@@ -412,6 +428,13 @@ final class VertxPostgresCrudApplicationTest {
         @Override
         public Future<Boolean> delete(long id) {
             return Future.succeededFuture(notes.remove(id) != null);
+        }
+    }
+
+    private static final class FailingInitNotesRepository extends FakeNotesRepository {
+        @Override
+        public Future<Void> init() {
+            return Future.failedFuture(new IllegalStateException("simulated init failure"));
         }
     }
 
