@@ -240,10 +240,24 @@ final class VertxPostgresCrudApplicationTest {
             assertTrue(created.body().contains("\"body\":\"hello\""));
             assertEquals("/notes/1", created.location());
 
+            HttpResult secondCreated = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"second note\",\"body\":\"world\"}");
+            assertEquals(201, secondCreated.status());
+            assertJson(secondCreated);
+            assertTrue(secondCreated.body().contains("\"id\":2"));
+            assertEquals("/notes/2", secondCreated.location());
+
             HttpResult listed = request("GET", server.port(), "/notes", null);
             assertEquals(200, listed.status());
             assertJson(listed);
             assertTrue(listed.body().contains("\"id\":1"));
+            assertTrue(listed.body().contains("\"id\":2"));
+            assertTrue(
+                    listed.body().indexOf("\"id\":1") < listed.body().indexOf("\"id\":2"),
+                    "expected list response to be ordered by id: " + listed.body());
 
             HttpResult found = request("GET", server.port(), "/notes/1", null);
             assertEquals(200, found.status());
@@ -292,7 +306,8 @@ final class VertxPostgresCrudApplicationTest {
             HttpResult listedAfterDelete = request("GET", server.port(), "/notes", null);
             assertEquals(200, listedAfterDelete.status());
             assertJson(listedAfterDelete);
-            assertTrue(listedAfterDelete.body().contains("[]"));
+            assertTrue(!listedAfterDelete.body().contains("\"id\":1"));
+            assertTrue(listedAfterDelete.body().contains("\"id\":2"));
         });
     }
 
