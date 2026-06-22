@@ -276,6 +276,26 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(invalidJson);
             assertTrue(invalidJson.body().contains("request body must be a JSON object"));
 
+            HttpResult missingCreateContentType = requestWithContentType(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first\",\"body\":\"hello\"}",
+                    null);
+            assertEquals(415, missingCreateContentType.status());
+            assertJson(missingCreateContentType);
+            assertTrue(missingCreateContentType.body().contains("content-type must be application/json"));
+
+            HttpResult textCreateContentType = requestWithContentType(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first\",\"body\":\"hello\"}",
+                    "text/plain");
+            assertEquals(415, textCreateContentType.status());
+            assertJson(textCreateContentType);
+            assertTrue(textCreateContentType.body().contains("content-type must be application/json"));
+
             HttpResult malformedUpdate = request(
                     "PUT",
                     server.port(),
@@ -293,6 +313,26 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, invalidJsonUpdate.status());
             assertJson(invalidJsonUpdate);
             assertTrue(invalidJsonUpdate.body().contains("request body must be a JSON object"));
+
+            HttpResult textUpdateContentType = requestWithContentType(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"first\",\"body\":\"hello\"}",
+                    "text/plain");
+            assertEquals(415, textUpdateContentType.status());
+            assertJson(textUpdateContentType);
+            assertTrue(textUpdateContentType.body().contains("content-type must be application/json"));
+
+            HttpResult jsonCharsetContentType = requestWithContentType(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"with charset\",\"body\":\"hello\"}",
+                    "application/json; charset=utf-8");
+            assertEquals(201, jsonCharsetContentType.status());
+            assertJson(jsonCharsetContentType);
+            assertTrue(jsonCharsetContentType.body().contains("\"title\":\"with charset\""));
 
             HttpResult badId = request("GET", server.port(), "/notes/not-a-number", null);
             assertEquals(400, badId.status());
@@ -409,13 +449,19 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     private static HttpResult request(String method, int port, String path, String body) throws Exception {
+        return requestWithContentType(method, port, path, body, body == null ? null : "application/json");
+    }
+
+    private static HttpResult requestWithContentType(String method, int port, String path, String body, String contentType) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(10));
         if (body == null) {
             builder.method(method, HttpRequest.BodyPublishers.noBody());
         } else {
-            builder.header("content-type", "application/json")
-                    .method(method, HttpRequest.BodyPublishers.ofString(body));
+            if (contentType != null) {
+                builder.header("content-type", contentType);
+            }
+            builder.method(method, HttpRequest.BodyPublishers.ofString(body));
         }
         HttpResponse<String> response = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         return new HttpResult(

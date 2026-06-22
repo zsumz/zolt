@@ -66,6 +66,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Note ids must be positive integers across read, update, and delete routes; `0` and negative ids are rejected."));
         assertTrue(readme.contains("Database operation failures return `500` JSON errors."));
         assertTrue(readme.contains("JSON responses use `content-type: application/json`; successful deletes return `204` with no response body."));
+        assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
         assertTrue(readme.contains("Unsupported or duplicate command-line arguments fail with a usage hint instead of being ignored."));
         assertTrue(readme.contains("PGNOTES_TABLE"));

@@ -16,6 +16,7 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.Tuple;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -162,6 +163,10 @@ public final class VertxPostgresCrudApplication {
     }
 
     private static Optional<NoteInput> noteInput(RoutingContext context) {
+        if (!hasJsonContentType(context)) {
+            unsupportedMediaType(context, "content-type must be application/json");
+            return Optional.empty();
+        }
         try {
             return Optional.of(NoteInput.from(context.getBodyAsJson()));
         } catch (DecodeException exception) {
@@ -171,6 +176,14 @@ public final class VertxPostgresCrudApplication {
             badRequest(context, exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    private static boolean hasJsonContentType(RoutingContext context) {
+        String contentType = context.request().getHeader("content-type");
+        if (contentType == null) {
+            return false;
+        }
+        return contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT).equals("application/json");
     }
 
     private static void json(RoutingContext context, int status, JsonObject body) {
@@ -189,6 +202,10 @@ public final class VertxPostgresCrudApplication {
 
     private static void badRequest(RoutingContext context, String message) {
         json(context, 400, new JsonObject().put("error", message));
+    }
+
+    private static void unsupportedMediaType(RoutingContext context, String message) {
+        json(context, 415, new JsonObject().put("error", message));
     }
 
     private static void notFound(RoutingContext context, long id) {
