@@ -174,6 +174,7 @@ final class PublicReadinessDocumentationTest {
         assertTrue(frameworkReadiness.contains("should not be claimed until the real JVM and native smokes pass against PostgreSQL"));
         assertTrue(nativeGraalvm.contains("CRUD, validation, response-header, cleanup, and real-executable probes"));
         assertTrue(nativeGraalvm.contains("not claimed until both scripts pass against a real PostgreSQL database"));
+        assertTrue(nativeGraalvm.contains("the current smoke script launches the executable, and the remaining promotion evidence is a real database-backed run"));
         assertTrue(vertxReadiness.contains("## PostgreSQL CRUD Readiness Target"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-web`"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-pg-client`"));
