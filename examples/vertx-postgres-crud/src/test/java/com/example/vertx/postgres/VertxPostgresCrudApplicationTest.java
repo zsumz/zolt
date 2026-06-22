@@ -488,6 +488,25 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(badId);
             assertTrue(badId.body().contains("note id must be a positive integer"));
 
+            HttpResult overflowReadId = request("GET", server.port(), "/notes/9223372036854775808", null);
+            assertEquals(400, overflowReadId.status());
+            assertJson(overflowReadId);
+            assertTrue(overflowReadId.body().contains("note id must be a positive integer"));
+
+            HttpResult overflowUpdateId = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/9223372036854775808",
+                    "{\"title\":\"overflow\",\"body\":\"invalid\"}");
+            assertEquals(400, overflowUpdateId.status());
+            assertJson(overflowUpdateId);
+            assertTrue(overflowUpdateId.body().contains("note id must be a positive integer"));
+
+            HttpResult overflowDeleteId = request("DELETE", server.port(), "/notes/9223372036854775808", null);
+            assertEquals(400, overflowDeleteId.status());
+            assertJson(overflowDeleteId);
+            assertTrue(overflowDeleteId.body().contains("note id must be a positive integer"));
+
             HttpResult zeroReadId = request("GET", server.port(), "/notes/0", null);
             assertEquals(400, zeroReadId.status());
             assertJson(zeroReadId);

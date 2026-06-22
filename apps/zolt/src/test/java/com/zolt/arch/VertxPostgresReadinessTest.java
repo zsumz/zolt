@@ -63,7 +63,7 @@ final class VertxPostgresReadinessTest {
         String readme = Files.readString(EXAMPLE.resolve("README.md"));
 
         assertTrue(readme.contains("Malformed create/update bodies, invalid JSON, and invalid note ids return `400` JSON errors"));
-        assertTrue(readme.contains("Note ids must be positive integers across read, update, and delete routes; `0` and negative ids are rejected."));
+        assertTrue(readme.contains("Note ids must be positive 64-bit integers across read, update, and delete routes; `0`, negative ids, and values larger than `9223372036854775807` are rejected."));
         assertTrue(readme.contains("Database operation failures return `500` JSON errors."));
         assertTrue(readme.contains("JSON responses use `content-type: application/json` and `cache-control: no-store`; successful deletes return `204` with no response body."));
         assertTrue(readme.contains("Successful creates return `201` with `Location: /notes/<id>`."));
