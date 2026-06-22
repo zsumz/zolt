@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -32,12 +33,29 @@ final class CliSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
-        assertTrue(result.stdout().contains("init"));
-        assertTrue(result.stdout().contains("resolve"));
-        assertTrue(result.stdout().contains("config"));
-        assertTrue(result.stdout().contains("check"));
-        assertTrue(result.stdout().contains("build"));
-        assertTrue(result.stdout().contains("doctor"));
+        assertContainsInOrder(
+                result.stdout(),
+                "Commands:",
+                "  Basics",
+                "    init",
+                "    config",
+                "    doctor",
+                "  Dependencies",
+                "    resolve",
+                "    conflicts",
+                "  Build, Test, Run",
+                "    build",
+                "    integration-test",
+                "  Insight and Tooling",
+                "    check",
+                "    quarkus",
+                "  Native and Release",
+                "    native",
+                "    release-verify",
+                "  Self-Hosting",
+                "    self-check");
+        assertTrue(result.stdout().contains("help                Display help for zolt or a command."));
+        assertFalse(result.stdout().contains("%n"));
     }
 
     @Test
@@ -138,6 +156,15 @@ final class CliSurfaceTest {
                 .userObject()
                 .getClass()
                 .getName();
+    }
+
+    private static void assertContainsInOrder(String text, String... expected) {
+        int previousIndex = -1;
+        for (String item : expected) {
+            int index = text.indexOf(item);
+            assertTrue(index > previousIndex, "Expected `" + item + "` after index " + previousIndex);
+            previousIndex = index;
+        }
     }
 
 }

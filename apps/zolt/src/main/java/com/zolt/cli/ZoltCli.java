@@ -38,6 +38,7 @@ import com.zolt.perf.TimingFormat;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Model.UsageMessageSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
@@ -95,15 +96,20 @@ public final class ZoltCli implements Runnable {
     }
 
     static CommandLine newCommandLine() {
-        return new CommandLine(new ZoltCli())
+        CommandLine commandLine = new CommandLine(new ZoltCli())
                 .setCaseInsensitiveEnumValuesAllowed(true)
-                .setExecutionExceptionHandler((exception, commandLine, parseResult) -> {
+                .setExecutionExceptionHandler((exception, parsedCommandLine, parseResult) -> {
                     if (!(exception instanceof CommandLine.ExecutionException)) {
-                        commandLine.getErr().println("error: " + exception.getMessage());
-                        commandLine.getErr().flush();
+                        parsedCommandLine.getErr().println("error: " + exception.getMessage());
+                        parsedCommandLine.getErr().flush();
                     }
-                    return commandLine.getCommandSpec().exitCodeOnExecutionException();
+                    return parsedCommandLine.getCommandSpec().exitCodeOnExecutionException();
                 });
+        commandLine.getCommandSpec()
+                .usageMessage()
+                .sectionMap()
+                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer());
+        return commandLine;
     }
 
     @Override
