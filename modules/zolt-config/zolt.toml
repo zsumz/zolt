@@ -1,0 +1,20 @@
+[project]
+name = "zolt-config"
+version = "0.1.0-SNAPSHOT"
+group = "com.zolt"
+java = "21"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[dependencies]
+"org.tomlj:tomlj" = "1.1.1"
+
+[test.dependencies]
+"org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
