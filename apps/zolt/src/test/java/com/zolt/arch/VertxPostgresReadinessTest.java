@@ -68,6 +68,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("JSON responses use `content-type: application/json` and `cache-control: no-store`; successful deletes return `204` with no response body."));
         assertTrue(readme.contains("Successful creates return `201` with `Location: /notes/<id>`."));
         assertTrue(readme.contains("List responses are ordered by ascending note id."));
+        assertTrue(readme.contains("Deleting one note does not remove unrelated notes from later list responses."));
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
         assertTrue(readme.contains("Create/update request bodies must be JSON objects, not arrays or scalar JSON values."));
         assertTrue(readme.contains("Create/update JSON bodies may only contain `title` and `body`."));
@@ -83,7 +84,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
-        assertTrue(readme.contains("probe the CRUD API plus validation responses, unknown-route responses, method-not-allowed responses, read-after-update, and post-delete list removal"));
+        assertTrue(readme.contains("probe the CRUD API plus validation responses, unknown-route responses, method-not-allowed responses, read-after-update, and post-delete list removal while preserving unrelated notes"));
         assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
         assertTrue(readme.contains("smoke script does not inject hidden native-image arguments"));
     }
