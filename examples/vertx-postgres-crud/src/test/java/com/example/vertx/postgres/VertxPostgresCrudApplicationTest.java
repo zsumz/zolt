@@ -63,6 +63,22 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void reportsBlankPostgresSetting() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(
+                        new String[0],
+                        Map.of(
+                                "PGHOST", "127.0.0.1",
+                                "PGPORT", "5432",
+                                "PGDATABASE", " ",
+                                "PGUSER", "zolt",
+                                "PGPASSWORD", "secret")));
+
+        assertTrue(exception.getMessage().contains("Missing required PostgreSQL setting PGDATABASE"));
+        assertTrue(exception.getMessage().contains("examples/vertx-postgres-crud/README.md"));
+    }
+
+    @Test
     void rejectsInvalidPort() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 VertxPostgresCrudApplication.AppConfig.from(
