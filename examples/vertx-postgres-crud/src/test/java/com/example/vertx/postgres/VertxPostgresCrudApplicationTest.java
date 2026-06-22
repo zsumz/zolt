@@ -140,6 +140,7 @@ final class VertxPostgresCrudApplicationTest {
         withServer(new FakeNotesRepository(), server -> {
             HttpResult health = request("GET", server.port(), "/health", null);
             assertEquals(200, health.status());
+            assertJson(health);
             assertTrue(health.body().contains("\"status\":\"ok\""));
 
             HttpResult created = request(
@@ -148,16 +149,19 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes",
                     "{\"title\":\"first note\",\"body\":\"hello\"}");
             assertEquals(201, created.status());
+            assertJson(created);
             assertTrue(created.body().contains("\"id\":1"));
             assertTrue(created.body().contains("\"title\":\"first note\""));
             assertTrue(created.body().contains("\"body\":\"hello\""));
 
             HttpResult listed = request("GET", server.port(), "/notes", null);
             assertEquals(200, listed.status());
+            assertJson(listed);
             assertTrue(listed.body().contains("\"id\":1"));
 
             HttpResult found = request("GET", server.port(), "/notes/1", null);
             assertEquals(200, found.status());
+            assertJson(found);
             assertTrue(found.body().contains("\"title\":\"first note\""));
 
             HttpResult updated = request(
@@ -166,6 +170,7 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/1",
                     "{\"title\":\"renamed\",\"body\":\"updated body\"}");
             assertEquals(200, updated.status());
+            assertJson(updated);
             assertTrue(updated.body().contains("\"title\":\"renamed\""));
             assertTrue(updated.body().contains("\"body\":\"updated body\""));
 
@@ -175,10 +180,12 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/999",
                     "{\"title\":\"missing\",\"body\":\"not found\"}");
             assertEquals(404, missingUpdate.status());
+            assertJson(missingUpdate);
             assertTrue(missingUpdate.body().contains("note 999 was not found"));
 
             HttpResult missingDelete = request("DELETE", server.port(), "/notes/999", null);
             assertEquals(404, missingDelete.status());
+            assertJson(missingDelete);
             assertTrue(missingDelete.body().contains("note 999 was not found"));
 
             HttpResult deleted = request("DELETE", server.port(), "/notes/1", null);
@@ -186,6 +193,7 @@ final class VertxPostgresCrudApplicationTest {
 
             HttpResult missing = request("GET", server.port(), "/notes/1", null);
             assertEquals(404, missing.status());
+            assertJson(missing);
             assertTrue(missing.body().contains("note 1 was not found"));
         });
     }
@@ -199,6 +207,7 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes",
                     "{\"title\":\"missing body\"}");
             assertEquals(400, malformedBody.status());
+            assertJson(malformedBody);
             assertTrue(malformedBody.body().contains("body must be a non-empty string"));
 
             HttpResult invalidJson = request(
@@ -207,6 +216,7 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes",
                     "{not-json");
             assertEquals(400, invalidJson.status());
+            assertJson(invalidJson);
             assertTrue(invalidJson.body().contains("request body must be a JSON object"));
 
             HttpResult malformedUpdate = request(
@@ -215,6 +225,7 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/1",
                     "{\"title\":\"missing body\"}");
             assertEquals(400, malformedUpdate.status());
+            assertJson(malformedUpdate);
             assertTrue(malformedUpdate.body().contains("body must be a non-empty string"));
 
             HttpResult invalidJsonUpdate = request(
@@ -223,14 +234,17 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/1",
                     "{not-json");
             assertEquals(400, invalidJsonUpdate.status());
+            assertJson(invalidJsonUpdate);
             assertTrue(invalidJsonUpdate.body().contains("request body must be a JSON object"));
 
             HttpResult badId = request("GET", server.port(), "/notes/not-a-number", null);
             assertEquals(400, badId.status());
+            assertJson(badId);
             assertTrue(badId.body().contains("note id must be a positive integer"));
 
             HttpResult zeroReadId = request("GET", server.port(), "/notes/0", null);
             assertEquals(400, zeroReadId.status());
+            assertJson(zeroReadId);
             assertTrue(zeroReadId.body().contains("note id must be a positive integer"));
 
             HttpResult zeroUpdateId = request(
@@ -239,14 +253,17 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/0",
                     "{\"title\":\"zero\",\"body\":\"invalid\"}");
             assertEquals(400, zeroUpdateId.status());
+            assertJson(zeroUpdateId);
             assertTrue(zeroUpdateId.body().contains("note id must be a positive integer"));
 
             HttpResult zeroDeleteId = request("DELETE", server.port(), "/notes/0", null);
             assertEquals(400, zeroDeleteId.status());
+            assertJson(zeroDeleteId);
             assertTrue(zeroDeleteId.body().contains("note id must be a positive integer"));
 
             HttpResult negativeReadId = request("GET", server.port(), "/notes/-1", null);
             assertEquals(400, negativeReadId.status());
+            assertJson(negativeReadId);
             assertTrue(negativeReadId.body().contains("note id must be a positive integer"));
 
             HttpResult negativeUpdateId = request(
@@ -255,10 +272,12 @@ final class VertxPostgresCrudApplicationTest {
                     "/notes/-1",
                     "{\"title\":\"negative\",\"body\":\"invalid\"}");
             assertEquals(400, negativeUpdateId.status());
+            assertJson(negativeUpdateId);
             assertTrue(negativeUpdateId.body().contains("note id must be a positive integer"));
 
             HttpResult negativeDeleteId = request("DELETE", server.port(), "/notes/-1", null);
             assertEquals(400, negativeDeleteId.status());
+            assertJson(negativeDeleteId);
             assertTrue(negativeDeleteId.body().contains("note id must be a positive integer"));
         });
     }
@@ -284,7 +303,14 @@ final class VertxPostgresCrudApplicationTest {
 
     private static void assertRepositoryFailure(HttpResult response) {
         assertEquals(500, response.status());
+        assertJson(response);
         assertTrue(response.body().contains("database operation failed: simulated repository failure"));
+    }
+
+    private static void assertJson(HttpResult response) {
+        assertTrue(
+                response.contentType().contains("application/json"),
+                "expected application/json response but got " + response.contentType());
     }
 
     private static void withServer(VertxPostgresCrudApplication.NotesRepository repository, ServerExercise exercise) throws Exception {
@@ -319,13 +345,16 @@ final class VertxPostgresCrudApplicationTest {
                     .method(method, HttpRequest.BodyPublishers.ofString(body));
         }
         HttpResponse<String> response = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        return new HttpResult(response.statusCode(), response.body());
+        return new HttpResult(
+                response.statusCode(),
+                response.body(),
+                response.headers().firstValue("content-type").orElse(""));
     }
 
     private record ServerContext(int port) {
     }
 
-    private record HttpResult(int status, String body) {
+    private record HttpResult(int status, String body, String contentType) {
     }
 
     @FunctionalInterface
