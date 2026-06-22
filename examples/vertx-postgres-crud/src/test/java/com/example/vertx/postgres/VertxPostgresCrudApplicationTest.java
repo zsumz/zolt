@@ -185,6 +185,18 @@ final class VertxPostgresCrudApplicationTest {
                 VertxPostgresCrudApplication.NoteInput.from(new JsonObject().put("title", "ok")));
 
         assertEquals("body must be a non-empty string", exception.getMessage());
+
+        IllegalArgumentException titleTypeException = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.NoteInput.from(new JsonObject()
+                        .put("title", 42)
+                        .put("body", "hello")));
+        assertEquals("title must be a non-empty string", titleTypeException.getMessage());
+
+        IllegalArgumentException bodyTypeException = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.NoteInput.from(new JsonObject()
+                        .put("title", "first")
+                        .put("body", 42)));
+        assertEquals("body must be a non-empty string", bodyTypeException.getMessage());
     }
 
     @Test
@@ -368,6 +380,15 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(scalarJson);
             assertTrue(scalarJson.body().contains("request body must be a JSON object"));
 
+            HttpResult nonStringTitle = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":42,\"body\":\"hello\"}");
+            assertEquals(400, nonStringTitle.status());
+            assertJson(nonStringTitle);
+            assertTrue(nonStringTitle.body().contains("title must be a non-empty string"));
+
             HttpResult unknownCreateField = request(
                     "POST",
                     server.port(),
@@ -459,6 +480,15 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, scalarJsonUpdate.status());
             assertJson(scalarJsonUpdate);
             assertTrue(scalarJsonUpdate.body().contains("request body must be a JSON object"));
+
+            HttpResult nonStringBodyUpdate = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"first\",\"body\":42}");
+            assertEquals(400, nonStringBodyUpdate.status());
+            assertJson(nonStringBodyUpdate);
+            assertTrue(nonStringBodyUpdate.body().contains("body must be a non-empty string"));
 
             HttpResult unknownUpdateField = request(
                     "PUT",
