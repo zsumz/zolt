@@ -170,12 +170,13 @@ final class PublicReadinessDocumentationTest {
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
         String vertxReadiness = Files.readString(RepositoryPaths.root().resolve("docs/vertx-readiness.md"));
 
-        assertTrue(frameworkReadiness.contains("Vert.x PostgreSQL CRUD readiness is designed but not implemented"));
+        assertTrue(frameworkReadiness.contains("Vert.x PostgreSQL CRUD smokes are not implemented yet"));
         assertTrue(frameworkReadiness.contains("should not be claimed until the real JVM and native smokes pass against PostgreSQL"));
         assertTrue(nativeGraalvm.contains("not claimed until `scripts/smoke-vertx-postgres-crud` and `scripts/smoke-vertx-postgres-native` exist and pass"));
         assertTrue(vertxReadiness.contains("## PostgreSQL CRUD Readiness Target"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-web`"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-pg-client`"));
+        assertTrue(vertxReadiness.contains("The fixture project now exists with Vert.x Web routes"));
         assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
         assertTrue(vertxReadiness.contains("The smoke must run a real executable; building a binary without launching it is not enough."));
