@@ -424,6 +424,7 @@ final class VertxPostgresCrudApplicationTest {
         assertTrue(
                 response.contentType().contains("application/json"),
                 "expected application/json response but got " + response.contentType());
+        assertEquals("no-store", response.cacheControl());
     }
 
     private static void withServer(VertxPostgresCrudApplication.NotesRepository repository, ServerExercise exercise) throws Exception {
@@ -467,13 +468,14 @@ final class VertxPostgresCrudApplicationTest {
         return new HttpResult(
                 response.statusCode(),
                 response.body(),
-                response.headers().firstValue("content-type").orElse(""));
+                response.headers().firstValue("content-type").orElse(""),
+                response.headers().firstValue("cache-control").orElse(""));
     }
 
     private record ServerContext(int port) {
     }
 
-    private record HttpResult(int status, String body, String contentType) {
+    private record HttpResult(int status, String body, String contentType, String cacheControl) {
     }
 
     @FunctionalInterface

@@ -65,7 +65,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Malformed create/update bodies, invalid JSON, and invalid note ids return `400` JSON errors"));
         assertTrue(readme.contains("Note ids must be positive integers across read, update, and delete routes; `0` and negative ids are rejected."));
         assertTrue(readme.contains("Database operation failures return `500` JSON errors."));
-        assertTrue(readme.contains("JSON responses use `content-type: application/json`; successful deletes return `204` with no response body."));
+        assertTrue(readme.contains("JSON responses use `content-type: application/json` and `cache-control: no-store`; successful deletes return `204` with no response body."));
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
         assertTrue(readme.contains("Unsupported or duplicate command-line arguments fail with a usage hint instead of being ignored."));
@@ -75,7 +75,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
         assertTrue(readme.contains("probe the CRUD API plus validation responses, read-after-update, and post-delete list removal"));
-        assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json`"));
+        assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
         assertTrue(readme.contains("smoke script does not inject hidden native-image arguments"));
     }
 }

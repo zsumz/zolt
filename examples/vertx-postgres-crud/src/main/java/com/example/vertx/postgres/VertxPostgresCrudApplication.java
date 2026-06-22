@@ -190,6 +190,7 @@ public final class VertxPostgresCrudApplication {
         context.response()
                 .setStatusCode(status)
                 .putHeader("content-type", "application/json")
+                .putHeader("cache-control", "no-store")
                 .end(body.encode());
     }
 
@@ -197,6 +198,7 @@ public final class VertxPostgresCrudApplication {
         context.response()
                 .setStatusCode(status)
                 .putHeader("content-type", "application/json")
+                .putHeader("cache-control", "no-store")
                 .end(body.encode());
     }
 
