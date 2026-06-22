@@ -72,6 +72,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
         assertTrue(readme.contains("probe the CRUD API plus validation responses"));
+        assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json`"));
         assertTrue(readme.contains("smoke script does not inject hidden native-image arguments"));
     }
 }
