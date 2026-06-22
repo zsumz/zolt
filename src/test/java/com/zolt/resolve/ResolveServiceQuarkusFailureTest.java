@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-final class ResolveServiceQuarkusFailureTest extends ResolveServiceTestSupport {
+final class ResolveServiceQuarkusFailureTest extends ResolveServiceQuarkusTestSupport {
     @Test
     void quarkusDeploymentArtifactWithUnsupportedTypeFailsClearly() {
         addArtifact("io.quarkus", "quarkus-custom", "1.0.0", """

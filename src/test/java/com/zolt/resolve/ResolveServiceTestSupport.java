@@ -2,7 +2,6 @@ package com.zolt.resolve;
 
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
-import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -10,8 +9,12 @@ import java.nio.file.Path;
 import java.util.Map;
 
 abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSupport {
-    final ResolveService resolveService = new ResolveService(new QuarkusDependencyRequestPlanner());
+    final ResolveService resolveService = createResolveService();
     final ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
+
+    ResolveService createResolveService() {
+        return new ResolveService();
+    }
 
     ProjectConfig config() {
         return ResolveTestConfigs.config(baseUri);
@@ -27,14 +30,6 @@ abstract class ResolveServiceTestSupport extends ResolveServiceRepositoryTestSup
 
     ProjectConfig configWithRepositoryAndDependencies(String repositoryUrl, Map<String, String> dependencies) {
         return ResolveTestConfigs.configWithRepositoryAndDependencies(repositoryUrl, dependencies);
-    }
-
-    ProjectConfig quarkusConfigWithDependencies(Map<String, String> dependencies) {
-        return ResolveFeatureTestConfigs.quarkusConfigWithDependencies(baseUri, dependencies);
-    }
-
-    ProjectConfig quarkusPlatformConfigWithDependencies(Map<String, String> dependencies) {
-        return ResolveFeatureTestConfigs.quarkusPlatformConfigWithDependencies(baseUri, dependencies);
     }
 
     ProjectConfig configWithTestDependencies(Map<String, String> testDependencies) {

@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-final class ResolveServiceQuarkusSuccessTest extends ResolveServiceTestSupport {
+final class ResolveServiceQuarkusSuccessTest extends ResolveServiceQuarkusTestSupport {
     @Test
     void quarkusRuntimeExtensionAddsDeploymentArtifactScope() {
         addArtifact("io.quarkus", "quarkus-rest", "3.33.0", """

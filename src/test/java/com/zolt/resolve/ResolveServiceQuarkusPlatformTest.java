@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-final class ResolveServiceQuarkusPlatformTest extends ResolveServiceTestSupport {
+final class ResolveServiceQuarkusPlatformTest extends ResolveServiceQuarkusTestSupport {
     @Test
     void quarkusMetadataParentFirstArtifactsEnterDeploymentClasspathWhenVersionIsManaged() {
         addPom("io.quarkus.platform", "quarkus-bom", "3.33.0", """
