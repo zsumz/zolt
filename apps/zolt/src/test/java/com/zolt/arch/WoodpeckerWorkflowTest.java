@@ -37,6 +37,14 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("- vertx_postgres_jvm_smoke"));
     }
 
+    @Test
+    void jvmPipelineRunsVertxPostgresSmokeScriptTests() throws IOException {
+        String workflow = Files.readString(WOODPECKER.resolve("jvm.yml"));
+
+        assertTrue(workflow.contains("scripts/smoke-vertx-postgres-crud-test"));
+        assertTrue(workflow.contains("scripts/smoke-vertx-postgres-native-test"));
+    }
+
     private static void assertHasHeavyLabel(String fileName) throws IOException {
         String workflow = Files.readString(WOODPECKER.resolve(fileName));
 
