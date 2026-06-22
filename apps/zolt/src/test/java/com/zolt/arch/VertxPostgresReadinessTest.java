@@ -63,6 +63,7 @@ final class VertxPostgresReadinessTest {
         String readme = Files.readString(EXAMPLE.resolve("README.md"));
 
         assertTrue(readme.contains("Malformed create/update bodies, invalid JSON, and invalid note ids return `400` JSON errors"));
+        assertTrue(readme.contains("Note ids must be positive integers across read, update, and delete routes."));
         assertTrue(readme.contains("PGNOTES_TABLE"));
         assertTrue(readme.contains("Updating or deleting a missing note returns a `404` JSON error."));
         assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
