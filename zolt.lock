@@ -1,6 +1,6 @@
 version = 1
-projectResolutionFingerprint = "sha256:9dbe5da9b3bcb372fa8d5e791e84d876c3f8f7bc9b98474f4a14289ade707898"
-projectResolutionInputFingerprints = ["dependencies.api=sha256:5d078c1157f8a36510629d77544b4d16b59c51d53cec04aaa2d6667d8ac252f8", "dependencies.compile.workspace=sha256:cffbec573b130f9d1c5822a7d47144a4fd6a872bfc7b722831d69b91bb591ed7", "dependencies.compile=sha256:2fb140631c8a08ea02efd2a17bcb55909cf49462890658a5d2b6df9070030330", "dependencies.provided=sha256:dc90c887515fcf8c8a599af07b9c83dd11489937d35292fd461bb9ab4a1d464d", "dependencies.test=sha256:1b833f346a776254d91b453f509238a0026a79a97ffb245800631bd334ad8e62", "framework.quarkus=sha256:46307854f6d99de4d395767187731c3c3dceb67b557d0a8a15719f70b9d3a5bf", "framework.springBoot.native=sha256:6889ad56e90671f18a4c7510a9a3969d7c4847741b49764c0074a982296fc718", "java=sha256:49996a6593a46a97dfd68e06ddeb3562f94229e1e60df4391412d861fa68b69f", "package=sha256:f23a4f68238c56c1ae3beac6d675dbfdabace08e5f2ce2fe71ac2af3e1f5f77d", "repositories=sha256:ac9020ecc8ba27e959d696acd4c00ea64ce0e723a91ccf500d2d20476de442e9", "schema=sha256:6ddfc0a747eff4d87775b4aadf96849927414a42200c180bea8833358167d76b"]
+projectResolutionFingerprint = "sha256:9ad2f654c0bca48f06cf014a8b346c47033e4e33863568947a543137d406f2db"
+projectResolutionInputFingerprints = ["dependencies.api=sha256:5d078c1157f8a36510629d77544b4d16b59c51d53cec04aaa2d6667d8ac252f8", "dependencies.compile.workspace=sha256:8a011176f4caa540d014e8b1a2dde0fb8c119424d92d267c7017c45eb4865106", "dependencies.compile=sha256:2fb140631c8a08ea02efd2a17bcb55909cf49462890658a5d2b6df9070030330", "dependencies.provided=sha256:dc90c887515fcf8c8a599af07b9c83dd11489937d35292fd461bb9ab4a1d464d", "dependencies.test=sha256:759ab5d0b85a707ca871d1a5fd6af3658931add775d49b4fbb27d01662cacba2", "framework.quarkus=sha256:d133e7d156d32d6a53d86434327ff10c6bafa634e8d436ecc4fdfe069f8459e0", "framework.springBoot.native=sha256:f203edd98478e26c6ad030e41a5bd273772fc6aaa0abd3dbf339dfa959d08d98", "java=sha256:d3c852f8e144e5f1882823ab0296ddce5b11adcc5c72a98c0f522b608ce05919", "package=sha256:a5357f1bcbcc3085109ab5ca8d00c50fc20abd65ac4b2550a701e86fae41eeaf", "repositories=sha256:b4fcf292d72fa51e4a01613667a8e1084ef76648a7c162f14cefc6edd8d883c7", "schema=sha256:f3b4472ba7c41e5650b8eedafc0c9e971b92fac28ea29d7eb1ac11c860c4c5cb"]
 
 [[package]]
 id = "com.zolt:zolt-build"
@@ -58,6 +58,17 @@ members = ["."]
 dependencies = []
 
 [[package]]
+id = "com.zolt:zolt-init"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-init"
+workspaceOutput = "target/classes"
+members = ["."]
+dependencies = []
+
+[[package]]
 id = "com.zolt:zolt-model"
 version = "0.1.0-SNAPSHOT"
 source = "workspace"
@@ -65,7 +76,7 @@ scope = "compile"
 direct = true
 workspace = "modules/zolt-model"
 workspaceOutput = "target/classes"
-members = [".", "modules/zolt-build", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
+members = [".", "modules/zolt-build", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
 dependencies = []
 
 [[package]]
@@ -175,7 +186,7 @@ scope = "compile"
 direct = true
 workspace = "modules/zolt-toml"
 workspaceOutput = "target/classes"
-members = [".", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-workspace"]
+members = [".", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-workspace"]
 dependencies = []
 
 [[package]]
@@ -301,7 +312,7 @@ jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platfor
 pom = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.pom"
 jarSha256 = "b016ef6b1c3454d6d7c2c88ce081dabf289699686af6622d6e4e2e1b54b4a2fc"
 pomSha256 = "f44619c18edb94360cc382e6baf943e9300625d1a0a949ee158977eace5713d1"
-members = [".", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-model", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
+members = [".", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-model", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
 dependencies = []
 
 [[package]]
