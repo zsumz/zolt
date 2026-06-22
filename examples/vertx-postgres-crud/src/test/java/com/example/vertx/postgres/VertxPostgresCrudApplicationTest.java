@@ -174,6 +174,12 @@ final class VertxPostgresCrudApplicationTest {
             assertTrue(updated.body().contains("\"title\":\"renamed\""));
             assertTrue(updated.body().contains("\"body\":\"updated body\""));
 
+            HttpResult updatedRead = request("GET", server.port(), "/notes/1", null);
+            assertEquals(200, updatedRead.status());
+            assertJson(updatedRead);
+            assertTrue(updatedRead.body().contains("\"title\":\"renamed\""));
+            assertTrue(updatedRead.body().contains("\"body\":\"updated body\""));
+
             HttpResult missingUpdate = request(
                     "PUT",
                     server.port(),
@@ -195,6 +201,11 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(404, missing.status());
             assertJson(missing);
             assertTrue(missing.body().contains("note 1 was not found"));
+
+            HttpResult listedAfterDelete = request("GET", server.port(), "/notes", null);
+            assertEquals(200, listedAfterDelete.status());
+            assertJson(listedAfterDelete);
+            assertTrue(listedAfterDelete.body().contains("[]"));
         });
     }
 
