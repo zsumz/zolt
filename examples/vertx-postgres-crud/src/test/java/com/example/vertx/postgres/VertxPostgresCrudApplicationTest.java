@@ -254,7 +254,7 @@ final class VertxPostgresCrudApplicationTest {
                     "PUT",
                     server.port(),
                     "/notes/1",
-                    "{\"title\":\"renamed\",\"body\":\"updated body\"}");
+                    "{\"title\":\"  renamed  \",\"body\":\"  updated body  \"}");
             assertEquals(200, updated.status());
             assertJson(updated);
             assertTrue(updated.body().contains("\"title\":\"renamed\""));

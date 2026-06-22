@@ -70,6 +70,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
         assertTrue(readme.contains("Create/update request bodies must be JSON objects, not arrays or scalar JSON values."));
         assertTrue(readme.contains("Create/update JSON bodies may only contain `title` and `body`."));
+        assertTrue(readme.contains("Leading and trailing whitespace is trimmed from `title` and `body`."));
         assertTrue(readme.contains("Titles are limited to 120 characters; bodies are limited to 4000 characters."));
         assertTrue(readme.contains("Request bodies are limited to 8192 bytes."));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
