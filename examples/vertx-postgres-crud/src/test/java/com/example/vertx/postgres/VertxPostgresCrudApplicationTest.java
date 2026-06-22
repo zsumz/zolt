@@ -4,11 +4,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 final class VertxPostgresCrudApplicationTest {
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+
     @Test
     void parsesPostgresAndHttpConfiguration() {
         VertxPostgresCrudApplication.AppConfig config = VertxPostgresCrudApplication.AppConfig.from(
@@ -82,5 +99,153 @@ final class VertxPostgresCrudApplicationTest {
         assertEquals(42L, json.getLong("id"));
         assertEquals("first", json.getString("title"));
         assertEquals("hello", json.getString("body"));
+    }
+
+    @Test
+    void servesCrudRoutesThroughRepository() throws Exception {
+        withServer(new FakeNotesRepository(), server -> {
+            HttpResult health = request("GET", server.port(), "/health", null);
+            assertEquals(200, health.status());
+            assertTrue(health.body().contains("\"status\":\"ok\""));
+
+            HttpResult created = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first note\",\"body\":\"hello\"}");
+            assertEquals(201, created.status());
+            assertTrue(created.body().contains("\"id\":1"));
+            assertTrue(created.body().contains("\"title\":\"first note\""));
+            assertTrue(created.body().contains("\"body\":\"hello\""));
+
+            HttpResult listed = request("GET", server.port(), "/notes", null);
+            assertEquals(200, listed.status());
+            assertTrue(listed.body().contains("\"id\":1"));
+
+            HttpResult found = request("GET", server.port(), "/notes/1", null);
+            assertEquals(200, found.status());
+            assertTrue(found.body().contains("\"title\":\"first note\""));
+
+            HttpResult updated = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"renamed\",\"body\":\"updated body\"}");
+            assertEquals(200, updated.status());
+            assertTrue(updated.body().contains("\"title\":\"renamed\""));
+            assertTrue(updated.body().contains("\"body\":\"updated body\""));
+
+            HttpResult deleted = request("DELETE", server.port(), "/notes/1", null);
+            assertEquals(204, deleted.status());
+
+            HttpResult missing = request("GET", server.port(), "/notes/1", null);
+            assertEquals(404, missing.status());
+            assertTrue(missing.body().contains("note 1 was not found"));
+        });
+    }
+
+    @Test
+    void reportsRouteValidationErrors() throws Exception {
+        withServer(new FakeNotesRepository(), server -> {
+            HttpResult malformedBody = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"missing body\"}");
+            assertEquals(400, malformedBody.status());
+            assertTrue(malformedBody.body().contains("body must be a non-empty string"));
+
+            HttpResult badId = request("GET", server.port(), "/notes/not-a-number", null);
+            assertEquals(400, badId.status());
+            assertTrue(badId.body().contains("note id must be a positive integer"));
+        });
+    }
+
+    private static void withServer(FakeNotesRepository repository, ServerExercise exercise) throws Exception {
+        Vertx vertx = Vertx.vertx();
+        HttpServer server = null;
+        try {
+            try {
+                server = VertxPostgresCrudApplication.start(vertx, repository, 0)
+                        .toCompletionStage()
+                        .toCompletableFuture()
+                        .get(10, TimeUnit.SECONDS);
+            } catch (ExecutionException exception) {
+                Assumptions.assumeTrue(false, "loopback sockets unavailable: " + exception.getCause());
+                return;
+            }
+            exercise.run(new ServerContext(server.actualPort()));
+        } finally {
+            if (server != null) {
+                server.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+            }
+            vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static HttpResult request(String method, int port, String path, String body) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                .timeout(Duration.ofSeconds(10));
+        if (body == null) {
+            builder.method(method, HttpRequest.BodyPublishers.noBody());
+        } else {
+            builder.header("content-type", "application/json")
+                    .method(method, HttpRequest.BodyPublishers.ofString(body));
+        }
+        HttpResponse<String> response = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        return new HttpResult(response.statusCode(), response.body());
+    }
+
+    private record ServerContext(int port) {
+    }
+
+    private record HttpResult(int status, String body) {
+    }
+
+    @FunctionalInterface
+    private interface ServerExercise {
+        void run(ServerContext server) throws Exception;
+    }
+
+    private static final class FakeNotesRepository implements VertxPostgresCrudApplication.NotesRepository {
+        private final Map<Long, VertxPostgresCrudApplication.Note> notes = new LinkedHashMap<>();
+        private long nextId = 1;
+
+        @Override
+        public Future<Void> init() {
+            return Future.succeededFuture();
+        }
+
+        @Override
+        public Future<VertxPostgresCrudApplication.Note> create(String title, String body) {
+            VertxPostgresCrudApplication.Note note = new VertxPostgresCrudApplication.Note(nextId++, title, body);
+            notes.put(note.id(), note);
+            return Future.succeededFuture(note);
+        }
+
+        @Override
+        public Future<List<VertxPostgresCrudApplication.Note>> list() {
+            return Future.succeededFuture(new ArrayList<>(notes.values()));
+        }
+
+        @Override
+        public Future<Optional<VertxPostgresCrudApplication.Note>> find(long id) {
+            return Future.succeededFuture(Optional.ofNullable(notes.get(id)));
+        }
+
+        @Override
+        public Future<Optional<VertxPostgresCrudApplication.Note>> update(long id, String title, String body) {
+            if (!notes.containsKey(id)) {
+                return Future.succeededFuture(Optional.empty());
+            }
+            VertxPostgresCrudApplication.Note note = new VertxPostgresCrudApplication.Note(id, title, body);
+            notes.put(id, note);
+            return Future.succeededFuture(Optional.of(note));
+        }
+
+        @Override
+        public Future<Boolean> delete(long id) {
+            return Future.succeededFuture(notes.remove(id) != null);
+        }
     }
 }
