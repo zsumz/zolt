@@ -39,9 +39,27 @@ public final class PomDependencyManager {
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {
         return pom.rawPom().dependencies().stream()
-                .filter(dependency -> !dependency.optional())
+                .filter(PomDependencyManager::entersTransitiveGraphBeforeInterpolation)
                 .map(dependency -> applyManagedVersion(dependency, pom))
+                .filter(PomDependencyManager::entersTransitiveGraph)
                 .toList();
+    }
+
+    private static boolean entersTransitiveGraphBeforeInterpolation(RawPomDependency dependency) {
+        return !dependency.optional()
+                && dependency.scope()
+                        .map(PomDependencyManager::entersTransitiveGraph)
+                        .orElse(true);
+    }
+
+    private static boolean entersTransitiveGraph(RawPomDependency dependency) {
+        return dependency.scope()
+                .map(PomDependencyManager::entersTransitiveGraph)
+                .orElse(true);
+    }
+
+    private static boolean entersTransitiveGraph(String scope) {
+        return !"test".equals(scope) && !"provided".equals(scope);
     }
 
     private Map<ManagedDependencyKey, RawPomDependency> managedDependencies(EffectiveRawPom pom) {

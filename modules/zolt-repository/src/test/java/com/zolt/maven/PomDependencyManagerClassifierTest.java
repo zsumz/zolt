@@ -104,4 +104,66 @@ final class PomDependencyManagerClassifierTest {
         assertEquals("org.slf4j", dependencies.getFirst().groupId());
         assertEquals("slf4j-api", dependencies.getFirst().artifactId());
     }
+
+    @Test
+    void testScopedClassifierDependenciesAreSkippedBeforeInterpolation() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>software.amazon.cryptools</groupId>
+                      <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+                      <version>2.5.0</version>
+                      <classifier>${corretto.classifier}</classifier>
+                      <scope>test</scope>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>2.0.17</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        java.util.List<RawPomDependency> dependencies = manager.applyManagedVersions(pom);
+
+        assertEquals(1, dependencies.size());
+        assertEquals("org.slf4j", dependencies.getFirst().groupId());
+        assertEquals("slf4j-api", dependencies.getFirst().artifactId());
+    }
+
+    @Test
+    void providedScopedClassifierDependenciesAreSkippedBeforeInterpolation() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.netty</groupId>
+                      <artifactId>netty-transport-native-epoll</artifactId>
+                      <version>4.2.12.Final</version>
+                      <classifier>${os.detected.classifier}</classifier>
+                      <scope>provided</scope>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>2.0.17</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        java.util.List<RawPomDependency> dependencies = manager.applyManagedVersions(pom);
+
+        assertEquals(1, dependencies.size());
+        assertEquals("org.slf4j", dependencies.getFirst().groupId());
+        assertEquals("slf4j-api", dependencies.getFirst().artifactId());
+    }
 }
