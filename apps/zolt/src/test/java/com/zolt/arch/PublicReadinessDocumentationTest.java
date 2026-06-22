@@ -163,4 +163,24 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains("This is canary support, not broad real-app native-image support"));
         assertTrue(springBootReadiness.contains("proven Spring Boot 3.3 WebMVC Java 21 shape until broader fixtures pass"));
     }
+
+    @Test
+    void vertxPostgresReadinessStaysSpecificUntilSmokesExist() throws IOException {
+        String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
+        String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
+        String vertxReadiness = Files.readString(RepositoryPaths.root().resolve("docs/vertx-readiness.md"));
+
+        assertTrue(frameworkReadiness.contains("Vert.x PostgreSQL CRUD readiness is designed but not implemented"));
+        assertTrue(frameworkReadiness.contains("should not be claimed until the real JVM and native smokes pass against PostgreSQL"));
+        assertTrue(nativeGraalvm.contains("not claimed until `scripts/smoke-vertx-postgres-crud` and `scripts/smoke-vertx-postgres-native` exist and pass"));
+        assertTrue(vertxReadiness.contains("## PostgreSQL CRUD Readiness Target"));
+        assertTrue(vertxReadiness.contains("`io.vertx:vertx-web`"));
+        assertTrue(vertxReadiness.contains("`io.vertx:vertx-pg-client`"));
+        assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-crud"));
+        assertTrue(vertxReadiness.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
+        assertTrue(vertxReadiness.contains("The smoke must run a real executable; building a binary without launching it is not enough."));
+        assertFalse(
+                vertxReadiness.contains("broad Vert.x native-image support"),
+                "Vert.x readiness must not broaden the native-image claim before database-backed smokes pass");
+    }
 }
