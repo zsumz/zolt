@@ -230,13 +230,18 @@ public final class VertxPostgresCrudApplication {
         }
 
         private static String portArg(String[] args) {
+            String port = null;
             for (String arg : args) {
                 if (arg.startsWith("--port=")) {
-                    return arg.substring("--port=".length());
+                    if (port != null) {
+                        throw new IllegalArgumentException("Duplicate argument --port. Use --port=<port> once.");
+                    }
+                    port = arg.substring("--port=".length());
+                    continue;
                 }
                 throw new IllegalArgumentException("Unsupported argument " + arg + ". Use --port=<port>.");
             }
-            return null;
+            return port;
         }
 
         private static String required(Map<String, String> env, String key) {

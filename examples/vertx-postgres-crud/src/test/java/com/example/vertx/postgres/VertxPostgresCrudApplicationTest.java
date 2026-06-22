@@ -93,6 +93,36 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void rejectsUnsupportedArgumentAfterPort() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(
+                        new String[] {"--port=18100", "--debug"},
+                        Map.of(
+                                "PGHOST", "127.0.0.1",
+                                "PGPORT", "5432",
+                                "PGDATABASE", "zolt_vertx",
+                                "PGUSER", "zolt",
+                                "PGPASSWORD", "secret")));
+
+        assertEquals("Unsupported argument --debug. Use --port=<port>.", exception.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicatePortArgument() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(
+                        new String[] {"--port=18100", "--port=18101"},
+                        Map.of(
+                                "PGHOST", "127.0.0.1",
+                                "PGPORT", "5432",
+                                "PGDATABASE", "zolt_vertx",
+                                "PGUSER", "zolt",
+                                "PGPASSWORD", "secret")));
+
+        assertEquals("Duplicate argument --port. Use --port=<port> once.", exception.getMessage());
+    }
+
+    @Test
     void defaultsNotesTable() {
         VertxPostgresCrudApplication.AppConfig config = VertxPostgresCrudApplication.AppConfig.from(
                 new String[0],
