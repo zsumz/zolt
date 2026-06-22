@@ -78,6 +78,21 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void rejectsUnsupportedArgument() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(
+                        new String[] {"--por=18100"},
+                        Map.of(
+                                "PGHOST", "127.0.0.1",
+                                "PGPORT", "5432",
+                                "PGDATABASE", "zolt_vertx",
+                                "PGUSER", "zolt",
+                                "PGPASSWORD", "secret")));
+
+        assertEquals("Unsupported argument --por=18100. Use --port=<port>.", exception.getMessage());
+    }
+
+    @Test
     void defaultsNotesTable() {
         VertxPostgresCrudApplication.AppConfig config = VertxPostgresCrudApplication.AppConfig.from(
                 new String[0],

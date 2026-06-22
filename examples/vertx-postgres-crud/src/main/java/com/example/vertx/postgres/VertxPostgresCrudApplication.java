@@ -234,6 +234,7 @@ public final class VertxPostgresCrudApplication {
                 if (arg.startsWith("--port=")) {
                     return arg.substring("--port=".length());
                 }
+                throw new IllegalArgumentException("Unsupported argument " + arg + ". Use --port=<port>.");
             }
             return null;
         }

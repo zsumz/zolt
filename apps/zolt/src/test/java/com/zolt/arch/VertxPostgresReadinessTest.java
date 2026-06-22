@@ -67,6 +67,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Database operation failures return `500` JSON errors."));
         assertTrue(readme.contains("JSON responses use `content-type: application/json`; successful deletes return `204` with no response body."));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
+        assertTrue(readme.contains("Unsupported command-line arguments fail with a usage hint instead of being ignored."));
         assertTrue(readme.contains("PGNOTES_TABLE"));
         assertTrue(readme.contains("Updating or deleting a missing note returns a `404` JSON error."));
         assertTrue(readme.contains("http://127.0.0.1:18092/notes/not-a-number"));
