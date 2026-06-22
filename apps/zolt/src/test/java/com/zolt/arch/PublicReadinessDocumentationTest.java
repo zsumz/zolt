@@ -170,16 +170,16 @@ final class PublicReadinessDocumentationTest {
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
         String vertxReadiness = Files.readString(RepositoryPaths.root().resolve("docs/vertx-readiness.md"));
 
-        assertTrue(frameworkReadiness.contains("Vert.x PostgreSQL CRUD still needs DB-backed JVM and native smoke evidence"));
+        assertTrue(frameworkReadiness.contains("Vert.x PostgreSQL CRUD still needs DB-backed JVM and native smoke evidence before readiness is claimed"));
         assertTrue(frameworkReadiness.contains("should not be claimed until the real JVM and native smokes pass against PostgreSQL"));
-        assertTrue(nativeGraalvm.contains("the explicit native settings have produced a real executable"));
-        assertTrue(nativeGraalvm.contains("not claimed until `scripts/smoke-vertx-postgres-crud` and `scripts/smoke-vertx-postgres-native` pass"));
+        assertTrue(nativeGraalvm.contains("CRUD, validation, response-header, cleanup, and real-executable probes"));
+        assertTrue(nativeGraalvm.contains("not claimed until both scripts pass against a real PostgreSQL database"));
         assertTrue(vertxReadiness.contains("## PostgreSQL CRUD Readiness Target"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-web`"));
         assertTrue(vertxReadiness.contains("`io.vertx:vertx-pg-client`"));
         assertTrue(vertxReadiness.contains("The fixture project now exists with Vert.x Web routes"));
         assertTrue(vertxReadiness.contains("`scripts/smoke-vertx-postgres-crud` and `scripts/smoke-vertx-postgres-native` also exist and fail early with setup guidance"));
-        assertTrue(vertxReadiness.contains("Those smokes capture response headers and require JSON-bearing responses to declare `content-type: application/json`."));
+        assertTrue(vertxReadiness.contains("Those smokes capture response headers, require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`, and drop their external database table during cleanup when `psql` is available."));
         assertTrue(vertxReadiness.contains("A local build check has produced a real `vertx-postgres-crud` Native Image executable"));
         assertTrue(vertxReadiness.contains("Woodpecker has a manual heavy pipeline for the database-backed gates"));
         assertTrue(vertxReadiness.contains("--initialize-at-run-time=io.netty.channel,io.netty.handler.ssl"));
