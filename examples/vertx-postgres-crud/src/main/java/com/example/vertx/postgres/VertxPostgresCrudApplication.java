@@ -25,6 +25,7 @@ public final class VertxPostgresCrudApplication {
     private static final String DEFAULT_NOTES_TABLE = "zolt_notes";
     private static final int MAX_TITLE_LENGTH = 120;
     private static final int MAX_BODY_LENGTH = 4_000;
+    private static final long MAX_REQUEST_BODY_BYTES = 8_192;
 
     private VertxPostgresCrudApplication() {
     }
@@ -65,7 +66,8 @@ public final class VertxPostgresCrudApplication {
 
     static Router router(Vertx vertx, NotesRepository repository) {
         Router router = Router.router(vertx);
-        router.route().handler(BodyHandler.create());
+        router.route().handler(BodyHandler.create().setBodyLimit(MAX_REQUEST_BODY_BYTES));
+        router.route().failureHandler(VertxPostgresCrudApplication::routeFailure);
         router.get("/health").handler(VertxPostgresCrudApplication::health);
         router.route("/health").handler(context -> methodNotAllowed(context, "GET"));
         router.post("/notes").handler(context -> createNote(context, repository));
@@ -228,6 +230,21 @@ public final class VertxPostgresCrudApplication {
     private static void methodNotAllowed(RoutingContext context, String allow) {
         context.response().putHeader("allow", allow);
         json(context, 405, new JsonObject().put("error", "method not allowed"));
+    }
+
+    private static void routeFailure(RoutingContext context) {
+        if (context.statusCode() == 413) {
+            json(context, 413, new JsonObject().put(
+                    "error",
+                    "request body must be at most " + MAX_REQUEST_BODY_BYTES + " bytes"));
+            return;
+        }
+        Throwable failure = context.failure();
+        if (failure == null) {
+            json(context, 500, new JsonObject().put("error", "request failed"));
+        } else {
+            serverError(context, failure);
+        }
     }
 
     private static void serverError(RoutingContext context, Throwable error) {

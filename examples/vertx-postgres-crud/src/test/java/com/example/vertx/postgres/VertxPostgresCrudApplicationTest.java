@@ -362,6 +362,15 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(oversizedCreateBody);
             assertTrue(oversizedCreateBody.body().contains("body must be at most 4000 characters"));
 
+            HttpResult oversizedCreateRequest = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first\",\"body\":\"" + "z".repeat(9000) + "\"}");
+            assertEquals(413, oversizedCreateRequest.status());
+            assertJson(oversizedCreateRequest);
+            assertTrue(oversizedCreateRequest.body().contains("request body must be at most 8192 bytes"));
+
             HttpResult missingCreateContentType = requestWithContentType(
                     "POST",
                     server.port(),
@@ -444,6 +453,15 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, oversizedUpdateBody.status());
             assertJson(oversizedUpdateBody);
             assertTrue(oversizedUpdateBody.body().contains("body must be at most 4000 characters"));
+
+            HttpResult oversizedUpdateRequest = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"first\",\"body\":\"" + "z".repeat(9000) + "\"}");
+            assertEquals(413, oversizedUpdateRequest.status());
+            assertJson(oversizedUpdateRequest);
+            assertTrue(oversizedUpdateRequest.body().contains("request body must be at most 8192 bytes"));
 
             HttpResult textUpdateContentType = requestWithContentType(
                     "PUT",
