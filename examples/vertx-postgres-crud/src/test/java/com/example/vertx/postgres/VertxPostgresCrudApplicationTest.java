@@ -244,6 +244,22 @@ final class VertxPostgresCrudApplicationTest {
             HttpResult zeroDeleteId = request("DELETE", server.port(), "/notes/0", null);
             assertEquals(400, zeroDeleteId.status());
             assertTrue(zeroDeleteId.body().contains("note id must be a positive integer"));
+
+            HttpResult negativeReadId = request("GET", server.port(), "/notes/-1", null);
+            assertEquals(400, negativeReadId.status());
+            assertTrue(negativeReadId.body().contains("note id must be a positive integer"));
+
+            HttpResult negativeUpdateId = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/-1",
+                    "{\"title\":\"negative\",\"body\":\"invalid\"}");
+            assertEquals(400, negativeUpdateId.status());
+            assertTrue(negativeUpdateId.body().contains("note id must be a positive integer"));
+
+            HttpResult negativeDeleteId = request("DELETE", server.port(), "/notes/-1", null);
+            assertEquals(400, negativeDeleteId.status());
+            assertTrue(negativeDeleteId.body().contains("note id must be a positive integer"));
         });
     }
 
