@@ -85,6 +85,12 @@ public final class SelfCheckService {
             Path nativeImageExecutable) {
         Path root = projectDirectory.toAbsolutePath().normalize();
         List<SelfCheckResult.SelfCheckStep> steps = new ArrayList<>();
+
+        if (WorkspaceSelfCheckService.usesRealWorkspace(root)) {
+            return new WorkspaceSelfCheckService(nativeBinaryRunner)
+                    .check(root, cacheRoot, offline, nativeCheck, nativeImageExecutable, steps);
+        }
+
         ProjectConfig config;
         try {
             config = tomlParser.parse(root.resolve("zolt.toml"));
@@ -102,11 +108,6 @@ public final class SelfCheckService {
                         : firstFailure(readiness)));
         if (!readiness.ok()) {
             return new SelfCheckResult(steps);
-        }
-
-        if (WorkspaceSelfCheckService.usesRealWorkspace(root)) {
-            return new WorkspaceSelfCheckService(nativeBinaryRunner)
-                    .check(root, cacheRoot, offline, nativeCheck, nativeImageExecutable, config, steps);
         }
 
         ResolveResult resolveResult;

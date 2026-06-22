@@ -9,6 +9,8 @@ import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceDiscoveryService;
+import com.zolt.workspace.WorkspaceMember;
+import com.zolt.workspace.WorkspaceMemberSelector;
 import com.zolt.workspace.WorkspaceNativeBuildResult;
 import com.zolt.workspace.WorkspaceNativeBuildService;
 import com.zolt.workspace.WorkspacePackageResult;
@@ -16,6 +18,7 @@ import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceResolveService;
 import com.zolt.workspace.WorkspaceRunPackageResult;
 import com.zolt.workspace.WorkspaceRunPackageService;
+import com.zolt.workspace.WorkspaceSelection;
 import com.zolt.workspace.WorkspaceSelectionRequest;
 import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
@@ -36,9 +39,15 @@ final class WorkspaceSelfCheckService {
             boolean offline,
             boolean nativeCheck,
             Path nativeImageExecutable,
-            ProjectConfig config,
             List<SelfCheckResult.SelfCheckStep> steps) {
         WorkspaceSelectionRequest appSelection = WorkspaceSelectionRequest.defaults();
+        ProjectConfig config;
+        try {
+            config = selectedAppConfig(root);
+        } catch (RuntimeException exception) {
+            steps.add(failed("workspace app config", exception.getMessage()));
+            return new SelfCheckResult(steps);
+        }
         try {
             ResolveResult resolveResult = new WorkspaceResolveService().resolve(root, cacheRoot, true, offline);
             steps.add(new SelfCheckResult.SelfCheckStep(
@@ -113,6 +122,22 @@ final class WorkspaceSelfCheckService {
         return workspace.stream()
                 .flatMap(value -> value.members().stream())
                 .anyMatch(member -> !member.path().equals("."));
+    }
+
+    static ProjectConfig selectedAppConfig(Path root) {
+        Workspace workspace = new WorkspaceDiscoveryService()
+                .discover(root)
+                .orElseThrow(() -> new IllegalStateException("No zolt-workspace.toml found for self-check."));
+        WorkspaceSelection selection = new WorkspaceMemberSelector().select(workspace, WorkspaceSelectionRequest.defaults());
+        String selectedMember = selection.selectedMembers().stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("workspace self-check selected no application member."));
+        return workspace.members().stream()
+                .filter(member -> member.path().equals(selectedMember))
+                .findFirst()
+                .map(WorkspaceMember::config)
+                .orElseThrow(() -> new IllegalStateException(
+                        "workspace self-check selected unknown application member `" + selectedMember + "`."));
     }
 
     private SelfCheckResult checkNative(

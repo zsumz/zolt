@@ -1,0 +1,60 @@
+package com.zolt.selfhost;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class WorkspaceSelfCheckServiceTest {
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void realWorkspaceDoesNotNeedRootProjectConfigToSelectAppVersion() throws IOException {
+        writeWorkspaceApp(tempDir);
+
+        assertTrue(WorkspaceSelfCheckService.usesRealWorkspace(tempDir));
+        assertEquals("0.2.0", WorkspaceSelfCheckService.selectedAppConfig(tempDir).project().version());
+    }
+
+    private static void writeWorkspaceApp(Path root) throws IOException {
+        Path app = root.resolve("apps/zolt");
+        Files.createDirectories(app.resolve("src/main/java"));
+        Files.createDirectories(app.resolve("src/test/java"));
+        Files.writeString(root.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "zolt"
+                members = ["apps/zolt"]
+                defaultMembers = ["apps/zolt"]
+                """);
+        Files.writeString(app.resolve("zolt.toml"), """
+                [project]
+                name = "zolt"
+                version = "0.2.0"
+                group = "com.zolt"
+                java = "21"
+                main = "com.zolt.cli.ZoltCli"
+
+                [repositories]
+                central = "https://repo.maven.apache.org/maven2"
+
+                [test.dependencies]
+                "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+
+                [native]
+                imageName = "zolt"
+                output = "target/native"
+                args = ["--no-fallback"]
+                """);
+    }
+}
