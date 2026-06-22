@@ -232,7 +232,7 @@ final class VertxPostgresCrudApplicationTest {
                     "POST",
                     server.port(),
                     "/notes",
-                    "{\"title\":\"first note\",\"body\":\"hello\"}");
+                    "{\"title\":\"  first note  \",\"body\":\"  hello  \"}");
             assertEquals(201, created.status());
             assertJson(created);
             assertTrue(created.body().contains("\"id\":1"));
