@@ -263,7 +263,31 @@ final class VertxPostgresCrudApplicationTest {
         });
     }
 
-    private static void withServer(FakeNotesRepository repository, ServerExercise exercise) throws Exception {
+    @Test
+    void reportsRepositoryFailuresAsJsonErrors() throws Exception {
+        withServer(new FailingNotesRepository(), server -> {
+            assertRepositoryFailure(request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first note\",\"body\":\"hello\"}"));
+            assertRepositoryFailure(request("GET", server.port(), "/notes", null));
+            assertRepositoryFailure(request("GET", server.port(), "/notes/1", null));
+            assertRepositoryFailure(request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"renamed\",\"body\":\"updated body\"}"));
+            assertRepositoryFailure(request("DELETE", server.port(), "/notes/1", null));
+        });
+    }
+
+    private static void assertRepositoryFailure(HttpResult response) {
+        assertEquals(500, response.status());
+        assertTrue(response.body().contains("database operation failed: simulated repository failure"));
+    }
+
+    private static void withServer(VertxPostgresCrudApplication.NotesRepository repository, ServerExercise exercise) throws Exception {
         Vertx vertx = Vertx.vertx();
         HttpServer server = null;
         try {
@@ -348,6 +372,42 @@ final class VertxPostgresCrudApplicationTest {
         @Override
         public Future<Boolean> delete(long id) {
             return Future.succeededFuture(notes.remove(id) != null);
+        }
+    }
+
+    private static final class FailingNotesRepository implements VertxPostgresCrudApplication.NotesRepository {
+        @Override
+        public Future<Void> init() {
+            return Future.succeededFuture();
+        }
+
+        @Override
+        public Future<VertxPostgresCrudApplication.Note> create(String title, String body) {
+            return failed();
+        }
+
+        @Override
+        public Future<List<VertxPostgresCrudApplication.Note>> list() {
+            return failed();
+        }
+
+        @Override
+        public Future<Optional<VertxPostgresCrudApplication.Note>> find(long id) {
+            return failed();
+        }
+
+        @Override
+        public Future<Optional<VertxPostgresCrudApplication.Note>> update(long id, String title, String body) {
+            return failed();
+        }
+
+        @Override
+        public Future<Boolean> delete(long id) {
+            return failed();
+        }
+
+        private static <T> Future<T> failed() {
+            return Future.failedFuture(new IllegalStateException("simulated repository failure"));
         }
     }
 }
