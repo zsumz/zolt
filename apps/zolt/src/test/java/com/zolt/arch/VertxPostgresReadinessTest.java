@@ -45,6 +45,8 @@ final class VertxPostgresReadinessTest {
         assertTrue(zoltToml.contains("\"io.vertx:vertx-web\" = {}"));
         assertTrue(zoltToml.contains("\"io.vertx:vertx-pg-client\" = {}"));
         assertTrue(zoltToml.contains("\"org.slf4j:slf4j-simple\" = \"2.0.17\""));
+        assertTrue(zoltToml.contains("[runtime.dependencies]"));
+        assertTrue(zoltToml.contains("\"com.ongres.scram:client\" = \"2.1\""));
 
         assertTrue(zoltToml.contains("[native]"));
         assertTrue(zoltToml.contains("imageName = \"vertx-postgres-crud\""));
@@ -71,6 +73,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Deleting one note does not remove unrelated notes from later list responses."));
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
         assertTrue(readme.contains("`application/json` with a charset parameter is accepted."));
+        assertTrue(readme.contains("`com.ongres.scram:client` as a runtime-only dependency for PostgreSQL SCRAM/SASL authentication."));
         assertTrue(readme.contains("Create/update request bodies must be JSON objects, not arrays or scalar JSON values."));
         assertTrue(readme.contains("Create/update JSON bodies may only contain `title` and `body`."));
         assertTrue(readme.contains("`title` and `body` must be non-empty strings."));
