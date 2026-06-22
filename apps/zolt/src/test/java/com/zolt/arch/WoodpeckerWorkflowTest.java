@@ -38,7 +38,13 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("- vertx_postgres_jvm_smoke"));
         assertTrue(workflow.contains("vertx_postgres_jvm_logs:"));
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.txt"));
+        assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.json"));
+        assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.headers"));
+        assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.body"));
         assertTrue(workflow.contains("vertx_postgres_native_logs:"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.json"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.headers"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*.body"));
         assertTrue(workflow.contains("target/vertx-postgres-native-smoke/*/target/native/native-image.log"));
     }
 
