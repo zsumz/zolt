@@ -23,6 +23,8 @@ import java.util.Optional;
 public final class VertxPostgresCrudApplication {
     private static final int DEFAULT_HTTP_PORT = 18092;
     private static final String DEFAULT_NOTES_TABLE = "zolt_notes";
+    private static final int MAX_TITLE_LENGTH = 120;
+    private static final int MAX_BODY_LENGTH = 4_000;
 
     private VertxPostgresCrudApplication() {
     }
@@ -343,17 +345,21 @@ public final class VertxPostgresCrudApplication {
                     throw new IllegalArgumentException("request body may only contain title and body");
                 }
             }
-            String title = stringField(json, "title");
-            String body = stringField(json, "body");
+            String title = stringField(json, "title", MAX_TITLE_LENGTH);
+            String body = stringField(json, "body", MAX_BODY_LENGTH);
             return new NoteInput(title, body);
         }
 
-        private static String stringField(JsonObject json, String field) {
+        private static String stringField(JsonObject json, String field, int maxLength) {
             Object value = json.getValue(field);
             if (!(value instanceof String text) || text.isBlank()) {
                 throw new IllegalArgumentException(field + " must be a non-empty string");
             }
-            return text.trim();
+            String trimmed = text.trim();
+            if (trimmed.length() > maxLength) {
+                throw new IllegalArgumentException(field + " must be at most " + maxLength + " characters");
+            }
+            return trimmed;
         }
     }
 

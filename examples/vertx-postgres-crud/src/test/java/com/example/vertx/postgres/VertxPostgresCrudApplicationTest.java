@@ -183,6 +183,21 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void rejectsOversizedNoteInputFields() {
+        IllegalArgumentException titleException = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.NoteInput.from(new JsonObject()
+                        .put("title", "t".repeat(121))
+                        .put("body", "hello")));
+        assertEquals("title must be at most 120 characters", titleException.getMessage());
+
+        IllegalArgumentException bodyException = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.NoteInput.from(new JsonObject()
+                        .put("title", "first")
+                        .put("body", "b".repeat(4001))));
+        assertEquals("body must be at most 4000 characters", bodyException.getMessage());
+    }
+
+    @Test
     void serializesNoteResponse() {
         JsonObject json = new VertxPostgresCrudApplication.Note(42, "first", "hello").toJson();
 
@@ -329,6 +344,24 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(unknownCreateField);
             assertTrue(unknownCreateField.body().contains("request body may only contain title and body"));
 
+            HttpResult oversizedCreateTitle = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"" + "t".repeat(121) + "\",\"body\":\"hello\"}");
+            assertEquals(400, oversizedCreateTitle.status());
+            assertJson(oversizedCreateTitle);
+            assertTrue(oversizedCreateTitle.body().contains("title must be at most 120 characters"));
+
+            HttpResult oversizedCreateBody = request(
+                    "POST",
+                    server.port(),
+                    "/notes",
+                    "{\"title\":\"first\",\"body\":\"" + "b".repeat(4001) + "\"}");
+            assertEquals(400, oversizedCreateBody.status());
+            assertJson(oversizedCreateBody);
+            assertTrue(oversizedCreateBody.body().contains("body must be at most 4000 characters"));
+
             HttpResult missingCreateContentType = requestWithContentType(
                     "POST",
                     server.port(),
@@ -393,6 +426,24 @@ final class VertxPostgresCrudApplicationTest {
             assertEquals(400, unknownUpdateField.status());
             assertJson(unknownUpdateField);
             assertTrue(unknownUpdateField.body().contains("request body may only contain title and body"));
+
+            HttpResult oversizedUpdateTitle = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"" + "t".repeat(121) + "\",\"body\":\"hello\"}");
+            assertEquals(400, oversizedUpdateTitle.status());
+            assertJson(oversizedUpdateTitle);
+            assertTrue(oversizedUpdateTitle.body().contains("title must be at most 120 characters"));
+
+            HttpResult oversizedUpdateBody = request(
+                    "PUT",
+                    server.port(),
+                    "/notes/1",
+                    "{\"title\":\"first\",\"body\":\"" + "b".repeat(4001) + "\"}");
+            assertEquals(400, oversizedUpdateBody.status());
+            assertJson(oversizedUpdateBody);
+            assertTrue(oversizedUpdateBody.body().contains("body must be at most 4000 characters"));
 
             HttpResult textUpdateContentType = requestWithContentType(
                     "PUT",
