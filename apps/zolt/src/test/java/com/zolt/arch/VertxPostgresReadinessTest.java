@@ -1,0 +1,60 @@
+package com.zolt.arch;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+
+final class VertxPostgresReadinessTest {
+    private static final Path EXAMPLE = RepositoryPaths.root().resolve("examples/vertx-postgres-crud");
+
+    @Test
+    void postgresCrudExampleKeepsZoltOnlyProjectShape() throws IOException {
+        Set<String> forbiddenBuildFiles = Set.of(
+                "pom.xml",
+                "build.gradle",
+                "build.gradle.kts",
+                "settings.gradle",
+                "settings.gradle.kts",
+                "gradlew",
+                "mvnw");
+
+        try (Stream<Path> paths = Files.walk(EXAMPLE)) {
+            assertTrue(
+                    paths.filter(Files::isRegularFile)
+                            .map(path -> path.getFileName().toString())
+                            .noneMatch(forbiddenBuildFiles::contains),
+                    "Vert.x PostgreSQL readiness example must stay free of Maven and Gradle build files");
+        }
+        assertTrue(Files.isRegularFile(EXAMPLE.resolve("zolt.toml")));
+    }
+
+    @Test
+    void postgresCrudExampleKeepsNativeImageContractInProjectConfig() throws IOException {
+        String zoltToml = Files.readString(EXAMPLE.resolve("zolt.toml"));
+
+        assertTrue(zoltToml.contains("main = \"com.example.vertx.postgres.VertxPostgresCrudApplication\""));
+        assertTrue(zoltToml.contains("\"io.vertx:vertx-stack-depchain\" = \"4.5.11\""));
+        assertTrue(zoltToml.contains("\"io.vertx:vertx-core\" = { exclusions = ["));
+        assertTrue(zoltToml.contains("artifact = \"netty-tcnative-boringssl-static\""));
+        assertTrue(zoltToml.contains("\"io.vertx:vertx-web\" = {}"));
+        assertTrue(zoltToml.contains("\"io.vertx:vertx-pg-client\" = {}"));
+        assertTrue(zoltToml.contains("\"org.slf4j:slf4j-simple\" = \"2.0.17\""));
+
+        assertTrue(zoltToml.contains("[native]"));
+        assertTrue(zoltToml.contains("imageName = \"vertx-postgres-crud\""));
+        assertTrue(zoltToml.contains("output = \"target/native\""));
+        assertTrue(zoltToml.contains("\"--no-fallback\""));
+        assertTrue(zoltToml.contains("--initialize-at-run-time=io.netty.channel,io.netty.handler.ssl"));
+        assertTrue(zoltToml.contains("--initialize-at-build-time=io.netty.buffer.UnpooledByteBufAllocator"));
+        assertTrue(zoltToml.contains("org.slf4j"));
+        assertFalse(
+                zoltToml.contains("native-image-agent"),
+                "Vert.x PostgreSQL readiness should not depend on tracing-agent generated configuration");
+    }
+}
