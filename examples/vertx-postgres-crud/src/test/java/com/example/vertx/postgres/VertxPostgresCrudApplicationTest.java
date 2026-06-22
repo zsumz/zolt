@@ -228,11 +228,12 @@ final class VertxPostgresCrudApplicationTest {
             HttpResult itemMethodNotAllowed = request("PATCH", server.port(), "/notes/1", null);
             assertMethodNotAllowed(itemMethodNotAllowed, "DELETE, GET, PUT");
 
-            HttpResult created = request(
+            HttpResult created = requestWithContentType(
                     "POST",
                     server.port(),
                     "/notes",
-                    "{\"title\":\"  first note  \",\"body\":\"  hello  \"}");
+                    "{\"title\":\"  first note  \",\"body\":\"  hello  \"}",
+                    "application/json; charset=utf-8");
             assertEquals(201, created.status());
             assertJson(created);
             assertTrue(created.body().contains("\"id\":1"));
@@ -264,11 +265,12 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(found);
             assertTrue(found.body().contains("\"title\":\"first note\""));
 
-            HttpResult updated = request(
+            HttpResult updated = requestWithContentType(
                     "PUT",
                     server.port(),
                     "/notes/1",
-                    "{\"title\":\"  renamed  \",\"body\":\"  updated body  \"}");
+                    "{\"title\":\"  renamed  \",\"body\":\"  updated body  \"}",
+                    "application/json; charset=utf-8");
             assertEquals(200, updated.status());
             assertJson(updated);
             assertTrue(updated.body().contains("\"title\":\"renamed\""));

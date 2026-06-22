@@ -70,6 +70,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("List responses are ordered by ascending note id."));
         assertTrue(readme.contains("Deleting one note does not remove unrelated notes from later list responses."));
         assertTrue(readme.contains("Create/update request bodies must declare `content-type: application/json`"));
+        assertTrue(readme.contains("`application/json` with a charset parameter is accepted."));
         assertTrue(readme.contains("Create/update request bodies must be JSON objects, not arrays or scalar JSON values."));
         assertTrue(readme.contains("Create/update JSON bodies may only contain `title` and `body`."));
         assertTrue(readme.contains("Leading and trailing whitespace is trimmed from `title` and `body`."));
