@@ -50,79 +50,23 @@ public final class BuildService {
     }
 
     public BuildService(JdkChecker jdkDetector, ResolveService resolveService) {
-        this(
-                resolveService,
-                new ZoltLockfileReader(),
-                new ClasspathBuilder(),
-                new SourceDiscoverer(),
-                new ResourceCopier(),
-                new BuildMetadataGenerator(),
-                new BuildFingerprintService(),
-                jdkDetector,
-                new JavacRunner(),
-                new OpenApiGeneratedSourceService(jdkDetector),
-                new ProtobufGeneratedSourceService(),
-                new IncrementalCompileStateRecorder(),
-                new IncrementalCompilePlanner());
+        this(BuildServiceDependencies.create(jdkDetector, resolveService));
     }
 
-    BuildService(
-            ResolveService resolveService,
-            ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
-            SourceDiscoverer sourceDiscoverer,
-            ResourceCopier resourceCopier,
-            BuildMetadataGenerator buildMetadataGenerator,
-            BuildFingerprintService buildFingerprintService,
-            JdkChecker jdkDetector,
-            JavacRunner javacRunner,
-            OpenApiGeneratedSourceService openApiGeneratedSourceService) {
-        this(
-                resolveService,
-                lockfileReader,
-                classpathBuilder,
-                sourceDiscoverer,
-                resourceCopier,
-                buildMetadataGenerator,
-                buildFingerprintService,
-                jdkDetector,
-                javacRunner,
-                openApiGeneratedSourceService,
-                new ProtobufGeneratedSourceService(),
-                new IncrementalCompileStateRecorder(),
-                new IncrementalCompilePlanner());
-    }
-
-    BuildService(
-            ResolveService resolveService,
-            ZoltLockfileReader lockfileReader,
-            ClasspathBuilder classpathBuilder,
-            SourceDiscoverer sourceDiscoverer,
-            ResourceCopier resourceCopier,
-            BuildMetadataGenerator buildMetadataGenerator,
-            BuildFingerprintService buildFingerprintService,
-            JdkChecker jdkDetector,
-            JavacRunner javacRunner,
-            OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            ProtobufGeneratedSourceService protobufGeneratedSourceService,
-            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
-            IncrementalCompilePlanner incrementalCompilePlanner) {
-        this.resolveService = resolveService;
-        this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
-        this.sourceDiscoverer = sourceDiscoverer;
-        this.resourceCopier = resourceCopier;
-        this.buildMetadataGenerator = buildMetadataGenerator;
-        this.buildFingerprintService = buildFingerprintService;
-        this.jdkDetector = jdkDetector;
-        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
-        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
-        this.springBootAotGenerationService = new SpringBootAotGenerationService(javacRunner);
-        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
-        this.sourceExecutor = new MainCompileSourceExecutor(
-                javacRunner,
-                incrementalCompileStateRecorder,
-                incrementalCompilePlanner);
+    BuildService(BuildServiceDependencies dependencies) {
+        this.resolveService = dependencies.resolveService();
+        this.lockfileReader = dependencies.lockfileReader();
+        this.classpathBuilder = dependencies.classpathBuilder();
+        this.sourceDiscoverer = dependencies.sourceDiscoverer();
+        this.resourceCopier = dependencies.resourceCopier();
+        this.buildMetadataGenerator = dependencies.buildMetadataGenerator();
+        this.buildFingerprintService = dependencies.buildFingerprintService();
+        this.jdkDetector = dependencies.jdkDetector();
+        this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
+        this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
+        this.springBootAotGenerationService = dependencies.springBootAotGenerationService();
+        this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
+        this.sourceExecutor = dependencies.sourceExecutor();
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
