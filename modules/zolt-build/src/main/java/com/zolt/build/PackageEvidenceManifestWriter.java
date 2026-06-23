@@ -3,7 +3,6 @@ package com.zolt.build;
 import static com.zolt.build.PackageEvidenceJsonFields.booleanField;
 import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
 import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.intField;
 import static com.zolt.build.PackageEvidenceJsonFields.nullablePathField;
 import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
 import static com.zolt.build.PackageEvidenceJsonFields.stringArrayField;
@@ -18,11 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
@@ -84,7 +79,7 @@ public final class PackageEvidenceManifestWriter {
         json.append(",\n");
         packageInfo(json, projectRoot, config, plan, result);
         json.append(",\n");
-        artifacts(json, projectRoot, result, artifacts);
+        PackageEvidenceArtifactWriter.write(json, projectRoot, result, artifacts);
         json.append(",\n");
         dependencies(json, plan.dependencies());
         json.append(",\n");
@@ -119,51 +114,8 @@ public final class PackageEvidenceManifestWriter {
         stringField(json, 2, "applicationLayout", plan.applicationLayout(), true);
         nullablePathField(json, 2, "runtimeClasspath", projectRoot, result.runtimeClasspathPath(), true);
         nullableStringField(json, 2, "startClass", config.project().main(), true);
-        stringField(json, 2, "archiveSha256", sha256(result.jarPath()), false);
+        stringField(json, 2, "archiveSha256", PackageEvidenceChecksums.sha256(result.jarPath()), false);
         indent(json, 1).append("}");
-    }
-
-    private static void artifacts(
-            StringBuilder json,
-            Path projectRoot,
-            PackageResult result,
-            List<PackageArtifact> artifacts) {
-        List<ArtifactEvidence> entries = new ArrayList<>();
-        entries.add(new ArtifactEvidence(
-                "main",
-                result.mode().configValue(),
-                result.jarPath(),
-                result.entryCount()));
-        for (PackageArtifact artifact : artifacts.stream()
-                .sorted(Comparator.comparing(PackageArtifact::classifier))
-                .toList()) {
-            entries.add(new ArtifactEvidence(
-                    artifact.classifier(),
-                    "jar",
-                    artifact.path(),
-                    artifact.entryCount()));
-        }
-
-        indent(json, 1).append("\"artifacts\": [");
-        if (!entries.isEmpty()) {
-            json.append('\n');
-            for (int index = 0; index < entries.size(); index++) {
-                ArtifactEvidence entry = entries.get(index);
-                indent(json, 2).append("{\n");
-                stringField(json, 3, "classifier", entry.classifier(), true);
-                stringField(json, 3, "type", entry.type(), true);
-                stringField(json, 3, "path", displayPath(projectRoot, entry.path()), true);
-                intField(json, 3, "entries", entry.entries(), true);
-                stringField(json, 3, "sha256", sha256(entry.path()), false);
-                indent(json, 2).append("}");
-                if (index + 1 < entries.size()) {
-                    json.append(',');
-                }
-                json.append('\n');
-            }
-            indent(json, 1);
-        }
-        json.append("]");
     }
 
     private static void dependencies(StringBuilder json, List<PackagePlanDependency> dependencies) {
@@ -290,7 +242,7 @@ public final class PackageEvidenceManifestWriter {
                 Path path = sorted.get(index);
                 indent(json, level + 1).append("{\n");
                 stringField(json, level + 2, "path", displayPath(projectRoot, path), true);
-                stringField(json, level + 2, "sha256", fileSha256(path), false);
+                stringField(json, level + 2, "sha256", PackageEvidenceChecksums.fileSha256(path), false);
                 indent(json, level + 1).append("}");
                 if (index + 1 < sorted.size()) {
                     json.append(',');
@@ -305,28 +257,4 @@ public final class PackageEvidenceManifestWriter {
         }
         json.append('\n');
     }
-
-    private static String fileSha256(Path path) {
-        if (!Files.isRegularFile(path)) {
-            return "missing";
-        }
-        return sha256(path);
-    }
-
-    private static String sha256(Path path) {
-        try {
-            return "sha256:" + HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
-        } catch (IOException exception) {
-            throw new PackageException(
-                    "Could not read package evidence input at "
-                            + path
-                            + ". Check that the file is readable and retry.",
-                    exception);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new PackageException("Could not compute package evidence checksum because SHA-256 is unavailable.", exception);
-        }
-    }
-
-    private record ArtifactEvidence(String classifier, String type, Path path, int entries) {}
 }
