@@ -208,6 +208,36 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void m27SpringSupportMilestoneDependsOnEvidenceAndKeepsUnsupportedAreasExplicit() throws IOException {
+        String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
+        String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
+        String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
+        String milestone = Files.readString(RepositoryPaths.root().resolve(
+                "followUps/-design-broader-spring-boot-and-spring-native-support-milestone.md"));
+
+        assertTrue(springBootReadiness.contains("## Broader Spring Boot And Spring Native Support Milestone"));
+        assertTrue(springBootReadiness.contains("M27 is the follow-on milestone after M26."));
+        assertTrue(springBootReadiness.contains("M27 starts only after M26 has enough evidence"));
+        assertTrue(springBootReadiness.contains("| PetClinic-style single module |"));
+        assertTrue(springBootReadiness.contains("| Enterprise single service |"));
+        assertTrue(springBootReadiness.contains("| Spring native web service |"));
+        assertTrue(springBootReadiness.contains("| Spring ecosystem boundary fixtures |"));
+        assertTrue(springBootReadiness.contains("Spring Boot 4 native support and any Spring/JDK combination beyond the proven toolchain."));
+        assertTrue(springBootReadiness.contains("Maven or Gradle plugin execution, lifecycle compatibility, profiles, or compatibility mode."));
+        assertTrue(springBootReadiness.contains(" audits medium Spring Boot JVM fixture gaps."));
+        assertTrue(springBootReadiness.contains(" promotes broader Spring readiness docs only after M27 evidence exists."));
+        assertTrue(nativeGraalvm.contains("M27 is the planned broader Spring Boot and Spring native support milestone after M26."));
+        assertTrue(frameworkReadiness.contains("The broader Spring Boot and Spring native support milestone is M27."));
+        assertTrue(milestone.contains("M27 - Broader Spring Boot and Spring native support"));
+        assertTrue(milestone.contains("Keep M26 as the prerequisite proof before any broader Spring native public claim."));
+        assertTrue(milestone.contains(": audit medium Spring Boot JVM fixture gaps."));
+        assertTrue(milestone.contains(": promote broader Spring readiness docs after M27 evidence."));
+        assertFalse(
+                springBootReadiness.contains("M27 broadly supports Spring native"),
+                "M27 docs must not claim broad Spring native support before planned evidence exists");
+    }
+
+    @Test
     void vertxPostgresReadinessStaysSpecificUntilSmokesExist() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
