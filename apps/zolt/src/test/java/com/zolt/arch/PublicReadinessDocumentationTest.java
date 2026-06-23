@@ -203,9 +203,9 @@ final class PublicReadinessDocumentationTest {
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-data-access"));
         assertTrue(nativeGraalvm.contains("H2 as a runtime-only embedded database dependency"));
         assertTrue(nativeGraalvm.contains("writes `spring-aot-evidence.json` beside `native-image.log`"));
-        assertTrue(nativeGraalvm.contains("reflection metadata, reachability metadata, and fingerprint evidence"));
+        assertTrue(nativeGraalvm.contains("reflection metadata, optional reachability metadata, and fingerprint evidence"));
         assertTrue(nativeGraalvm.contains("it merges that entry into Spring's `reflect-config.json` instead of overwriting existing Spring-generated reflection metadata"));
-        assertTrue(nativeGraalvm.contains("fails before Native Image if required reflection or reachability metadata is missing"));
+        assertTrue(nativeGraalvm.contains("fails before Native Image if required AOT output or reflection/native metadata is missing"));
         assertTrue(nativeGraalvm.contains("This remains M26 fixture evidence rather than broad Spring native support."));
         assertTrue(nativeGraalvm.contains("rather than broad database or arbitrary Spring Data native support."));
         assertTrue(milestone.contains(": design the Spring Boot native fixture matrix."));

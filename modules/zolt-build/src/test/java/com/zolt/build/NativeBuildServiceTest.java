@@ -100,14 +100,16 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
-    void springBootAotNativeInputsRequireReflectionAndReachabilityMetadata() throws IOException {
-        writeSpringBootAotOutput(projectDir.resolve("target/spring-aot/main"), false);
+    void springBootAotNativeInputsRequireReflectionMetadata() throws IOException {
+        writeSpringBootAotOutput(projectDir.resolve("target/spring-aot/main"), true);
+        Files.delete(projectDir.resolve(
+                "target/spring-aot/main/resources/META-INF/native-image/com.example/demo/reflect-config.json"));
 
         NativeImageException exception = assertThrows(
                 NativeImageException.class,
                 () -> new SpringBootAotNativeInputs(projectDir).classpathEntries());
 
-        assertTrue(exception.getMessage().contains("Spring Boot AOT reachability metadata"));
+        assertTrue(exception.getMessage().contains("Spring Boot AOT reflection metadata"));
         assertTrue(exception.getMessage().contains("target/spring-aot/main/resources/META-INF/native-image"));
     }
 

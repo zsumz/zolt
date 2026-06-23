@@ -178,8 +178,7 @@ final class SpringBootNativePlanNodePlanner {
                 || !Files.isDirectory(state.nativeMetadata())
                 || state.generatedSources().isEmpty()
                 || state.generatedClasses().isEmpty()
-                || state.reflectionMetadata().isEmpty()
-                || state.reachabilityMetadata().isEmpty()) {
+                || state.reflectionMetadata().isEmpty()) {
             blockers.add(new PlanBlocker(
                     "missing-spring-aot-output",
                     "Spring Boot native AOT output is incomplete under "

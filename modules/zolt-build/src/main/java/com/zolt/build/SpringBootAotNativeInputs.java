@@ -48,7 +48,6 @@ final class SpringBootAotNativeInputs {
         requireDirectory(evidence.resourcesDirectory(), "Spring Boot AOT resources");
         requireDirectory(evidence.nativeMetadataDirectory(), "Spring Boot AOT native metadata");
         requireFiles(evidence.reflectionMetadata(), "Spring Boot AOT reflection metadata", evidence.nativeMetadataDirectory());
-        requireFiles(evidence.reachabilityMetadata(), "Spring Boot AOT reachability metadata", evidence.nativeMetadataDirectory());
         requireFresh(evidence);
         return List.of(evidence.classesDirectory(), evidence.resourcesDirectory());
     }
@@ -79,6 +78,7 @@ final class SpringBootAotNativeInputs {
         List<Path> aotFiles = new ArrayList<>();
         aotFiles.addAll(evidence.generatedSources());
         aotFiles.addAll(evidence.generatedClasses());
+        aotFiles.addAll(evidence.generatedResources());
         aotFiles.addAll(evidence.reflectionMetadata());
         aotFiles.addAll(evidence.reachabilityMetadata());
         Optional<FileTime> oldestAot = oldestTime(aotFiles);
@@ -120,6 +120,7 @@ final class SpringBootAotNativeInputs {
         try (Stream<Path> paths = Files.walk(directory)) {
             return paths
                     .filter(Files::isRegularFile)
+                    .filter(path -> !path.getFileName().toString().startsWith(".zolt-"))
                     .sorted(Comparator.comparing(Path::toString))
                     .toList();
         } catch (IOException exception) {
