@@ -75,6 +75,34 @@ final class PomDependencyManagerClassifierTest {
     }
 
     @Test
+    void runtimeClassifierDependenciesFailWithActionableDiagnostic() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.netty</groupId>
+                      <artifactId>netty-transport-native-epoll</artifactId>
+                      <version>4.2.12.Final</version>
+                      <classifier>${os.detected.classifier}</classifier>
+                      <scope>runtime</scope>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> manager.applyManagedVersions(pom));
+
+        assertTrue(exception.getMessage().contains("Dynamic classifier selection"));
+        assertTrue(exception.getMessage().contains("${os.detected.classifier}"));
+        assertTrue(exception.getMessage().contains("fixed OS/architecture classifier"));
+    }
+
+    @Test
     void optionalClassifierDependenciesAreSkippedBeforeInterpolation() {
         EffectiveRawPom pom = effective(parser, """
                 <project>
