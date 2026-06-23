@@ -84,6 +84,7 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Titles are limited to 120 characters; bodies are limited to 4000 characters."));
         assertTrue(readme.contains("Request bodies are limited to 8192 bytes."));
         assertTrue(readme.contains("The HTTP listener starts only after PostgreSQL table initialization succeeds."));
+        assertTrue(readme.contains("startup fails with a schema diagnostic that tells you to choose a clean table or fix the schema"));
         assertTrue(readme.contains("closes the HTTP server, PostgreSQL pool, and Vert.x instance in order with a bounded shutdown wait"));
         assertTrue(readme.contains("Unsupported or duplicate command-line arguments fail with a usage hint instead of being ignored."));
         assertTrue(readme.contains("PGNOTES_TABLE"));

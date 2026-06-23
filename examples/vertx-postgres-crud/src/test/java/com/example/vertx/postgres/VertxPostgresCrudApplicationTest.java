@@ -664,6 +664,65 @@ final class VertxPostgresCrudApplicationTest {
     }
 
     @Test
+    void validatesExpectedPostgresSchemaMetadata() {
+        VertxPostgresCrudApplication.PgNotesRepository.validateSchemaColumns(
+                "zolt_notes",
+                List.of(
+                        schemaColumn("id", "bigint", "NO"),
+                        schemaColumn("title", "text", "NO"),
+                        schemaColumn("body", "text", "NO")));
+    }
+
+    @Test
+    void reportsMissingPostgresSchemaColumn() {
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+                VertxPostgresCrudApplication.PgNotesRepository.validateSchemaColumns(
+                        "zolt_notes_bad",
+                        List.of(
+                                schemaColumn("id", "bigint", "NO"),
+                                schemaColumn("title", "text", "NO"))));
+
+        assertSchemaDriftMessage(exception, "zolt_notes_bad", "missing column body");
+    }
+
+    @Test
+    void reportsPostgresSchemaTypeAndNullabilityDrift() {
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+                VertxPostgresCrudApplication.PgNotesRepository.validateSchemaColumns(
+                        "zolt_notes_bad",
+                        List.of(
+                                schemaColumn("id", "integer", "NO"),
+                                schemaColumn("title", "text", "YES"),
+                                schemaColumn("body", "text", "NO"))));
+
+        assertSchemaDriftMessage(
+                exception,
+                "zolt_notes_bad",
+                "column id expected type bigint but found integer");
+        assertTrue(exception.getMessage().contains("column title expected NOT NULL but found nullable"));
+    }
+
+    @Test
+    void schemaDriftFailsBeforeListening() throws Exception {
+        Vertx vertx = Vertx.vertx();
+        try {
+            ExecutionException exception = assertThrows(ExecutionException.class, () ->
+                    VertxPostgresCrudApplication.startInitialized(vertx, new SchemaDriftNotesRepository(), 0)
+                            .toCompletionStage()
+                            .toCompletableFuture()
+                            .get(10, TimeUnit.SECONDS));
+
+            assertTrue(exception.getCause() instanceof IllegalStateException);
+            assertSchemaDriftMessage(
+                    (IllegalStateException) exception.getCause(),
+                    "zolt_notes_bad",
+                    "missing column body");
+        } finally {
+            vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
     void lifecycleClosesServerPoolAndVertxInOrder() throws Exception {
         List<String> events = new ArrayList<>();
         VertxPostgresCrudApplication.AppLifecycle lifecycle = new VertxPostgresCrudApplication.AppLifecycle(
@@ -677,10 +736,26 @@ final class VertxPostgresCrudApplicationTest {
         assertEquals(List.of("server", "pool", "vertx"), events);
     }
 
+    private static void assertSchemaDriftMessage(
+            IllegalStateException exception,
+            String tableName,
+            String mismatch) {
+        assertTrue(exception.getMessage().contains("PGNOTES_TABLE " + tableName + " has incompatible schema"));
+        assertTrue(exception.getMessage().contains(mismatch));
+        assertTrue(exception.getMessage().contains("Choose a clean table or fix the schema."));
+    }
+
     private static void assertRepositoryFailure(HttpResult response) {
         assertEquals(500, response.status());
         assertJson(response);
         assertTrue(response.body().contains("database operation failed: simulated repository failure"));
+    }
+
+    private static VertxPostgresCrudApplication.PgNotesRepository.SchemaColumn schemaColumn(
+            String name,
+            String dataType,
+            String isNullable) {
+        return new VertxPostgresCrudApplication.PgNotesRepository.SchemaColumn(name, dataType, isNullable);
     }
 
     private static HttpServer fakeServer(List<String> events) {
@@ -872,6 +947,22 @@ final class VertxPostgresCrudApplicationTest {
         @Override
         public Future<Void> init() {
             return Future.failedFuture(new IllegalStateException("simulated init failure"));
+        }
+    }
+
+    private static final class SchemaDriftNotesRepository extends FakeNotesRepository {
+        @Override
+        public Future<Void> init() {
+            try {
+                VertxPostgresCrudApplication.PgNotesRepository.validateSchemaColumns(
+                        "zolt_notes_bad",
+                        List.of(
+                                schemaColumn("id", "bigint", "NO"),
+                                schemaColumn("title", "text", "NO")));
+                return Future.succeededFuture();
+            } catch (IllegalStateException exception) {
+                return Future.failedFuture(exception);
+            }
         }
     }
 

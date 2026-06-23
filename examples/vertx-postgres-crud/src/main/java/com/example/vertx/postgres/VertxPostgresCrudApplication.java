@@ -16,6 +16,7 @@ import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.Tuple;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -481,6 +482,11 @@ public final class VertxPostgresCrudApplication {
     }
 
     static final class PgNotesRepository implements NotesRepository {
+        private static final List<SchemaColumn> EXPECTED_SCHEMA = List.of(
+                new SchemaColumn("id", "bigint", "NO"),
+                new SchemaColumn("title", "text", "NO"),
+                new SchemaColumn("body", "text", "NO"));
+
         private final PgPool pool;
         private final String tableName;
 
@@ -499,7 +505,68 @@ public final class VertxPostgresCrudApplication {
                     )
                     """.formatted(tableName))
                     .execute()
-                    .mapEmpty();
+                    .compose(ignored -> validateSchema());
+        }
+
+        private Future<Void> validateSchema() {
+            return pool.preparedQuery("""
+                    SELECT column_name, data_type, is_nullable
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = $1
+                      AND column_name IN ('id', 'title', 'body')
+                    """)
+                    .execute(Tuple.of(tableName))
+                    .map(rows -> {
+                        List<SchemaColumn> columns = new ArrayList<>();
+                        for (Row row : rows) {
+                            columns.add(new SchemaColumn(
+                                    row.getString("column_name"),
+                                    row.getString("data_type"),
+                                    row.getString("is_nullable")));
+                        }
+                        validateSchemaColumns(tableName, columns);
+                        return null;
+                    });
+        }
+
+        static void validateSchemaColumns(String tableName, List<SchemaColumn> columns) {
+            Map<String, SchemaColumn> actualByName = new LinkedHashMap<>();
+            for (SchemaColumn column : columns) {
+                actualByName.put(column.name(), column);
+            }
+
+            List<String> mismatches = new ArrayList<>();
+            for (SchemaColumn expected : EXPECTED_SCHEMA) {
+                SchemaColumn actual = actualByName.get(expected.name());
+                if (actual == null) {
+                    mismatches.add("missing column " + expected.name());
+                    continue;
+                }
+                if (!expected.dataType().equals(actual.dataType())) {
+                    mismatches.add("column " + expected.name()
+                            + " expected type " + expected.dataType()
+                            + " but found " + actual.dataType());
+                }
+                if (!expected.isNullable().equals(actual.isNullable())) {
+                    mismatches.add("column " + expected.name()
+                            + " expected " + nullability(expected.isNullable())
+                            + " but found " + nullability(actual.isNullable()));
+                }
+            }
+            if (!mismatches.isEmpty()) {
+                throw new IllegalStateException("PGNOTES_TABLE " + tableName
+                        + " has incompatible schema: " + String.join("; ", mismatches)
+                        + ". Choose a clean table or fix the schema.");
+            }
+        }
+
+        private static String nullability(String value) {
+            return switch (value) {
+                case "NO" -> "NOT NULL";
+                case "YES" -> "nullable";
+                default -> value;
+            };
         }
 
         @Override
@@ -550,6 +617,9 @@ public final class VertxPostgresCrudApplication {
             return pool.preparedQuery("DELETE FROM " + tableName + " WHERE id = $1")
                     .execute(Tuple.of(id))
                     .map(rows -> rows.rowCount() > 0);
+        }
+
+        record SchemaColumn(String name, String dataType, String isNullable) {
         }
     }
 }
