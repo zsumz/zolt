@@ -88,6 +88,8 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("closes the HTTP server, PostgreSQL pool, and Vert.x instance in order with a bounded shutdown wait"));
         assertTrue(readme.contains("Unsupported or duplicate command-line arguments fail with a usage hint instead of being ignored."));
         assertTrue(readme.contains("PGNOTES_TABLE"));
+        assertTrue(readme.contains("PGCONNECT_TIMEOUT_MS"));
+        assertTrue(readme.contains("PGPOOL_CONNECTION_TIMEOUT_MS"));
         assertTrue(readme.contains("Updating or deleting a missing note returns a `404` JSON error."));
         assertTrue(readme.contains("Unknown routes return a `404` JSON error."));
         assertTrue(readme.contains("Known routes reject unsupported HTTP methods with a `405` JSON error and an `Allow` header."));
@@ -100,6 +102,8 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_DATABASE"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_USER"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_PASSWORD"));
+        assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_CONNECT_TIMEOUT_MS"));
+        assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_POOL_CONNECTION_TIMEOUT_MS"));
         assertTrue(readme.contains("PostgreSQL container with Docker or Podman"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_IMAGE"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_CONTAINER_PORT"));

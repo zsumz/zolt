@@ -33,6 +33,8 @@ public final class VertxPostgresCrudApplication {
     private static final int MAX_BODY_LENGTH = 4_000;
     private static final long MAX_REQUEST_BODY_BYTES = 8_192;
     private static final long SHUTDOWN_TIMEOUT_SECONDS = 10;
+    private static final int DEFAULT_PG_CONNECT_TIMEOUT_MS = 5_000;
+    private static final int DEFAULT_PG_POOL_CONNECTION_TIMEOUT_MS = 5_000;
 
     private VertxPostgresCrudApplication() {
     }
@@ -48,7 +50,7 @@ public final class VertxPostgresCrudApplication {
         }
 
         Vertx vertx = Vertx.vertx();
-        PgPool pool = PgPool.pool(vertx, config.pgConnectOptions(), new PoolOptions().setMaxSize(5));
+        PgPool pool = PgPool.pool(vertx, config.pgConnectOptions(), config.pgPoolOptions());
         PgNotesRepository repository = new PgNotesRepository(pool, config.pgNotesTable());
         AppLifecycle lifecycle = new AppLifecycle(vertx, pool);
         Runtime.getRuntime().addShutdownHook(lifecycle.shutdownHook());
@@ -343,7 +345,9 @@ public final class VertxPostgresCrudApplication {
             String pgDatabase,
             String pgUser,
             String pgPassword,
-            String pgNotesTable) {
+            String pgNotesTable,
+            int pgConnectTimeoutMs,
+            int pgPoolConnectionTimeoutMs) {
         static AppConfig from(String[] args, Map<String, String> env) {
             int httpPort = parsePort("PORT", valueOrDefault(portArg(args), env.get("PORT"), Integer.toString(DEFAULT_HTTP_PORT)));
             String pgHost = required(env, "PGHOST");
@@ -354,7 +358,24 @@ public final class VertxPostgresCrudApplication {
             String pgNotesTable = parseSqlIdentifier(
                     "PGNOTES_TABLE",
                     valueOrDefault(env.get("PGNOTES_TABLE"), null, DEFAULT_NOTES_TABLE));
-            return new AppConfig(httpPort, pgHost, pgPort, pgDatabase, pgUser, pgPassword, pgNotesTable);
+            int pgConnectTimeoutMs = parseOptionalPositiveInt(
+                    "PGCONNECT_TIMEOUT_MS",
+                    env.get("PGCONNECT_TIMEOUT_MS"),
+                    DEFAULT_PG_CONNECT_TIMEOUT_MS);
+            int pgPoolConnectionTimeoutMs = parseOptionalPositiveInt(
+                    "PGPOOL_CONNECTION_TIMEOUT_MS",
+                    env.get("PGPOOL_CONNECTION_TIMEOUT_MS"),
+                    DEFAULT_PG_POOL_CONNECTION_TIMEOUT_MS);
+            return new AppConfig(
+                    httpPort,
+                    pgHost,
+                    pgPort,
+                    pgDatabase,
+                    pgUser,
+                    pgPassword,
+                    pgNotesTable,
+                    pgConnectTimeoutMs,
+                    pgPoolConnectionTimeoutMs);
         }
 
         PgConnectOptions pgConnectOptions() {
@@ -363,7 +384,15 @@ public final class VertxPostgresCrudApplication {
                     .setPort(pgPort)
                     .setDatabase(pgDatabase)
                     .setUser(pgUser)
-                    .setPassword(pgPassword);
+                    .setPassword(pgPassword)
+                    .setConnectTimeout(pgConnectTimeoutMs);
+        }
+
+        PoolOptions pgPoolOptions() {
+            return new PoolOptions()
+                    .setMaxSize(5)
+                    .setConnectionTimeout(pgPoolConnectionTimeoutMs)
+                    .setConnectionTimeoutUnit(TimeUnit.MILLISECONDS);
         }
 
         private static String portArg(String[] args) {
@@ -399,6 +428,24 @@ public final class VertxPostgresCrudApplication {
                 return port;
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(name + " must be between 1 and 65535", exception);
+            }
+        }
+
+        private static int parseOptionalPositiveInt(String name, String value, int defaultValue) {
+            if (value == null) {
+                return defaultValue;
+            }
+            if (value.isBlank()) {
+                throw new IllegalArgumentException(name + " must be a positive integer in milliseconds");
+            }
+            try {
+                int parsed = Integer.parseInt(value);
+                if (parsed < 1) {
+                    throw new IllegalArgumentException(name + " must be a positive integer in milliseconds");
+                }
+                return parsed;
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException(name + " must be a positive integer in milliseconds", exception);
             }
         }
 

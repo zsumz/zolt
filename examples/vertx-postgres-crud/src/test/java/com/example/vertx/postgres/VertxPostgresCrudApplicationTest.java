@@ -50,6 +50,11 @@ final class VertxPostgresCrudApplicationTest {
         assertEquals("zolt", config.pgUser());
         assertEquals("secret", config.pgPassword());
         assertEquals("zolt_notes_smoke", config.pgNotesTable());
+        assertEquals(5_000, config.pgConnectTimeoutMs());
+        assertEquals(5_000, config.pgPoolConnectionTimeoutMs());
+        assertEquals(5_000, config.pgConnectOptions().getConnectTimeout());
+        assertEquals(5_000, config.pgPoolOptions().getConnectionTimeout());
+        assertEquals(TimeUnit.MILLISECONDS, config.pgPoolOptions().getConnectionTimeoutUnit());
     }
 
     @Test
@@ -155,6 +160,34 @@ final class VertxPostgresCrudApplicationTest {
                         "PGPASSWORD", "secret"));
 
         assertEquals("zolt_notes", config.pgNotesTable());
+    }
+
+    @Test
+    void parsesPostgresTimeoutConfiguration() {
+        Map<String, String> env = postgresEnv();
+        env.put("PGCONNECT_TIMEOUT_MS", "2500");
+        env.put("PGPOOL_CONNECTION_TIMEOUT_MS", "3500");
+
+        VertxPostgresCrudApplication.AppConfig config =
+                VertxPostgresCrudApplication.AppConfig.from(new String[0], env);
+
+        assertEquals(2500, config.pgConnectTimeoutMs());
+        assertEquals(3500, config.pgPoolConnectionTimeoutMs());
+        assertEquals(2500, config.pgConnectOptions().getConnectTimeout());
+        assertEquals(3500, config.pgPoolOptions().getConnectionTimeout());
+        assertEquals(TimeUnit.MILLISECONDS, config.pgPoolOptions().getConnectionTimeoutUnit());
+    }
+
+    @Test
+    void rejectsInvalidPostgresTimeoutConfiguration() {
+        assertTimeoutRejected("PGCONNECT_TIMEOUT_MS", " ");
+        assertTimeoutRejected("PGCONNECT_TIMEOUT_MS", "abc");
+        assertTimeoutRejected("PGCONNECT_TIMEOUT_MS", "0");
+        assertTimeoutRejected("PGCONNECT_TIMEOUT_MS", "-1");
+        assertTimeoutRejected("PGPOOL_CONNECTION_TIMEOUT_MS", " ");
+        assertTimeoutRejected("PGPOOL_CONNECTION_TIMEOUT_MS", "abc");
+        assertTimeoutRejected("PGPOOL_CONNECTION_TIMEOUT_MS", "0");
+        assertTimeoutRejected("PGPOOL_CONNECTION_TIMEOUT_MS", "-1");
     }
 
     @Test
@@ -749,6 +782,26 @@ final class VertxPostgresCrudApplicationTest {
         assertEquals(500, response.status());
         assertJson(response);
         assertTrue(response.body().contains("database operation failed: simulated repository failure"));
+    }
+
+    private static void assertTimeoutRejected(String name, String value) {
+        Map<String, String> env = postgresEnv();
+        env.put(name, value);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                VertxPostgresCrudApplication.AppConfig.from(new String[0], env));
+
+        assertEquals(name + " must be a positive integer in milliseconds", exception.getMessage());
+    }
+
+    private static Map<String, String> postgresEnv() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("PGHOST", "127.0.0.1");
+        env.put("PGPORT", "15432");
+        env.put("PGDATABASE", "zolt_vertx");
+        env.put("PGUSER", "zolt");
+        env.put("PGPASSWORD", "secret");
+        return env;
     }
 
     private static VertxPostgresCrudApplication.PgNotesRepository.SchemaColumn schemaColumn(
