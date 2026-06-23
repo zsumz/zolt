@@ -185,7 +185,12 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains("## Broader Spring Boot Native Milestone"));
         assertTrue(springBootReadiness.contains("M26 tracks the work needed to move from one narrow Spring Boot native canary"));
         assertTrue(springBootReadiness.contains("Spring Boot 3.3 WebMVC on Java 21"));
+        assertTrue(springBootReadiness.contains("| Fixture row | Baseline | JVM evidence | AOT evidence | Fake-native evidence | Real-native evidence | Native-Zolt evidence | Promotion role |"));
+        assertTrue(springBootReadiness.contains("| WebMVC plus Actuator | Spring Boot 3.3 on Java 21 |"));
+        assertTrue(springBootReadiness.contains("| WebMVC contract | Spring Boot 3.3 on Java 21 |"));
+        assertTrue(springBootReadiness.contains("| Data access | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("Unsupported until proven: broad Spring native-image support, Spring Boot 4 native support"));
+        assertTrue(springBootReadiness.contains("Spring Boot 4 native support remains unsupported until a compatible JDK/Native Image toolchain is proven."));
         assertTrue(springBootReadiness.contains("Promotion rule: public docs can broaden the Spring native claim only after the expanded fixture matrix runs real Native Image"));
         assertTrue(springBootReadiness.contains(" promotes public readiness docs only after the M26 real executable smokes pass."));
         assertTrue(nativeGraalvm.contains("M26 is the planned broader Spring Boot native readiness milestone"));
