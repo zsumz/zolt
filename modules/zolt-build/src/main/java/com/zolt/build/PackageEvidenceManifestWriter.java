@@ -8,33 +8,28 @@ import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
 import static com.zolt.build.PackageEvidenceJsonFields.stringArrayField;
 import static com.zolt.build.PackageEvidenceJsonFields.stringField;
 
-import com.zolt.generated.GeneratedSourceEvidence;
-import com.zolt.generated.GeneratedSourceEvidenceService;
-import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ResourceFilteringSettings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 public final class PackageEvidenceManifestWriter {
     private static final String SCHEMA = "zolt.package-evidence.v1";
 
-    private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
+    private final PackageEvidenceGeneratedSourceWriter generatedSourceWriter;
     private final PackageResourceEvidence packageResourceEvidence;
 
     public PackageEvidenceManifestWriter() {
-        this(new GeneratedSourceEvidenceService(), new PackageResourceEvidence());
+        this(new PackageEvidenceGeneratedSourceWriter(), new PackageResourceEvidence());
     }
 
     PackageEvidenceManifestWriter(
-            GeneratedSourceEvidenceService generatedSourceEvidenceService,
+            PackageEvidenceGeneratedSourceWriter generatedSourceWriter,
             PackageResourceEvidence packageResourceEvidence) {
-        this.generatedSourceEvidenceService = generatedSourceEvidenceService;
+        this.generatedSourceWriter = generatedSourceWriter;
         this.packageResourceEvidence = packageResourceEvidence;
     }
 
@@ -85,7 +80,7 @@ public final class PackageEvidenceManifestWriter {
         json.append(",\n");
         PackageMergeDecisionEvidenceWriter.write(json, result.mergeDecisions());
         json.append(",\n");
-        generatedSources(json, projectRoot, config);
+        generatedSourceWriter.write(json, projectRoot, config);
         json.append(",\n");
         resourceFiltering(json, projectRoot, packageResourceEvidence.collect(projectRoot, config.build()));
         json.append("\n}\n");
@@ -147,45 +142,6 @@ public final class PackageEvidenceManifestWriter {
         json.append("]");
     }
 
-    private void generatedSources(
-            StringBuilder json,
-            Path projectRoot,
-            ProjectConfig config) {
-        List<GeneratedSourceEvidence> generatedSources = generatedSourceEvidenceService.evidence(projectRoot, config.build());
-        indent(json, 1).append("\"generatedSources\": [");
-        if (!generatedSources.isEmpty()) {
-            json.append('\n');
-            for (int index = 0; index < generatedSources.size(); index++) {
-                GeneratedSourceEvidence evidence = generatedSources.get(index);
-                GeneratedSourceStep step = evidence.step();
-                indent(json, 2).append("{\n");
-                stringField(json, 3, "id", evidence.id(), true);
-                stringField(json, 3, "sourceRootId", evidence.sourceRootId(), true);
-                stringField(json, 3, "scope", evidence.scope(), true);
-                stringField(json, 3, "kind", step.kind().configValue(), true);
-                stringField(json, 3, "language", step.language(), true);
-                stringField(json, 3, "output", displayPath(projectRoot, evidence.output()), true);
-                booleanField(json, 3, "required", step.required(), true);
-                booleanField(json, 3, "clean", step.clean(), true);
-                stringField(json, 3, "ownership", evidence.ownership(), true);
-                stringField(json, 3, "compileLane", evidence.compileLane(), true);
-                stringField(json, 3, "freshness", evidence.freshness(), true);
-                stringField(json, 3, "toolArtifact", evidence.toolArtifact(), true);
-                nullableStringField(json, 3, "toolVersionRef", step.openApi().toolVersionRef(), true);
-                stringField(json, 3, "toolFingerprint", evidence.toolFingerprint(), true);
-                stringField(json, 3, "optionsFingerprint", evidence.optionsFingerprint(), true);
-                fingerprintedPaths(json, 3, "inputs", projectRoot, evidence.inputs(), false);
-                indent(json, 2).append("}");
-                if (index + 1 < generatedSources.size()) {
-                    json.append(',');
-                }
-                json.append('\n');
-            }
-            indent(json, 1);
-        }
-        json.append("]");
-    }
-
     private static void resourceFiltering(
             StringBuilder json,
             Path projectRoot,
@@ -199,7 +155,7 @@ public final class PackageEvidenceManifestWriter {
         tokenSources(json, evidence.tokenSources());
         json.append(",\n");
         stringField(json, 2, "fingerprint", evidence.fingerprint(), true);
-        fingerprintedPaths(json, 2, "inputs", projectRoot, evidence.inputs(), false);
+        PackageEvidencePathWriter.writeFingerprintedPaths(json, 2, "inputs", projectRoot, evidence.inputs(), false);
         indent(json, 1).append("}");
     }
 
@@ -223,38 +179,5 @@ public final class PackageEvidenceManifestWriter {
             indent(json, 2);
         }
         json.append("]");
-    }
-
-    private static void fingerprintedPaths(
-            StringBuilder json,
-            int level,
-            String name,
-            Path projectRoot,
-            List<Path> paths,
-            boolean trailingComma) {
-        indent(json, level).append('"').append(name).append("\": [");
-        if (!paths.isEmpty()) {
-            json.append('\n');
-            List<Path> sorted = paths.stream()
-                    .sorted(Comparator.comparing(path -> displayPath(projectRoot, path)))
-                    .toList();
-            for (int index = 0; index < sorted.size(); index++) {
-                Path path = sorted.get(index);
-                indent(json, level + 1).append("{\n");
-                stringField(json, level + 2, "path", displayPath(projectRoot, path), true);
-                stringField(json, level + 2, "sha256", PackageEvidenceChecksums.fileSha256(path), false);
-                indent(json, level + 1).append("}");
-                if (index + 1 < sorted.size()) {
-                    json.append(',');
-                }
-                json.append('\n');
-            }
-            indent(json, level);
-        }
-        json.append("]");
-        if (trailingComma) {
-            json.append(',');
-        }
-        json.append('\n');
     }
 }
