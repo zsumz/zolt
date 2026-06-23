@@ -86,6 +86,17 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void commandDocsDescribeUberMergeDecisionEvidence() throws IOException {
+        String commands = Files.readString(RepositoryPaths.root().resolve("docs/commands.md"));
+
+        assertTrue(commands.contains("package evidence also records `uberMergeDecisions`"));
+        assertTrue(commands.contains("service descriptor merges"));
+        assertTrue(commands.contains("Netty version metadata merges"));
+        assertTrue(commands.contains("relocated dependency license/notice/dependencies metadata"));
+        assertTrue(commands.contains("omitted dependency module descriptors"));
+    }
+
+    @Test
     void releasePackagingDoesNotPretendLicenseExists() throws IOException {
         String releasePackaging = Files.readString(RepositoryPaths.root().resolve("docs/release-packaging.md"));
 
