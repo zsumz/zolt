@@ -1,0 +1,5 @@
+# rootPattern|maxFiles|maxLines
+apps/*/src/main/java|140|15000
+apps/*/src/test/java|140|15000
+modules/*/src/main/java|140|15000
+modules/*/src/test/java|140|15000
