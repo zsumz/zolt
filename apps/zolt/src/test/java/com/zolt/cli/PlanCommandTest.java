@@ -185,4 +185,61 @@ final class PlanCommandTest {
         assertTrue(result.stdout().contains("blocker stale-generated-source-output"));
         assertTrue(result.stdout().contains("Required generated source output `target/generated/sources/openapi` is older"));
     }
+
+    @Test
+    void planNativeJsonReportsSpringBootNativeBlockersWithoutRunningTools() throws IOException {
+        Path projectDir = tempDir.resolve("plan-native");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "plan-native"
+                version = "1.0.0"
+                group = "com.example"
+                java = "21"
+                main = "com.example.DemoApplication"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = "3.3.6"
+
+                [dependencies]
+                "org.springframework.boot:spring-boot-starter-web" = "3.3.6"
+
+                [framework.springBoot.native]
+                enabled = true
+
+                [native]
+                imageName = "plan-native"
+                args = ["--no-fallback"]
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.springframework.boot:spring-boot-starter-web"
+                version = "3.3.6"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "plan",
+                "--target", "native",
+                "--format", "json",
+                "--native-image", projectDir.resolve("missing/native-image").toString(),
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("\"target\": \"native\""));
+        assertTrue(result.stdout().contains("\"id\": \"spring-boot-native-intent\""));
+        assertTrue(result.stdout().contains("\"id\": \"spring-aot-tooling\""));
+        assertTrue(result.stdout().contains("\"code\": \"missing-spring-aot-tooling\""));
+        assertTrue(result.stdout().contains("\"code\": \"missing-spring-aot-output\""));
+        assertTrue(result.stdout().contains("\"code\": \"missing-native-image\""));
+        assertTrue(result.stdout().contains("\"nativeArgs: [--no-fallback]\""));
+        assertFalse(Files.exists(projectDir.resolve("target/spring-aot")));
+        assertFalse(Files.exists(projectDir.resolve("target/native")));
+        assertEquals("", result.stderr());
+    }
 }

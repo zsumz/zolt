@@ -17,23 +17,41 @@ import java.util.Optional;
 public final class BuildPlanService {
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner;
+    private final SpringBootNativePlanNodePlanner nativePlanNodePlanner;
 
     public BuildPlanService() {
-        this(new GeneratedSourceEvidenceService(), new BuildPlanGeneratedSourceNodePlanner());
+        this(
+                new GeneratedSourceEvidenceService(),
+                new BuildPlanGeneratedSourceNodePlanner(),
+                new SpringBootNativePlanNodePlanner());
     }
 
     BuildPlanService(GeneratedSourceEvidenceService generatedSourceEvidenceService) {
-        this(generatedSourceEvidenceService, new BuildPlanGeneratedSourceNodePlanner());
+        this(
+                generatedSourceEvidenceService,
+                new BuildPlanGeneratedSourceNodePlanner(),
+                new SpringBootNativePlanNodePlanner());
     }
 
     BuildPlanService(
             GeneratedSourceEvidenceService generatedSourceEvidenceService,
-            BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner) {
+            BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner,
+            SpringBootNativePlanNodePlanner nativePlanNodePlanner) {
         this.generatedSourceEvidenceService = generatedSourceEvidenceService;
         this.generatedSourceNodePlanner = generatedSourceNodePlanner;
+        this.nativePlanNodePlanner = nativePlanNodePlanner;
     }
 
     public BuildPlan plan(Path projectRoot, ProjectConfig config, PlanTarget target, Optional<Path> reportsDir) {
+        return plan(projectRoot, config, target, reportsDir, Optional.empty());
+    }
+
+    public BuildPlan plan(
+            Path projectRoot,
+            ProjectConfig config,
+            PlanTarget target,
+            Optional<Path> reportsDir,
+            Optional<Path> nativeImageExecutable) {
         Path root = projectRoot.toAbsolutePath().normalize();
         List<PlanNode> nodes = new ArrayList<>();
         List<GeneratedSourceEvidence> generatedSources =
@@ -48,6 +66,9 @@ public final class BuildPlanService {
         }
         if (target.includesPackage()) {
             addPackageNode(nodes, config);
+        }
+        if (target == PlanTarget.NATIVE) {
+            nodes.addAll(nativePlanNodePlanner.nodes(root, config, nativeImageExecutable));
         }
         if (target.includesPublish()) {
             addPublishNode(nodes, config);

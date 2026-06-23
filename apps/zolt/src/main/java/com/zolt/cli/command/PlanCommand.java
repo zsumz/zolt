@@ -27,11 +27,14 @@ public final class PlanCommand implements Callable<Integer> {
         JSON
     }
 
-    @Option(names = "--target", description = "Plan target: build, test, package, or ci.")
+    @Option(names = "--target", description = "Plan target: build, test, package, native, or ci.")
     private PlanTarget target = PlanTarget.PACKAGE;
 
     @Option(names = "--reports-dir", description = "Include a project-relative test report output in test/ci plans.")
     private Path reportsDir;
+
+    @Option(names = "--native-image", description = "Path to the native-image executable for native plans.")
+    private Path nativeImageExecutable;
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
@@ -64,7 +67,8 @@ public final class PlanCommand implements Callable<Integer> {
                     workingDirectory,
                     config,
                     target,
-                    reportSettings.projectRelativeReportsDirectory(workingDirectory));
+                    reportSettings.projectRelativeReportsDirectory(workingDirectory),
+                    java.util.Optional.ofNullable(nativeImageExecutable));
             if (format == Format.JSON) {
                 CommandOutput.printAndFlush(spec, buildPlanFormatter.json(plan));
             } else {

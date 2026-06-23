@@ -8,6 +8,7 @@ public enum PlanTarget {
     BUILD("build"),
     TEST("test"),
     PACKAGE("package"),
+    NATIVE("native"),
     CI("ci");
 
     private final String configValue;

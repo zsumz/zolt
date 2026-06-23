@@ -10,6 +10,7 @@ central = "https://repo.maven.apache.org/maven2"
 [dependencies]
 "com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
