@@ -176,6 +176,27 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void m26SpringBootNativeMilestoneRequiresExecutableEvidenceBeforePromotion() throws IOException {
+        String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
+        String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
+        String milestone = Files.readString(RepositoryPaths.root().resolve(
+                "followUps/-design-broader-spring-boot-native-readiness-milestone.md"));
+
+        assertTrue(springBootReadiness.contains("## Broader Spring Boot Native Milestone"));
+        assertTrue(springBootReadiness.contains("M26 tracks the work needed to move from one narrow Spring Boot native canary"));
+        assertTrue(springBootReadiness.contains("Spring Boot 3.3 WebMVC on Java 21"));
+        assertTrue(springBootReadiness.contains("Unsupported until proven: broad Spring native-image support, Spring Boot 4 native support"));
+        assertTrue(springBootReadiness.contains("Promotion rule: public docs can broaden the Spring native claim only after the expanded fixture matrix runs real Native Image"));
+        assertTrue(springBootReadiness.contains(" promotes public readiness docs only after the M26 real executable smokes pass."));
+        assertTrue(nativeGraalvm.contains("M26 is the planned broader Spring Boot native readiness milestone"));
+        assertTrue(milestone.contains(": design the Spring Boot native fixture matrix."));
+        assertTrue(milestone.contains(": promote public readiness docs only after the M26 real executable smokes pass."));
+        assertFalse(
+                springBootReadiness.contains("M26 broadens the public Spring native claim"),
+                "M26 docs must not broaden the claim before real executable smokes pass");
+    }
+
+    @Test
     void vertxPostgresReadinessStaysSpecificUntilSmokesExist() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
