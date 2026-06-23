@@ -1,14 +1,6 @@
 package com.zolt.quality;
 
-import com.zolt.build.PackageEvidenceManifestReader;
-import com.zolt.build.PackagePlanService;
-import com.zolt.generated.GeneratedSourceEvidenceService;
-import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.policy.DependencyPolicyReportService;
 import com.zolt.project.ProjectConfig;
-import com.zolt.publish.PublishDryRunService;
-import com.zolt.publish.PublishSettingsReader;
-import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.Workspace;
@@ -16,7 +8,6 @@ import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspaceMember;
 import com.zolt.workspace.WorkspaceMemberSelector;
-import com.zolt.workspace.WorkspaceResolveService;
 import com.zolt.workspace.WorkspaceSelection;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -52,66 +43,35 @@ public final class QualityCheckService {
     private final DependencyQualityCheck dependencyQualityCheck;
 
     public QualityCheckService() {
-        this(
-                new ZoltTomlParser(),
-                new WorkspaceDiscoveryService(),
-                new WorkspaceMemberSelector(),
-                new ResolveService(),
-                new WorkspaceResolveService(),
-                new ZoltLockfileReader(),
-                new PackagePlanService(),
-                new DependencyPolicyReportService(),
-                new GeneratedSourceEvidenceService(),
-                new PackageEvidenceManifestReader(),
-                new PublishDryRunService(),
-                new PublishSettingsReader(),
-                System::getenv);
+        this(QualityCheckDependencies.create(System::getenv));
     }
 
     QualityCheckService(Function<String, String> environment) {
+        this(QualityCheckDependencies.create(environment));
+    }
+
+    QualityCheckService(QualityCheckDependencies dependencies) {
         this(
                 new ZoltTomlParser(),
                 new WorkspaceDiscoveryService(),
                 new WorkspaceMemberSelector(),
-                new ResolveService(),
-                new WorkspaceResolveService(),
-                new ZoltLockfileReader(),
-                new PackagePlanService(),
-                new DependencyPolicyReportService(),
-                new GeneratedSourceEvidenceService(),
-                new PackageEvidenceManifestReader(),
-                new PublishDryRunService(),
-                new PublishSettingsReader(),
-                environment);
+                dependencies);
     }
 
     QualityCheckService(
             ZoltTomlParser projectParser,
             WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceMemberSelector workspaceMemberSelector,
-            ResolveService resolveService,
-            WorkspaceResolveService workspaceResolveService,
-            ZoltLockfileReader lockfileReader,
-            PackagePlanService packagePlanService,
-            DependencyPolicyReportService dependencyPolicyReportService,
-            GeneratedSourceEvidenceService generatedSourceEvidenceService,
-            PackageEvidenceManifestReader packageEvidenceManifestReader,
-            PublishDryRunService publishDryRunService,
-            PublishSettingsReader publishSettingsReader,
-            Function<String, String> environment) {
+            QualityCheckDependencies dependencies) {
         this.projectParser = projectParser;
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceMemberSelector = workspaceMemberSelector;
-        this.generatedSourceQualityCheck = new GeneratedSourceQualityCheck(generatedSourceEvidenceService);
-        this.lockfileQualityCheck = new LockfileQualityCheck(resolveService, workspaceResolveService, lockfileReader);
-        this.executionContextRunner = new QualityExecutionContextRunner(
-                new ExecutionContextQualityCheck(lockfileReader),
-                new CredentialQualityCheck(publishSettingsReader, environment),
-                new ExecutionEvidenceQualityCheck(),
-                new PublishDryRunQualityCheck(publishDryRunService));
+        this.generatedSourceQualityCheck = dependencies.generatedSourceQualityCheck();
+        this.lockfileQualityCheck = dependencies.lockfileQualityCheck();
+        this.executionContextRunner = dependencies.executionContextRunner();
         this.projectModelQualityCheck = new ProjectModelQualityCheck();
-        this.packageQualityCheck = new PackageQualityCheck(packagePlanService, packageEvidenceManifestReader);
-        this.dependencyQualityCheck = new DependencyQualityCheck(lockfileReader, dependencyPolicyReportService);
+        this.packageQualityCheck = dependencies.packageQualityCheck();
+        this.dependencyQualityCheck = dependencies.dependencyQualityCheck();
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
