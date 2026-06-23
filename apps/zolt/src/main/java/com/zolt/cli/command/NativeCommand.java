@@ -97,6 +97,7 @@ public final class NativeCommand implements Runnable {
                             + member.result().nativeImageResult().logFile()
                             + " in "
                             + member.member());
+                    printSpringBootAotEvidence(member.result(), " in " + member.member());
                 }
                 spec.commandLine().getOut().println("Built native binaries for "
                         + result.members().size()
@@ -116,6 +117,7 @@ public final class NativeCommand implements Runnable {
                     + result.nativeImageResult().outputBinary());
             spec.commandLine().getOut().println("Native Image log written to "
                     + result.nativeImageResult().logFile());
+            printSpringBootAotEvidence(result, "");
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -130,5 +132,10 @@ public final class NativeCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private void printSpringBootAotEvidence(NativeBuildResult result, String suffix) {
+        result.springBootAotEvidencePath().ifPresent(path -> spec.commandLine().getOut().println(
+                "Spring Boot AOT evidence written to " + path + suffix));
     }
 }

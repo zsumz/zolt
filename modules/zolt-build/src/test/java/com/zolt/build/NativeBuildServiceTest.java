@@ -96,7 +96,66 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 () -> new SpringBootAotNativeInputs(projectDir).classpathEntries());
 
         assertTrue(exception.getMessage().contains("Spring Boot native AOT output is missing"));
-        assertTrue(exception.getMessage().contains("target/spring-aot/main/classes"));
+        assertTrue(exception.getMessage().contains("target/spring-aot/main/sources"));
+    }
+
+    @Test
+    void springBootAotNativeInputsRequireReflectionAndReachabilityMetadata() throws IOException {
+        writeSpringBootAotOutput(projectDir.resolve("target/spring-aot/main"), false);
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> new SpringBootAotNativeInputs(projectDir).classpathEntries());
+
+        assertTrue(exception.getMessage().contains("Spring Boot AOT reachability metadata"));
+        assertTrue(exception.getMessage().contains("target/spring-aot/main/resources/META-INF/native-image"));
+    }
+
+    @Test
+    void springBootNativeWritesAotOutputEvidence() throws IOException {
+        writeSpringBootAotOutput(projectDir.resolve(".zolt/build/spring-aot/main"), true);
+        Path classes = projectDir.resolve("target/classes");
+        Files.createDirectories(classes);
+        Path jar = projectDir.resolve("target/demo-0.1.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar");
+        PackageResult packageResult = new PackageResult(
+                new BuildResult(Optional.empty(), 1, 0, classes, ""),
+                jar,
+                1,
+                true);
+        List<List<String>> commands = new ArrayList<>();
+        NativeBuildService service = service(command -> {
+            commands.add(command);
+            writeNativeBinary(Path.of(command.getLast()));
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeBuildResult result = service.buildNativeImage(
+                projectDir,
+                springBootNativeConfig(),
+                packageResult,
+                List.of(),
+                Path.of("native-image"));
+
+        Path evidencePath = projectDir.resolve(".zolt/build/native/spring-aot-evidence.json");
+        assertEquals(Optional.of(evidencePath), result.springBootAotEvidencePath());
+        assertTrue(Files.exists(evidencePath));
+        String evidence = Files.readString(evidencePath);
+        assertTrue(evidence.contains("\"schema\": \"zolt.spring-aot-evidence.v1\""));
+        assertTrue(evidence.contains("\"outputRoot\": \".zolt/build/spring-aot/main\""));
+        assertTrue(evidence.contains("\"freshness\": \"present\""));
+        assertTrue(evidence.contains("\"fingerprint\": \"sha256:"));
+        assertTrue(evidence.contains("\"path\": \".zolt/build/spring-aot/main/sources/com/example/Main__BeanDefinitions.java\""));
+        assertTrue(evidence.contains("\"path\": \".zolt/build/spring-aot/main/classes/com/example/Main__BeanDefinitions.class\""));
+        assertTrue(evidence.contains("\"reflectionMetadata\": ["));
+        assertTrue(evidence.contains("\"reachabilityMetadata\": ["));
+        assertTrue(evidence.contains("reflect-config.json"));
+        assertTrue(evidence.contains("reachability-metadata.json"));
+        assertFalse(evidence.contains(projectDir.toString()));
+        String nativeClasspath = commands.getFirst().get(commands.getFirst().indexOf("-cp") + 1);
+        assertTrue(nativeClasspath.contains(projectDir.resolve(".zolt/build/spring-aot/main/classes").toString()));
+        assertTrue(nativeClasspath.contains(projectDir.resolve(".zolt/build/spring-aot/main/resources").toString()));
     }
 
     @Test
@@ -327,5 +386,25 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
                 imageName = "demo-native"
                 args = ["--no-fallback"]
                 """);
+    }
+
+    private static void writeSpringBootAotOutput(Path aotRoot, boolean includeReachabilityMetadata) throws IOException {
+        Path source = aotRoot.resolve("sources/com/example/Main__BeanDefinitions.java");
+        Path generatedClass = aotRoot.resolve("classes/com/example/Main__BeanDefinitions.class");
+        Path resource = aotRoot.resolve("resources/application.properties");
+        Path reflection = aotRoot.resolve("resources/META-INF/native-image/com.example/demo/reflect-config.json");
+        Files.createDirectories(source.getParent());
+        Files.createDirectories(generatedClass.getParent());
+        Files.createDirectories(resource.getParent());
+        Files.createDirectories(reflection.getParent());
+        Files.writeString(source, "package com.example; final class Main__BeanDefinitions {}\n");
+        Files.writeString(generatedClass, "class");
+        Files.writeString(resource, "spring.application.name=demo\n");
+        Files.writeString(reflection, "[]\n");
+        if (includeReachabilityMetadata) {
+            Files.writeString(
+                    aotRoot.resolve("resources/META-INF/native-image/com.example/demo/reachability-metadata.json"),
+                    "{}\n");
+        }
     }
 }

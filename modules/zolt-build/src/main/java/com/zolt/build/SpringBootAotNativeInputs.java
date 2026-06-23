@@ -1,39 +1,42 @@
 package com.zolt.build;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Stream;
 
 final class SpringBootAotNativeInputs {
     private final Path projectRoot;
     private final String outputRoot;
+    private final SpringBootAotOutputEvidenceService evidenceService;
 
     SpringBootAotNativeInputs(Path projectRoot) {
         this(projectRoot, "target");
     }
 
     SpringBootAotNativeInputs(Path projectRoot, String outputRoot) {
+        this(projectRoot, outputRoot, new SpringBootAotOutputEvidenceService());
+    }
+
+    SpringBootAotNativeInputs(
+            Path projectRoot,
+            String outputRoot,
+            SpringBootAotOutputEvidenceService evidenceService) {
         this.projectRoot = projectRoot.toAbsolutePath().normalize();
         this.outputRoot = outputRoot == null || outputRoot.isBlank() ? "target" : outputRoot;
+        this.evidenceService = evidenceService;
     }
 
     List<Path> classpathEntries() {
-        Path classes = classesDirectory();
-        Path resources = resourcesDirectory();
-        requireDirectory(classes, "compiled Spring Boot AOT classes");
-        requireDirectory(resources, "Spring Boot AOT resources");
-        requireNativeMetadata(resources);
-        return List.of(classes, resources);
-    }
-
-    private Path classesDirectory() {
-        return projectRoot.resolve(outputRoot).resolve("spring-aot/main/classes").normalize();
-    }
-
-    private Path resourcesDirectory() {
-        return projectRoot.resolve(outputRoot).resolve("spring-aot/main/resources").normalize();
+        SpringBootAotOutputEvidence evidence = evidenceService.collect(projectRoot, outputRoot);
+        requireDirectory(evidence.sourcesDirectory(), "Spring Boot AOT sources");
+        requireFiles(evidence.generatedSources(), "Spring Boot AOT generated source files", evidence.sourcesDirectory());
+        requireDirectory(evidence.classesDirectory(), "compiled Spring Boot AOT classes");
+        requireFiles(evidence.generatedClasses(), "compiled Spring Boot AOT class files", evidence.classesDirectory());
+        requireDirectory(evidence.resourcesDirectory(), "Spring Boot AOT resources");
+        requireDirectory(evidence.nativeMetadataDirectory(), "Spring Boot AOT native metadata");
+        requireFiles(evidence.reflectionMetadata(), "Spring Boot AOT reflection metadata", evidence.nativeMetadataDirectory());
+        requireFiles(evidence.reachabilityMetadata(), "Spring Boot AOT reachability metadata", evidence.nativeMetadataDirectory());
+        return List.of(evidence.classesDirectory(), evidence.resourcesDirectory());
     }
 
     private static void requireDirectory(Path path, String label) {
@@ -47,25 +50,14 @@ final class SpringBootAotNativeInputs {
         }
     }
 
-    private static void requireNativeMetadata(Path resources) {
-        Path metadataRoot = resources.resolve("META-INF/native-image");
-        if (!Files.isDirectory(metadataRoot) || !containsRegularFile(metadataRoot)) {
+    private static void requireFiles(List<Path> paths, String label, Path directory) {
+        if (paths.isEmpty()) {
             throw new NativeImageException(
-                    "Spring Boot native AOT metadata is missing at "
-                            + metadataRoot
-                            + ". [framework.springBoot.native] enabled = true requires Zolt-owned reachability metadata before invoking Native Image.");
-        }
-    }
-
-    private static boolean containsRegularFile(Path directory) {
-        try (Stream<Path> paths = Files.walk(directory)) {
-            return paths.anyMatch(Files::isRegularFile);
-        } catch (IOException exception) {
-            throw new NativeImageException(
-                    "Could not inspect Spring Boot native AOT metadata under "
+                    "Spring Boot native AOT output is missing "
+                            + label
+                            + " under "
                             + directory
-                            + ". Check filesystem permissions and retry.",
-                    exception);
+                            + ". [framework.springBoot.native] enabled = true requires complete Spring AOT output evidence before invoking Native Image.");
         }
     }
 }

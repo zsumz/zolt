@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 public final class NativeBuildService {
     private static final List<String> SERIOUS_WARNING_TERMS = List.of("warning", "unsupported", "error");
@@ -78,13 +79,20 @@ public final class NativeBuildService {
         String mainClass = nativeMainClass(config);
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
         Path projectRoot = ProjectPaths.root(projectDirectory);
+        Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
+        String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
+        Optional<Path> springBootAotEvidencePath = Optional.empty();
         List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
                 ? new SpringBootAotNativeInputs(projectRoot, config.build().outputRoot()).classpathEntries()
                 : List.of();
+        if (config.frameworkSettings().springBoot().nativeEnabled()) {
+            springBootAotEvidencePath = Optional.of(new SpringBootAotOutputEvidenceService().write(
+                    projectRoot,
+                    config.build().outputRoot(),
+                    outputDirectory.resolve("spring-aot-evidence.json")));
+        }
         List<Path> nativeRuntimeClasspath = new ArrayList<>(runtimeClasspath == null ? List.of() : runtimeClasspath);
         nativeRuntimeClasspath.addAll(0, springBootAotClasspath);
-        Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
-        String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
         NativeImageResult nativeImageResult = nativeImageRunner.build(new NativeImageRequest(
                 nativeImageExecutable,
                 packageResult.jarPath(),
@@ -94,7 +102,7 @@ public final class NativeBuildService {
                 outputDirectory.resolve("native-image.log"),
                 nativeSettings.args()));
         reportSeriousWarnings(nativeImageResult);
-        return new NativeBuildResult(packageResult, nativeImageResult);
+        return new NativeBuildResult(packageResult, nativeImageResult, springBootAotEvidencePath);
     }
 
     private static String nativeMainClass(ProjectConfig config) {
