@@ -5,6 +5,7 @@ import static com.zolt.cli.CliTestSupport.memberConfig;
 import static com.zolt.cli.CliTestSupport.sha256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -134,7 +135,13 @@ final class PublishCommandUploadTest {
         }
 
         static UploadRepository start() throws IOException {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            HttpServer server;
+            try {
+                server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            } catch (IOException exception) {
+                assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+                return null;
+            }
             UploadRepository repository = new UploadRepository(server);
             server.createContext("/", repository::handle);
             server.start();

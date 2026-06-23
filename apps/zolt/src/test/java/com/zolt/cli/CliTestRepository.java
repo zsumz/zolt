@@ -1,5 +1,7 @@
 package com.zolt.cli;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -21,7 +23,13 @@ final class CliTestRepository implements AutoCloseable {
     }
 
     static CliTestRepository start() throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        } catch (IOException exception) {
+            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+            return null;
+        }
         CliTestRepository repository = new CliTestRepository(server);
         server.createContext("/", repository::handle);
         server.start();
