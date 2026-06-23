@@ -41,24 +41,27 @@ final class WoodpeckerWorkflowTest {
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.json"));
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.headers"));
         assertTrue(workflow.contains("target/vertx-postgres-crud-smoke/*.body"));
-        assertFalse(workflow.contains("vertx_postgres_native_smoke"));
-        assertFalse(workflow.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
-        assertFalse(workflow.contains("vertx_postgres_native_logs:"));
+        assertTrue(workflow.contains("vertx_postgres_native_smoke:"));
+        assertTrue(workflow.contains("image: ghcr.io/graalvm/native-image-community:21"));
+        assertTrue(workflow.contains("ZOLT_VERTX_POSTGRES_NATIVE_SMOKE_ZOLT=scripts/bootstrap-zolt-jvm scripts/smoke-vertx-postgres-native"));
+        assertTrue(workflow.contains("- vertx_postgres_jvm_smoke"));
+        assertTrue(workflow.contains("vertx_postgres_native_logs:"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke"));
+        assertTrue(workflow.contains("target/vertx-postgres-native-smoke/vertx-postgres-crud/target/native/native-image.log"));
     }
 
     @Test
-    void manualNativeEntryPointsArePausedTemporarily() throws IOException {
+    void manualNativeEntryPointsUseNativeZoltEvidence() throws IOException {
         String nativeWorkflow = Files.readString(WOODPECKER.resolve("native.yml"));
         String coldResolveWorkflow = Files.readString(WOODPECKER.resolve("perf-cold-resolve.yml"));
 
-        assertFalse(nativeWorkflow.contains("event: manual"));
-        assertFalse(coldResolveWorkflow.contains("scripts/self-host-native"));
-        assertFalse(coldResolveWorkflow.contains("native_self_host"));
-        assertTrue(coldResolveWorkflow.contains("jvm_self_host:"));
-        assertTrue(coldResolveWorkflow.contains("scripts/self-host-jvm"));
-        assertTrue(coldResolveWorkflow.contains(
-                "scripts/perf-cold-resolve-gate --zolt scripts/run-zolt-built --zolt-tool zolt-jvm --repeat"));
-        assertTrue(coldResolveWorkflow.contains("- jvm_self_host"));
+        assertTrue(nativeWorkflow.contains("event: manual"));
+        assertTrue(coldResolveWorkflow.contains("native_self_host:"));
+        assertTrue(coldResolveWorkflow.contains("scripts/self-host-native"));
+        assertTrue(coldResolveWorkflow.contains("scripts/perf-cold-resolve-gate --repeat"));
+        assertTrue(coldResolveWorkflow.contains("- native_self_host"));
+        assertFalse(coldResolveWorkflow.contains("--zolt-tool zolt-jvm"));
+        assertFalse(coldResolveWorkflow.contains("jvm_self_host:"));
     }
 
     @Test
