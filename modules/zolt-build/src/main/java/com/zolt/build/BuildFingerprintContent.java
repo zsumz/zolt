@@ -7,29 +7,20 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 final class BuildFingerprintContent {
     private static final String VERSION = "1";
     private static final List<String> OUTPUT_DIRECTORY_NAMES = List.of("build", "target");
-    private static final List<String> LOCAL_FINGERPRINT_FILES = List.of(
-            ".zolt-build-main.fingerprint",
-            ".zolt-build-test.fingerprint",
-            ".zolt-build-main.fingerprint.state",
-            ".zolt-build-test.fingerprint.state");
 
     private final BuildFingerprintExpectedClasses expectedClasses = new BuildFingerprintExpectedClasses();
+    private final BuildFingerprintFileHasher fileHasher = new BuildFingerprintFileHasher();
 
     String fingerprint(
             Path projectDirectory,
@@ -50,12 +41,12 @@ final class BuildFingerprintContent {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
         line(content, "version", VERSION);
-        line(content, "projectConfig", sha256(config.toString().getBytes(StandardCharsets.UTF_8)));
-        line(content, "zoltToml", fileHash(projectRoot.resolve("zolt.toml"), cachedState, collectedState));
-        line(content, "lockfile", fileHash(lockfilePath, cachedState, collectedState));
+        line(content, "projectConfig", fileHasher.hashText(config.toString()));
+        line(content, "zoltToml", fileHasher.fileHash(projectRoot.resolve("zolt.toml"), cachedState, collectedState));
+        line(content, "lockfile", fileHasher.fileHash(lockfilePath, cachedState, collectedState));
         section(content, "sourceRoots", sourceRoots.stream().map(BuildFingerprintContent::normalize).toList());
         line(content, "outputDirectory", normalize(outputDirectoryName));
-        line(content, "generatedSourcesDirectory", relative(projectRoot, generatedSourcesDirectory));
+        line(content, "generatedSourcesDirectory", fileHasher.relative(projectRoot, generatedSourcesDirectory));
         line(content, "compilerSettings", config.compilerSettings().toString());
         section(content, "compileClasspath", classpathEntries(compileClasspath, cachedState, collectedState));
         section(content, "processorClasspath", classpathEntries(processorClasspath, cachedState, collectedState));
@@ -67,50 +58,18 @@ final class BuildFingerprintContent {
         return content.toString();
     }
 
-    private static List<String> classpathEntries(
+    private List<String> classpathEntries(
             Classpath classpath,
             BuildFingerprintState cachedState,
             Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> path + "|" + classpathHash(path, cachedState, collectedState))
+                .map(path -> path + "|" + fileHasher.classpathHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static String classpathHash(
-            Path path,
-            BuildFingerprintState cachedState,
-            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (Files.isDirectory(normalized)) {
-            Optional<String> abiHash = zoltOutputAbiHash(normalized);
-            if (abiHash.isPresent()) {
-                return "abi:" + abiHash.orElseThrow();
-            }
-        }
-        return fileHash(normalized, cachedState, collectedState);
-    }
-
-    private static Optional<String> zoltOutputAbiHash(Path directory) {
-        Optional<IncrementalCompileState> state = new IncrementalCompileStateCodec()
-                .read(IncrementalCompileState.mainStatePath(directory));
-        if (state.isEmpty() || !state.orElseThrow().outputDirectory().equals(directory)) {
-            return Optional.empty();
-        }
-        StringBuilder content = new StringBuilder();
-        for (IncrementalCompileState.ClassRecord classRecord : state.orElseThrow().classes()) {
-            content.append(classRecord.binaryName())
-                    .append('|')
-                    .append(classRecord.abiHash())
-                    .append('|')
-                    .append(classRecord.packagePrivateAbiHash())
-                    .append('\n');
-        }
-        return Optional.of(sha256(content.toString().getBytes(StandardCharsets.UTF_8)));
-    }
-
-    private static List<String> fileEntries(
+    private List<String> fileEntries(
             Path projectRoot,
             List<Path> files,
             BuildFingerprintState cachedState,
@@ -118,11 +77,12 @@ final class BuildFingerprintContent {
         return files.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> relative(projectRoot, path) + "|" + fileHash(path, cachedState, collectedState))
+                .map(path -> fileHasher.relative(projectRoot, path) + "|"
+                        + fileHasher.fileHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static List<String> resourceEntries(
+    private List<String> resourceEntries(
             Path projectRoot,
             List<String> configuredRoots,
             String resourceRootKey,
@@ -156,7 +116,7 @@ final class BuildFingerprintContent {
         return fileEntries(projectRoot, resources, cachedState, collectedState);
     }
 
-    private static List<String> generatedSourceInputEntries(
+    private List<String> generatedSourceInputEntries(
             Path projectRoot,
             List<GeneratedSourceStep> steps,
             BuildFingerprintState cachedState,
@@ -166,11 +126,12 @@ final class BuildFingerprintContent {
                         .map(input -> inputPath(projectRoot, "[generated." + step.id() + "].inputs", input)))
                 .distinct()
                 .sorted()
-                .map(path -> relative(projectRoot, path) + "|" + fileHash(path, cachedState, collectedState))
+                .map(path -> fileHasher.relative(projectRoot, path) + "|"
+                        + fileHasher.fileHash(path, cachedState, collectedState))
                 .toList();
     }
 
-    private static List<String> generatedSourceEntries(
+    private List<String> generatedSourceEntries(
             Path projectRoot,
             Path generatedSourcesDirectory,
             BuildFingerprintState cachedState,
@@ -230,78 +191,6 @@ final class BuildFingerprintContent {
             return ProjectPaths.output(projectRoot, key, configuredPath);
         } catch (ProjectPathException exception) {
             throw new BuildException(exception.getMessage(), exception);
-        }
-    }
-
-    private static String relative(Path projectRoot, Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.startsWith(projectRoot)) {
-            return projectRoot.relativize(normalized).toString().replace('\\', '/');
-        }
-        return normalized.toString().replace('\\', '/');
-    }
-
-    private static String fileHash(
-            Path path,
-            BuildFingerprintState cachedState,
-            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (Files.isDirectory(normalized)) {
-            return directoryHash(normalized, cachedState, collectedState);
-        }
-        if (!Files.isRegularFile(normalized)) {
-            return "missing";
-        }
-        if (cachedState != null) {
-            return cachedState.hashIfCurrent(normalized)
-                    .orElseThrow(BuildFingerprintStateMiss::new);
-        }
-        try {
-            String hash = sha256(Files.readAllBytes(normalized));
-            if (collectedState != null) {
-                collectedState.put(normalized, BuildFingerprintCachedFileHash.read(normalized, hash));
-            }
-            return hash;
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not fingerprint file "
-                            + normalized
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String directoryHash(
-            Path directory,
-            BuildFingerprintState cachedState,
-            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
-        try (Stream<Path> paths = Files.walk(directory)) {
-            StringBuilder content = new StringBuilder();
-            paths.filter(Files::isRegularFile)
-                    .map(Path::normalize)
-                    .filter(path -> !LOCAL_FINGERPRINT_FILES.contains(path.getFileName().toString()))
-                    .sorted()
-                    .forEach(path -> content
-                            .append(directory.relativize(path).toString().replace('\\', '/'))
-                            .append('|')
-                            .append(fileHash(path, cachedState, collectedState))
-                            .append('\n'));
-            return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not fingerprint directory "
-                            + directory
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new BuildException("Could not compute build fingerprint because SHA-256 is unavailable.", exception);
         }
     }
 
