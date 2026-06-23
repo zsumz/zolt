@@ -91,6 +91,21 @@ final class UberJarLayoutAssemblerTest {
             Attributes attributes = jar.getManifest().getMainAttributes();
             assertEquals("com.example.Main", attributes.getValue(Attributes.Name.MAIN_CLASS));
         }
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "relocated-metadata",
+                "META-INF/LICENSE.txt",
+                Optional.of("META-INF/zolt-uber/com/example/runtime/1.0.0/LICENSE.txt"),
+                List.of("com.example:runtime"))));
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "omitted-module-descriptor",
+                "MODULE-INFO.CLASS",
+                Optional.empty(),
+                List.of("com.example:runtime"))));
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "omitted-module-descriptor",
+                "META-INF/versions/9/module-info.class",
+                Optional.empty(),
+                List.of("com.example:runtime"))));
     }
 
     @Test
@@ -166,6 +181,16 @@ final class UberJarLayoutAssemblerTest {
                     netty-common.version=4.1.115.Final
                     """, readEntry(jar, "META-INF/io.netty.versions.properties"));
         }
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "service-descriptor",
+                "META-INF/services/com.example.Plugin",
+                Optional.empty(),
+                List.of("application output", "com.example:first", "com.example:second"))));
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "netty-version-metadata",
+                "META-INF/io.netty.versions.properties",
+                Optional.empty(),
+                List.of("com.example:first", "com.example:second"))));
     }
 
     private static PackageRuntimeJar runtimeDependency(String group, String artifact, String version, Path jar) {

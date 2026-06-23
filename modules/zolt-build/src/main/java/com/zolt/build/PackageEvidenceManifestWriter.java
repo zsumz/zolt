@@ -88,6 +88,8 @@ public final class PackageEvidenceManifestWriter {
         json.append(",\n");
         dependencies(json, plan.dependencies());
         json.append(",\n");
+        PackageMergeDecisionEvidenceWriter.write(json, result.mergeDecisions());
+        json.append(",\n");
         generatedSources(json, projectRoot, config);
         json.append(",\n");
         resourceFiltering(json, projectRoot, packageResourceEvidence.collect(projectRoot, config.build()));

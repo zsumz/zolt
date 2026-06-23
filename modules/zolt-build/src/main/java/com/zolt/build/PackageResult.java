@@ -14,7 +14,8 @@ public record PackageResult(
         int entryCount,
         boolean hasMainClass,
         String applicationLayout,
-        List<PackageArtifact> artifacts) {
+        List<PackageArtifact> artifacts,
+        List<PackageMergeDecision> mergeDecisions) {
     public PackageResult {
         mode = mode == null ? PackageMode.THIN : mode;
         runtimeClasspathPath = runtimeClasspathPath == null ? Optional.empty() : runtimeClasspathPath;
@@ -23,6 +24,7 @@ public record PackageResult(
                 ? defaultApplicationLayout(mode)
                 : applicationLayout;
         artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
+        mergeDecisions = mergeDecisions == null ? List.of() : List.copyOf(mergeDecisions);
     }
 
     public PackageResult withArtifactsAndEvidence(
@@ -37,7 +39,8 @@ public record PackageResult(
                 entryCount,
                 hasMainClass,
                 applicationLayout,
-                artifacts);
+                artifacts,
+                mergeDecisions);
     }
 
     public PackageResult withApplicationLayout(String applicationLayout) {
@@ -50,7 +53,22 @@ public record PackageResult(
                 entryCount,
                 hasMainClass,
                 applicationLayout,
-                artifacts);
+                artifacts,
+                mergeDecisions);
+    }
+
+    public PackageResult withMergeDecisions(List<PackageMergeDecision> mergeDecisions) {
+        return new PackageResult(
+                buildResult,
+                mode,
+                jarPath,
+                runtimeClasspathPath,
+                evidenceManifestPath,
+                entryCount,
+                hasMainClass,
+                applicationLayout,
+                artifacts,
+                mergeDecisions);
     }
 
     public PackageResult(
@@ -71,7 +89,8 @@ public record PackageResult(
                 entryCount,
                 hasMainClass,
                 defaultApplicationLayout(mode),
-                artifacts);
+                artifacts,
+                List.of());
     }
 
     public PackageResult(

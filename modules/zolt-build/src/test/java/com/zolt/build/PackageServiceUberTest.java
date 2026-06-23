@@ -98,6 +98,51 @@ final class PackageServiceUberTest {
         assertTrue(exception.getMessage().contains("Move one dependency out of the runtime classpath"));
     }
 
+    @Test
+    void recordsUberMergeDecisionsInPackageEvidenceDeterministically() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        writeUberMergeLockfile(projectDir);
+        writeJar(cacheRoot.resolve("com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"), Map.of(
+                "META-INF/services/com.example.Plugin", "com.example.RuntimePlugin\n",
+                "META-INF/io.netty.versions.properties", "netty-common.version=4.1.115.Final\n",
+                "META-INF/LICENSE.txt", "license",
+                "module-info.class", "module"));
+        writeJar(cacheRoot.resolve("io/netty/netty-helper/4.1.115.Final/netty-helper-4.1.115.Final.jar"), Map.of(
+                "META-INF/services/com.example.Plugin", "com.example.NettyPlugin\n",
+                "META-INF/io.netty.versions.properties", "netty-buffer.version=4.1.115.Final\n",
+                "META-INF/NOTICE", "notice",
+                "META-INF/versions/9/module-info.class", "module"));
+        source(projectDir, "src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        PackageResult first = packageService.packageJar(projectDir, uberConfig(), cacheRoot);
+        String firstEvidence = Files.readString(first.evidenceManifestPath().orElseThrow());
+        PackageResult second = packageService.packageJar(projectDir, uberConfig(), cacheRoot);
+        String secondEvidence = Files.readString(second.evidenceManifestPath().orElseThrow());
+
+        assertEquals(firstEvidence, secondEvidence);
+        assertTrue(firstEvidence.contains("\"uberMergeDecisions\": ["));
+        assertTrue(firstEvidence.contains("\"kind\": \"service-descriptor\""));
+        assertTrue(firstEvidence.contains("\"path\": \"META-INF/services/com.example.Plugin\""));
+        assertTrue(firstEvidence.contains("\"sources\": [\"com.example:runtime-lib\", \"io.netty:netty-helper\"]"));
+        assertTrue(firstEvidence.contains("\"kind\": \"netty-version-metadata\""));
+        assertTrue(firstEvidence.contains("\"path\": \"META-INF/io.netty.versions.properties\""));
+        assertTrue(firstEvidence.contains("\"kind\": \"relocated-metadata\""));
+        assertTrue(firstEvidence.contains("\"path\": \"META-INF/LICENSE.txt\""));
+        assertTrue(firstEvidence.contains("\"target\": \"META-INF/zolt-uber/com/example/runtime-lib/1.0.0/LICENSE.txt\""));
+        assertTrue(firstEvidence.contains("\"path\": \"META-INF/NOTICE\""));
+        assertTrue(firstEvidence.contains("\"target\": \"META-INF/zolt-uber/io/netty/netty-helper/4.1.115.Final/NOTICE\""));
+        assertTrue(firstEvidence.contains("\"kind\": \"omitted-module-descriptor\""));
+        assertTrue(firstEvidence.contains("\"path\": \"module-info.class\""));
+        assertTrue(firstEvidence.contains("\"path\": \"META-INF/versions/9/module-info.class\""));
+    }
+
     private static ProjectConfig uberConfig() {
         return config(Optional.of("com.example.Main"))
                 .withPackageSettings(new PackageSettings(PackageMode.UBER));
@@ -132,6 +177,30 @@ final class PackageServiceUberTest {
                 scope = "processor"
                 direct = true
                 jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
+                dependencies = []
+                """);
+    }
+
+    private static void writeUberMergeLockfile(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:runtime-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "com/example/runtime-lib/1.0.0/runtime-lib-1.0.0.jar"
+                dependencies = []
+
+                [[package]]
+                id = "io.netty:netty-helper"
+                version = "4.1.115.Final"
+                source = "maven-central"
+                scope = "runtime"
+                direct = false
+                jar = "io/netty/netty-helper/4.1.115.Final/netty-helper-4.1.115.Final.jar"
                 dependencies = []
                 """);
     }
