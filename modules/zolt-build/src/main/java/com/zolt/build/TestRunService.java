@@ -4,14 +4,11 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
-import com.zolt.junit.JunitWorkerClient;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 public final class TestRunService {
@@ -294,27 +291,6 @@ public final class TestRunService {
                 jvmArguments,
                 reportSettings,
                 cliEvents);
-    }
-
-    @FunctionalInterface
-    interface PlainJunitWorkerRunner {
-        PlainJunitWorkerRunResult run(
-                Path javaExecutable,
-                List<Path> workerClasspath,
-                Path projectDirectory,
-                List<Path> testRuntimeClasspath,
-                Path testOutputDirectory,
-                TestSelection testSelection,
-                TestJvmArguments jvmArguments,
-                Map<String, String> environment,
-                Optional<Path> reportsDirectory,
-                List<String> events);
-    }
-
-    record PlainJunitWorkerRunResult(
-            JunitWorkerClient.WorkerRunResult workerResult,
-            long startupNanos,
-            long requestNanos) {
     }
 
 }

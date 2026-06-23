@@ -29,7 +29,7 @@ final class CompiledTestRunner {
     private final JavaRunner javaRunner;
     private final FrameworkTestRunner frameworkTestRunner;
     private final Supplier<List<Path>> plainJunitWorkerClasspath;
-    private final TestRunService.PlainJunitWorkerRunner plainJunitWorkerRunner;
+    private final PlainJunitWorkerRunner plainJunitWorkerRunner;
     private final JunitConsoleArguments junitConsoleArguments;
     private final TestRuntimeInputBuilder testRuntimeInputBuilder = new TestRuntimeInputBuilder();
     private final JunitLauncherClasspath junitLauncherClasspath = new JunitLauncherClasspath();
@@ -42,7 +42,7 @@ final class CompiledTestRunner {
             JavaRunner javaRunner,
             FrameworkTestRunner frameworkTestRunner,
             Supplier<List<Path>> plainJunitWorkerClasspath,
-            TestRunService.PlainJunitWorkerRunner plainJunitWorkerRunner,
+            PlainJunitWorkerRunner plainJunitWorkerRunner,
             boolean plainJunitWorkerEnabled,
             String pathSeparator) {
         this.jdkDetector = jdkDetector;
@@ -124,7 +124,7 @@ final class CompiledTestRunner {
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
-            TestRunService.PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
+            PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
                     workerClasspath,
                     projectDirectory,
@@ -188,7 +188,7 @@ final class CompiledTestRunner {
                 reportsDirectory);
     }
 
-    static TestRunService.PlainJunitWorkerRunResult runPlainJunitWorker(
+    static PlainJunitWorkerRunResult runPlainJunitWorker(
             Path javaExecutable,
             List<Path> workerClasspath,
             Path projectDirectory,
@@ -210,7 +210,7 @@ final class CompiledTestRunner {
                     reportsDirectory,
                     events);
             long requestNanos = System.nanoTime() - requestStarted;
-            return new TestRunService.PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
+            return new PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
         } catch (JunitWorkerClientException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }

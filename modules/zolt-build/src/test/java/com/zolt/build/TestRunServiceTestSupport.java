@@ -71,7 +71,7 @@ final class TestRunServiceTestSupport {
             JdkChecker jdkChecker,
             FrameworkTestRunner frameworkTestRunner,
             Supplier<List<Path>> plainJunitWorkerClasspath,
-            TestRunService.PlainJunitWorkerRunner plainJunitWorkerRunner,
+            PlainJunitWorkerRunner plainJunitWorkerRunner,
             boolean plainJunitWorkerEnabled) {
         return new TestRunService(
                 new TestCompileService(jdkChecker),

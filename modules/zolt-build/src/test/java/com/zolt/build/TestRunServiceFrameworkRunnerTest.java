@@ -62,7 +62,7 @@ final class TestRunServiceFrameworkRunnerTest {
                     environments.add(environment);
                     reportDirectories.add(reportsDirectory);
                     events.add(testEvents);
-                    return new TestRunService.PlainJunitWorkerRunResult(
+                    return new PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("worker tests passed\n", 0),
                             12_000_000L,
                             34_000_000L);
@@ -117,7 +117,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) ->
-                        new TestRunService.PlainJunitWorkerRunResult(
+                        new PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
                                 34_000_000L),
