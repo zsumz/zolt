@@ -105,7 +105,7 @@ final class PomDependencyManagerTest {
     }
 
     @Test
-    void managedScopeAppliesWhenDependencyDoesNotDeclareScope() {
+    void managedScopeAppliesBeforeTransitiveFiltering() {
         EffectiveRawPom pom = effective(parser, """
                 <project>
                   <groupId>com.example</groupId>
@@ -130,10 +130,11 @@ final class PomDependencyManagerTest {
                 </project>
                 """);
 
-        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+        RawPomDependency dependency = manager.applyManagedVersion(pom.rawPom().dependencies().getFirst(), pom);
 
         assertEquals("4.13.2", dependency.version().orElseThrow());
         assertEquals("test", dependency.scope().orElseThrow());
+        assertTrue(manager.applyManagedVersions(pom).isEmpty());
     }
 
     @Test
