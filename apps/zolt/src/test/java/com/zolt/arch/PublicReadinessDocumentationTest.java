@@ -189,6 +189,7 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains("| WebMVC plus Actuator | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-actuator` launches the executable and probes app plus Actuator endpoints"));
         assertTrue(springBootReadiness.contains("| WebMVC contract | Spring Boot 3.3 on Java 21 |"));
+        assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-web-contract` launches the executable and probes JSON, validation, configuration, and static resources"));
         assertTrue(springBootReadiness.contains("| Data access | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("Unsupported until proven: broad Spring native-image support, Spring Boot 4 native support"));
         assertTrue(springBootReadiness.contains("Spring Boot 4 native support remains unsupported until a compatible JDK/Native Image toolchain is proven."));
@@ -196,6 +197,8 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains(" promotes public readiness docs only after the M26 real executable smokes pass."));
         assertTrue(nativeGraalvm.contains("M26 is the planned broader Spring Boot native readiness milestone"));
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-actuator"));
+        assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-web-contract"));
+        assertTrue(nativeGraalvm.contains("deterministic validation failure JSON"));
         assertTrue(nativeGraalvm.contains("This remains M26 fixture evidence rather than broad Spring native support."));
         assertTrue(milestone.contains(": design the Spring Boot native fixture matrix."));
         assertTrue(milestone.contains(": promote public readiness docs only after the M26 real executable smokes pass."));
