@@ -18,9 +18,9 @@ import java.util.Optional;
 public final class BuildFingerprintService {
     private static final String MAIN_FILE_NAME = ".zolt-build-main.fingerprint";
     private static final String TEST_FILE_NAME = ".zolt-build-test.fingerprint";
-    private static final String STATE_SUFFIX = ".state";
     private final BuildFingerprintContent content = new BuildFingerprintContent();
     private final BuildFingerprintExpectedClasses expectedClasses = new BuildFingerprintExpectedClasses();
+    private final BuildFingerprintStateStore stateStore = new BuildFingerprintStateStore();
 
     public boolean isMainCompileCurrent(
             Path projectDirectory,
@@ -158,7 +158,7 @@ public final class BuildFingerprintService {
             String outputDirectoryName,
             Path generatedSourcesDirectory,
             String fileName) {
-        Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
+        Path fingerprintPath = stateStore.fingerprintPath(outputDirectory, fileName);
         if (!Files.isRegularFile(fingerprintPath)) {
             return false;
         }
@@ -177,7 +177,7 @@ public final class BuildFingerprintService {
         }
         try {
             String existing = Files.readString(fingerprintPath);
-            Optional<BuildFingerprintState> state = readState(fingerprintPath);
+            Optional<BuildFingerprintState> state = stateStore.readState(fingerprintPath);
             if (state.isPresent() && state.orElseThrow().matchesFingerprint(existing)) {
                 try {
                     return existing.equals(content.fingerprint(
@@ -240,7 +240,7 @@ public final class BuildFingerprintService {
             String outputDirectoryName,
             Path generatedSourcesDirectory,
             String fileName) {
-        Path fingerprintPath = fingerprintPath(outputDirectory, fileName);
+        Path fingerprintPath = stateStore.fingerprintPath(outputDirectory, fileName);
         try {
             Files.createDirectories(fingerprintPath.getParent());
             Map<Path, BuildFingerprintCachedFileHash> state = new LinkedHashMap<>();
@@ -261,54 +261,11 @@ public final class BuildFingerprintService {
                     null,
                     state);
             Files.writeString(fingerprintPath, fingerprint, StandardCharsets.UTF_8);
-            writeState(fingerprintPath, fingerprint, state);
+            stateStore.writeState(fingerprintPath, fingerprint, state);
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not write build fingerprint at "
                             + fingerprintPath
-                            + ". Check that the build output directory is writable.",
-                    exception);
-        }
-    }
-
-    private static Path fingerprintPath(Path outputDirectory, String fileName) {
-        return outputDirectory.resolve(fileName);
-    }
-
-    private static Path statePath(Path fingerprintPath) {
-        return fingerprintPath.resolveSibling(fingerprintPath.getFileName() + STATE_SUFFIX);
-    }
-
-    private static Optional<BuildFingerprintState> readState(Path fingerprintPath) {
-        Path statePath = statePath(fingerprintPath);
-        if (!Files.isRegularFile(statePath)) {
-            return Optional.empty();
-        }
-        try {
-            return BuildFingerprintState.parse(Files.readAllLines(statePath, StandardCharsets.UTF_8));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not read build fingerprint state at "
-                            + statePath
-                            + ". Delete the file or rerun `zolt build` to refresh it.",
-                    exception);
-        }
-    }
-
-    private static void writeState(
-            Path fingerprintPath,
-            String fingerprint,
-            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
-        Path statePath = statePath(fingerprintPath);
-        try {
-            Files.writeString(
-                    statePath,
-                    BuildFingerprintState.format(fingerprint, collectedState),
-                    StandardCharsets.UTF_8);
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not write build fingerprint state at "
-                            + statePath
                             + ". Check that the build output directory is writable.",
                     exception);
         }
