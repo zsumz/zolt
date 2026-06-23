@@ -1,35 +1,27 @@
 package com.zolt.build;
 
+import static com.zolt.build.IncrementalCompileInputHasher.hash;
+import static com.zolt.build.IncrementalCompileInputHasher.hashText;
+import static com.zolt.build.IncrementalCompileInputHasher.relative;
+
+import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
-import com.zolt.classpath.Classpath;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 final class IncrementalCompileStateRecorder {
     private static final String MAIN_FINGERPRINT_FILE = ".zolt-build-main.fingerprint";
     private static final String TEST_FINGERPRINT_FILE = ".zolt-build-test.fingerprint";
-    private static final Set<String> LOCAL_COMPILE_METADATA = Set.of(
-            MAIN_FINGERPRINT_FILE,
-            MAIN_FINGERPRINT_FILE + ".state",
-            TEST_FINGERPRINT_FILE,
-            TEST_FINGERPRINT_FILE + ".state",
-            IncrementalCompileState.MAIN_FILE_NAME,
-            IncrementalCompileState.TEST_FILE_NAME);
 
     private final IncrementalCompileStateCodec codec;
     private final ClassFileAbiReader abiReader;
@@ -144,7 +136,7 @@ final class IncrementalCompileStateRecorder {
                 sourceRoots,
                 generatedStepIds,
                 classFiles,
-                IncrementalCompileStateRecorder::fileHash);
+                IncrementalCompileInputHasher::hash);
         List<IncrementalCompileState.ClassRecord> classRecords = classRecords(classFiles);
         codec.write(
                 statePath,
@@ -153,8 +145,8 @@ final class IncrementalCompileStateRecorder {
                         projectRoot,
                         outputDirectory,
                         generatedSourcesDirectory,
-                        sha256(config.compilerSettings().toString().getBytes(StandardCharsets.UTF_8)),
-                        fileHash(fingerprintPath),
+                        hashText(config.compilerSettings().toString()),
+                        hash(fingerprintPath),
                         stateFallbackReasons,
                         sourceRoots.stream().map(path -> relative(projectRoot, path)).toList(),
                         generatedSteps.stream().map(GeneratedSourceStep::output).sorted().toList(),
@@ -200,7 +192,7 @@ final class IncrementalCompileStateRecorder {
                 .map(abi -> new IncrementalCompileState.ClassRecord(
                         abi.binaryName(),
                         abi.classFile(),
-                        fileHash(abi.classFile()),
+                        hash(abi.classFile()),
                         abi.abiHash(),
                         abi.packagePrivateAbiHash(),
                         abi.accessFlags(),
@@ -225,7 +217,7 @@ final class IncrementalCompileStateRecorder {
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
-                .map(path -> new IncrementalCompileState.ClasspathEntry(path, fileHash(path)))
+                .map(path -> new IncrementalCompileState.ClasspathEntry(path, hash(path)))
                 .toList();
     }
 
@@ -251,55 +243,6 @@ final class IncrementalCompileStateRecorder {
         return ids;
     }
 
-    private static String fileHash(Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (Files.isDirectory(normalized)) {
-            return directoryHash(normalized);
-        }
-        if (!Files.isRegularFile(normalized)) {
-            return "missing";
-        }
-        try {
-            return sha256(Files.readAllBytes(normalized));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not hash incremental compile input "
-                            + normalized
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String directoryHash(Path directory) {
-        try (Stream<Path> paths = Files.walk(directory)) {
-            StringBuilder content = new StringBuilder();
-            paths.filter(Files::isRegularFile)
-                    .filter(path -> !LOCAL_COMPILE_METADATA.contains(path.getFileName().toString()))
-                    .sorted()
-                    .forEach(path -> content
-                            .append(directory.relativize(path).toString().replace('\\', '/'))
-                            .append('|')
-                            .append(fileHash(path))
-                            .append('\n'));
-            return sha256(content.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (IOException exception) {
-            throw new BuildException(
-                    "Could not hash incremental compile directory "
-                            + directory
-                            + ". Check that it is readable.",
-                    exception);
-        }
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new BuildException("Could not compute incremental compile state because SHA-256 is unavailable.", exception);
-        }
-    }
-
     private static void deleteState(Path statePath) {
         try {
             Files.deleteIfExists(statePath);
@@ -310,13 +253,5 @@ final class IncrementalCompileStateRecorder {
                             + ". Check that the build output directory is writable.",
                     exception);
         }
-    }
-
-    private static String relative(Path projectRoot, Path path) {
-        Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.startsWith(projectRoot)) {
-            return projectRoot.relativize(normalized).toString().replace('\\', '/');
-        }
-        return normalized.toString().replace('\\', '/');
     }
 }
