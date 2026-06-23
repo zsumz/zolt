@@ -8,7 +8,6 @@ import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.ProjectPaths;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ public final class PackageService {
     private final ThinJarLayoutAssembler thinJarLayoutAssembler;
     private final PackageArchiveModePackager archiveModePackager;
     private final PackageSupplementalArtifactAssembler supplementalArtifactAssembler;
+    private final PackageArtifactPathPlanner artifactPathPlanner;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -116,6 +116,7 @@ public final class PackageService {
                 lockfileReader,
                 frameworkPackageAugmenter);
         this.supplementalArtifactAssembler = new PackageSupplementalArtifactAssembler(classpathBuilder);
+        this.artifactPathPlanner = new PackageArtifactPathPlanner();
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -243,7 +244,7 @@ public final class PackageService {
                     projectDirectory,
                     config,
                     buildResult,
-                    jarPath(projectDirectory, config),
+                    artifactPathPlanner.jarPath(projectDirectory, config),
                     cacheRoot,
                     classpathPackages,
                     classpaths);
@@ -251,7 +252,7 @@ public final class PackageService {
                     projectDirectory,
                     config,
                     buildResult,
-                    jarPath(projectDirectory, config),
+                    artifactPathPlanner.jarPath(projectDirectory, config),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")),
                     classpathPackages);
@@ -259,7 +260,7 @@ public final class PackageService {
                     projectDirectory,
                     config,
                     buildResult,
-                    archivePath(projectDirectory, config, "war"),
+                    artifactPathPlanner.archivePath(projectDirectory, config, "war"),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode war` for now; workspace WAR packaging is not wired yet.")),
                     classpathPackages);
@@ -267,7 +268,7 @@ public final class PackageService {
                     projectDirectory,
                     config,
                     buildResult,
-                    archivePath(projectDirectory, config, "war"),
+                    artifactPathPlanner.archivePath(projectDirectory, config, "war"),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Spring Boot WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot-war` for now; workspace Spring Boot WAR packaging is not wired yet.")),
                     classpathPackages);
@@ -286,7 +287,7 @@ public final class PackageService {
                     projectDirectory,
                     config,
                     buildResult,
-                    jarPath(projectDirectory, config),
+                    artifactPathPlanner.jarPath(projectDirectory, config),
                     cacheRoot.orElseThrow(() -> new PackageException(
                             "Uber package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode uber` for now; workspace uber packaging is not wired yet.")),
                     classpathPackages);
@@ -319,23 +320,6 @@ public final class PackageService {
                 result.runtimeClasspathPath(),
                 List.of(),
                 List.of());
-    }
-
-    private static Path jarPath(Path projectDirectory, ProjectConfig config) {
-        return archivePath(projectDirectory, config, "jar");
-    }
-
-    private static Path archivePath(Path projectDirectory, ProjectConfig config, String extension) {
-        return ProjectPaths.output(
-                projectDirectory,
-                "package archive",
-                config.build().outputRoot() + "/" + artifactBaseName(config) + "." + extension);
-    }
-
-    private static String artifactBaseName(ProjectConfig config) {
-        return ProjectPaths.filenameComponent("[project].name", config.project().name())
-                + "-"
-                + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
 }
