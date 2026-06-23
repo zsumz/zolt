@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -17,8 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class FileSizeBudgetTest {
-    private static final Path ALLOWLIST = Path.of("src/test/resources/com/zolt/arch/file-size-allowlist.txt");
-    private static final Path BUDGETS = Path.of("src/test/resources/com/zolt/arch/file-size-budgets.txt");
+    private static final Path ALLOWLIST =
+            RepositoryPaths.appRoot().resolve("src/test/resources/com/zolt/arch/file-size-allowlist.txt");
+    private static final Path BUDGETS =
+            RepositoryPaths.appRoot().resolve("src/test/resources/com/zolt/arch/file-size-budgets.txt");
 
     @Test
     void javaFilesStayBelowSoftThresholds() throws IOException {
@@ -90,7 +94,9 @@ final class FileSizeBudgetTest {
         writeLines(sourceRoot.resolve("Large.java"), 6);
 
         assertEquals(
-                Map.of("src/main/java/Large.java", new SourceFileSize("src/main/java/Large.java", 6)),
+                Map.of(
+                        RepositoryPaths.displayPath(sourceRoot.resolve("Large.java")),
+                        new SourceFileSize(RepositoryPaths.displayPath(sourceRoot.resolve("Large.java")), 6)),
                 filesAboveHardThreshold(List.of(new Budget(sourceRoot, 4, 5))));
     }
 
@@ -101,24 +107,43 @@ final class FileSizeBudgetTest {
         writeLines(sourceRoot.resolve("LargeTest.java"), 5);
 
         assertEquals(
-                Map.of("src/test/java/LargeTest.java", new SourceFileSize("src/test/java/LargeTest.java", 5)),
+                Map.of(
+                        RepositoryPaths.displayPath(sourceRoot.resolve("LargeTest.java")),
+                        new SourceFileSize(RepositoryPaths.displayPath(sourceRoot.resolve("LargeTest.java")), 5)),
                 filesAboveSoftThreshold(List.of(new Budget(sourceRoot, 4, 10))));
+    }
+
+    @Test
+    void scannerExpandsWildcardRootPatterns(@TempDir Path tempDir) throws IOException {
+        Path alphaSourceRoot = tempDir.resolve("modules/alpha/src/main/java");
+        Path betaSourceRoot = tempDir.resolve("modules/beta/src/main/java");
+        writeLines(alphaSourceRoot.resolve("Small.java"), 3);
+        writeLines(betaSourceRoot.resolve("Large.java"), 5);
+
+        assertEquals(
+                Map.of(
+                        RepositoryPaths.displayPath(betaSourceRoot.resolve("Large.java")),
+                        new SourceFileSize(RepositoryPaths.displayPath(betaSourceRoot.resolve("Large.java")), 5)),
+                filesAboveSoftThreshold(List.of(new Budget(
+                        tempDir.resolve("modules/*/src/main/java"),
+                        4,
+                        10))));
     }
 
     @Test
     void budgetFileParserReadsRootsAndThresholds(@TempDir Path tempDir) throws IOException {
         Path budgets = tempDir.resolve("budgets.txt");
         Files.writeString(budgets, """
-                # root|softThreshold|hardThreshold
-                src/main/java|350|500
+                # rootPattern|softThreshold|hardThreshold
+                apps/*/src/main/java|350|500
 
-                src/test/java|450|650
+                modules/*/src/test/java|450|650
                 """);
 
         assertEquals(
                 List.of(
-                        new Budget(Path.of("src/main/java"), 350, 500),
-                        new Budget(Path.of("src/test/java"), 450, 650)),
+                        new Budget(Path.of("apps/*/src/main/java"), 350, 500),
+                        new Budget(Path.of("modules/*/src/test/java"), 450, 650)),
                 readBudgets(budgets));
     }
 
@@ -175,17 +200,59 @@ final class FileSizeBudgetTest {
     }
 
     private static List<SourceFileSize> sourceFileSizes(Budget budget) throws IOException {
-        if (!Files.isDirectory(budget.root())) {
+        List<SourceFileSize> fileSizes = new ArrayList<>();
+        for (Path sourceRoot : sourceRoots(budget.rootPattern())) {
+            try (Stream<Path> paths = Files.walk(sourceRoot)) {
+                paths.filter(path -> path.toString().endsWith(".java"))
+                        .sorted()
+                        .map(path -> new SourceFileSize(RepositoryPaths.displayPath(path), lineCount(path)))
+                        .forEach(fileSizes::add);
+            }
+        }
+        fileSizes.sort(Comparator.comparing(SourceFileSize::path));
+        return List.copyOf(fileSizes);
+    }
+
+    private static List<Path> sourceRoots(Path rootPattern) throws IOException {
+        Path resolvedPattern = resolveRootPattern(rootPattern);
+        if (!containsWildcard(resolvedPattern)) {
+            return Files.isDirectory(resolvedPattern) ? List.of(resolvedPattern) : List.of();
+        }
+        Path base = wildcardBase(resolvedPattern);
+        if (!Files.isDirectory(base)) {
             return List.of();
         }
-        try (Stream<Path> paths = Files.walk(budget.root())) {
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + resolvedPattern);
+        try (Stream<Path> paths = Files.walk(base)) {
             return paths
-                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(Files::isDirectory)
+                    .map(Path::normalize)
+                    .filter(matcher::matches)
                     .sorted()
-                    .map(path -> new SourceFileSize(displayPath(path), lineCount(path)))
-                    .sorted(Comparator.comparing(SourceFileSize::path))
                     .toList();
         }
+    }
+
+    private static Path resolveRootPattern(Path rootPattern) {
+        if (rootPattern.isAbsolute()) {
+            return rootPattern.normalize();
+        }
+        return RepositoryPaths.root().resolve(rootPattern).normalize();
+    }
+
+    private static boolean containsWildcard(Path path) {
+        return path.toString().contains("*");
+    }
+
+    private static Path wildcardBase(Path pattern) {
+        Path base = pattern.getRoot();
+        for (Path part : pattern) {
+            if (containsWildcard(part)) {
+                break;
+            }
+            base = base == null ? part : base.resolve(part);
+        }
+        return base == null ? Path.of(".") : base;
     }
 
     private static Map<String, AllowlistEntry> readAllowlist() throws IOException {
@@ -232,12 +299,6 @@ final class FileSizeBudgetTest {
         Files.write(path, lines);
     }
 
-    private static String displayPath(Path path) {
-        String value = path.normalize().toString().replace('\\', '/');
-        int sourceIndex = value.indexOf("src/");
-        return sourceIndex >= 0 ? value.substring(sourceIndex) : value;
-    }
-
     private static String describe(List<String> values) {
         StringBuilder description = new StringBuilder();
         for (String value : values) {
@@ -246,7 +307,7 @@ final class FileSizeBudgetTest {
         return description.toString();
     }
 
-    private record Budget(Path root, int softThreshold, int hardThreshold) {
+    private record Budget(Path rootPattern, int softThreshold, int hardThreshold) {
     }
 
     private record SourceFileSize(String path, int lines) {
