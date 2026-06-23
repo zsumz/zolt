@@ -1,7 +1,7 @@
 # path|maxImports|maxPublicMethods|maxConstructorParameters|maxNestedTypes|followUp|reason
-modules/zolt-model/src/main/java/com/zolt/lockfile/LockPackage.java|4|1|17|0||wide lockfile value object mirrors serialized package fields
-modules/zolt-model/src/main/java/com/zolt/project/BuildSettings.java|1|7|16|0||wide project settings value object mirrors zolt.toml build fields
-modules/zolt-model/src/main/java/com/zolt/project/OpenApiGenerationSettings.java|4|2|17|0||wide project settings value object mirrors OpenAPI generation fields
-modules/zolt-model/src/main/java/com/zolt/project/ProjectConfig.java|2|9|30|0||wide root project model value object mirrors zolt.toml sections
+modules/zolt-model/src/main/java/com/zolt/lockfile/LockPackage.java|4|1|17|0||keep wide as lockfile serialization record; fields mirror committed package schema
+modules/zolt-model/src/main/java/com/zolt/project/BuildSettings.java|1|7|16|0||keep wide as build config value; fields group committed source/output/resource/test settings
+modules/zolt-model/src/main/java/com/zolt/project/OpenApiGenerationSettings.java|4|2|17|0||keep wide as generated-source config value; fields mirror TOML OpenAPI schema
+modules/zolt-model/src/main/java/com/zolt/project/ProjectConfig.java|2|9|30|0||keep wide as root project config aggregate; detailed construction already split by section
 modules/zolt-quarkus/src/main/java/com/zolt/quarkus/QuarkusBootstrapWorker.java|2|1|12|0||wide serialized Quarkus worker boundary mirrors bootstrap inputs
 modules/zolt-quarkus/src/main/java/com/zolt/quarkus/QuarkusTestRunnerDescriptor.java|8|1|13|0||wide serialized Quarkus test descriptor mirrors worker inputs
