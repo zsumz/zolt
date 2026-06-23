@@ -10,21 +10,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 final class PackageSupplementalArtifactAssembler {
-    private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
-            ".zolt-build-main.fingerprint",
-            ".zolt-build-main.fingerprint.state",
-            ".zolt-build-test.fingerprint",
-            ".zolt-build-test.fingerprint.state",
-            ".zolt-incremental-main.state",
-            ".zolt-incremental-test.state");
-
     private final ClasspathBuilder classpathBuilder;
 
     PackageSupplementalArtifactAssembler(ClasspathBuilder classpathBuilder) {
@@ -55,7 +45,7 @@ final class PackageSupplementalArtifactAssembler {
         Path jarPath = classifierJarPath(projectDirectory, config, "sources");
         try {
             Files.createDirectories(jarPath.getParent());
-            List<Path> files = sourceFiles(sourceRoot);
+            List<Path> files = PackageSupplementalArtifactFiles.sourceFiles(sourceRoot);
             PackageArchiveWriter.writeJarFromFiles(jarPath, sourceRoot, files);
             return new PackageArtifact("sources", jarPath, files.size());
         } catch (IOException exception) {
@@ -81,9 +71,9 @@ final class PackageSupplementalArtifactAssembler {
         Path jarPath = classifierJarPath(projectDirectory, config, "javadoc");
         try {
             Files.createDirectories(jarPath.getParent());
-            deleteDirectory(javadocDirectory);
+            PackageSupplementalArtifactFiles.deleteDirectory(javadocDirectory);
             Files.createDirectories(javadocDirectory);
-            List<Path> sources = sourceFiles(sourceRoot);
+            List<Path> sources = PackageSupplementalArtifactFiles.sourceFiles(sourceRoot);
             if (!sources.isEmpty()) {
                 runJavadoc(
                         projectDirectory,
@@ -92,7 +82,7 @@ final class PackageSupplementalArtifactAssembler {
                         sources,
                         javadocClasspath(buildResult, classpathPackages, classpaths));
             }
-            List<Path> files = regularFiles(javadocDirectory);
+            List<Path> files = PackageSupplementalArtifactFiles.regularFiles(javadocDirectory);
             PackageArchiveWriter.writeJarFromFiles(jarPath, javadocDirectory, files);
             return new PackageArtifact("javadoc", jarPath, files.size());
         } catch (IOException exception) {
@@ -115,7 +105,7 @@ final class PackageSupplementalArtifactAssembler {
         }
         try {
             Files.createDirectories(jarPath.getParent());
-            List<Path> files = compiledFiles(testOutput);
+            List<Path> files = PackageSupplementalArtifactFiles.compiledFiles(testOutput);
             PackageArchiveWriter.writeJarFromFiles(jarPath, testOutput, files);
             return new PackageArtifact("tests", jarPath, files.size());
         } catch (IOException exception) {
@@ -208,54 +198,4 @@ final class PackageSupplementalArtifactAssembler {
                 + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
-    private static List<Path> sourceFiles(Path sourceRoot) throws IOException {
-        if (!Files.isDirectory(sourceRoot)) {
-            return List.of();
-        }
-        try (var stream = Files.walk(sourceRoot)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".java"))
-                    .sorted(Comparator.comparing(path -> entryName(sourceRoot, path)))
-                    .toList();
-        }
-    }
-
-    private static List<Path> regularFiles(Path root) throws IOException {
-        if (!Files.isDirectory(root)) {
-            return List.of();
-        }
-        try (var stream = Files.walk(root)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(path -> entryName(root, path)))
-                    .toList();
-        }
-    }
-
-    private static void deleteDirectory(Path directory) throws IOException {
-        if (!Files.exists(directory)) {
-            return;
-        }
-        try (var stream = Files.walk(directory)) {
-            List<Path> paths = stream.sorted(Comparator.reverseOrder()).toList();
-            for (Path path : paths) {
-                Files.delete(path);
-            }
-        }
-    }
-
-    private static List<Path> compiledFiles(Path outputDirectory) throws IOException {
-        try (var stream = Files.walk(outputDirectory)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .filter(path -> !LOCAL_BUILD_FINGERPRINTS.contains(path.getFileName().toString()))
-                    .sorted(Comparator.comparing(path -> entryName(outputDirectory, path)))
-                    .toList();
-        }
-    }
-
-    private static String entryName(Path outputDirectory, Path file) {
-        return outputDirectory.relativize(file).normalize().toString().replace('\\', '/');
-    }
 }
