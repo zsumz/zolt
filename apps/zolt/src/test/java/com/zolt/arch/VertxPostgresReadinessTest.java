@@ -115,6 +115,10 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
         assertTrue(readme.contains("bounded three-request concurrent create burst"));
         assertTrue(readme.contains("verify unique note ids plus final list membership"));
+        assertTrue(readme.contains("zolt-run-output.txt"));
+        assertTrue(readme.contains("zolt-run-package-output.txt"));
+        assertTrue(readme.contains("native-run-output.txt"));
+        assertTrue(readme.contains("redacted to exclude the password"));
         assertTrue(readme.contains("drop their validated `PGNOTES_TABLE` during cleanup"));
         assertTrue(readme.contains("Set `ZOLT_VERTX_POSTGRES_PSQL` to use a non-default PostgreSQL client path"));
         assertTrue(readme.contains("missing `psql` only leaves a cleanup warning"));
