@@ -42,7 +42,7 @@ final class MainCompileSourceExecutor {
                     CompileDiagnostics.empty());
         }
         JavacOptions options = javacOptions(config);
-        IncrementalCompilePlanner.Plan plan = incrementalCompilePlanner.planMain(
+        IncrementalCompilePlan plan = incrementalCompilePlanner.planMain(
                 projectDirectory,
                 config,
                 sources.mainSources(),
@@ -80,9 +80,9 @@ final class MainCompileSourceExecutor {
             Path outputDirectory,
             Path generatedSourcesDirectory,
             JavacOptions options,
-            IncrementalCompilePlanner.Plan plan) {
+            IncrementalCompilePlan plan) {
         JavacResult result;
-        IncrementalCompilePlanner.IncrementalValidation validation;
+        IncrementalCompileValidation validation;
         try {
             result = javacRunner.compile(
                     jdkStatus.javac().orElseThrow(),
@@ -191,7 +191,7 @@ final class MainCompileSourceExecutor {
         return new Classpath(entries);
     }
 
-    private static void deleteOwnedOutputs(IncrementalCompilePlanner.Plan plan) {
+    private static void deleteOwnedOutputs(IncrementalCompilePlan plan) {
         for (Path output : plan.outputsToDelete()) {
             try {
                 Files.deleteIfExists(output);

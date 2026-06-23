@@ -14,9 +14,9 @@ final class IncrementalCompileAbiValidator {
         this.abiReader = abiReader;
     }
 
-    IncrementalCompilePlanner.IncrementalValidation validate(IncrementalCompilePlanner.Plan plan) {
+    IncrementalCompileValidation validate(IncrementalCompilePlan plan) {
         if (!plan.incremental()) {
-            return IncrementalCompilePlanner.IncrementalValidation.success(List.of());
+            return IncrementalCompileValidation.success(List.of());
         }
         Set<Path> scheduledSources = new LinkedHashSet<>(plan.sourcesToCompile());
         List<Path> additionalSources = new ArrayList<>();
@@ -28,11 +28,11 @@ final class IncrementalCompileAbiValidator {
             try {
                 currentAbi = abiReader.read(output);
             } catch (BuildException exception) {
-                return IncrementalCompilePlanner.IncrementalValidation.fallback("changed-class-output-missing");
+                return IncrementalCompileValidation.fallback("changed-class-output-missing");
             }
             Optional<IncrementalCompileState.ClassRecord> previousClass = plan.previousClass(output);
             if (previousClass.isEmpty()) {
-                return IncrementalCompilePlanner.IncrementalValidation.fallback("changed-class-state-missing");
+                return IncrementalCompileValidation.fallback("changed-class-state-missing");
             }
             IncrementalCompileState.ClassRecord classRecord = previousClass.orElseThrow();
             boolean abiChanged = !classRecord.abiHash().equals(currentAbi.abiHash());
@@ -55,7 +55,7 @@ final class IncrementalCompileAbiValidator {
                         plan);
             }
         }
-        return IncrementalCompilePlanner.IncrementalValidation.success(
+        return IncrementalCompileValidation.success(
                 additionalSources,
                 abiChangedClasses,
                 packagePrivateAbiChangedClasses);
@@ -65,7 +65,7 @@ final class IncrementalCompileAbiValidator {
             List<Path> additionalSources,
             Set<Path> scheduledSources,
             List<Path> candidates,
-            IncrementalCompilePlanner.Plan plan) {
+            IncrementalCompilePlan plan) {
         for (Path candidate : candidates) {
             Path normalized = candidate.toAbsolutePath().normalize();
             if (plan.hasSource(normalized) && scheduledSources.add(normalized)) {
@@ -78,7 +78,7 @@ final class IncrementalCompileAbiValidator {
             List<Path> additionalSources,
             Set<Path> scheduledSources,
             String packageName,
-            IncrementalCompilePlanner.Plan plan) {
+            IncrementalCompilePlan plan) {
         for (IncrementalCompileState.SourceRecord source : plan.previousSources().values()) {
             if (source.packageName().equals(packageName) && scheduledSources.add(source.path())) {
                 additionalSources.add(source.path());
