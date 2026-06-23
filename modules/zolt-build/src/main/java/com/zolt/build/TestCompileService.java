@@ -34,18 +34,7 @@ public final class TestCompileService {
     }
 
     public TestCompileService(JdkChecker jdkDetector, ResolveService resolveService) {
-        this(
-                new BuildService(jdkDetector, resolveService),
-                new SourceDiscoverer(),
-                new ResourceCopier(),
-                new BuildFingerprintService(),
-                jdkDetector,
-                new JavacRunner(),
-                new GroovyCompilerRunner(),
-                new OpenApiGeneratedSourceService(jdkDetector),
-                new ProtobufGeneratedSourceService(),
-                new IncrementalCompileStateRecorder(),
-                new IncrementalCompilePlanner());
+        this(TestCompileServiceDependencies.create(jdkDetector, resolveService));
     }
 
     TestCompileService(
@@ -57,7 +46,7 @@ public final class TestCompileService {
             JavacRunner javacRunner,
             GroovyCompilerRunner groovyCompilerRunner,
             OpenApiGeneratedSourceService openApiGeneratedSourceService) {
-        this(
+        this(TestCompileServiceDependencies.create(
                 buildService,
                 sourceDiscoverer,
                 resourceCopier,
@@ -65,37 +54,19 @@ public final class TestCompileService {
                 jdkDetector,
                 javacRunner,
                 groovyCompilerRunner,
-                openApiGeneratedSourceService,
-                new ProtobufGeneratedSourceService(),
-                new IncrementalCompileStateRecorder(),
-                new IncrementalCompilePlanner());
+                openApiGeneratedSourceService));
     }
 
-    TestCompileService(
-            BuildService buildService,
-            SourceDiscoverer sourceDiscoverer,
-            ResourceCopier resourceCopier,
-            BuildFingerprintService buildFingerprintService,
-            JdkChecker jdkDetector,
-            JavacRunner javacRunner,
-            GroovyCompilerRunner groovyCompilerRunner,
-            OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            ProtobufGeneratedSourceService protobufGeneratedSourceService,
-            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
-            IncrementalCompilePlanner incrementalCompilePlanner) {
-        this.buildService = buildService;
-        this.sourceDiscoverer = sourceDiscoverer;
-        this.resourceCopier = resourceCopier;
-        this.buildFingerprintService = buildFingerprintService;
-        this.jdkDetector = jdkDetector;
-        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
-        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
-        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
-        this.sourceExecutor = new TestCompileSourceExecutor(
-                javacRunner,
-                groovyCompilerRunner,
-                incrementalCompileStateRecorder,
-                incrementalCompilePlanner);
+    TestCompileService(TestCompileServiceDependencies dependencies) {
+        this.buildService = dependencies.buildService();
+        this.sourceDiscoverer = dependencies.sourceDiscoverer();
+        this.resourceCopier = dependencies.resourceCopier();
+        this.buildFingerprintService = dependencies.buildFingerprintService();
+        this.jdkDetector = dependencies.jdkDetector();
+        this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
+        this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
+        this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
+        this.sourceExecutor = dependencies.sourceExecutor();
     }
 
     TestCompileService(
@@ -157,7 +128,7 @@ public final class TestCompileService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult,
-        List<ResolvedClasspathPackage> classpathPackages) {
+            List<ResolvedClasspathPackage> classpathPackages) {
         openApiGeneratedSourceService.generateTest(projectDirectory, config, classpathPackages);
         try {
             protobufGeneratedSourceService.generateTest(projectDirectory, config);

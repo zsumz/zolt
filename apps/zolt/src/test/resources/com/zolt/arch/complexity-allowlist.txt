@@ -1,5 +1,4 @@
 # path|maxImports|maxPublicMethods|maxConstructorParameters|maxNestedTypes|followUp|reason
-modules/zolt-build/src/main/java/com/zolt/build/TestCompileService.java|13|2|11|0||legacy test compile coordinator constructor width; must not grow before collaborator split
 modules/zolt-model/src/main/java/com/zolt/lockfile/LockPackage.java|4|1|17|0||wide lockfile value object mirrors serialized package fields
 modules/zolt-model/src/main/java/com/zolt/project/BuildSettings.java|1|7|16|0||wide project settings value object mirrors zolt.toml build fields
 modules/zolt-model/src/main/java/com/zolt/project/OpenApiGenerationSettings.java|4|2|17|0||wide project settings value object mirrors OpenAPI generation fields
