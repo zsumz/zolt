@@ -1,5 +1,7 @@
 package com.zolt.workspace;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -27,8 +29,13 @@ abstract class WorkspaceResolveServiceTestSupport {
     URI baseUri;
 
     @BeforeEach
-    void startServer() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    void startServer() {
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        } catch (IOException exception) {
+            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+            return;
+        }
         server.createContext("/", this::handle);
         server.start();
         baseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/");

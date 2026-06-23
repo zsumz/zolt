@@ -3,6 +3,7 @@ package com.zolt.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -31,8 +32,13 @@ final class WorkspaceResolveServiceLockedTest {
     private URI baseUri;
 
     @BeforeEach
-    void startServer() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    void startServer() {
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        } catch (IOException exception) {
+            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+            return;
+        }
         server.createContext("/", this::handle);
         server.start();
         baseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/");
@@ -55,7 +61,9 @@ final class WorkspaceResolveServiceLockedTest {
 
     @AfterEach
     void stopServer() {
-        server.stop(0);
+        if (server != null) {
+            server.stop(0);
+        }
     }
 
     @Test
