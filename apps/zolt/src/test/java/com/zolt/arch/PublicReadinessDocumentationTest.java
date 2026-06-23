@@ -191,6 +191,7 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains("| WebMVC contract | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-web-contract` launches the executable and probes JSON, validation, configuration, and static resources"));
         assertTrue(springBootReadiness.contains("| Data access | Spring Boot 3.3 on Java 21 |"));
+        assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-data-access` launches the executable and probes create/read persistence behavior"));
         assertTrue(springBootReadiness.contains("Unsupported until proven: broad Spring native-image support, Spring Boot 4 native support"));
         assertTrue(springBootReadiness.contains("Spring Boot 4 native support remains unsupported until a compatible JDK/Native Image toolchain is proven."));
         assertTrue(springBootReadiness.contains("Promotion rule: public docs can broaden the Spring native claim only after the expanded fixture matrix runs real Native Image"));
@@ -199,7 +200,10 @@ final class PublicReadinessDocumentationTest {
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-actuator"));
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-web-contract"));
         assertTrue(nativeGraalvm.contains("deterministic validation failure JSON"));
+        assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-data-access"));
+        assertTrue(nativeGraalvm.contains("H2 as a runtime-only embedded database dependency"));
         assertTrue(nativeGraalvm.contains("This remains M26 fixture evidence rather than broad Spring native support."));
+        assertTrue(nativeGraalvm.contains("rather than broad database or arbitrary Spring Data native support."));
         assertTrue(milestone.contains(": design the Spring Boot native fixture matrix."));
         assertTrue(milestone.contains(": promote public readiness docs only after the M26 real executable smokes pass."));
         assertFalse(
