@@ -27,6 +27,7 @@ final class ComplexityBudgetTest {
             RepositoryPaths.appRoot().resolve("src/test/resources/com/zolt/arch/complexity-budgets.txt");
     private static final Path ALLOWLIST =
             RepositoryPaths.appRoot().resolve("src/test/resources/com/zolt/arch/complexity-allowlist.txt");
+    private static final Path FOLLOW_UPS = RepositoryPaths.root().resolve("followUps");
     private static final Pattern IMPORT_PATTERN = Pattern.compile("^\\s*import\\s+(?:static\\s+)?([\\w.]+)(?:\\.\\*)?\\s*;");
     private static final Pattern PUBLIC_METHOD_PATTERN = Pattern.compile(
             "^\\s*public\\s+(?:static\\s+|final\\s+|synchronized\\s+|abstract\\s+)*[\\w<>, ?\\[\\].]+\\s+(\\w+)\\s*\\(");
@@ -69,6 +70,22 @@ final class ComplexityBudgetTest {
                 () -> "Complexity budget violations:\n"
                         + describe(violations)
                         + "\nPrefer narrower collaborators, value objects, or a planned policy exception.");
+    }
+
+    @Test
+    void complexityAllowlistEntriesReferenceExistingFollowUps() throws IOException {
+        Set<String> followUpIds = ArchitectureFollowUpIds.read(FOLLOW_UPS);
+        List<String> violations = readAllowlist(ALLOWLIST).values().stream()
+                .map(AllowlistEntry::followUp)
+                .distinct()
+                .sorted()
+                .filter(followUp -> !followUpIds.contains(followUp))
+                .map(followUp -> followUp + " is referenced by the complexity allowlist but has no followUp file")
+                .toList();
+
+        assertTrue(
+                violations.isEmpty(),
+                () -> "Complexity allowlist followUp violations:\n" + describe(violations));
     }
 
     @Test
@@ -397,12 +414,7 @@ final class ComplexityBudgetTest {
         return description.toString();
     }
 
-    private record Budget(
-            Path rootPattern,
-            int maxImports,
-            int maxPublicMethods,
-            int maxConstructorParameters,
-            int maxNestedTypes) {
+    private record Budget(Path rootPattern, int maxImports, int maxPublicMethods, int maxConstructorParameters, int maxNestedTypes) {
     }
 
     private record SourceComplexity(
@@ -424,12 +436,6 @@ final class ComplexityBudgetTest {
     }
 
     private record AllowlistEntry(
-            String path,
-            int maxImports,
-            int maxPublicMethods,
-            int maxConstructorParameters,
-            int maxNestedTypes,
-            String followUp,
-            String reason) {
+            String path, int maxImports, int maxPublicMethods, int maxConstructorParameters, int maxNestedTypes, String followUp, String reason) {
     }
 }
