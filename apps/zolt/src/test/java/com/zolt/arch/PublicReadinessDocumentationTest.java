@@ -20,14 +20,17 @@ final class PublicReadinessDocumentationTest {
                 readme.contains("[framework.springBoot.native] enabled = true"),
                 "README should name the explicit Spring Boot native support flag");
         assertTrue(
-                readme.contains("one real Spring Boot 3.3 WebMVC Java 21 native executable canary passes"),
-                "README should mention the proven narrow Spring Boot native executable canary");
+                readme.contains("Spring Boot 3.3 Java 21 M26 native fixture family"),
+                "README should mention the proven bounded Spring Boot native fixture family");
         assertTrue(
-                readme.contains("broader Spring native coverage is still beta-hardening work"),
-                "README should keep the remaining Spring Boot native support limit visible");
+                readme.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"),
+                "README should list the promoted M26 Spring Boot native rows");
         assertTrue(
-                readme.contains("not broad real-app native-image support"),
+                readme.contains("not arbitrary Spring native-image support"),
                 "README should not over-claim Spring Boot native-image support");
+        assertTrue(
+                readme.contains("Spring Boot 4, Spring Cloud, container images, and Maven/Gradle plugin behavior remain unclaimed"),
+                "README should keep unsupported Spring native areas explicit");
     }
 
     @Test
@@ -36,7 +39,7 @@ final class PublicReadinessDocumentationTest {
 
         assertTrue(readiness.contains("## Public Support Surface"));
         assertTrue(readiness.contains("| Plain Java applications | Supported |"));
-        assertTrue(readiness.contains("| Spring Boot AOT/native | Supported canary path, not broad real-app support |"));
+        assertTrue(readiness.contains("| Spring Boot AOT/native | Supported bounded fixture family, not arbitrary Spring native support |"));
         assertTrue(readiness.contains("| Quarkus JVM applications | Experimental |"));
         assertTrue(readiness.contains("| Groovy and Spock | Planned |"));
         assertTrue(readiness.contains("Non-goal for public beta"));
@@ -162,17 +165,18 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
-    void springBootNativeDocsStayNarrowAfterRealAppSmokeExists() throws IOException {
+    void springBootNativeDocsStayBoundedAfterM26Evidence() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
         String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
 
         assertTrue(frameworkReadiness.contains("not broad Spring native-image support"));
-        assertTrue(frameworkReadiness.contains("Spring Boot 3.3 WebMVC HTTP app on Java 21"));
-        assertTrue(nativeGraalvm.contains("not broad real-app native-image support"));
-        assertTrue(nativeGraalvm.contains("Spring Boot 3.3 WebMVC Java 21 smoke"));
-        assertTrue(springBootReadiness.contains("This is canary support, not broad real-app native-image support"));
-        assertTrue(springBootReadiness.contains("proven Spring Boot 3.3 WebMVC Java 21 shape until broader fixtures pass"));
+        assertTrue(frameworkReadiness.contains("bounded M26 fixture family"));
+        assertTrue(frameworkReadiness.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows"));
+        assertTrue(nativeGraalvm.contains("not arbitrary Spring native-image support"));
+        assertTrue(nativeGraalvm.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"));
+        assertTrue(springBootReadiness.contains("bounded to the proven Spring Boot 3.3 Java 21 M26 fixture family"));
+        assertTrue(springBootReadiness.contains("Projects outside the WebMVC baseline, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows"));
     }
 
     @Test
@@ -183,20 +187,22 @@ final class PublicReadinessDocumentationTest {
                 "followUps/-design-broader-spring-boot-native-readiness-milestone.md"));
 
         assertTrue(springBootReadiness.contains("## Broader Spring Boot Native Milestone"));
-        assertTrue(springBootReadiness.contains("M26 tracks the work needed to move from one narrow Spring Boot native canary"));
+        assertTrue(springBootReadiness.contains("M26 tracks the work that moved Zolt from one narrow Spring Boot native canary"));
         assertTrue(springBootReadiness.contains("Spring Boot 3.3 WebMVC on Java 21"));
+        assertTrue(springBootReadiness.contains("Proven: the Spring Boot 3.3 Java 21 M26 native fixture family"));
         assertTrue(springBootReadiness.contains("| Fixture row | Baseline | JVM evidence | AOT evidence | Fake-native evidence | Real-native evidence | Native-Zolt evidence | Promotion role |"));
         assertTrue(springBootReadiness.contains("| WebMVC plus Actuator | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-actuator` launches the executable and probes app plus Actuator endpoints"));
+        assertTrue(springBootReadiness.contains("Included in the bounded M26 Spring native support family"));
         assertTrue(springBootReadiness.contains("| WebMVC contract | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-web-contract` launches the executable and probes JSON, validation, configuration, and static resources"));
         assertTrue(springBootReadiness.contains("| Data access | Spring Boot 3.3 on Java 21 |"));
         assertTrue(springBootReadiness.contains("`scripts/smoke-spring-boot-native-data-access` launches the executable and probes create/read persistence behavior"));
-        assertTrue(springBootReadiness.contains("Unsupported until proven: broad Spring native-image support, Spring Boot 4 native support"));
+        assertTrue(springBootReadiness.contains("Unsupported until proven: arbitrary Spring native-image support, Spring Boot 4 native support"));
         assertTrue(springBootReadiness.contains("Spring Boot 4 native support remains unsupported until a compatible JDK/Native Image toolchain is proven."));
-        assertTrue(springBootReadiness.contains("Promotion rule: public docs can broaden the Spring native claim only after the expanded fixture matrix runs real Native Image"));
+        assertTrue(springBootReadiness.contains("Promotion rule: public docs can claim the bounded M26 Spring native fixture family"));
         assertTrue(springBootReadiness.contains(" promotes public readiness docs only after the M26 real executable smokes pass."));
-        assertTrue(nativeGraalvm.contains("M26 is the planned broader Spring Boot native readiness milestone"));
+        assertTrue(nativeGraalvm.contains("M26 is the completed broader Spring Boot native readiness milestone"));
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-actuator"));
         assertTrue(nativeGraalvm.contains("scripts/smoke-spring-boot-native-web-contract"));
         assertTrue(nativeGraalvm.contains("deterministic validation failure JSON"));
@@ -206,13 +212,16 @@ final class PublicReadinessDocumentationTest {
         assertTrue(nativeGraalvm.contains("reflection metadata, optional reachability metadata, and fingerprint evidence"));
         assertTrue(nativeGraalvm.contains("it merges that entry into Spring's `reflect-config.json` instead of overwriting existing Spring-generated reflection metadata"));
         assertTrue(nativeGraalvm.contains("fails before Native Image if required AOT output or reflection/native metadata is missing"));
-        assertTrue(nativeGraalvm.contains("This remains M26 fixture evidence rather than broad Spring native support."));
-        assertTrue(nativeGraalvm.contains("rather than broad database or arbitrary Spring Data native support."));
+        assertTrue(nativeGraalvm.contains("bounded Spring Boot 3.3 Java 21 M26 fixture family"));
+        assertTrue(nativeGraalvm.contains("Public wording should stay limited to that evidence."));
         assertTrue(milestone.contains(": design the Spring Boot native fixture matrix."));
         assertTrue(milestone.contains(": promote public readiness docs only after the M26 real executable smokes pass."));
         assertFalse(
                 springBootReadiness.contains("M26 broadens the public Spring native claim"),
-                "M26 docs must not broaden the claim before real executable smokes pass");
+                "M26 docs must not broaden the claim without bounding it to the executable smoke evidence");
+        assertFalse(
+                springBootReadiness.contains("Planned: a broader Spring Boot 3.3 Java 21 native fixture matrix"),
+                "M26 docs must not describe the completed expanded fixture matrix as merely planned");
     }
 
     @Test
