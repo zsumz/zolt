@@ -70,6 +70,8 @@ public final class VertxPostgresCrudApplication {
         router.route().failureHandler(VertxPostgresCrudApplication::routeFailure);
         router.get("/health").handler(VertxPostgresCrudApplication::health);
         router.route("/health").handler(context -> methodNotAllowed(context, "GET"));
+        router.get("/ready").handler(context -> ready(context, repository));
+        router.route("/ready").handler(context -> methodNotAllowed(context, "GET"));
         router.post("/notes").handler(context -> createNote(context, repository));
         router.get("/notes").handler(context -> listNotes(context, repository));
         router.route("/notes").handler(context -> methodNotAllowed(context, "GET, POST"));
@@ -83,6 +85,12 @@ public final class VertxPostgresCrudApplication {
 
     private static void health(RoutingContext context) {
         json(context, 200, new JsonObject().put("status", "ok"));
+    }
+
+    private static void ready(RoutingContext context, NotesRepository repository) {
+        repository.ready()
+                .onSuccess(ignored -> json(context, 200, new JsonObject().put("status", "ready")))
+                .onFailure(error -> readinessFailure(context, error));
     }
 
     private static void createNote(RoutingContext context, NotesRepository repository) {
@@ -253,6 +261,10 @@ public final class VertxPostgresCrudApplication {
         json(context, 500, new JsonObject().put("error", "database operation failed: " + error.getMessage()));
     }
 
+    private static void readinessFailure(RoutingContext context, Throwable error) {
+        json(context, 503, new JsonObject().put("error", "database readiness check failed: " + error.getMessage()));
+    }
+
     record AppConfig(
             int httpPort,
             String pgHost,
@@ -385,6 +397,8 @@ public final class VertxPostgresCrudApplication {
     interface NotesRepository {
         Future<Void> init();
 
+        Future<Void> ready();
+
         Future<Note> create(String title, String body);
 
         Future<List<Note>> list();
@@ -416,6 +430,11 @@ public final class VertxPostgresCrudApplication {
                     """.formatted(tableName))
                     .execute()
                     .mapEmpty();
+        }
+
+        @Override
+        public Future<Void> ready() {
+            return pool.query("SELECT 1").execute().mapEmpty();
         }
 
         @Override

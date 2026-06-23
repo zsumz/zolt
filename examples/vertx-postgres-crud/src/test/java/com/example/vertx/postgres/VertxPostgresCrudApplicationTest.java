@@ -242,6 +242,11 @@ final class VertxPostgresCrudApplicationTest {
             assertJson(health);
             assertTrue(health.body().contains("\"status\":\"ok\""));
 
+            HttpResult ready = request("GET", server.port(), "/ready", null);
+            assertEquals(200, ready.status());
+            assertJson(ready);
+            assertTrue(ready.body().contains("\"status\":\"ready\""));
+
             HttpResult unknownRoute = request("GET", server.port(), "/missing", null);
             assertEquals(404, unknownRoute.status());
             assertJson(unknownRoute);
@@ -249,6 +254,9 @@ final class VertxPostgresCrudApplicationTest {
 
             HttpResult healthMethodNotAllowed = request("POST", server.port(), "/health", null);
             assertMethodNotAllowed(healthMethodNotAllowed, "GET");
+
+            HttpResult readyMethodNotAllowed = request("POST", server.port(), "/ready", null);
+            assertMethodNotAllowed(readyMethodNotAllowed, "GET");
 
             HttpResult collectionMethodNotAllowed = request("PATCH", server.port(), "/notes", null);
             assertMethodNotAllowed(collectionMethodNotAllowed, "GET, POST");
@@ -613,6 +621,11 @@ final class VertxPostgresCrudApplicationTest {
     @Test
     void reportsRepositoryFailuresAsJsonErrors() throws Exception {
         withServer(new FailingNotesRepository(), server -> {
+            HttpResult ready = request("GET", server.port(), "/ready", null);
+            assertEquals(503, ready.status());
+            assertJson(ready);
+            assertTrue(ready.body().contains("database readiness check failed: simulated repository failure"));
+
             assertRepositoryFailure(request(
                     "POST",
                     server.port(),
@@ -733,6 +746,11 @@ final class VertxPostgresCrudApplicationTest {
         }
 
         @Override
+        public Future<Void> ready() {
+            return Future.succeededFuture();
+        }
+
+        @Override
         public Future<VertxPostgresCrudApplication.Note> create(String title, String body) {
             VertxPostgresCrudApplication.Note note = new VertxPostgresCrudApplication.Note(nextId++, title, body);
             notes.put(note.id(), note);
@@ -776,6 +794,11 @@ final class VertxPostgresCrudApplicationTest {
         @Override
         public Future<Void> init() {
             return Future.succeededFuture();
+        }
+
+        @Override
+        public Future<Void> ready() {
+            return failed();
         }
 
         @Override

@@ -67,7 +67,10 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("Malformed create/update bodies, invalid JSON, and invalid note ids return `400` JSON errors"));
         assertTrue(readme.contains("Note ids must be positive 64-bit integers across read, update, and delete routes; `0`, negative ids, and values larger than `9223372036854775807` are rejected."));
         assertTrue(readme.contains("Database operation failures return `500` JSON errors."));
+        assertTrue(readme.contains("Database readiness failures return `503` JSON errors from `GET /ready`."));
         assertTrue(readme.contains("JSON responses use `content-type: application/json` and `cache-control: no-store`; successful deletes return `204` with no response body."));
+        assertTrue(readme.contains("`/health` is a process-level liveness check."));
+        assertTrue(readme.contains("`/ready` runs a lightweight PostgreSQL query through the repository"));
         assertTrue(readme.contains("Successful creates return `201` with `Location: /notes/<id>`."));
         assertTrue(readme.contains("List responses are ordered by ascending note id."));
         assertTrue(readme.contains("Deleting one note does not remove unrelated notes from later list responses."));
@@ -101,8 +104,9 @@ final class VertxPostgresReadinessTest {
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_CONTAINER_DATABASE"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_CONTAINER_USER"));
         assertTrue(readme.contains("ZOLT_VERTX_POSTGRES_CONTAINER_PASSWORD"));
-        assertTrue(readme.contains("probe the CRUD API plus validation responses, unknown-route responses, method-not-allowed responses, read-after-update, and post-delete list removal while preserving unrelated notes"));
-        assertTrue(readme.contains("smoke probes also require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
+        assertTrue(readme.contains("probe the readiness endpoint, CRUD API, validation responses, unknown-route responses, method-not-allowed responses, read-after-update, and post-delete list removal while preserving unrelated notes"));
+        assertTrue(readme.contains("smoke probes require `/ready` to prove live database connectivity"));
+        assertTrue(readme.contains("require JSON-bearing responses to declare `content-type: application/json` and `cache-control: no-store`"));
         assertTrue(readme.contains("drop their validated `PGNOTES_TABLE` during cleanup"));
         assertTrue(readme.contains("Set `ZOLT_VERTX_POSTGRES_PSQL` to use a non-default PostgreSQL client path"));
         assertTrue(readme.contains("missing `psql` only leaves a cleanup warning"));
