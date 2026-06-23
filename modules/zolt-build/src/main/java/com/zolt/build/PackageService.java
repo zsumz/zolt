@@ -17,16 +17,11 @@ import java.util.Optional;
 public final class PackageService {
     private final BuildService buildService;
     private final ResolveService resolveService;
-    private final ManifestGenerator manifestGenerator;
     private final ZoltLockfileReader lockfileReader;
-    private final ClasspathBuilder classpathBuilder;
-    private final FrameworkPackageAugmenter frameworkPackageAugmenter;
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
-    private final ThinJarLayoutAssembler thinJarLayoutAssembler;
-    private final PackageArchiveModePackager archiveModePackager;
+    private final PackagePrimaryArtifactAssembler primaryArtifactAssembler;
     private final PackageSupplementalArtifactAssembler supplementalArtifactAssembler;
-    private final PackageArtifactPathPlanner artifactPathPlanner;
 
     public PackageService() {
         this(FrameworkPackageAugmenter.none());
@@ -101,22 +96,15 @@ public final class PackageService {
             PackageEvidenceManifestWriter evidenceManifestWriter) {
         this.buildService = buildService;
         this.resolveService = resolveService;
-        this.manifestGenerator = manifestGenerator;
         this.lockfileReader = lockfileReader;
-        this.classpathBuilder = classpathBuilder;
-        this.frameworkPackageAugmenter = frameworkPackageAugmenter;
         this.packagePlanService = packagePlanService == null ? new PackagePlanService() : packagePlanService;
         this.evidenceManifestWriter = evidenceManifestWriter;
-        this.thinJarLayoutAssembler = new ThinJarLayoutAssembler(
+        this.primaryArtifactAssembler = new PackagePrimaryArtifactAssembler(
                 manifestGenerator,
                 lockfileReader,
-                classpathBuilder);
-        this.archiveModePackager = new PackageArchiveModePackager(
-                manifestGenerator,
-                lockfileReader,
+                classpathBuilder,
                 frameworkPackageAugmenter);
         this.supplementalArtifactAssembler = new PackageSupplementalArtifactAssembler(classpathBuilder);
-        this.artifactPathPlanner = new PackageArtifactPathPlanner();
     }
 
     public PackageResult packageJar(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -238,60 +226,13 @@ public final class PackageService {
             Optional<Path> cacheRoot,
             Optional<List<ResolvedClasspathPackage>> classpathPackages,
             Optional<ClasspathSet> classpaths) {
-        PackageMode mode = config.packageSettings().mode();
-        PackageResult result = switch (mode) {
-            case THIN -> thinJarLayoutAssembler.assemble(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    artifactPathPlanner.jarPath(projectDirectory, config),
-                    cacheRoot,
-                    classpathPackages,
-                    classpaths);
-            case SPRING_BOOT -> archiveModePackager.packageSpringBootJar(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    artifactPathPlanner.jarPath(projectDirectory, config),
-                    cacheRoot.orElseThrow(() -> new PackageException(
-                            "Spring Boot package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot` for now; workspace Spring Boot packaging is not wired yet.")),
-                    classpathPackages);
-            case WAR -> archiveModePackager.packageWar(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    artifactPathPlanner.archivePath(projectDirectory, config, "war"),
-                    cacheRoot.orElseThrow(() -> new PackageException(
-                            "WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode war` for now; workspace WAR packaging is not wired yet.")),
-                    classpathPackages);
-            case SPRING_BOOT_WAR -> archiveModePackager.packageSpringBootWar(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    artifactPathPlanner.archivePath(projectDirectory, config, "war"),
-                    cacheRoot.orElseThrow(() -> new PackageException(
-                            "Spring Boot WAR package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode spring-boot-war` for now; workspace Spring Boot WAR packaging is not wired yet.")),
-                    classpathPackages);
-            case QUARKUS -> archiveModePackager.packageFrameworkJar(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    mode,
-                    cacheRoot.orElseThrow(() -> new PackageException(
-                            "Framework package mode `"
-                                    + mode.configValue()
-                                    + "` requires dependency jar access from zolt.lock. Use single-project `zolt package --mode "
-                                    + mode.configValue()
-                                    + "` for now; workspace framework packaging is not wired yet.")));
-            case UBER -> archiveModePackager.packageUberJar(
-                    projectDirectory,
-                    config,
-                    buildResult,
-                    artifactPathPlanner.jarPath(projectDirectory, config),
-                    cacheRoot.orElseThrow(() -> new PackageException(
-                            "Uber package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode uber` for now; workspace uber packaging is not wired yet.")),
-                    classpathPackages);
-        };
+        PackageResult result = primaryArtifactAssembler.assemble(
+                projectDirectory,
+                config,
+                buildResult,
+                cacheRoot,
+                classpathPackages,
+                classpaths);
         List<PackageArtifact> artifacts = supplementalArtifactAssembler.assemble(
                 projectDirectory,
                 config,
