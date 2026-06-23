@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,5 +63,23 @@ final class NativeCommandValidationTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Spring Boot native AOT requires tool artifact"));
         assertTrue(result.stderr().contains("Add the Spring Boot platform to [platforms]"));
+    }
+
+    @Test
+    void nativeReportsMissingConfiguredNativeImageBeforePackaging() throws IOException {
+        Path projectDir = tempDir.resolve("missing-native-image-demo");
+        NativeCommandTestSupport.writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "native",
+                "--native-image", projectDir.resolve("missing/native-image").toString(),
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Configured Native Image executable is not available"));
+        assertTrue(result.stderr().contains("Install GraalVM Native Image"));
+        assertTrue(result.stderr().contains("--native-image"));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 }

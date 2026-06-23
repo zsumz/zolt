@@ -10,11 +10,13 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public final class NativeBuildService {
     private static final List<String> SERIOUS_WARNING_TERMS = List.of("warning", "unsupported", "error");
@@ -53,6 +55,7 @@ public final class NativeBuildService {
             Path nativeImageExecutable) {
         rejectUnsupportedFrameworkNative(config);
         nativeMainClass(config);
+        preflightNativeImageExecutable(nativeImageExecutable);
         PackageResult packageResult = packageService.packageJar(
                 projectDirectory,
                 config.withPackageSettings(PackageSettings.defaults()),
@@ -77,13 +80,18 @@ public final class NativeBuildService {
             Path nativeImageExecutable) {
         rejectUnsupportedFrameworkNative(config);
         String mainClass = nativeMainClass(config);
+        preflightNativeImageExecutable(nativeImageExecutable);
         NativeSettings nativeSettings = config.nativeSettings().withDefaultImageName(config.project().name());
         Path projectRoot = ProjectPaths.root(projectDirectory);
         Path outputDirectory = ProjectPaths.output(projectRoot, "[native].output", nativeSettings.output());
         String imageName = ProjectPaths.filenameComponent("[native].imageName", nativeSettings.imageName());
         Optional<Path> springBootAotEvidencePath = Optional.empty();
         List<Path> springBootAotClasspath = config.frameworkSettings().springBoot().nativeEnabled()
-                ? new SpringBootAotNativeInputs(projectRoot, config.build().outputRoot()).classpathEntries()
+                ? new SpringBootAotNativeInputs(
+                                projectRoot,
+                                config.build().outputRoot(),
+                                List.of(projectRoot.resolve("zolt.toml"), projectRoot.resolve(config.build().output())))
+                        .classpathEntries()
                 : List.of();
         if (config.frameworkSettings().springBoot().nativeEnabled()) {
             springBootAotEvidencePath = Optional.of(new SpringBootAotOutputEvidenceService().write(
@@ -118,6 +126,9 @@ public final class NativeBuildService {
                             + "and supports an explicit Zolt-owned Spring Boot AOT/native canary path when that flag is enabled. "
                             + "Use `zolt package --mode spring-boot` or `zolt run` for JVM apps, or enable the typed Spring Boot native path.");
         }
+        if (config.frameworkSettings().springBoot().nativeEnabled()) {
+            rejectUnsupportedSpringBootNativeBaseline(config);
+        }
         if (micronautProject(config)) {
             throw new NativeImageException(
                     "Micronaut native images are not supported by Zolt yet. "
@@ -132,6 +143,41 @@ public final class NativeBuildService {
                             + "but does not run Quarkus native augmentation, dev mode, or advanced native modes in the public beta. "
                             + "Use `zolt package --mode quarkus` or `zolt run` for the current beta path.");
         }
+    }
+
+    private static void rejectUnsupportedSpringBootNativeBaseline(ProjectConfig config) {
+        if (!"21".equals(config.project().java())) {
+            throw new NativeImageException(
+                    "Spring Boot native support is currently proven for Java 21 projects. Found [project].java = "
+                            + config.project().java()
+                            + ". Set [project].java to 21 or use `zolt package --mode spring-boot` for the JVM Spring Boot path.");
+        }
+        springBootVersion(config).ifPresent(version -> {
+            if (!version.startsWith("3.3.")) {
+                throw new NativeImageException(
+                        "Spring Boot native support is currently proven for Spring Boot 3.3 on Java 21. Found Spring Boot "
+                                + version
+                                + ". Use Spring Boot 3.3 or keep this project on the JVM Spring Boot path until this baseline has executable smoke evidence.");
+            }
+        });
+    }
+
+    private static void preflightNativeImageExecutable(Path nativeImageExecutable) {
+        if (nativeImageExecutable == null || !filesystemPath(nativeImageExecutable)) {
+            return;
+        }
+        Path executable = nativeImageExecutable.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) {
+            throw new NativeImageException(
+                    "Configured Native Image executable is not available at "
+                            + nativeImageExecutable
+                            + ". Install GraalVM Native Image, put native-image on PATH, or pass `--native-image` with an executable path.");
+        }
+    }
+
+    private static boolean filesystemPath(Path path) {
+        String value = path.toString();
+        return path.isAbsolute() || path.getNameCount() > 1 || value.contains("/") || value.contains("\\");
     }
 
     private static boolean springBootProject(ProjectConfig config) {
@@ -158,6 +204,27 @@ public final class NativeBuildService {
                 || containsSpringBootCoordinate(config.managedAnnotationProcessors())
                 || containsSpringBootCoordinate(config.testAnnotationProcessors().keySet())
                 || containsSpringBootCoordinate(config.managedTestAnnotationProcessors());
+    }
+
+    private static Optional<String> springBootVersion(ProjectConfig config) {
+        String platformVersion = config.platforms().get("org.springframework.boot:spring-boot-dependencies");
+        if (platformVersion != null && !platformVersion.isBlank()) {
+            return Optional.of(platformVersion);
+        }
+        return Stream.of(
+                        config.apiDependencies(),
+                        config.dependencies(),
+                        config.runtimeDependencies(),
+                        config.providedDependencies(),
+                        config.devDependencies(),
+                        config.testDependencies(),
+                        config.annotationProcessors(),
+                        config.testAnnotationProcessors())
+                .flatMap(map -> map.entrySet().stream())
+                .filter(entry -> entry.getKey().startsWith(SPRING_BOOT_GROUP + ":"))
+                .map(java.util.Map.Entry::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst();
     }
 
     private static boolean micronautProject(ProjectConfig config) {

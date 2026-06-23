@@ -32,6 +32,26 @@ final class NativeBuildServiceValidationTest extends NativeBuildServiceTestSuppo
     }
 
     @Test
+    void missingConfiguredNativeImageExecutableFailsBeforePackaging() {
+        NativeBuildService service = service(command -> {
+            throw new AssertionError("native-image should not run");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        config(Optional.of("com.example.Main")),
+                        projectDir.resolve("cache"),
+                        projectDir.resolve("missing/native-image")));
+
+        assertTrue(exception.getMessage().contains("Configured Native Image executable is not available"));
+        assertTrue(exception.getMessage().contains("Install GraalVM Native Image"));
+        assertTrue(exception.getMessage().contains("--native-image"));
+        assertFalse(java.nio.file.Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
     void rejectsNativeOutputThatEscapesProject() throws IOException {
         writeRuntimeLockfile();
         source("src/main/java/com/example/Main.java", """
