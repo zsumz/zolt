@@ -71,11 +71,11 @@ final class PackagePlanDependencyClassifier {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "runtime-classpath" : "omitted",
-                included ? "thin-runtime-classpath" : omissionRule(lockPackage.scope(), false),
+                included ? "thin-runtime-classpath" : PackagePlanDependencyOmissions.rule(lockPackage.scope(), false),
                 included ? "runtime-classpath sidecar" : "",
                 included
                         ? "dependency remains outside the thin jar and is written to the runtime classpath sidecar"
-                        : omissionReason(lockPackage.scope(), false),
+                        : PackagePlanDependencyOmissions.reason(lockPackage.scope(), false),
                 lockPackage.policies());
     }
 
@@ -86,11 +86,11 @@ final class PackagePlanDependencyClassifier {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
-                included ? "uber-runtime-merged" : omissionRule(lockPackage.scope(), false),
+                included ? "uber-runtime-merged" : PackagePlanDependencyOmissions.rule(lockPackage.scope(), false),
                 included ? "archive root" : "",
                 included
                         ? "runtime dependency classes and resources are merged into the uber jar"
-                        : omissionReason(lockPackage.scope(), false),
+                        : PackagePlanDependencyOmissions.reason(lockPackage.scope(), false),
                 lockPackage.policies());
     }
 
@@ -112,11 +112,11 @@ final class PackagePlanDependencyClassifier {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
-                included ? "spring-boot-runtime-nested" : omissionRule(lockPackage.scope(), false),
+                included ? "spring-boot-runtime-nested" : PackagePlanDependencyOmissions.rule(lockPackage.scope(), false),
                 included ? "BOOT-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged as a nested Spring Boot jar"
-                        : omissionReason(lockPackage.scope(), false),
+                        : PackagePlanDependencyOmissions.reason(lockPackage.scope(), false),
                 lockPackage.policies());
     }
 
@@ -133,11 +133,11 @@ final class PackagePlanDependencyClassifier {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
-                included ? "war-runtime-lib" : omissionRule(lockPackage.scope(), false),
+                included ? "war-runtime-lib" : PackagePlanDependencyOmissions.rule(lockPackage.scope(), false),
                 included ? "WEB-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged for the servlet container"
-                        : omissionReason(lockPackage.scope(), false),
+                        : PackagePlanDependencyOmissions.reason(lockPackage.scope(), false),
                 lockPackage.policies());
     }
 
@@ -176,11 +176,11 @@ final class PackagePlanDependencyClassifier {
                 lockPackage.version(),
                 lockPackage.scope(),
                 included ? "included" : "omitted",
-                included ? "spring-boot-war-runtime-lib" : omissionRule(lockPackage.scope(), true),
+                included ? "spring-boot-war-runtime-lib" : PackagePlanDependencyOmissions.rule(lockPackage.scope(), true),
                 included ? "WEB-INF/lib/" + nestedJar : "",
                 included
                         ? "runtime dependency packaged for the Spring Boot WAR launcher"
-                        : omissionReason(lockPackage.scope(), false),
+                        : PackagePlanDependencyOmissions.reason(lockPackage.scope(), false),
                 lockPackage.policies());
     }
 
@@ -203,42 +203,6 @@ final class PackagePlanDependencyClassifier {
                 "",
                 "same coordinate is declared in [provided.dependencies], so this runtime path is omitted from the deployable runtime lib directory",
                 lockPackage.policies());
-    }
-
-    private static String omissionReason(DependencyScope scope, boolean springBootWar) {
-        if (scope == DependencyScope.PROVIDED && springBootWar) {
-            return "provided dependency is placed in WEB-INF/lib-provided";
-        }
-        return switch (scope) {
-            case PROVIDED -> "provided dependency is expected from the servlet/container runtime";
-            case DEV -> "dev dependency is excluded from package artifacts";
-            case TEST -> "test dependency is excluded from main package artifacts";
-            case PROCESSOR, TEST_PROCESSOR -> "annotation processor dependency is excluded from package artifacts";
-            case QUARKUS_DEPLOYMENT -> "Quarkus deployment dependency is build-time tooling, not package runtime";
-            case TOOL_SPRING_AOT -> "Spring Boot AOT dependency is build-time tooling, not package runtime";
-            case TOOL_OPENAPI -> "OpenAPI generator dependency is build-time tooling, not package runtime";
-            case TOOL_PROTOBUF -> "Protobuf generator dependency is build-time tooling, not package runtime";
-            case TOOL_COVERAGE -> "coverage dependency is build-time tooling, not package runtime";
-            case COMPILE, RUNTIME -> "dependency scope is not packaged by this mode";
-        };
-    }
-
-    private static String omissionRule(DependencyScope scope, boolean springBootWar) {
-        if (scope == DependencyScope.PROVIDED && springBootWar) {
-            return "spring-boot-war-provided-lib";
-        }
-        return switch (scope) {
-            case PROVIDED -> "provided-container-omitted";
-            case DEV -> "dev-only-omitted";
-            case TEST -> "test-omitted";
-            case PROCESSOR, TEST_PROCESSOR -> "processor-omitted";
-            case QUARKUS_DEPLOYMENT -> "quarkus-deployment-omitted";
-            case TOOL_SPRING_AOT -> "spring-aot-tool-omitted";
-            case TOOL_OPENAPI -> "openapi-tool-omitted";
-            case TOOL_PROTOBUF -> "protobuf-tool-omitted";
-            case TOOL_COVERAGE -> "coverage-tool-omitted";
-            case COMPILE, RUNTIME -> "non-runtime-omitted";
-        };
     }
 
     private static String nestedJarName(LockPackage lockPackage) {
