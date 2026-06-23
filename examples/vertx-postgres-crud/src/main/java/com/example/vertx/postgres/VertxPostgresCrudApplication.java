@@ -1,6 +1,7 @@
 package com.example.vertx.postgres;
 
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.DecodeException;
@@ -19,6 +20,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class VertxPostgresCrudApplication {
     private static final int DEFAULT_HTTP_PORT = 18092;
@@ -26,6 +31,7 @@ public final class VertxPostgresCrudApplication {
     private static final int MAX_TITLE_LENGTH = 120;
     private static final int MAX_BODY_LENGTH = 4_000;
     private static final long MAX_REQUEST_BODY_BYTES = 8_192;
+    private static final long SHUTDOWN_TIMEOUT_SECONDS = 10;
 
     private VertxPostgresCrudApplication() {
     }
@@ -43,12 +49,16 @@ public final class VertxPostgresCrudApplication {
         Vertx vertx = Vertx.vertx();
         PgPool pool = PgPool.pool(vertx, config.pgConnectOptions(), new PoolOptions().setMaxSize(5));
         PgNotesRepository repository = new PgNotesRepository(pool, config.pgNotesTable());
+        AppLifecycle lifecycle = new AppLifecycle(vertx, pool);
+        Runtime.getRuntime().addShutdownHook(lifecycle.shutdownHook());
         startInitialized(vertx, repository, config.httpPort())
-                .onSuccess(server -> System.out.println("Vert.x PostgreSQL CRUD API listening on " + server.actualPort()))
+                .onSuccess(server -> {
+                    lifecycle.server(server);
+                    System.out.println("Vert.x PostgreSQL CRUD API listening on " + server.actualPort());
+                })
                 .onFailure(error -> {
                     error.printStackTrace(System.err);
-                    pool.close();
-                    vertx.close();
+                    lifecycle.closeBlocking();
                     System.exit(1);
                 });
     }
@@ -263,6 +273,66 @@ public final class VertxPostgresCrudApplication {
 
     private static void readinessFailure(RoutingContext context, Throwable error) {
         json(context, 503, new JsonObject().put("error", "database readiness check failed: " + error.getMessage()));
+    }
+
+    static final class AppLifecycle {
+        private final Vertx vertx;
+        private final PgPool pool;
+        private final AtomicBoolean closing = new AtomicBoolean();
+        private volatile HttpServer server;
+
+        AppLifecycle(Vertx vertx, PgPool pool) {
+            this.vertx = vertx;
+            this.pool = pool;
+        }
+
+        void server(HttpServer server) {
+            this.server = server;
+        }
+
+        Thread shutdownHook() {
+            return new Thread(this::closeBlocking, "vertx-postgres-crud-shutdown");
+        }
+
+        Future<Void> close() {
+            if (!closing.compareAndSet(false, true)) {
+                return Future.succeededFuture();
+            }
+            return closeServer()
+                    .compose(ignored -> closePool())
+                    .compose(ignored -> vertx.close());
+        }
+
+        void closeBlocking() {
+            try {
+                close().toCompletionStage().toCompletableFuture().get(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                System.err.println("Vert.x PostgreSQL shutdown was interrupted.");
+            } catch (ExecutionException | TimeoutException exception) {
+                System.err.println("Vert.x PostgreSQL shutdown did not complete cleanly: " + exception.getMessage());
+            }
+        }
+
+        private Future<Void> closeServer() {
+            HttpServer currentServer = server;
+            if (currentServer == null) {
+                return Future.succeededFuture();
+            }
+            return currentServer.close();
+        }
+
+        private Future<Void> closePool() {
+            Promise<Void> promise = Promise.promise();
+            pool.close(result -> {
+                if (result.succeeded()) {
+                    promise.complete();
+                } else {
+                    promise.fail(result.cause());
+                }
+            });
+            return promise.future();
+        }
     }
 
     record AppConfig(

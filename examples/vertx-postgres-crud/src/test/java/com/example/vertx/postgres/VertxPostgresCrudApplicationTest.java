@@ -4,10 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.pgclient.PgPool;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -658,10 +663,85 @@ final class VertxPostgresCrudApplicationTest {
         }
     }
 
+    @Test
+    void lifecycleClosesServerPoolAndVertxInOrder() throws Exception {
+        List<String> events = new ArrayList<>();
+        VertxPostgresCrudApplication.AppLifecycle lifecycle = new VertxPostgresCrudApplication.AppLifecycle(
+                fakeVertx(events),
+                fakePool(events));
+        lifecycle.server(fakeServer(events));
+
+        lifecycle.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+        lifecycle.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        assertEquals(List.of("server", "pool", "vertx"), events);
+    }
+
     private static void assertRepositoryFailure(HttpResult response) {
         assertEquals(500, response.status());
         assertJson(response);
         assertTrue(response.body().contains("database operation failed: simulated repository failure"));
+    }
+
+    private static HttpServer fakeServer(List<String> events) {
+        return proxy(HttpServer.class, (method, args) -> {
+            if (method.getName().equals("close") && method.getParameterCount() == 0) {
+                events.add("server");
+                return Future.succeededFuture();
+            }
+            return unsupported(method);
+        });
+    }
+
+    private static PgPool fakePool(List<String> events) {
+        return proxy(PgPool.class, (method, args) -> {
+            if (method.getName().equals("close") && method.getParameterCount() == 1) {
+                events.add("pool");
+                @SuppressWarnings("unchecked")
+                Handler<AsyncResult<Void>> handler = (Handler<AsyncResult<Void>>) args[0];
+                handler.handle(Future.succeededFuture());
+                return null;
+            }
+            return unsupported(method);
+        });
+    }
+
+    private static Vertx fakeVertx(List<String> events) {
+        return proxy(Vertx.class, (method, args) -> {
+            if (method.getName().equals("close") && method.getParameterCount() == 0) {
+                events.add("vertx");
+                return Future.succeededFuture();
+            }
+            return unsupported(method);
+        });
+    }
+
+    private static <T> T proxy(Class<T> type, ProxyInvocation invocation) {
+        Object proxy = Proxy.newProxyInstance(
+                type.getClassLoader(),
+                new Class<?>[] {type},
+                (instance, method, args) -> objectMethod(instance, method, args, invocation));
+        return type.cast(proxy);
+    }
+
+    private static Object objectMethod(
+            Object instance,
+            Method method,
+            Object[] args,
+            ProxyInvocation invocation) throws Throwable {
+        if (method.getDeclaringClass().equals(Object.class)) {
+            return switch (method.getName()) {
+                case "equals" -> instance == args[0];
+                case "hashCode" -> System.identityHashCode(instance);
+                case "toString" -> "fake-" + instance.getClass().getInterfaces()[0].getSimpleName();
+                default -> unsupported(method);
+            };
+        }
+        return invocation.invoke(method, args == null ? new Object[0] : args);
+    }
+
+    private static Object unsupported(Method method) {
+        throw new UnsupportedOperationException(method.toString());
     }
 
     private static void assertMethodNotAllowed(HttpResult response, String allow) {
@@ -734,6 +814,11 @@ final class VertxPostgresCrudApplicationTest {
     @FunctionalInterface
     private interface ServerExercise {
         void run(ServerContext server) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface ProxyInvocation {
+        Object invoke(Method method, Object[] args) throws Throwable;
     }
 
     private static class FakeNotesRepository implements VertxPostgresCrudApplication.NotesRepository {
