@@ -6,77 +6,20 @@ import java.nio.file.Path;
 public final class QuarkusBootstrapWorker {
     public static final String MAIN_CLASS = "com.zolt.quarkus.QuarkusBootstrapWorker";
 
-    private final QuarkusBootstrapDescriptorReader descriptorReader;
-    private final QuarkusBootstrapApiProbe apiProbe;
-    private final QuarkusApplicationModelFactory applicationModelFactory;
-    private final QuarkusBootstrapPreparer bootstrapPreparer;
-    private final QuarkusCuratedApplicationInvoker curatedApplicationInvoker;
-    private final QuarkusProductionApplicationCreator productionApplicationCreator;
-    private final QuarkusProductionApplicationSummarizer productionApplicationSummarizer;
-    private final QuarkusProductionOutputValidator productionOutputValidator;
-    private final QuarkusProductionOutputVerifier productionOutputVerifier;
-    private final QuarkusBootstrapWorkerResultCodec resultCodec;
+    private final QuarkusBootstrapWorkerDependencies dependencies;
     private final PrintStream out;
     private final PrintStream err;
 
     public QuarkusBootstrapWorker() {
-        this(
-                new QuarkusBootstrapDescriptorReader(),
-                new QuarkusBootstrapApiProbe(),
-                new QuarkusApplicationModelFactory(),
-                new QuarkusBootstrapPreparer(),
-                new QuarkusCuratedApplicationInvoker(),
-                new QuarkusProductionApplicationCreator(),
-                new QuarkusProductionApplicationSummarizer(),
-                new QuarkusProductionOutputValidator(),
-                new QuarkusProductionOutputVerifier(),
-                new QuarkusBootstrapWorkerResultCodec(),
-                System.out,
-                System.err);
+        this(QuarkusBootstrapWorkerDependencies.defaults(), System.out, System.err);
     }
 
     QuarkusBootstrapWorker(
-            QuarkusBootstrapDescriptorReader descriptorReader,
-            QuarkusBootstrapApiProbe apiProbe,
-            QuarkusApplicationModelFactory applicationModelFactory,
-            QuarkusBootstrapPreparer bootstrapPreparer,
-            QuarkusCuratedApplicationInvoker curatedApplicationInvoker,
-            QuarkusProductionApplicationCreator productionApplicationCreator,
-            QuarkusProductionApplicationSummarizer productionApplicationSummarizer,
-            QuarkusProductionOutputValidator productionOutputValidator,
-            QuarkusProductionOutputVerifier productionOutputVerifier,
-            QuarkusBootstrapWorkerResultCodec resultCodec,
+            QuarkusBootstrapWorkerDependencies dependencies,
             PrintStream out,
             PrintStream err) {
-        if (descriptorReader == null) {
-            throw new QuarkusAugmentationException("Quarkus bootstrap descriptor reader is required.");
-        }
-        if (apiProbe == null) {
-            throw new QuarkusAugmentationException("Quarkus bootstrap API probe is required.");
-        }
-        if (applicationModelFactory == null) {
-            throw new QuarkusAugmentationException("Quarkus application model factory is required.");
-        }
-        if (bootstrapPreparer == null) {
-            throw new QuarkusAugmentationException("Quarkus bootstrap preparer is required.");
-        }
-        if (curatedApplicationInvoker == null) {
-            throw new QuarkusAugmentationException("Quarkus curated application invoker is required.");
-        }
-        if (productionApplicationCreator == null) {
-            throw new QuarkusAugmentationException("Quarkus production application creator is required.");
-        }
-        if (productionApplicationSummarizer == null) {
-            throw new QuarkusAugmentationException("Quarkus production application summarizer is required.");
-        }
-        if (productionOutputValidator == null) {
-            throw new QuarkusAugmentationException("Quarkus production output validator is required.");
-        }
-        if (productionOutputVerifier == null) {
-            throw new QuarkusAugmentationException("Quarkus production output verifier is required.");
-        }
-        if (resultCodec == null) {
-            throw new QuarkusAugmentationException("Quarkus bootstrap worker result codec is required.");
+        if (dependencies == null) {
+            throw new QuarkusAugmentationException("Quarkus bootstrap worker dependencies are required.");
         }
         if (out == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker output stream is required.");
@@ -84,16 +27,7 @@ public final class QuarkusBootstrapWorker {
         if (err == null) {
             throw new QuarkusAugmentationException("Quarkus bootstrap worker error stream is required.");
         }
-        this.descriptorReader = descriptorReader;
-        this.apiProbe = apiProbe;
-        this.applicationModelFactory = applicationModelFactory;
-        this.bootstrapPreparer = bootstrapPreparer;
-        this.curatedApplicationInvoker = curatedApplicationInvoker;
-        this.productionApplicationCreator = productionApplicationCreator;
-        this.productionApplicationSummarizer = productionApplicationSummarizer;
-        this.productionOutputValidator = productionOutputValidator;
-        this.productionOutputVerifier = productionOutputVerifier;
-        this.resultCodec = resultCodec;
+        this.dependencies = dependencies;
         this.out = out;
         this.err = err;
     }
@@ -112,17 +46,18 @@ public final class QuarkusBootstrapWorker {
         }
 
         try {
-            QuarkusBootstrapDescriptor descriptor = descriptorReader.read(Path.of(args[0]));
-            QuarkusBootstrapApi api = apiProbe.probe(descriptor);
-            QuarkusApplicationModelHandle applicationModel = applicationModelFactory.create(descriptor);
-            QuarkusBootstrapHandle bootstrap = bootstrapPreparer.prepare(descriptor, api, applicationModel);
-            QuarkusCuratedApplicationHandle curatedApplication = curatedApplicationInvoker.invoke(bootstrap);
-            QuarkusProductionApplicationHandle productionApplication = productionApplicationCreator.create(curatedApplication);
+            QuarkusBootstrapDescriptor descriptor = dependencies.descriptorReader().read(Path.of(args[0]));
+            QuarkusBootstrapApi api = dependencies.apiProbe().probe(descriptor);
+            QuarkusApplicationModelHandle applicationModel = dependencies.applicationModelFactory().create(descriptor);
+            QuarkusBootstrapHandle bootstrap = dependencies.bootstrapPreparer().prepare(descriptor, api, applicationModel);
+            QuarkusCuratedApplicationHandle curatedApplication = dependencies.curatedApplicationInvoker().invoke(bootstrap);
+            QuarkusProductionApplicationHandle productionApplication =
+                    dependencies.productionApplicationCreator().create(curatedApplication);
             QuarkusProductionApplicationSummary productionSummary =
-                    productionApplicationSummarizer.summarize(productionApplication);
-            productionOutputValidator.validate(descriptor, productionSummary);
-            productionOutputVerifier.verify(descriptor, productionSummary);
-            resultCodec.write(out, result(descriptor, productionSummary));
+                    dependencies.productionApplicationSummarizer().summarize(productionApplication);
+            dependencies.productionOutputValidator().validate(descriptor, productionSummary);
+            dependencies.productionOutputVerifier().verify(descriptor, productionSummary);
+            dependencies.resultCodec().write(out, result(descriptor, productionSummary));
             return 0;
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());

@@ -12,16 +12,17 @@ public final class QuarkusBootstrapWorkerFixture {
 
     static QuarkusBootstrapWorker worker(PrintStream out, PrintStream err) {
         return new QuarkusBootstrapWorker(
-                new QuarkusBootstrapDescriptorReader(),
-                new QuarkusBootstrapApiProbe(),
-                modelFactory(),
-                new QuarkusBootstrapPreparer(),
-                new QuarkusCuratedApplicationInvoker(),
-                new QuarkusProductionApplicationCreator(),
-                new QuarkusProductionApplicationSummarizer(),
-                new QuarkusProductionOutputValidator(),
-                new QuarkusProductionOutputVerifier(),
-                new QuarkusBootstrapWorkerResultCodec(),
+                new QuarkusBootstrapWorkerDependencies(
+                        new QuarkusBootstrapDescriptorReader(),
+                        new QuarkusBootstrapApiProbe(),
+                        modelFactory(),
+                        new QuarkusBootstrapPreparer(),
+                        new QuarkusCuratedApplicationInvoker(),
+                        new QuarkusProductionApplicationCreator(),
+                        new QuarkusProductionApplicationSummarizer(),
+                        new QuarkusProductionOutputValidator(),
+                        new QuarkusProductionOutputVerifier(),
+                        new QuarkusBootstrapWorkerResultCodec()),
                 out,
                 err);
     }
