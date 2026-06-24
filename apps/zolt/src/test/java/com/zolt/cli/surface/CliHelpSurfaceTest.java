@@ -58,6 +58,7 @@ final class CliHelpSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[32m--color"));
+        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
         assertTrue(result.stdout().contains("Run \u001B[36mzolt help <command>\u001B[0m for more information"));
@@ -108,9 +109,21 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=always", "--list");
 
         assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
         assertFalse(result.stderr().contains("\u001B["));
+    }
+
+    @Test
+    void nestedCommandHelpSupportsSparseSemanticCommandHeadingColor() {
+        CommandResult result = execute("--color=always", "version", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[36mset\u001B[0m"));
+        assertFalse(result.stdout().contains("  Dependencies"));
     }
 
     @Test

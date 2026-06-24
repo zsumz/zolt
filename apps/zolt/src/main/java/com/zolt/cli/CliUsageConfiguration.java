@@ -15,9 +15,17 @@ final class CliUsageConfiguration {
                 .optionListHeading("Options:%n");
         commandLine.getCommandSpec()
                 .usageMessage()
+                .commandListHeading("Commands:%n");
+        commandLine.getCommandSpec()
+                .usageMessage()
                 .sectionMap()
                 .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
                         help -> styles.get().heading("Options") + ":" + System.lineSeparator());
+        commandLine.getCommandSpec()
+                .usageMessage()
+                .sectionMap()
+                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
+                        help -> styles.get().heading("Commands") + ":" + System.lineSeparator());
         commandLine.getCommandSpec()
                 .usageMessage()
                 .sectionMap()
