@@ -17,13 +17,14 @@ final class NativeCommandValidationTest {
     private Path tempDir;
 
     @Test
-    void nativeUsageShowsDirectoryOption() {
+    void nativeHelpShowsDirectoryOption() {
         CommandResult result = execute("native", "--help");
 
-        assertEquals(2, result.exitCode());
-        assertTrue(result.stderr().contains("--directory"));
-        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stderr().contains("directory."));
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+        assertEquals("", result.stderr());
     }
 
     @Test

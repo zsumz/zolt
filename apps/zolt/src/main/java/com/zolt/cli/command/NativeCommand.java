@@ -28,7 +28,10 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-@Command(name = "native", description = "Build a native binary with GraalVM Native Image.")
+@Command(
+        name = "native",
+        mixinStandardHelpOptions = true,
+        description = "Build a native binary with GraalVM Native Image.")
 public final class NativeCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final NativeBuildService nativeBuildService;

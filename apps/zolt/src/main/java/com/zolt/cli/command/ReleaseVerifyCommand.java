@@ -17,7 +17,10 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
-@Command(name = "release-verify", description = "Verify release archives by unpacking and smoking the binary.")
+@Command(
+        name = "release-verify",
+        mixinStandardHelpOptions = true,
+        description = "Verify release archives by unpacking and smoking the binary.")
 public final class ReleaseVerifyCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final ReleaseVerificationService releaseVerificationService;
