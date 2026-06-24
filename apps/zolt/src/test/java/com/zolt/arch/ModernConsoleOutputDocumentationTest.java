@@ -17,7 +17,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("color and formatting are additive"));
         assertTrue(design.contains("--color=auto|always|never"));
         assertTrue(design.contains("Progress is planned but separate from static command summaries."));
-        assertTrue(design.contains(" owns the progress"));
+        assertTrue(design.contains("`progress-output.md` defines"));
         assertTrue(design.contains("NO_COLOR"));
         assertTrue(design.contains("Machine-readable formats such as `--format json` ignore color"));
         assertTrue(design.contains("Subcommand help should also be grouped by purpose."));
@@ -27,17 +27,39 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));
         assertTrue(design.contains("No full-screen terminal UI"));
-        assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before "));
+        assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before"));
     }
 
     @Test
     void docsIndexLinksModernConsoleOutputDesign() throws IOException {
         String docsIndex = Files.readString(RepositoryPaths.root().resolve("docs/README.md"));
         String consoleOutput = Files.readString(RepositoryPaths.root().resolve("docs/console-output.md"));
+        String modernConsoleOutput = Files.readString(RepositoryPaths.root().resolve("docs/modern-console-output.md"));
         String followUpIndex = Files.readString(RepositoryPaths.root().resolve("followUps/README.md"));
 
         assertTrue(docsIndex.contains("`modern-console-output.md`"));
+        assertTrue(docsIndex.contains("`progress-output.md`"));
         assertTrue(consoleOutput.contains("`modern-console-output.md` defines the follow-on human output design"));
+        assertTrue(consoleOutput.contains("`progress-output.md` defines"));
+        assertTrue(modernConsoleOutput.contains("`progress-output.md` defines"));
         assertTrue(followUpIndex.contains("**M29** — Modern console output"));
+    }
+
+    @Test
+    void progressOutputDesignNamesControlsContractsAndFollowUpFollowUps() throws IOException {
+        String design = Files.readString(RepositoryPaths.root().resolve("docs/progress-output.md"));
+        String milestones = Files.readString(RepositoryPaths.root().resolve("followUps/MILESTONES.md"));
+
+        assertTrue(design.contains("--progress=auto|always|never"));
+        assertTrue(design.contains("--no-progress"));
+        assertTrue(design.contains("Progress writes to stderr."));
+        assertTrue(design.contains("Machine-readable or parseable outputs ignore `--progress=auto`"));
+        assertTrue(design.contains("CI indicators such as `CI`, `WOODPECKER`,"));
+        assertTrue(design.contains("`NO_COLOR` affects color only."));
+        assertTrue(design.contains("no spinners, bars, or carriage-return rewrites"));
+        assertTrue(design.contains("Core resolver, planner, and build services should"));
+        assertTrue(design.contains("Native Image smoke logs do not depend on terminal animation support."));
+        assertTrue(milestones.contains(" — Add global progress mode"));
+        assertTrue(milestones.contains(" — Add progress writer and command progress events"));
     }
 }
