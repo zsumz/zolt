@@ -24,10 +24,17 @@ final class CliMachineReadableContractTest {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-contract"));
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
-        CommandResult result = execute("--progress=always", "plan", "--format", "json", "--cwd", projectDir.toString());
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "plan",
+                "--format", "json",
+                "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
         assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
         assertTrue(result.stdout().contains("\"projectRoot\": \"" + projectDir.toAbsolutePath().normalize()));
         assertTrue(result.stdout().contains("\"project\": \"plan-contract\""));
@@ -45,10 +52,17 @@ final class CliMachineReadableContractTest {
         writeProjectConfig(projectDir);
         writeLockfile(projectDir);
 
-        CommandResult result = execute("--progress=always", "tree", "--format", "json", "--cwd", projectDir.toString());
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "tree",
+                "--format", "json",
+                "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
         assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
         assertTrue(result.stdout().contains("\"command\": \"tree\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"com.example:demo:0.1.0\""));
@@ -64,13 +78,47 @@ final class CliMachineReadableContractTest {
         Path projectDir = tempDir.resolve("missing-config");
         Files.createDirectories(projectDir);
 
-        CommandResult result = execute("build", "--cwd", projectDir.toString());
+        CommandResult result = execute("--color=never", "build", "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Could not read zolt.toml at "
                 + projectDir.resolve("zolt.toml")));
         assertTrue(result.stderr().contains("Check that the file exists and is readable."));
+        assertNoAnsi(result.stderr());
         assertEquals("", result.stdout());
+    }
+
+    @Test
+    void classpathOutputIgnoresForcedColorAndProgress() throws IOException {
+        Path projectDir = tempDir.resolve("classpath-contract");
+        Path cacheRoot = tempDir.resolve("cache");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:app"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/app/1.0.0/app-1.0.0.jar"
+                dependencies = []
+                """);
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "compile");
+
+        assertEquals(0, result.exitCode());
+        assertEquals(cacheRoot.resolve("com/example/app/1.0.0/app-1.0.0.jar") + System.lineSeparator(), result.stdout());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {
@@ -94,5 +142,16 @@ final class CliMachineReadableContractTest {
                 direct = true
                 dependencies = []
                 """);
+    }
+
+    private static void assertNoAnsi(String output) {
+        assertFalse(output.contains("\u001B["), "output should not contain ANSI: " + output);
+    }
+
+    private static void assertNoProgressText(String output) {
+        assertFalse(output.contains("Resolving "), "output should not contain progress text: " + output);
+        assertFalse(output.contains("Building "), "output should not contain progress text: " + output);
+        assertFalse(output.contains("Packaging "), "output should not contain progress text: " + output);
+        assertFalse(output.contains("Still running:"), "output should not contain progress text: " + output);
     }
 }

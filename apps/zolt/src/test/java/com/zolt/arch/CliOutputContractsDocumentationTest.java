@@ -19,6 +19,9 @@ final class CliOutputContractsDocumentationTest {
         assertTrue(contracts.contains("`zolt explain --format json`"));
         assertTrue(contracts.contains("`zolt package --plan --format json`"));
         assertTrue(contracts.contains("`zolt publish --dry-run`"));
+        assertTrue(contracts.contains("`--color=always`"));
+        assertTrue(contracts.contains("`--progress=always`"));
+        assertTrue(contracts.contains("stdout formats remain ANSI-free and progress-free"));
         assertTrue(contracts.contains("Removing or renaming a promised JSON field requires a followUp"));
     }
 

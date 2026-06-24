@@ -167,6 +167,7 @@ final class ClasspathCommandTest {
                 "quarkus-deployment");
             CommandResult colorAlwaysCompile = CliTestSupport.execute(
                 "--color=always",
+                "--progress=always",
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
@@ -189,6 +190,7 @@ final class ClasspathCommandTest {
         assertEquals(0, quarkusDeployment.exitCode());
         assertEquals(quarkusDeploymentJar + System.lineSeparator(), quarkusDeployment.stdout());
         assertEquals(0, colorAlwaysCompile.exitCode());
+        assertEquals("", colorAlwaysCompile.stderr());
         assertFalse(colorAlwaysCompile.stdout().contains("\u001B["));
         assertEquals(compile.stdout(), colorAlwaysCompile.stdout());
     }

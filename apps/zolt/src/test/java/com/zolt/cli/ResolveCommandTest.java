@@ -82,6 +82,35 @@ final class ResolveCommandTest {
     }
 
     @Test
+    void resolveColorsOnlyProgressLeadFragmentsWhenForced() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("color-progress-demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+
+            CommandResult result = execute(
+                    "--color=always",
+                    "--progress=always",
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stderr().contains("\u001B[36mResolving\u001B[0m dependencies..."));
+            assertTrue(result.stderr().contains("\u001B[32mResolved\u001B[0m 1 packages"));
+            assertFalse(result.stderr().contains("\u001B[36mResolving dependencies\u001B[0m"));
+            assertFalse(result.stderr().contains("\u001B[32mResolved 1 packages\u001B[0m"));
+            assertFalse(result.stdout().contains("\u001B["));
+        }
+    }
+
+    @Test
     void resolveLockedVerifiesExistingLockfile() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
