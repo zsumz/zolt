@@ -147,6 +147,19 @@ final class FileSizeBudgetTest {
                 readBudgets(budgets));
     }
 
+    @Test
+    void reportScriptMarksEmptyBudgetSections() throws IOException, InterruptedException {
+        Process process = new ProcessBuilder("scripts/report-file-size-budgets")
+                .directory(RepositoryPaths.root().toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes());
+
+        assertEquals(0, process.waitFor(), output);
+        assertTrue(output.contains("Production Java files over budget in apps/*/src/main/java"));
+        assertEquals(4, output.lines().filter("none"::equals).count(), output);
+    }
+
     private static List<Budget> readBudgets() throws IOException {
         return readBudgets(BUDGETS);
     }
