@@ -57,6 +57,7 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=always", "help");
 
         assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[1mUsage\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;32m--color"));
         assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
@@ -154,6 +155,9 @@ final class CliHelpSurfaceTest {
             String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
             assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
             assertEquals("", result.stderr(), commandName + " --help should not write stderr");
+            assertTrue(
+                    result.stdout().contains("\u001B[1mUsage\u001B[0m:"),
+                    commandName + " --help should use a bold usage heading");
             assertFalse(result.stdout().contains("\u001B[33m"), commandName + " --help should not use warning color");
             assertFalse(result.stdout().contains("\u001B[32m--"), commandName + " --help should not use plain green options");
             assertTrue(

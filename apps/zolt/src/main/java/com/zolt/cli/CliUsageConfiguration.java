@@ -20,6 +20,11 @@ final class CliUsageConfiguration {
         commandLine.getCommandSpec()
                 .usageMessage()
                 .sectionMap()
+                .put(UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
+                        help -> styles.get().heading("Usage") + ": ");
+        commandLine.getCommandSpec()
+                .usageMessage()
+                .sectionMap()
                 .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
                         help -> styles.get().heading("Options") + ":" + System.lineSeparator());
         commandLine.getCommandSpec()
