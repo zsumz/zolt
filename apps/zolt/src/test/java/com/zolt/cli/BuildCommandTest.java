@@ -124,4 +124,30 @@ final class BuildCommandTest {
         assertTrue(result.stdout().contains("Compiled 1 main source files"));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }
+
+    @Test
+    void buildColorsOnlyHumanSummaryLeadFragmentsWhenForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+
+        CommandResult result = execute(
+                "--color=always",
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[36mBuilding\u001B[0m demo"));
+        assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 main source files"));
+        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m classes to "
+                + projectDir.resolve("target/classes")));
+        assertFalse(result.stdout().contains("\u001B[32mCompiled 1 main source files\u001B[0m"));
+    }
 }

@@ -9,6 +9,7 @@ import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.console.ProgressWriter;
@@ -95,6 +96,7 @@ public final class BuildCommand implements Runnable {
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         ProgressWriter progress = CommandProgress.human(spec);
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         try {
             if (workspace) {
                 lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
@@ -117,16 +119,16 @@ public final class BuildCommand implements Runnable {
                         },
                         CommandBuildAttributes::workspaceBuild);
                 if (result.resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    output.detail("Resolved workspace dependencies because zolt.lock was missing");
                 }
                 for (WorkspaceBuildResult.MemberBuildResult member : result.members()) {
-                    spec.commandLine().getOut().println(
+                    output.detail(
                             "Compiled "
                                     + member.result().sourceCount()
                                     + " main source files in "
                                     + member.member());
                 }
-                spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " workspace main source files");
+                output.success("Compiled " + result.sourceCount() + " workspace main source files");
                 progress.result("Built " + result.sourceCount() + " workspace main source files");
                 return;
             }
@@ -135,15 +137,23 @@ public final class BuildCommand implements Runnable {
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
             progress.start("Building project");
+            output.work("Building " + config.project().name());
             BuildResult result = timings.measure(
                     "compile main",
                     () -> buildService.build(workingDirectory, config, cacheRoot, offline),
                     CommandBuildAttributes::build);
             if (result.resolvedLockfile()) {
-                spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
+                output.detail("Resolved dependencies because zolt.lock was missing");
             }
-            spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
-            spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
+            if (result.mainCompilationSkipped()) {
+                output.detail("Skipped main compilation; inputs are unchanged");
+            } else {
+                output.success("Compiled " + result.sourceCount() + " main source files");
+            }
+            if (result.resourceCount() > 0) {
+                output.detail("Copied " + result.resourceCount() + " resources");
+            }
+            output.detail("Wrote classes to " + result.outputDirectory());
             progress.result("Built " + result.sourceCount() + " main source files");
             Optional<FrameworkBuildAugmentationResult> augmentationResult =
                     timings.measure(
@@ -155,7 +165,7 @@ public final class BuildCommand implements Runnable {
                             CommandBuildAttributes::frameworkAugmentation);
             if (augmentationResult.isPresent()) {
                 FrameworkBuildAugmentationResult augmentation = augmentationResult.orElseThrow();
-                spec.commandLine().getOut().println(
+                output.detail(
                         "Ran "
                                 + augmentation.displayName()
                                 + " augmentation; runner jar "

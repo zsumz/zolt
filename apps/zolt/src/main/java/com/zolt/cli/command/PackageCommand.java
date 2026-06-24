@@ -6,7 +6,6 @@ import com.zolt.build.BuildService;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ManifestGenerationException;
-import com.zolt.build.PackageArtifact;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanFormatter;
@@ -16,6 +15,7 @@ import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.console.ProgressWriter;
@@ -31,7 +31,6 @@ import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspacePackageService;
-import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -281,48 +280,6 @@ public final class PackageCommand implements Runnable {
     }
 
     private void printPackageResult(PackageResult result, String suffix) {
-        packageResultWriter.print(spec.commandLine().getOut(), result, suffix);
-    }
-}
-
-final class CommandPackageResultWriter {
-    void print(PrintWriter out, PackageResult result, String suffix) {
-        out.println(CommandPackageSupport.packageSummary(result) + suffix);
-        if (result.hasMainClass()) {
-            out.println(suffix.isBlank()
-                    ? "Included Main-Class manifest entry"
-                    : "Included Main-Class manifest entry" + suffix);
-            if (suffix.isBlank()) {
-                out.println("Run with: java -jar " + result.jarPath());
-                CommandPackageSupport.runInstruction(result)
-                        .ifPresent(out::println);
-            }
-        } else if (suffix.isBlank()) {
-            Optional<String> noMainClassDetail = CommandPackageSupport.noMainClassDetail(result);
-            if (noMainClassDetail.isPresent()) {
-                out.println(noMainClassDetail.orElseThrow());
-            } else {
-                out.println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
-            }
-        }
-        if (suffix.isBlank()) {
-            printPackageModeDetail(out, result);
-        }
-        out.println("Wrote archive to " + result.jarPath());
-        result.evidenceManifestPath().ifPresent(path ->
-                out.println("Wrote package evidence to " + path));
-        for (PackageArtifact artifact : result.artifacts()) {
-            out.println(
-                    "Wrote "
-                            + artifact.classifier()
-                            + " jar to "
-                            + artifact.path());
-        }
-    }
-
-    private static void printPackageModeDetail(PrintWriter out, PackageResult result) {
-        CommandPackageSupport.PackageModeDetail detail = CommandPackageSupport.packageModeDetail(result);
-        out.println(detail.message());
-        detail.secondaryMessage().ifPresent(out::println);
+        packageResultWriter.print(CommandHumanOutput.of(spec), result, suffix);
     }
 }

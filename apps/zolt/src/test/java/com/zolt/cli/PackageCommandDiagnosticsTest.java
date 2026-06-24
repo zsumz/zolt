@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -85,6 +86,34 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
         assertTrue(result.stderr().contains("Packaging project..."));
         assertTrue(result.stderr().contains("Packaged " + projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
+    void packageColorsOnlyHumanSummaryLeadFragmentsWhenForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "--color=always",
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
+        assertTrue(result.stdout().contains("\u001B[32mIncluded\u001B[0m Main-Class manifest entry"));
+        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + jarPath));
+        assertFalse(result.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar\u001B[0m"));
     }
 
     @Test

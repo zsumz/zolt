@@ -15,6 +15,7 @@ import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.console.ProgressWriter;
@@ -169,6 +170,7 @@ public final class TestCommand implements Runnable {
             List<String> requestedTestEvents) {
         lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
         progress.start("Testing workspace");
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         WorkspaceTestResult result = timings.measure(
                 "test workspace",
                 () -> {
@@ -197,21 +199,21 @@ public final class TestCommand implements Runnable {
                 },
                 CommandTestAttributes::workspaceTest);
         if (result.resolvedLockfile()) {
-            spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+            output.detail("Resolved workspace dependencies because zolt.lock was missing");
         }
         for (WorkspaceTestResult.MemberTestRunResult member : result.members()) {
             CommandOutput.printAndFlush(spec, member.result().output());
             if (!member.result().output().isEmpty() && !member.result().output().endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                output.blankLine();
             }
-            spec.commandLine().getOut().println("Tests passed in " + member.member());
+            output.success("Tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    spec.commandLine().getOut().println("Wrote test reports for "
+                    output.detail("Wrote test reports for "
                             + member.member()
                             + " to "
                             + directory));
         }
-        spec.commandLine().getOut().println(
+        output.success(
                 "Tests passed for "
                         + result.members().size()
                         + " workspace members");
@@ -230,6 +232,8 @@ public final class TestCommand implements Runnable {
                 () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
         lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
         progress.start("Testing project");
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.work("Testing " + config.project().name());
         TestRunResult result = timings.measure(
                 "run tests",
                 () -> {
@@ -274,11 +278,12 @@ public final class TestCommand implements Runnable {
                 CommandTestAttributes::testRun);
         CommandOutput.printAndFlush(spec, result.output());
         if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
-            spec.commandLine().getOut().println();
+            output.blankLine();
         }
-        spec.commandLine().getOut().println("Tests passed");
+        output.detail("Compiled " + result.compileResult().sourceCount() + " test source files");
+        output.success("Tests passed");
         result.reportsDirectory().ifPresent(directory ->
-                spec.commandLine().getOut().println("Wrote test reports to " + directory));
+                output.detail("Wrote test reports to " + directory));
         progress.result("Tested project");
     }
 }

@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.console.ProgressWriter;
@@ -105,6 +106,7 @@ public final class ResolveCommand implements Runnable {
                                 offline),
                         ResolveCommand::resolveAttributes);
                 CommandResolveOutput.print(spec, result, !locked);
+                CommandHumanOutput.of(spec).action("zolt build --workspace");
                 progress.result("Resolved " + result.resolvedCount() + " packages");
                 return;
             }
@@ -122,6 +124,7 @@ public final class ResolveCommand implements Runnable {
                             resolveOptions()),
                     ResolveCommand::resolveAttributes);
             CommandResolveOutput.print(spec, result, !locked);
+            CommandHumanOutput.of(spec).action("zolt build");
             progress.result("Resolved " + result.resolvedCount() + " packages");
         } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);

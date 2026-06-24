@@ -4,6 +4,7 @@ import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static com.zolt.cli.CliTestSupport.writeFakeConsoleJar;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -68,6 +69,31 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("fake console event output"));
         assertTrue(result.stdout().contains("Tests passed"));
+    }
+
+    @Test
+    void testColorsOnlyHumanSummaryLeadFragmentsWhenForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-demo");
+        Path cacheRoot = tempDir.resolve("cache-color");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("color-demo"));
+        writeJUnitConsoleLockfile(projectDir);
+        writeDemoTestSource(projectDir);
+
+        CommandResult result = execute(
+                "--color=always",
+                "test",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("\u001B[36mTesting\u001B[0m color-demo"));
+        assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 test source files"));
+        assertTrue(result.stdout().contains("\u001B[32mTests\u001B[0m passed"));
+        assertFalse(result.stdout().contains("\u001B[32mTests passed\u001B[0m"));
     }
 
     @Test
