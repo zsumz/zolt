@@ -1,8 +1,9 @@
 package com.zolt.cli.command;
 
-import com.zolt.project.ProjectConfig;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.console.ProgressWriter;
+import com.zolt.project.ProjectConfig;
 import com.zolt.release.ReleaseVerificationException;
 import com.zolt.release.ReleaseVerificationResult;
 import com.zolt.release.ReleaseVerificationService;
@@ -59,12 +60,13 @@ public final class ReleaseVerifyCommand implements Runnable {
                     resolvedArchives,
                     projectRoot.resolve(effectiveWorkDirectory(config)).normalize(),
                     config.project().version());
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
             for (ReleaseVerificationResult.VerifiedArchive archive : result.archives()) {
-                spec.commandLine().getOut().println("Verified release archive " + archive.archivePath());
-                spec.commandLine().getOut().println("Unpacked to " + archive.unpackDirectory());
-                spec.commandLine().getOut().println("Ran smoke binary " + archive.binaryPath());
+                output.success("Verified release archive " + archive.archivePath());
+                output.detail("Unpacked to " + archive.unpackDirectory());
+                output.success("Ran smoke binary " + archive.binaryPath());
             }
-            spec.commandLine().getOut().println("Verified " + result.verifiedCount() + " release archives");
+            output.success("Verified " + result.verifiedCount() + " release archives");
             progress.result("Verified " + result.verifiedCount() + " release archives");
         } catch (ReleaseVerificationException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
