@@ -7,6 +7,39 @@ import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
     @Test
+    void nativeCommandServicesOwnsDefaultNativeWiring() {
+        CommandNativeServices services = CommandFrameworkServices.nativeCommandServices();
+
+        assertNotNull(services.tomlParser());
+        assertNotNull(services.nativeBuildService());
+        assertNotNull(services.workspaceNativeBuildService());
+    }
+
+    @Test
+    void nativeCommandServicesRequiresEveryCollaborator() {
+        CommandNativeServices services = CommandFrameworkServices.nativeCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandNativeServices(
+                        null,
+                        services.nativeBuildService(),
+                        services.workspaceNativeBuildService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandNativeServices(
+                        services.tomlParser(),
+                        null,
+                        services.workspaceNativeBuildService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandNativeServices(
+                        services.tomlParser(),
+                        services.nativeBuildService(),
+                        null));
+    }
+
+    @Test
     void versionAliasCommandServicesOwnsDefaultVersionAliasWiring() {
         CommandVersionAliasServices services = CommandFrameworkServices.versionAliasCommandServices();
 

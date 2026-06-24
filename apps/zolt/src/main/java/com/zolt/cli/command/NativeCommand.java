@@ -63,10 +63,14 @@ public final class NativeCommand implements Runnable {
     private CommandSpec spec;
 
     public NativeCommand() {
+        this(CommandFrameworkServices.nativeCommandServices());
+    }
+
+    private NativeCommand(CommandNativeServices services) {
         this(
-                new ZoltTomlParser(),
-                new NativeBuildService(),
-                CommandFrameworkServices.workspaceNativeBuildService(),
+                services.tomlParser(),
+                services.nativeBuildService(),
+                services.workspaceNativeBuildService(),
                 new CommandLockfiles());
     }
 

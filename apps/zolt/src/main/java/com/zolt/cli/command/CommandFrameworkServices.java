@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.build.BuildService;
+import com.zolt.build.NativeBuildService;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
@@ -142,6 +143,13 @@ final class CommandFrameworkServices {
         return new WorkspaceNativeBuildService(resolveService(), new QuarkusPackageAugmenter(), packagePlanService());
     }
 
+    static CommandNativeServices nativeCommandServices() {
+        return new CommandNativeServices(
+                new ZoltTomlParser(),
+                new NativeBuildService(),
+                workspaceNativeBuildService());
+    }
+
     static WorkspaceRunPackageService workspaceRunPackageService() {
         return workspaceRunPackageService(new QuarkusPackageAugmenter());
     }
@@ -175,6 +183,17 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandNativeServices(
+        ZoltTomlParser tomlParser,
+        NativeBuildService nativeBuildService,
+        WorkspaceNativeBuildService workspaceNativeBuildService) {
+    CommandNativeServices {
+        Objects.requireNonNull(tomlParser, "tomlParser");
+        Objects.requireNonNull(nativeBuildService, "nativeBuildService");
+        Objects.requireNonNull(workspaceNativeBuildService, "workspaceNativeBuildService");
     }
 }
 
