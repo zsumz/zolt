@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -70,18 +70,10 @@ final class CliProjectDirectoryGuardrailTest {
     }
 
     private static Set<String> directCwdOptionFiles(Path sourceRoot) throws IOException {
-        if (!Files.isDirectory(sourceRoot)) {
-            return Set.of();
-        }
         Set<String> files = new TreeSet<>();
-        try (Stream<Path> paths = Files.walk(sourceRoot)) {
-            for (Path javaFile : paths.filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .sorted()
-                    .toList()) {
-                if (DIRECT_CWD_OPTION.matcher(Files.readString(javaFile)).find()) {
-                    files.add(RepositoryPaths.displayPath(javaFile));
-                }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(List.of(sourceRoot))) {
+            if (DIRECT_CWD_OPTION.matcher(Files.readString(javaFile)).find()) {
+                files.add(RepositoryPaths.displayPath(javaFile));
             }
         }
         return files;
