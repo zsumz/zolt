@@ -17,6 +17,16 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
     private Path tempDir;
 
     @Test
+    void packageHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "package");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void packageCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -114,6 +124,28 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertTrue(result.stdout().contains("\u001B[32mIncluded\u001B[0m Main-Class manifest entry"));
         assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + jarPath));
         assertFalse(result.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar\u001B[0m"));
+    }
+
+    @Test
+    void packageAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-package");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+
+        CommandResult result = execute(
+                "package",
+                "--directory", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
+        assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
     @Test

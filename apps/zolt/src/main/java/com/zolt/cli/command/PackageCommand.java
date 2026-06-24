@@ -72,8 +72,8 @@ public final class PackageCommand implements Runnable {
     @Option(names = "--format", description = "Package plan output format: text or json.")
     private String format = "text";
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -151,6 +151,7 @@ public final class PackageCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             Optional<PackageMode> packageModeOverride = CommandPackageSupport.packageModeOverride(mode);
             CommandPackageSupport.PlanOutputFormat planOutputFormat = CommandPackageSupport.planOutputFormat(format);
@@ -158,10 +159,10 @@ public final class PackageCommand implements Runnable {
                 throw new PackageException("Package --format is only supported with --plan. Use `zolt package --plan --format json`.");
             }
             if (workspace) {
-                runWorkspacePackage(timings, packageModeOverride, planOnly);
+                runWorkspacePackage(projectRoot, timings, packageModeOverride, planOnly);
                 return;
             }
-            runSingleProjectPackage(timings, packageModeOverride, planOutputFormat);
+            runSingleProjectPackage(projectRoot, timings, packageModeOverride, planOutputFormat);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -175,18 +176,19 @@ public final class PackageCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "package", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "package", projectRoot, timingOptions, timings);
         }
     }
 
     private void runWorkspacePackage(
+            Path projectRoot,
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride,
             boolean planOnly) {
         if (planOnly) {
             throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
         }
-        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         ProgressWriter progress = CommandProgress.human(spec);
         progress.start("Packaging workspace");
         WorkspacePackageResult result = timings.measure(
@@ -195,7 +197,7 @@ public final class PackageCommand implements Runnable {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace packages",
                             () -> workspacePackageService.planPackages(
-                                    workingDirectory,
+                                    projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
@@ -226,25 +228,26 @@ public final class PackageCommand implements Runnable {
     }
 
     private void runSingleProjectPackage(
+            Path projectRoot,
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride,
             CommandPackageSupport.PlanOutputFormat planOutputFormat) {
         ProjectConfig config = CommandPackageSupport.withPackageModeOverride(
                 timings.measure(
                         "config read",
-                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
+                        () -> tomlParser.parse(projectRoot.resolve("zolt.toml"))),
                 packageModeOverride);
         if (!planOnly) {
             if (packageModeOverride.isPresent()) {
-                lockfiles.refreshExistingLockfile(workingDirectory, config, cacheRoot, false);
+                lockfiles.refreshExistingLockfile(projectRoot, config, cacheRoot, false);
             }
-            packageService.preparePackageToolingIfNeeded(workingDirectory, config, cacheRoot);
+            packageService.preparePackageToolingIfNeeded(projectRoot, config, cacheRoot);
         }
-        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         if (planOnly) {
             PackagePlan packagePlan = timings.measure(
                     "plan package contents",
-                    () -> packagePlanService.plan(workingDirectory, config),
+                    () -> packagePlanService.plan(projectRoot, config),
                     CommandPackageAttributes::packagePlan);
             if (planOutputFormat == CommandPackageSupport.PlanOutputFormat.JSON) {
                 CommandOutput.printAndFlush(spec, packagePlanFormatter.json(packagePlan));
@@ -261,14 +264,14 @@ public final class PackageCommand implements Runnable {
                     BuildResultWithClasspaths buildResult = timings.measure(
                             "build package inputs",
                             () -> buildService.buildWithClasspaths(
-                                    workingDirectory,
+                                    projectRoot,
                                     config,
                                     cacheRoot,
                                     false),
                             resultWithClasspaths -> CommandBuildAttributes.build(resultWithClasspaths.buildResult()));
                     return timings.measure(
                             "assemble package",
-                            () -> packageService.packageJar(workingDirectory, config, buildResult, cacheRoot),
+                            () -> packageService.packageJar(projectRoot, config, buildResult, cacheRoot),
                             CommandPackageAttributes::packageResult);
                 },
                 CommandPackageAttributes::packageResult);
