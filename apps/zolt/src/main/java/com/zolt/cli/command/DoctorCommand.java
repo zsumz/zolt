@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.doctor.SelfHostingCheckResult;
@@ -71,8 +72,9 @@ public final class DoctorCommand implements Runnable {
         spec.commandLine().getOut().println("javac: " + status.javac().map(Path::toString).orElse("missing"));
         spec.commandLine().getOut().println("jar: " + status.jar().map(Path::toString).orElse("missing"));
         spec.commandLine().getOut().println("version: " + status.version().orElse("unknown"));
+        CommandHumanOutput errors = CommandHumanOutput.errors(spec);
         for (String problem : status.problems()) {
-            spec.commandLine().getErr().println("error: " + problem);
+            errors.error(problem);
         }
     }
 

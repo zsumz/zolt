@@ -41,6 +41,18 @@ final class DoctorCommandTest {
     }
 
     @Test
+    void doctorStylesJdkProblemErrorPrefixWhenColorIsForced() throws IOException {
+        Path projectDir = tempDir.resolve("version-mismatch");
+        writeProjectConfig(projectDir, "999");
+
+        CommandResult result = execute("--color=always", "doctor", "--directory", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Java version mismatch."));
+        assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Project health check failed."));
+    }
+
+    @Test
     void doctorReportsSelfHostingReadiness() throws IOException {
         Path projectDir = tempDir.resolve("self-hosting-ready");
         writeSelfHostingProjectConfig(projectDir, true);
@@ -73,6 +85,10 @@ final class DoctorCommandTest {
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {
+        writeProjectConfig(projectDir, currentJavaMajorVersion());
+    }
+
+    private static void writeProjectConfig(Path projectDir, String javaVersion) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
                 [project]
@@ -94,7 +110,7 @@ final class DoctorCommandTest {
                 test = "src/test/java"
                 output = "target/classes"
                 testOutput = "target/test-classes"
-                """.formatted(currentJavaMajorVersion()));
+                """.formatted(javaVersion));
     }
 
     private static void writeSelfHostingProjectConfig(Path projectDir, boolean includeTestRunner) throws IOException {

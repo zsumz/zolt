@@ -1,5 +1,7 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
+import com.zolt.cli.PrintedUserException;
 import com.zolt.build.BuildException;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavacException;
@@ -54,12 +56,13 @@ public final class SelfParityCommand implements Runnable {
         try {
             SelfHostingParityResult result = selfHostingParityService.compare(projectRoot, cacheRoot, bootstrapJar);
             if (!result.ok()) {
-                spec.commandLine().getErr().println("error: Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.");
-                spec.commandLine().getErr().println("Missing from Zolt-built jar:");
+                CommandHumanOutput output = CommandHumanOutput.errors(spec);
+                output.error("Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.");
+                output.line("Missing from Zolt-built jar:");
                 spec.commandLine().getErr().print(formatEntries(result.missingFromZolt()));
-                spec.commandLine().getErr().println("Extra in Zolt-built jar:");
+                output.line("Extra in Zolt-built jar:");
                 spec.commandLine().getErr().print(formatEntries(result.extraInZolt()));
-                throw new CommandLine.ExecutionException(spec.commandLine(), "Self-hosting parity failed.");
+                throw new PrintedUserException(spec.commandLine(), "Self-hosting parity failed.");
             }
             spec.commandLine().getOut().println("Self-hosting parity status: ok");
             spec.commandLine().getOut().println("Bootstrap jar: " + result.bootstrapJar());
