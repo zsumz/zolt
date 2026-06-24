@@ -66,12 +66,13 @@ public final class DoctorCommand implements Runnable {
     }
 
     private void printJdkStatus(JdkStatus status) {
-        spec.commandLine().getOut().println("JDK status: " + (status.ok() ? "ok" : "error"));
-        spec.commandLine().getOut().println("JAVA_HOME: " + status.javaHome().map(Path::toString).orElse("not set"));
-        spec.commandLine().getOut().println("java: " + status.java().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("javac: " + status.javac().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("jar: " + status.jar().map(Path::toString).orElse("missing"));
-        spec.commandLine().getOut().println("version: " + status.version().orElse("unknown"));
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.status("JDK status", status.ok() ? "ok" : "error");
+        output.context("JAVA_HOME", status.javaHome().map(Path::toString).orElse("not set"));
+        output.context("java", status.java().map(Path::toString).orElse("missing"));
+        output.context("javac", status.javac().map(Path::toString).orElse("missing"));
+        output.context("jar", status.jar().map(Path::toString).orElse("missing"));
+        output.context("version", status.version().orElse("unknown"));
         CommandHumanOutput errors = CommandHumanOutput.errors(spec);
         for (String problem : status.problems()) {
             errors.error(problem);
@@ -79,10 +80,11 @@ public final class DoctorCommand implements Runnable {
     }
 
     private void printSelfHostingStatus(SelfHostingCheckResult result) {
-        spec.commandLine().getOut().println("Self-hosting status: " + (result.ok() ? "ok" : "error"));
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.status("Self-hosting status", result.ok() ? "ok" : "error");
         for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
             String marker = check.ok() ? "ok" : "error";
-            spec.commandLine().getOut().println(marker + ": " + check.name() + " - " + check.message());
+            output.line(marker + ": " + check.name() + " - " + check.message());
         }
     }
 }

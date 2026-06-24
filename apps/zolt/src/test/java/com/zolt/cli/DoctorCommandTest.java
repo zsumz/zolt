@@ -30,14 +30,17 @@ final class DoctorCommandTest {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
 
-        CommandResult result = execute("doctor", "--directory", projectDir.toString());
+        CommandResult result = execute("--color=always", "doctor", "--directory", projectDir.toString());
+        CommandResult quiet = execute("--quiet", "doctor", "--directory", projectDir.toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("JDK status: ok"));
+        assertTrue(result.stdout().contains("JDK status: \u001B[32mok\u001B[0m"));
         assertTrue(result.stdout().contains("java: "));
         assertTrue(result.stdout().contains("javac: "));
         assertTrue(result.stdout().contains("jar: "));
         assertTrue(result.stdout().contains("version: " + currentJavaMajorVersion()));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
     }
 
     @Test
@@ -60,10 +63,10 @@ final class DoctorCommandTest {
         Files.createDirectories(projectDir.resolve("src/main/java"));
         Files.createDirectories(projectDir.resolve("src/test/java"));
 
-        CommandResult result = execute("doctor", "--self-hosting", "--cwd", projectDir.toString());
+        CommandResult result = execute("--color=always", "doctor", "--self-hosting", "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Self-hosting status: ok"));
+        assertTrue(result.stdout().contains("Self-hosting status: \u001B[32mok\u001B[0m"));
         assertTrue(result.stdout().contains("ok: main class - project main is com.example.Main"));
         assertTrue(result.stdout().contains("ok: JUnit Platform Console"));
         assertTrue(result.stdout().contains("ok: native no-fallback"));
