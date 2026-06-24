@@ -71,11 +71,15 @@ public final class BuildCommand implements Runnable {
     private CommandSpec spec;
 
     public BuildCommand() {
+        this(CommandFrameworkServices.buildCommandServices());
+    }
+
+    private BuildCommand(CommandBuildServices services) {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.buildService(),
-                CommandFrameworkServices.workspaceBuildService(),
-                CommandFrameworkServices.buildAugmenter(),
+                services.buildService(),
+                services.workspaceBuildService(),
+                services.frameworkBuildAugmenter(),
                 new CommandLockfiles());
     }
 

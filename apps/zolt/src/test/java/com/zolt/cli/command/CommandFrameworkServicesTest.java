@@ -7,6 +7,39 @@ import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
     @Test
+    void buildCommandServicesOwnsDefaultBuildWiring() {
+        CommandBuildServices services = CommandFrameworkServices.buildCommandServices();
+
+        assertNotNull(services.buildService());
+        assertNotNull(services.workspaceBuildService());
+        assertNotNull(services.frameworkBuildAugmenter());
+    }
+
+    @Test
+    void buildCommandServicesRequiresEveryCollaborator() {
+        CommandBuildServices services = CommandFrameworkServices.buildCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandBuildServices(
+                        null,
+                        services.workspaceBuildService(),
+                        services.frameworkBuildAugmenter()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandBuildServices(
+                        services.buildService(),
+                        null,
+                        services.frameworkBuildAugmenter()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandBuildServices(
+                        services.buildService(),
+                        services.workspaceBuildService(),
+                        null));
+    }
+
+    @Test
     void packageCommandServicesOwnsDefaultPackageWiring() {
         CommandPackageServices services = CommandFrameworkServices.packageCommandServices();
 

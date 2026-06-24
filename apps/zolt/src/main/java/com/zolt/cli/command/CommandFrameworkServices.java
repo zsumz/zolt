@@ -49,6 +49,14 @@ final class CommandFrameworkServices {
         return new QuarkusBuildAugmenter();
     }
 
+    static CommandBuildServices buildCommandServices() {
+        ResolveService resolveService = resolveService();
+        return new CommandBuildServices(
+                new BuildService(resolveService),
+                new WorkspaceBuildService(resolveService),
+                buildAugmenter());
+    }
+
     static PackagePlanService packagePlanService() {
         return new PackagePlanService(List.of(new QuarkusPackagePlanRules()));
     }
@@ -142,6 +150,17 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandBuildServices(
+        BuildService buildService,
+        WorkspaceBuildService workspaceBuildService,
+        FrameworkBuildAugmenter frameworkBuildAugmenter) {
+    CommandBuildServices {
+        Objects.requireNonNull(buildService, "buildService");
+        Objects.requireNonNull(workspaceBuildService, "workspaceBuildService");
+        Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
     }
 }
 
