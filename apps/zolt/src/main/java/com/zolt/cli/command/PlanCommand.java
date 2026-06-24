@@ -12,6 +12,7 @@ import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -39,8 +40,8 @@ public final class PlanCommand implements Callable<Integer> {
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -61,13 +62,14 @@ public final class PlanCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            Path projectRoot = projectDirectory.path();
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
             BuildPlan plan = buildPlanService.plan(
-                    workingDirectory,
+                    projectRoot,
                     config,
                     target,
-                    reportSettings.projectRelativeReportsDirectory(workingDirectory),
+                    reportSettings.projectRelativeReportsDirectory(projectRoot),
                     java.util.Optional.ofNullable(nativeImageExecutable));
             if (format == Format.JSON) {
                 CommandOutput.printAndFlush(spec, buildPlanFormatter.json(plan));

@@ -20,6 +20,16 @@ final class PlanCommandTest {
     private Path tempDir;
 
     @Test
+    void planHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "plan");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void planReportsTypedPipelineAndBlockersWithoutExecutingWork() throws IOException {
         Path projectDir = tempDir.resolve("plan-blocked");
         Files.createDirectories(projectDir.resolve("src/main/openapi"));
@@ -54,6 +64,24 @@ final class PlanCommandTest {
         assertTrue(result.stdout().contains("tokens: [projectVersion]"));
         assertTrue(result.stdout().contains("- assemble-package [package] blocked"));
         assertTrue(result.stdout().contains("blocker missing-main-class"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void planAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("plan-directory");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-directory"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        CommandResult result = execute(
+                "plan",
+                "--directory", projectDir.toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"project\": \"plan-directory\""));
+        assertTrue(result.stdout().contains("\"target\": \"package\""));
         assertEquals("", result.stderr());
     }
 
