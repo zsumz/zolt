@@ -143,6 +143,24 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void allRegisteredCommandHelpRespectsColorNever() {
+        for (List<String> path : commandPaths(newCommandLine())) {
+            List<String> args = new ArrayList<>();
+            args.add("--color=never");
+            args.addAll(path);
+            args.add("--help");
+
+            CommandResult result = execute(args.toArray(String[]::new));
+
+            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
+            assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
+            assertEquals("", result.stderr(), commandName + " --help should not write stderr");
+            assertFalse(result.stdout().contains("\u001B["), commandName + " --help should not color stdout");
+            assertFalse(result.stderr().contains("\u001B["), commandName + " --help should not color stderr");
+        }
+    }
+
+    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
