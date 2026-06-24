@@ -1,7 +1,5 @@
 package com.zolt.cli.command;
 
-import com.zolt.cli.CommandHumanOutput;
-import com.zolt.cli.PrintedUserException;
 import com.zolt.build.BuildException;
 import com.zolt.build.GroovyCompileException;
 import com.zolt.build.JavacException;
@@ -9,6 +7,8 @@ import com.zolt.build.ManifestGenerationException;
 import com.zolt.build.PackageException;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
+import com.zolt.cli.CommandHumanOutput;
+import com.zolt.cli.PrintedUserException;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.selfhost.SelfHostingParityException;
@@ -64,10 +64,11 @@ public final class SelfParityCommand implements Runnable {
                 spec.commandLine().getErr().print(formatEntries(result.extraInZolt()));
                 throw new PrintedUserException(spec.commandLine(), "Self-hosting parity failed.");
             }
-            spec.commandLine().getOut().println("Self-hosting parity status: ok");
-            spec.commandLine().getOut().println("Bootstrap jar: " + result.bootstrapJar());
-            spec.commandLine().getOut().println("Zolt-built jar: " + result.zoltJar());
-            spec.commandLine().getOut().println("Jar entries match");
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.status("Self-hosting parity status", "ok");
+            output.context("Bootstrap jar", result.bootstrapJar().toString());
+            output.context("Zolt-built jar", result.zoltJar().toString());
+            output.success("Jar entries match");
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException

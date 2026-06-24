@@ -82,6 +82,55 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
         assertEquals(1, occurrences(result.stderr(), "Self-hosting parity failed"));
     }
 
+    @Test
+    void selfParityUsesModernHumanOutputControlsOnSuccess() throws IOException {
+        Path colorProject = tempDir.resolve("color-parity");
+        Path quietProject = tempDir.resolve("quiet-parity");
+        writeParityProject(colorProject);
+        writeParityProject(quietProject);
+        CommandResult colorPackage = execute(
+                "package",
+                "--directory", colorProject.toString(),
+                "--cache-root", tempDir.resolve("color-package-cache").toString());
+        CommandResult quietPackage = execute(
+                "package",
+                "--directory", quietProject.toString(),
+                "--cache-root", tempDir.resolve("quiet-package-cache").toString());
+        assertEquals(0, colorPackage.exitCode(), colorPackage.stderr());
+        assertEquals(0, quietPackage.exitCode(), quietPackage.stderr());
+
+        CommandResult color = execute(
+                "--color=always",
+                "self-parity",
+                "--directory", colorProject.toString(),
+                "--bootstrap-jar", "target/demo-0.1.0.jar",
+                "--cache-root", tempDir.resolve("color-parity-cache").toString());
+        CommandResult quiet = execute(
+                "--quiet",
+                "self-parity",
+                "--directory", quietProject.toString(),
+                "--bootstrap-jar", "target/demo-0.1.0.jar",
+                "--cache-root", tempDir.resolve("quiet-parity-cache").toString());
+
+        assertEquals(0, color.exitCode(), color.stderr());
+        assertTrue(color.stdout().contains("Self-hosting parity status: \u001B[32mok\u001B[0m"));
+        assertTrue(color.stdout().contains("Bootstrap jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
+        assertTrue(color.stdout().contains("Zolt-built jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
+        assertTrue(color.stdout().contains("\u001B[32mJar\u001B[0m entries match"));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+    }
+
+    private static void writeParityProject(Path projectDir) throws IOException {
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+                public final class Main {
+                    public static void main(String[] args) {}
+                }
+                """);
+    }
+
     private static void writeBootstrapJar(Path path) throws IOException {
         try (ZipOutputStream zip = new ZipOutputStream(java.nio.file.Files.newOutputStream(path))) {
             zip.putNextEntry(new ZipEntry("only-bootstrap.txt"));
