@@ -95,9 +95,19 @@ public final class IntegrationTestCommand implements Runnable {
     public IntegrationTestCommand() {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.testRunService(),
-                CommandFrameworkServices.workspaceTestService(),
+                CommandFrameworkServices.testCommandServices(),
                 new CommandLockfiles());
+    }
+
+    IntegrationTestCommand(
+            ZoltTomlParser tomlParser,
+            CommandTestServices testServices,
+            CommandLockfiles lockfiles) {
+        this(
+                tomlParser,
+                testServices.testRunService(),
+                testServices.workspaceTestService(),
+                lockfiles);
     }
 
     IntegrationTestCommand(

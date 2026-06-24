@@ -121,6 +121,13 @@ final class CommandFrameworkServices {
         return new WorkspaceRunService(resolveService());
     }
 
+    static CommandTestServices testCommandServices() {
+        FrameworkTestRunner frameworkTestRunner = new QuarkusFrameworkTestRunner();
+        return new CommandTestServices(
+                testRunService(frameworkTestRunner),
+                workspaceTestService(frameworkTestRunner));
+    }
+
     static TestRunService testRunService(FrameworkTestRunner frameworkTestRunner) {
         return new TestRunService(frameworkTestRunner, resolveService());
     }
@@ -166,5 +173,14 @@ record CommandRunServices(
     CommandRunServices {
         Objects.requireNonNull(runService, "runService");
         Objects.requireNonNull(workspaceRunService, "workspaceRunService");
+    }
+}
+
+record CommandTestServices(
+        TestRunService testRunService,
+        WorkspaceTestService workspaceTestService) {
+    CommandTestServices {
+        Objects.requireNonNull(testRunService, "testRunService");
+        Objects.requireNonNull(workspaceTestService, "workspaceTestService");
     }
 }

@@ -97,9 +97,19 @@ public final class TestCommand implements Runnable {
     public TestCommand() {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.testRunService(),
-                CommandFrameworkServices.workspaceTestService(),
+                CommandFrameworkServices.testCommandServices(),
                 new CommandLockfiles());
+    }
+
+    TestCommand(
+            ZoltTomlParser tomlParser,
+            CommandTestServices testServices,
+            CommandLockfiles lockfiles) {
+        this(
+                tomlParser,
+                testServices.testRunService(),
+                testServices.workspaceTestService(),
+                lockfiles);
     }
 
     TestCommand(
