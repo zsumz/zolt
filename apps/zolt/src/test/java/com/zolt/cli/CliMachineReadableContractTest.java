@@ -121,6 +121,29 @@ final class CliMachineReadableContractTest {
         assertNoProgressText(result.stdout());
     }
 
+    @Test
+    void checkJsonIgnoresForcedColorAndProgress() throws IOException {
+        Path projectDir = tempDir.resolve("check-json-contract");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-json-contract"));
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "check",
+                "--format", "json",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
+        assertTrue(result.stdout().startsWith("{\"status\":\"ok\",\"projectRoot\":\""));
+        assertTrue(result.stdout().contains("\"id\":\"command-surface\""));
+        assertFalse(result.stdout().contains("Checking project"));
+        assertFalse(result.stdout().contains("Checked 1 quality checks"));
+    }
+
     private static void writeProjectConfig(Path projectDir) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """

@@ -109,7 +109,7 @@ public final class CheckCommand implements Callable<Integer> {
         if (format == Format.JSON) {
             CommandOutput.printAndFlush(spec, QualityCheckFormatter.json(report));
         } else {
-            CommandOutput.printAndFlush(spec, QualityCheckFormatter.text(report));
+            CommandCheckOutput.print(spec, report);
         }
         CommandTimings.print(spec, "check", workingDirectory, timingOptions, timings);
         return report.ok() ? 0 : 1;

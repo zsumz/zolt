@@ -3,6 +3,7 @@ package com.zolt.cli;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -21,8 +22,26 @@ final class CheckCommandTest extends CheckCommandTestSupport {
 
         assertEquals(0, result.exitCode());
         assertEquals(
-                "ok command-surface check-demo zolt check uses typed Zolt project data; no Maven, Gradle, or shell hooks are run.\n",
+                """
+                Checking project
+                ok command-surface check-demo zolt check uses typed Zolt project data; no Maven, Gradle, or shell hooks are run.
+                Checked 1 quality checks: 1 passed, 0 warnings, 0 failed, 0 skipped
+                """,
                 result.stdout());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkColorsOnlyHumanFrameAndStatusMarkersWhenForced() throws IOException {
+        Path projectDir = createProject("check-color");
+
+        CommandResult result = execute("--color=always", "check", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[36mChecking\u001B[0m project"));
+        assertTrue(result.stdout().contains("\u001B[32mok\u001B[0m command-surface check-color"));
+        assertTrue(result.stdout().contains("\u001B[32mChecked\u001B[0m 1 quality checks: 1 passed, 0 warnings"));
+        assertFalse(result.stdout().contains("\u001B[32mok command-surface check-color\u001B[0m"));
         assertEquals("", result.stderr());
     }
 

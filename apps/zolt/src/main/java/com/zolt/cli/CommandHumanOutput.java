@@ -37,6 +37,10 @@ public final class CommandHumanOutput {
         out.println("Next: " + style.command(command));
     }
 
+    public void check(String marker, String message) {
+        out.println(styleStatus(marker) + " " + message);
+    }
+
     public void line(String message) {
         out.println(message);
     }
@@ -61,6 +65,16 @@ public final class CommandHumanOutput {
                 case "Wrote", "Verified", "Included", "Copied", "Generated", "Ran", "Compiled" -> style.success(text);
                 default -> text;
             };
+        };
+    }
+
+    private String styleStatus(String marker) {
+        return switch (marker) {
+            case "ok" -> style.success(marker);
+            case "warning" -> style.warning(marker);
+            case "error" -> style.error(marker);
+            case "skip" -> style.muted(marker);
+            default -> marker;
         };
     }
 
