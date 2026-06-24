@@ -46,7 +46,8 @@ final class CliHelpSurfaceTest {
                 "    native",
                 "    release-verify",
                 "  Self-Hosting",
-                "    self-check");
+                "    self-check",
+                "Run zolt help <command> for more information on a command.");
         assertTrue(result.stdout().contains("help                Display help for zolt or a command."));
         assertFalse(result.stdout().contains("%n"));
     }
@@ -59,6 +60,7 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[32m--color"));
         assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
+        assertTrue(result.stdout().contains("Run \u001B[36mzolt help <command>\u001B[0m for more information"));
         assertTrue(result.stdout().contains("Create a new Zolt project."));
         assertFalse(result.stdout().contains("\u001B[33m"));
         assertFalse(result.stderr().contains("\u001B["));
@@ -97,7 +99,8 @@ final class CliHelpSurfaceTest {
                 "  Native and Release",
                 "    native",
                 "  Self-Hosting",
-                "    self-check");
+                "    self-check",
+                "Run zolt help <command> for more information on a command.");
     }
 
     @Test

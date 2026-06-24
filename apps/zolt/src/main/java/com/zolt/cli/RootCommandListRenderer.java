@@ -15,6 +15,7 @@ import picocli.CommandLine.Model.CommandSpec;
 
 final class RootCommandListRenderer implements IHelpSectionRenderer {
     private static final int COMMAND_COLUMN_WIDTH = 20;
+    private static final String HELP_COMMAND = "zolt help <command>";
     private static final List<CommandGroup> GROUPS = List.of(
             new CommandGroup("Basics", List.of(
                     "help",
@@ -91,6 +92,7 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
             appendGroup(output, group, subcommands, rendered, style);
         }
         appendUngroupedCommands(output, subcommands, rendered, style);
+        appendHelpFooter(output, style);
         return output.toString();
     }
 
@@ -163,6 +165,13 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                 .append(style.command(command))
                 .append(padding(command))
                 .append(description(commandSpec))
+                .append(System.lineSeparator());
+    }
+
+    private static void appendHelpFooter(StringBuilder output, ConsoleStyle style) {
+        output.append("Run ")
+                .append(style.command(HELP_COMMAND))
+                .append(" for more information on a command.")
                 .append(System.lineSeparator());
     }
 
