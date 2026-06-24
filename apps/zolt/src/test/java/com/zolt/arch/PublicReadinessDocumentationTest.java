@@ -185,6 +185,28 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void mediumSpringBootJvmAuditNamesCoveredMissingAndUnsupportedShapes() throws IOException {
+        String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
+        String milestones = Files.readString(RepositoryPaths.root().resolve("followUps/MILESTONES.md"));
+
+        assertTrue(springBootReadiness.contains("## Medium Spring Boot JVM Coverage Audit"));
+        assertTrue(springBootReadiness.contains("single-module Spring Boot 4.0.6 application"));
+        assertTrue(springBootReadiness.contains("Implemented and covered by `examples/spring-boot-petclinic-lite`"));
+        assertTrue(springBootReadiness.contains("Spring Boot BOM-managed starter dependencies"));
+        assertTrue(springBootReadiness.contains("Thymeleaf, and validation"));
+        assertTrue(springBootReadiness.contains("native-Zolt proof for the same Spring Boot JVM workflow"));
+        assertTrue(springBootReadiness.contains("Missing medium-JVM fixture depth"));
+        assertTrue(springBootReadiness.contains("tracked by "));
+        assertTrue(springBootReadiness.contains("tracked by "));
+        assertTrue(springBootReadiness.contains("Intentionally unsupported by this medium JVM audit"));
+        assertTrue(springBootReadiness.contains("Spring native-image support for the full PetClinic-style fixture"));
+        assertTrue(springBootReadiness.contains("Maven or Gradle plugin execution, lifecycle compatibility, profiles, or"));
+        assertTrue(springBootReadiness.contains("compatibility mode"));
+        assertTrue(milestones.contains(" — Add medium Spring Boot frontend resource depth"));
+        assertTrue(milestones.contains(" — Add medium Spring Boot HTTP and package evidence"));
+    }
+
+    @Test
     void m26SpringBootNativeMilestoneRequiresExecutableEvidenceBeforePromotion() throws IOException {
         String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
