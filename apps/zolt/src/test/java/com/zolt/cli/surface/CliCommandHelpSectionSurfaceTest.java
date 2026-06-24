@@ -158,6 +158,58 @@ final class CliCommandHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
 
+    @Test
+    void runPackageHelpGroupsArgumentsWorkspaceAndDiagnosticsOptions() {
+        CommandResult result = execute("run-package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Run a packaged thin jar with runtime dependencies.",
+                "Arguments:",
+                "[ARGS...]",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "--mode",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void runPackageHelpColorsArgumentsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "run-package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt run-package\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m[ARGS...]\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--mode\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
     private static void assertContainsInOrder(String text, String... expected) {
         int previousIndex = -1;
         for (String item : expected) {
