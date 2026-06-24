@@ -10,6 +10,7 @@ import com.zolt.build.RunService;
 import com.zolt.build.TestRunService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
+import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
@@ -136,5 +137,14 @@ record CommandTestServices(
     CommandTestServices {
         Objects.requireNonNull(testRunService, "testRunService");
         Objects.requireNonNull(workspaceTestService, "workspaceTestService");
+    }
+}
+
+record CommandTestFrameworkServices(
+        FrameworkTestRunner frameworkTestRunner,
+        ResolveService resolveService) {
+    CommandTestFrameworkServices {
+        Objects.requireNonNull(frameworkTestRunner, "frameworkTestRunner");
+        Objects.requireNonNull(resolveService, "resolveService");
     }
 }

@@ -211,26 +211,42 @@ final class CommandFrameworkServices {
         return new WorkspaceRunService(resolveService());
     }
 
+    static CommandTestFrameworkServices testFrameworkServices() {
+        return new CommandTestFrameworkServices(new QuarkusFrameworkTestRunner(), resolveService());
+    }
+
     static CommandTestServices testCommandServices() {
-        FrameworkTestRunner frameworkTestRunner = new QuarkusFrameworkTestRunner();
+        CommandTestFrameworkServices testFrameworkServices = testFrameworkServices();
         return new CommandTestServices(
-                testRunService(frameworkTestRunner),
-                workspaceTestService(frameworkTestRunner));
+                testRunService(testFrameworkServices),
+                workspaceTestService(testFrameworkServices));
     }
 
     static TestRunService testRunService(FrameworkTestRunner frameworkTestRunner) {
-        return new TestRunService(frameworkTestRunner, resolveService());
+        return testRunService(new CommandTestFrameworkServices(frameworkTestRunner, resolveService()));
+    }
+
+    private static TestRunService testRunService(CommandTestFrameworkServices testFrameworkServices) {
+        return new TestRunService(
+                testFrameworkServices.frameworkTestRunner(),
+                testFrameworkServices.resolveService());
     }
 
     static TestRunService testRunService() {
-        return testRunService(new QuarkusFrameworkTestRunner());
+        return testRunService(testFrameworkServices());
     }
 
     static WorkspaceTestService workspaceTestService(FrameworkTestRunner frameworkTestRunner) {
-        return new WorkspaceTestService(resolveService(), frameworkTestRunner);
+        return workspaceTestService(new CommandTestFrameworkServices(frameworkTestRunner, resolveService()));
+    }
+
+    private static WorkspaceTestService workspaceTestService(CommandTestFrameworkServices testFrameworkServices) {
+        return new WorkspaceTestService(
+                testFrameworkServices.resolveService(),
+                testFrameworkServices.frameworkTestRunner());
     }
 
     static WorkspaceTestService workspaceTestService() {
-        return workspaceTestService(new QuarkusFrameworkTestRunner());
+        return workspaceTestService(testFrameworkServices());
     }
 }

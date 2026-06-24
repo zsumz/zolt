@@ -100,4 +100,12 @@ final class CommandFrameworkServicesTest {
         assertNotNull(services.testRunService());
         assertNotNull(services.workspaceTestService());
     }
+
+    @Test
+    void testFrameworkServicesOwnsDefaultTestFrameworkWiring() {
+        CommandTestFrameworkServices services = CommandFrameworkServices.testFrameworkServices();
+
+        assertNotNull(services.frameworkTestRunner());
+        assertNotNull(services.resolveService());
+    }
 }

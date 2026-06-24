@@ -201,6 +201,19 @@ final class CommandServiceBundlesTest {
                         null));
     }
 
+    @Test
+    void testFrameworkServicesRequiresEveryCollaborator() {
+        CommandTestFrameworkServices services = CommandFrameworkServices.testFrameworkServices();
+
+        assertRejectsNullCollaborators(
+                () -> new CommandTestFrameworkServices(
+                        null,
+                        services.resolveService()),
+                () -> new CommandTestFrameworkServices(
+                        services.frameworkTestRunner(),
+                        null));
+    }
+
     @SafeVarargs
     private static void assertRejectsNullCollaborators(Supplier<Object>... factories) {
         for (Supplier<Object> factory : factories) {
