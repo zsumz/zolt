@@ -2,6 +2,7 @@ package com.zolt.arch;
 
 import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -78,6 +79,33 @@ final class ArchitectureNamingGuardrailTest {
                                 "",
                                 "shared package behavior")),
                 readAllowlist(allowlist));
+    }
+
+    @Test
+    void allowlistParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, "modules/example/src/main/java/com/example/FocusedSupport.java|\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Invalid production naming allowlist line: modules/example/src/main/java/com/example/FocusedSupport.java|",
+                exception.getMessage());
+    }
+
+    @Test
+    void allowlistParserRejectsDuplicatePaths(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, """
+                modules/example/src/main/java/com/example/FocusedSupport.java||shared package behavior
+                modules/example/src/main/java/com/example/FocusedSupport.java||still shared
+                """);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Duplicate production naming allowlist entry: modules/example/src/main/java/com/example/FocusedSupport.java",
+                exception.getMessage());
     }
 
     private static Set<String> catchAllProductionFiles(List<Path> sourceRoots) throws IOException {

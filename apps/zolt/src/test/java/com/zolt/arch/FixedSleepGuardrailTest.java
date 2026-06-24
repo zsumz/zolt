@@ -2,6 +2,7 @@ package com.zolt.arch;
 
 import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -93,6 +94,33 @@ final class FixedSleepGuardrailTest {
                                 "PR",
                                 "configured fake delay")),
                 readAllowlist(allowlist));
+    }
+
+    @Test
+    void allowlistParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, "modules/example/src/test/java/com/example/SlowTest.java||repository fake server|PR\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Invalid fixed-sleep allowlist line: modules/example/src/test/java/com/example/SlowTest.java||repository fake server|PR",
+                exception.getMessage());
+    }
+
+    @Test
+    void allowlistParserRejectsDuplicatePaths(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, """
+                modules/example/src/test/java/com/example/SlowTest.java||repository fake server|PR|configured fake delay
+                modules/example/src/test/java/com/example/SlowTest.java||repository fake server|PR|still delayed
+                """);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Duplicate fixed-sleep allowlist entry: modules/example/src/test/java/com/example/SlowTest.java",
+                exception.getMessage());
     }
 
     @Test
