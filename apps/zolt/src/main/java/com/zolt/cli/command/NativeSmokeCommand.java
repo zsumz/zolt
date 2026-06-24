@@ -8,6 +8,7 @@ import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -23,8 +24,8 @@ public final class NativeSmokeCommand implements Runnable {
     @Option(names = "--work-dir", description = "Directory for native smoke work.")
     private Path workDirectory;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -40,10 +41,11 @@ public final class NativeSmokeCommand implements Runnable {
 
     @Override
     public void run() {
+        Path projectRoot = projectDirectory.path();
         try {
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             NativeSmokeResult result = nativeSmokeService.smoke(
-                    workingDirectory,
+                    projectRoot,
                     config,
                     binary,
                     effectiveWorkDirectory(config));
