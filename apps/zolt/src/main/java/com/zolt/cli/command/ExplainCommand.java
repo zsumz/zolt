@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.explain.GradleExplainFormatter;
 import com.zolt.explain.GradleInspectionResult;
 import com.zolt.explain.GradleStaticProjectInspector;
@@ -178,26 +179,26 @@ public final class ExplainCommand implements Callable<Integer> {
 
     private Integer explainPlaceholder(Path root, Source detectedSource) {
         if (format == Format.JSON) {
-            spec.commandLine().getOut().println("""
+            CommandOutput.printAndFlush(spec, """
                     {"schemaVersion":1,"command":"explain","status":"not-implemented","source":"%s","root":"%s","message":"zolt explain is a future migration-audit command. It will inspect Maven and Gradle metadata statically without executing Maven or Gradle.","nextStep":"Track implementation in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md."}
                     """.formatted(detectedSource.name().toLowerCase(), jsonEscape(root.toString())).stripTrailing());
             return 1;
         }
-        spec.commandLine().getOut().println("""
-                zolt explain is not implemented yet.
-
-                Planned behavior:
-                  - audit Maven and Gradle project metadata statically
-                  - report what Zolt can build, test, package, and cache
-                  - report non-determinism and migration blockers
-                  - emit deterministic text or JSON reports
-
-                This command will not execute Maven or Gradle and will not create compatibility mode.
-
-                Requested source: %s
-                Project root: %s
-                Track this work in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md.
-                """.formatted(detectedSource.name().toLowerCase(), root).stripTrailing());
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.work("zolt explain is not implemented yet.");
+        output.blankLine();
+        output.line("Planned behavior:");
+        output.line("  - audit Maven and Gradle project metadata statically");
+        output.line("  - report what Zolt can build, test, package, and cache");
+        output.line("  - report non-determinism and migration blockers");
+        output.line("  - emit deterministic text or JSON reports");
+        output.blankLine();
+        output.line("This command will not execute Maven or Gradle and will not create compatibility mode.");
+        output.blankLine();
+        output.context("Requested source", detectedSource.name().toLowerCase());
+        output.context("Project root", root.toString());
+        output.line("Track this work in followUps/-add-zolt-explain-command-scaffold.md "
+                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md.");
         return 1;
     }
 

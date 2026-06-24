@@ -46,6 +46,28 @@ final class ExplainCommandTest {
     }
 
     @Test
+    void explainPlaceholderUsesModernHumanOutputControls() {
+        CommandResult color = execute("--color=always", "explain", "--directory", tempDir.toString());
+        CommandResult quiet = execute("--quiet", "explain", "--directory", tempDir.toString());
+        CommandResult json = execute(
+                "--color=always",
+                "explain",
+                "--directory", tempDir.toString(),
+                "--format", "json");
+
+        assertEquals(1, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m explain is not implemented yet."));
+        assertTrue(color.stdout().contains("Requested source: auto"));
+        assertEquals("", color.stderr());
+        assertEquals(1, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        assertEquals("", quiet.stderr());
+        assertEquals(1, json.exitCode());
+        assertFalse(json.stdout().contains("\u001B["));
+        assertTrue(json.stdout().contains("\"status\":\"not-implemented\""));
+    }
+
+    @Test
     void explainRejectsInvalidFormatClearly() {
         CommandResult result = execute("explain", "--format", "xml");
 
