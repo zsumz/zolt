@@ -12,6 +12,7 @@ import com.zolt.build.RunPackageResult;
 import com.zolt.build.RunPackageService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
@@ -157,16 +158,17 @@ public final class RunPackageCommand implements Runnable {
                             CommandRunPackageAttributes::workspaceRunPackage);
                 },
                 CommandRunPackageAttributes::workspaceRunPackage);
+        CommandHumanOutput humanOutput = CommandHumanOutput.of(spec);
         if (result.resolvedLockfile()) {
-            spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+            humanOutput.success("Resolved workspace dependencies because zolt.lock was missing");
         }
         for (WorkspaceRunPackageResult.MemberRunPackageResult member : result.members()) {
             String output = member.result().javaRunResult().output();
             CommandOutput.printAndFlush(spec, output);
             if (!output.isEmpty() && !output.endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                humanOutput.blankLine();
             }
-            spec.commandLine().getOut().println("Ran packaged "
+            humanOutput.success("Ran packaged "
                     + member.result().javaRunResult().mainClass()
                     + " in "
                     + member.member()
@@ -195,10 +197,11 @@ public final class RunPackageCommand implements Runnable {
                 CommandRunPackageAttributes::runPackage);
         String output = result.javaRunResult().output();
         CommandOutput.printAndFlush(spec, output);
+        CommandHumanOutput humanOutput = CommandHumanOutput.of(spec);
         if (!output.isEmpty() && !output.endsWith("\n")) {
-            spec.commandLine().getOut().println();
+            humanOutput.blankLine();
         }
-        spec.commandLine().getOut().println("Ran packaged "
+        humanOutput.success("Ran packaged "
                 + result.javaRunResult().mainClass()
                 + " from "
                 + result.packageResult().jarPath());

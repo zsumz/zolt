@@ -46,11 +46,15 @@ final class RunPackageCommandTest {
                 "--",
                 "one",
                 "two");
+        CommandResult color = execute("--color=always", "run-package", "--cwd", projectDir.toString(), "--cache-root", tempDir.resolve("color-cache").toString(), "--", "one", "two");
+        CommandResult quiet = execute("--quiet", "run-package", "--cwd", projectDir.toString(), "--cache-root", tempDir.resolve("quiet-cache").toString(), "--", "one", "two");
 
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("packaged one two"));
         assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
+        assertTrue(color.stdout().contains("packaged one two\n\u001B[32mRan\u001B[0m packaged com.example.Main"));
+        assertEquals("packaged one two\n", quiet.stdout());
         assertTrue(Files.exists(jarPath));
     }
 
