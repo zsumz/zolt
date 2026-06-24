@@ -29,8 +29,8 @@ final class AddCommandValidationTest {
                 "com.example:legacy-api:1.0.0");
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains(
-                "Managed dependency coordinate must not include a version. Use `group:artifact`."));
+        assertTrue(result.stderr().contains("Managed dependency coordinate must not include a version."));
+        assertTrue(result.stderr().contains("Next: Use `group:artifact`."));
     }
 
     @Test
@@ -64,8 +64,8 @@ final class AddCommandValidationTest {
                 "com.google.guava:guava");
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains(
-                "Unknown versionRef `guava`. Add [versions].guava or use an explicit version."));
+        assertTrue(result.stderr().contains("Unknown versionRef `guava`."));
+        assertTrue(result.stderr().contains("Next: Add [versions].guava or use an explicit version."));
     }
 
     @Test
@@ -91,7 +91,9 @@ final class AddCommandValidationTest {
         assertTrue(managedResult.stderr().contains("`--managed` and `--version-ref` cannot be used together"));
         assertEquals(1, explicitVersionResult.exitCode());
         assertTrue(explicitVersionResult.stderr().contains(
-                "Version-ref dependency coordinate must not include a version. Use `--version-ref guava group:artifact`."));
+                "Version-ref dependency coordinate must not include a version."));
+        assertTrue(explicitVersionResult.stderr().contains(
+                "Next: Use `--version-ref guava group:artifact`."));
     }
 
     @Test

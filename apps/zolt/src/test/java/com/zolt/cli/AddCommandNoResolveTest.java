@@ -20,13 +20,23 @@ final class AddCommandNoResolveTest {
     private Path tempDir;
 
     @Test
+    void addUsageShowsDirectoryOption() {
+        CommandResult result = execute("add", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void addAddsCompileDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
 
         CommandResult result = execute(
                 "add",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--no-resolve",
                 "com.google.guava:guava:33.4.0-jre");
 
