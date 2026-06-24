@@ -30,7 +30,6 @@ import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceTestService;
 import com.zolt.workspace.WorkspaceResolveService;
 import java.util.List;
-import java.util.Objects;
 
 final class CommandFrameworkServices {
     private CommandFrameworkServices() {}
@@ -192,111 +191,5 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
-    }
-}
-
-record CommandCoverageServices(
-        ZoltTomlParser tomlParser,
-        CoverageService coverageService,
-        WorkspaceCoverageService workspaceCoverageService) {
-    CommandCoverageServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(coverageService, "coverageService");
-        Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
-    }
-}
-
-record CommandNativeServices(
-        ZoltTomlParser tomlParser,
-        NativeBuildService nativeBuildService,
-        WorkspaceNativeBuildService workspaceNativeBuildService) {
-    CommandNativeServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(nativeBuildService, "nativeBuildService");
-        Objects.requireNonNull(workspaceNativeBuildService, "workspaceNativeBuildService");
-    }
-}
-
-record CommandVersionAliasServices(
-        ZoltTomlParser tomlParser,
-        ZoltTomlWriter tomlWriter,
-        ResolveService resolveService) {
-    CommandVersionAliasServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(tomlWriter, "tomlWriter");
-        Objects.requireNonNull(resolveService, "resolveService");
-    }
-}
-
-record CommandDependencyEditServices(
-        CoordinateParser coordinateParser,
-        ZoltTomlParser tomlParser,
-        ZoltTomlWriter tomlWriter,
-        ResolveService resolveService) {
-    CommandDependencyEditServices {
-        Objects.requireNonNull(coordinateParser, "coordinateParser");
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(tomlWriter, "tomlWriter");
-        Objects.requireNonNull(resolveService, "resolveService");
-    }
-}
-
-record CommandResolveServices(
-        ResolveService resolveService,
-        WorkspaceResolveService workspaceResolveService) {
-    CommandResolveServices {
-        Objects.requireNonNull(resolveService, "resolveService");
-        Objects.requireNonNull(workspaceResolveService, "workspaceResolveService");
-    }
-}
-
-record CommandBuildServices(
-        BuildService buildService,
-        WorkspaceBuildService workspaceBuildService,
-        FrameworkBuildAugmenter frameworkBuildAugmenter) {
-    CommandBuildServices {
-        Objects.requireNonNull(buildService, "buildService");
-        Objects.requireNonNull(workspaceBuildService, "workspaceBuildService");
-        Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
-    }
-}
-
-record CommandPackageServices(
-        PackagePlanService packagePlanService,
-        PackageService packageService,
-        BuildService buildService,
-        WorkspacePackageService workspacePackageService) {
-    CommandPackageServices {
-        Objects.requireNonNull(packagePlanService, "packagePlanService");
-        Objects.requireNonNull(packageService, "packageService");
-        Objects.requireNonNull(buildService, "buildService");
-        Objects.requireNonNull(workspacePackageService, "workspacePackageService");
-    }
-}
-
-record CommandRunPackageServices(
-        RunPackageService runPackageService,
-        WorkspaceRunPackageService workspaceRunPackageService) {
-    CommandRunPackageServices {
-        Objects.requireNonNull(runPackageService, "runPackageService");
-        Objects.requireNonNull(workspaceRunPackageService, "workspaceRunPackageService");
-    }
-}
-
-record CommandRunServices(
-        RunService runService,
-        WorkspaceRunService workspaceRunService) {
-    CommandRunServices {
-        Objects.requireNonNull(runService, "runService");
-        Objects.requireNonNull(workspaceRunService, "workspaceRunService");
-    }
-}
-
-record CommandTestServices(
-        TestRunService testRunService,
-        WorkspaceTestService workspaceTestService) {
-    CommandTestServices {
-        Objects.requireNonNull(testRunService, "testRunService");
-        Objects.requireNonNull(workspaceTestService, "workspaceTestService");
     }
 }
