@@ -20,6 +20,16 @@ final class IdeModelCommandJsonTest {
     private Path tempDir;
 
     @Test
+    void ideModelUsageShowsDirectoryOption() {
+        CommandResult result = execute("ide", "model");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void ideModelPrintsCoreModelJsonFromProjectAndLockfile() throws IOException {
         Path projectDir = writeProject(tempDir);
         Path cacheRoot = cacheRoot(tempDir);
@@ -28,7 +38,7 @@ final class IdeModelCommandJsonTest {
         CommandResult result = execute(
                 "ide",
                 "model",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "--format", "json");
 

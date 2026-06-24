@@ -58,8 +58,8 @@ public final class IdeCommand implements Runnable {
         @Option(names = "--workspace", description = "Export the discovered workspace model.")
         private boolean workspace;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -100,12 +100,13 @@ public final class IdeCommand implements Runnable {
         @Override
         public void run() {
             TimingRecorder timings = CommandTimings.recorder(timingOptions);
+            Path projectRoot = projectDirectory.path();
             try {
                 if (workspace) {
                     WorkspaceIdeModel model = timings.measure(
                             "ide model export",
                             () -> workspaceIdeModelService.export(
-                                    workingDirectory,
+                                    projectRoot,
                                     cacheRoot,
                                     true,
                                     offline,
@@ -120,7 +121,7 @@ public final class IdeCommand implements Runnable {
                 IdeModel model = timings.measure(
                         "ide model export",
                         () -> ideModelService.export(
-                                workingDirectory,
+                                projectRoot,
                                 cacheRoot,
                                 true,
                                 offline,
@@ -131,7 +132,7 @@ public final class IdeCommand implements Runnable {
                         () -> ideModelJsonWriter.write(model));
                 CommandOutput.printAndFlush(spec, output);
             } finally {
-                CommandTimings.print(spec, "ide model", workingDirectory, timingOptions, timings);
+                CommandTimings.print(spec, "ide model", projectRoot, timingOptions, timings);
             }
         }
     }
