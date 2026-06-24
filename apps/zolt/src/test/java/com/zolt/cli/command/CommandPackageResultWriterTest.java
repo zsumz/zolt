@@ -6,8 +6,6 @@ import com.zolt.build.BuildResult;
 import com.zolt.build.PackageArtifact;
 import com.zolt.build.PackageResult;
 import com.zolt.project.PackageMode;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -83,9 +81,9 @@ final class CommandPackageResultWriterTest {
     }
 
     private String print(PackageResult result, String suffix) {
-        StringWriter output = new StringWriter();
-        writer.print(new PrintWriter(output), result, suffix);
-        return output.toString();
+        return writer.lines(result, suffix).stream()
+                .map(CommandPackageResultWriter.OutputLine::message)
+                .reduce("", (left, right) -> left + right + "\n");
     }
 
     private static BuildResult buildResult() {
