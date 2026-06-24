@@ -3,6 +3,7 @@ package com.zolt.cli.command;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
@@ -19,20 +20,15 @@ final class CommandFrameworkServicesTest {
     void coverageCommandServicesRequiresEveryCollaborator() {
         CommandCoverageServices services = CommandFrameworkServices.coverageCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandCoverageServices(
                         null,
                         services.coverageService(),
-                        services.workspaceCoverageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceCoverageService()),
                 () -> new CommandCoverageServices(
                         services.tomlParser(),
                         null,
-                        services.workspaceCoverageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceCoverageService()),
                 () -> new CommandCoverageServices(
                         services.tomlParser(),
                         services.coverageService(),
@@ -52,20 +48,15 @@ final class CommandFrameworkServicesTest {
     void nativeCommandServicesRequiresEveryCollaborator() {
         CommandNativeServices services = CommandFrameworkServices.nativeCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandNativeServices(
                         null,
                         services.nativeBuildService(),
-                        services.workspaceNativeBuildService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceNativeBuildService()),
                 () -> new CommandNativeServices(
                         services.tomlParser(),
                         null,
-                        services.workspaceNativeBuildService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceNativeBuildService()),
                 () -> new CommandNativeServices(
                         services.tomlParser(),
                         services.nativeBuildService(),
@@ -85,20 +76,15 @@ final class CommandFrameworkServicesTest {
     void versionAliasCommandServicesRequiresEveryCollaborator() {
         CommandVersionAliasServices services = CommandFrameworkServices.versionAliasCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandVersionAliasServices(
                         null,
                         services.tomlWriter(),
-                        services.resolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.resolveService()),
                 () -> new CommandVersionAliasServices(
                         services.tomlParser(),
                         null,
-                        services.resolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.resolveService()),
                 () -> new CommandVersionAliasServices(
                         services.tomlParser(),
                         services.tomlWriter(),
@@ -119,29 +105,22 @@ final class CommandFrameworkServicesTest {
     void dependencyEditCommandServicesRequiresEveryCollaborator() {
         CommandDependencyEditServices services = CommandFrameworkServices.dependencyEditCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandDependencyEditServices(
                         null,
                         services.tomlParser(),
                         services.tomlWriter(),
-                        services.resolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.resolveService()),
                 () -> new CommandDependencyEditServices(
                         services.coordinateParser(),
                         null,
                         services.tomlWriter(),
-                        services.resolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.resolveService()),
                 () -> new CommandDependencyEditServices(
                         services.coordinateParser(),
                         services.tomlParser(),
                         null,
-                        services.resolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.resolveService()),
                 () -> new CommandDependencyEditServices(
                         services.coordinateParser(),
                         services.tomlParser(),
@@ -161,13 +140,10 @@ final class CommandFrameworkServicesTest {
     void resolveCommandServicesRequiresEveryCollaborator() {
         CommandResolveServices services = CommandFrameworkServices.resolveCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandResolveServices(
                         null,
-                        services.workspaceResolveService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceResolveService()),
                 () -> new CommandResolveServices(
                         services.resolveService(),
                         null));
@@ -186,20 +162,15 @@ final class CommandFrameworkServicesTest {
     void buildCommandServicesRequiresEveryCollaborator() {
         CommandBuildServices services = CommandFrameworkServices.buildCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandBuildServices(
                         null,
                         services.workspaceBuildService(),
-                        services.frameworkBuildAugmenter()));
-        assertThrows(
-                NullPointerException.class,
+                        services.frameworkBuildAugmenter()),
                 () -> new CommandBuildServices(
                         services.buildService(),
                         null,
-                        services.frameworkBuildAugmenter()));
-        assertThrows(
-                NullPointerException.class,
+                        services.frameworkBuildAugmenter()),
                 () -> new CommandBuildServices(
                         services.buildService(),
                         services.workspaceBuildService(),
@@ -220,29 +191,22 @@ final class CommandFrameworkServicesTest {
     void packageCommandServicesRequiresEveryCollaborator() {
         CommandPackageServices services = CommandFrameworkServices.packageCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandPackageServices(
                         null,
                         services.packageService(),
                         services.buildService(),
-                        services.workspacePackageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspacePackageService()),
                 () -> new CommandPackageServices(
                         services.packagePlanService(),
                         null,
                         services.buildService(),
-                        services.workspacePackageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspacePackageService()),
                 () -> new CommandPackageServices(
                         services.packagePlanService(),
                         services.packageService(),
                         null,
-                        services.workspacePackageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspacePackageService()),
                 () -> new CommandPackageServices(
                         services.packagePlanService(),
                         services.packageService(),
@@ -262,13 +226,10 @@ final class CommandFrameworkServicesTest {
     void runPackageCommandServicesRequiresEveryCollaborator() {
         CommandRunPackageServices services = CommandFrameworkServices.runPackageCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandRunPackageServices(
                         null,
-                        services.workspaceRunPackageService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceRunPackageService()),
                 () -> new CommandRunPackageServices(
                         services.runPackageService(),
                         null));
@@ -286,13 +247,10 @@ final class CommandFrameworkServicesTest {
     void runCommandServicesRequiresEveryCollaborator() {
         CommandRunServices services = CommandFrameworkServices.runCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandRunServices(
                         null,
-                        services.workspaceRunService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceRunService()),
                 () -> new CommandRunServices(
                         services.runService(),
                         null));
@@ -310,15 +268,19 @@ final class CommandFrameworkServicesTest {
     void testCommandServicesRequiresEveryCollaborator() {
         CommandTestServices services = CommandFrameworkServices.testCommandServices();
 
-        assertThrows(
-                NullPointerException.class,
+        assertRejectsNullCollaborators(
                 () -> new CommandTestServices(
                         null,
-                        services.workspaceTestService()));
-        assertThrows(
-                NullPointerException.class,
+                        services.workspaceTestService()),
                 () -> new CommandTestServices(
                         services.testRunService(),
                         null));
+    }
+
+    @SafeVarargs
+    private static void assertRejectsNullCollaborators(Supplier<Object>... factories) {
+        for (Supplier<Object> factory : factories) {
+            assertThrows(NullPointerException.class, factory::get);
+        }
     }
 }
