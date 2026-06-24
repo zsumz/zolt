@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -159,20 +158,11 @@ final class FixedSleepGuardrailTest {
     }
 
     private static Map<String, AllowlistEntry> readAllowlist(Path path) throws IOException {
-        Map<String, AllowlistEntry> entries = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(path)) {
-            Optional<AllowlistEntry> entry = parseAllowlistLine(line);
-            if (entry.isEmpty()) {
-                continue;
-            }
-            AllowlistEntry allowlistEntry = entry.orElseThrow();
-            AllowlistEntry previous = entries.put(allowlistEntry.path(), allowlistEntry);
-            if (previous != null) {
-                throw new IllegalArgumentException("Duplicate fixed-sleep allowlist entry: "
-                        + allowlistEntry.path());
-            }
-        }
-        return entries;
+        return ArchitectureAllowlistSupport.readAllowlist(
+                path,
+                FixedSleepGuardrailTest::parseAllowlistLine,
+                AllowlistEntry::path,
+                "Duplicate fixed-sleep allowlist entry: ");
     }
 
     private static Optional<AllowlistEntry> parseAllowlistLine(String line) {

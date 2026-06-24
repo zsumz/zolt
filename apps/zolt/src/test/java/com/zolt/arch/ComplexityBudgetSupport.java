@@ -36,19 +36,11 @@ final class ComplexityBudgetSupport {
     }
 
     static Map<String, AllowlistEntry> readAllowlist(Path path) throws IOException {
-        Map<String, AllowlistEntry> entries = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(path)) {
-            Optional<AllowlistEntry> entry = parseAllowlistLine(line);
-            if (entry.isEmpty()) {
-                continue;
-            }
-            AllowlistEntry allowlistEntry = entry.orElseThrow();
-            AllowlistEntry previous = entries.put(allowlistEntry.path(), allowlistEntry);
-            if (previous != null) {
-                throw new IllegalArgumentException("Duplicate complexity allowlist entry: " + allowlistEntry.path());
-            }
-        }
-        return entries;
+        return ArchitectureAllowlistSupport.readAllowlist(
+                path,
+                ComplexityBudgetSupport::parseAllowlistLine,
+                AllowlistEntry::path,
+                "Duplicate complexity allowlist entry: ");
     }
 
     static Map<String, SourceComplexity> overBudgetSources(List<Budget> budgets) throws IOException {

@@ -26,19 +26,11 @@ final class FileSizeBudgetSupport {
     }
 
     static Map<String, AllowlistEntry> readAllowlist(Path path) throws IOException {
-        Map<String, AllowlistEntry> entries = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(path)) {
-            Optional<AllowlistEntry> entry = parseAllowlistLine(line);
-            if (entry.isEmpty()) {
-                continue;
-            }
-            AllowlistEntry allowlistEntry = entry.orElseThrow();
-            AllowlistEntry previous = entries.put(allowlistEntry.path(), allowlistEntry);
-            if (previous != null) {
-                throw new IllegalArgumentException("Duplicate file-size allowlist entry: " + allowlistEntry.path());
-            }
-        }
-        return entries;
+        return ArchitectureAllowlistSupport.readAllowlist(
+                path,
+                FileSizeBudgetSupport::parseAllowlistLine,
+                AllowlistEntry::path,
+                "Duplicate file-size allowlist entry: ");
     }
 
     static Map<String, SourceFileSize> filesAboveSoftThreshold(List<Budget> budgets) throws IOException {
