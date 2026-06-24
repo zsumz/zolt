@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -131,18 +130,9 @@ final class FixedSleepGuardrailTest {
 
     private static Set<String> fixedSleepFiles(List<Path> sourceRoots) throws IOException {
         Set<String> files = new TreeSet<>();
-        for (Path sourceRoot : sourceRoots) {
-            if (!Files.isDirectory(sourceRoot)) {
-                continue;
-            }
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                for (Path javaFile : paths.filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .toList()) {
-                    if (containsFixedSleep(javaFile)) {
-                        files.add(RepositoryPaths.displayPath(javaFile));
-                    }
-                }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(sourceRoots)) {
+            if (containsFixedSleep(javaFile)) {
+                files.add(RepositoryPaths.displayPath(javaFile));
             }
         }
         return files;

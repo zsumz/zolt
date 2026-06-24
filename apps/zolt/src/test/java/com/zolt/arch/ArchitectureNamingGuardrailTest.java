@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -109,15 +108,9 @@ final class ArchitectureNamingGuardrailTest {
 
     private static Set<String> catchAllProductionFiles(List<Path> sourceRoots) throws IOException {
         Set<String> files = new TreeSet<>();
-        for (Path sourceRoot : sourceRoots) {
-            if (!Files.isDirectory(sourceRoot)) {
-                continue;
-            }
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(path -> CATCH_ALL_PRODUCTION_NAME.matcher(path.getFileName().toString()).matches())
-                        .map(RepositoryPaths::displayPath)
-                        .forEach(files::add);
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(sourceRoots)) {
+            if (CATCH_ALL_PRODUCTION_NAME.matcher(javaFile.getFileName().toString()).matches()) {
+                files.add(RepositoryPaths.displayPath(javaFile));
             }
         }
         return files;
