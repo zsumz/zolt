@@ -131,16 +131,26 @@ public final class ZoltCli implements Runnable {
     static CommandLine newCommandLine() {
         ZoltCli rootCommand = new ZoltCli();
         CommandLine commandLine = new CommandLine(rootCommand)
-                .setCaseInsensitiveEnumValuesAllowed(true)
-                .setExecutionExceptionHandler((exception, parsedCommandLine, parseResult) -> {
-                    if (!(exception instanceof CommandLine.ExecutionException)) {
-                        parsedCommandLine.getErr().println("error: " + exception.getMessage());
-                        parsedCommandLine.getErr().flush();
-                    }
-                    return parsedCommandLine.getCommandSpec().exitCodeOnExecutionException();
-                });
+                .setCaseInsensitiveEnumValuesAllowed(true);
         CliUsageConfiguration.apply(commandLine, rootCommand::consoleStyle);
+        configureExecutionHandling(commandLine);
         return commandLine;
+    }
+
+    private static void configureExecutionHandling(CommandLine commandLine) {
+        commandLine.setExecutionExceptionHandler(ZoltCli::handleExecutionException);
+        commandLine.getSubcommands().values().forEach(ZoltCli::configureExecutionHandling);
+    }
+
+    private static int handleExecutionException(
+            Exception exception,
+            CommandLine parsedCommandLine,
+            CommandLine.ParseResult parseResult) {
+        if (!PrintedUserException.alreadyPrinted(exception)) {
+            parsedCommandLine.getErr().println("error: " + exception.getMessage());
+            parsedCommandLine.getErr().flush();
+        }
+        return parsedCommandLine.getCommandSpec().exitCodeOnExecutionException();
     }
 
     @Override

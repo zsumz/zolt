@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.cli.CommandHumanOutput;
+import com.zolt.cli.PrintedUserException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +20,7 @@ final class CommandFailures {
 
     static CommandLine.ExecutionException user(CommandSpec spec, String displayMessage, Exception exception) {
         printUser(spec, displayMessage);
-        return new CommandLine.ExecutionException(spec.commandLine(), exception.getMessage(), exception);
+        return new PrintedUserException(spec.commandLine(), exception.getMessage());
     }
 
     static void printUser(CommandSpec spec, Exception exception) {

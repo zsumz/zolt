@@ -202,6 +202,9 @@ final class CliSurfaceTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+        assertEquals(1, occurrences(result.stderr(), "error: Could not read zolt.toml"));
+        assertTrue(result.stderr().contains("File: " + tempDir.resolve("zolt.toml")));
+        assertTrue(result.stderr().contains("Next: Check that the file exists"));
     }
 
     @Test
@@ -287,4 +290,16 @@ final class CliSurfaceTest {
         }
     }
 
+    private static int occurrences(String text, String fragment) {
+        int count = 0;
+        int start = 0;
+        while (true) {
+            int index = text.indexOf(fragment, start);
+            if (index < 0) {
+                return count;
+            }
+            count++;
+            start = index + fragment.length();
+        }
+    }
 }
