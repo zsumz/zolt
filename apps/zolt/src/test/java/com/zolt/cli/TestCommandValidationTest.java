@@ -19,13 +19,43 @@ final class TestCommandValidationTest {
         CommandResult result = execute("test", "--help");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--test"));
-        assertTrue(result.stdout().contains("--tests"));
-        assertTrue(result.stdout().contains("--include-tag"));
-        assertTrue(result.stdout().contains("--exclude-tag"));
-        assertTrue(result.stdout().contains("--jvm-arg"));
-        assertTrue(result.stdout().contains("--test-event"));
-        assertTrue(result.stdout().contains("--reports-dir"));
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--help",
+                "--version",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Test Selection:",
+                "--test",
+                "--tests",
+                "--include-tag",
+                "--exclude-tag",
+                "Test Runtime:",
+                "--jvm-arg",
+                "Output:",
+                "--reports-dir",
+                "--test-event",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void testHelpColorsSectionHeadingsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "test", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[1mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1mTest Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1mDiagnostics\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
     }
 
     @Test
@@ -55,5 +85,14 @@ final class TestCommandValidationTest {
         assertTrue(result.stderr().contains("Unsupported test runtime event `verbose`"));
         assertTrue(result.stderr().contains("passed, skipped, failed"));
         assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
+
+    private static void assertContainsInOrder(String text, String... expected) {
+        int previousIndex = -1;
+        for (String item : expected) {
+            int index = text.indexOf(item, previousIndex + 1);
+            assertTrue(index > previousIndex, "Expected `" + item + "` after index " + previousIndex);
+            previousIndex = index;
+        }
     }
 }

@@ -16,14 +16,18 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("uv is also useful inspiration for the control surface around output"));
         assertTrue(design.contains("color and formatting are additive"));
         assertTrue(design.contains("--color=auto|always|never"));
+        assertTrue(design.contains("Progress is planned but separate from static command summaries."));
+        assertTrue(design.contains(" owns the progress"));
         assertTrue(design.contains("NO_COLOR"));
         assertTrue(design.contains("Machine-readable formats such as `--format json` ignore color"));
+        assertTrue(design.contains("Subcommand help should also be grouped by purpose."));
+        assertTrue(design.contains("Workspace Selection:"));
         assertTrue(design.contains("Resolve output should answer"));
         assertTrue(design.contains("Build output should keep compile, resources, generated sources, and skipped work visible"));
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));
         assertTrue(design.contains("No full-screen terminal UI"));
-        assertTrue(design.contains("No progress bars or spinners in MVP"));
+        assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before "));
     }
 
     @Test
