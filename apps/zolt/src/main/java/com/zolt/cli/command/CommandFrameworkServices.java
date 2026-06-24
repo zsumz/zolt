@@ -68,6 +68,12 @@ final class CommandFrameworkServices {
         return new RunService(new QuarkusRunAugmenter());
     }
 
+    static CommandRunServices runCommandServices() {
+        return new CommandRunServices(
+                runService(),
+                workspaceRunService());
+    }
+
     static PackageService packageService() {
         return packageService(new QuarkusPackageAugmenter());
     }
@@ -151,5 +157,14 @@ record CommandRunPackageServices(
     CommandRunPackageServices {
         Objects.requireNonNull(runPackageService, "runPackageService");
         Objects.requireNonNull(workspaceRunPackageService, "workspaceRunPackageService");
+    }
+}
+
+record CommandRunServices(
+        RunService runService,
+        WorkspaceRunService workspaceRunService) {
+    CommandRunServices {
+        Objects.requireNonNull(runService, "runService");
+        Objects.requireNonNull(workspaceRunService, "workspaceRunService");
     }
 }

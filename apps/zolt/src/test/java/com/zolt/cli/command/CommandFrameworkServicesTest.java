@@ -73,4 +73,28 @@ final class CommandFrameworkServicesTest {
                         services.runPackageService(),
                         null));
     }
+
+    @Test
+    void runCommandServicesOwnsDefaultRunWiring() {
+        CommandRunServices services = CommandFrameworkServices.runCommandServices();
+
+        assertNotNull(services.runService());
+        assertNotNull(services.workspaceRunService());
+    }
+
+    @Test
+    void runCommandServicesRequiresEveryCollaborator() {
+        CommandRunServices services = CommandFrameworkServices.runCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandRunServices(
+                        null,
+                        services.workspaceRunService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandRunServices(
+                        services.runService(),
+                        null));
+    }
 }

@@ -70,9 +70,19 @@ public final class RunCommand implements Runnable {
     public RunCommand() {
         this(
                 new ZoltTomlParser(),
-                CommandFrameworkServices.runService(),
-                CommandFrameworkServices.workspaceRunService(),
+                CommandFrameworkServices.runCommandServices(),
                 new CommandLockfiles());
+    }
+
+    RunCommand(
+            ZoltTomlParser tomlParser,
+            CommandRunServices runServices,
+            CommandLockfiles lockfiles) {
+        this(
+                tomlParser,
+                runServices.runService(),
+                runServices.workspaceRunService(),
+                lockfiles);
     }
 
     RunCommand(
