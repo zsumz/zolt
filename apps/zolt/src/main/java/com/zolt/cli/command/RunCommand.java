@@ -10,6 +10,7 @@ import com.zolt.build.RunResult;
 import com.zolt.build.RunService;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.framework.FrameworkRunException;
 import com.zolt.lockfile.LockfileReadException;
@@ -116,15 +117,16 @@ public final class RunCommand implements Runnable {
                                     CommandRunAttributes::workspaceRun);
                         },
                         CommandRunAttributes::workspaceRun);
+                CommandHumanOutput output = CommandHumanOutput.of(spec);
                 if (result.resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    output.success("Resolved workspace dependencies because zolt.lock was missing");
                 }
                 for (WorkspaceRunResult.MemberRunResult member : result.members()) {
-                    String output = member.result().javaRunResult().output();
-                    if (!output.isEmpty() && !output.endsWith("\n")) {
-                        spec.commandLine().getOut().println();
+                    String processOutput = member.result().javaRunResult().output();
+                    if (!processOutput.isEmpty() && !processOutput.endsWith("\n")) {
+                        output.blankLine();
                     }
-                    spec.commandLine().getOut().println("Ran "
+                    output.success("Ran "
                             + member.result().javaRunResult().mainClass()
                             + " in "
                             + member.member());
@@ -144,11 +146,12 @@ public final class RunCommand implements Runnable {
                             arguments,
                             output -> CommandOutput.printAndFlush(spec, output)),
                     CommandRunAttributes::run);
-            String output = result.javaRunResult().output();
-            if (!output.isEmpty() && !output.endsWith("\n")) {
-                spec.commandLine().getOut().println();
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            String processOutput = result.javaRunResult().output();
+            if (!processOutput.isEmpty() && !processOutput.endsWith("\n")) {
+                output.blankLine();
             }
-            spec.commandLine().getOut().println("Ran " + result.javaRunResult().mainClass());
+            output.success("Ran " + result.javaRunResult().mainClass());
         } catch (JavaRunException exception) {
             throw CommandFailures.user(spec, firstLine(exception.getMessage()), exception);
         } catch (BuildException

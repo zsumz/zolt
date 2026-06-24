@@ -81,6 +81,23 @@ final class RunCommandTest {
     }
 
     @Test
+    void runUsesModernHumanOutputControlsForZoltSummaryOnly() throws IOException {
+        Path projectDir = tempDir.resolve("modern-output-run");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, "package com.example; public final class Main { "
+                + "public static void main(String[] args) { System.out.print(\"app output\"); } }\n");
+        CommandResult color = execute("--color=always", "run", "--directory", projectDir.toString(),
+                "--cache-root", tempDir.resolve("color-cache").toString());
+        CommandResult quiet = execute("--quiet", "run", "--directory", projectDir.toString(),
+                "--cache-root", tempDir.resolve("quiet-cache").toString());
+
+        assertEquals(0, color.exitCode(), color.stderr());
+        assertTrue(color.stdout().contains("app output\n\u001B[32mRan\u001B[0m com.example.Main"));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("app output", quiet.stdout());
+    }
+
+    @Test
     void runCommandPrintsJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
