@@ -6,8 +6,8 @@ import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlWriter;
-import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -26,8 +26,8 @@ public final class InitCommand implements Runnable {
     @Option(names = "--java", description = "Java version for zolt.toml.")
     private String javaVersion = "21";
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -54,7 +54,7 @@ public final class InitCommand implements Runnable {
     @Override
     public void run() {
         try {
-            ProjectInitResult result = projectInitializer.init(workingDirectory, name, group, javaVersion);
+            ProjectInitResult result = projectInitializer.init(projectDirectory.path(), name, group, javaVersion);
             spec.commandLine().getOut().println("Created Zolt project at " + result.projectDirectory());
             spec.commandLine().getOut().println("Next: cd " + result.projectDirectory().getFileName());
         } catch (ProjectInitException exception) {

@@ -179,8 +179,18 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void initUsageShowsDirectoryOption() {
+        CommandResult result = execute("init", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void initCreatesProjectAndPrintsNextCommand() {
-        CommandResult result = execute("init", "--cwd", tempDir.toString(), "hello");
+        CommandResult result = execute("init", "--directory", tempDir.toString(), "hello");
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Created Zolt project at"));
