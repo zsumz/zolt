@@ -6,7 +6,7 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "picocli.CommandLine$HelpCommand",
+    "name": "com.zolt.cli.ZoltHelpCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

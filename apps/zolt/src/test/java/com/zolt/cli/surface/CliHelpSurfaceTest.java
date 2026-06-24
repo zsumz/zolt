@@ -197,6 +197,28 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void helpCommandResolvesNestedCommandPaths() {
+        CommandResult colored = execute("--color=always", "help", "version", "set");
+
+        assertEquals(0, colored.exitCode());
+        assertEquals("", colored.stderr());
+        assertTrue(colored.stdout().contains(BOLD_USAGE_HEADING + " zolt version set"));
+        assertTrue(colored.stdout().contains("ALIAS VERSION"));
+        assertTrue(colored.stdout().contains(BOLD_GREEN_HELP_OPTION));
+        assertFalse(colored.stdout().contains(BOLD_COMMANDS_HEADING));
+        assertFalse(colored.stdout().contains(WARNING_COLOR));
+
+        CommandResult plain = execute("--color=never", "help", "version", "set");
+
+        assertEquals(0, plain.exitCode());
+        assertEquals("", plain.stderr());
+        assertTrue(plain.stdout().contains("Usage: zolt version set"));
+        assertTrue(plain.stdout().contains("ALIAS VERSION"));
+        assertFalse(plain.stdout().contains("Commands:"));
+        assertFalse(plain.stdout().contains(ANSI_ESCAPE));
+    }
+
+    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
