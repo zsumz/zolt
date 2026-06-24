@@ -233,6 +233,21 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void helpCommandMatchesDirectHelpForRegisteredCommandPaths() {
+        for (List<String> path : commandPaths(newCommandLine())) {
+            CommandResult direct = directColorNeverHelp(path);
+            CommandResult viaHelp = helpCommandColorNever(path);
+
+            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
+            assertEquals(0, direct.exitCode(), commandName + " direct help should exit successfully");
+            assertEquals(0, viaHelp.exitCode(), commandName + " help command should exit successfully");
+            assertEquals("", direct.stderr(), commandName + " direct help should not write stderr");
+            assertEquals("", viaHelp.stderr(), commandName + " help command should not write stderr");
+            assertEquals(direct.stdout(), viaHelp.stdout(), commandName + " help output should match");
+        }
+    }
+
+    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
@@ -333,6 +348,22 @@ final class CliHelpSurfaceTest {
         List<List<String>> paths = new ArrayList<>();
         collectCommandPaths(root, List.of(), paths);
         return paths;
+    }
+
+    private static CommandResult directColorNeverHelp(List<String> path) {
+        List<String> args = new ArrayList<>();
+        args.add("--color=never");
+        args.addAll(path);
+        args.add("--help");
+        return execute(args.toArray(String[]::new));
+    }
+
+    private static CommandResult helpCommandColorNever(List<String> path) {
+        List<String> args = new ArrayList<>();
+        args.add("--color=never");
+        args.add("help");
+        args.addAll(path);
+        return execute(args.toArray(String[]::new));
     }
 
     private static List<String> topLevelCommandNames(CommandLine root) {
