@@ -12,6 +12,7 @@ import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestRunException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
@@ -27,6 +28,7 @@ import com.zolt.workspace.WorkspaceCoverageService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -143,22 +145,19 @@ public final class CoverageCommand implements Runnable {
                             CommandAttributeKeys.EXEC_FILE, coverageResult.execFile().toString(),
                             CommandAttributeKeys.XML_REPORT, coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
                             CommandAttributeKeys.HTML_DIRECTORY, coverageResult.htmlDirectory().map(Path::toString).orElse("disabled")));
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
             CommandOutput.printAndFlush(spec, result.testRunResult().output());
             if (!result.testRunResult().output().isEmpty() && !result.testRunResult().output().endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                CommandOutput.printAndFlush(spec, System.lineSeparator());
             }
             if (!result.reportOutput().isBlank()) {
                 CommandOutput.printAndFlush(spec, result.reportOutput());
                 if (!result.reportOutput().endsWith("\n")) {
-                    spec.commandLine().getOut().println();
+                    CommandOutput.printAndFlush(spec, System.lineSeparator());
                 }
             }
-            spec.commandLine().getOut().println("Coverage reports written");
-            spec.commandLine().getOut().println("Execution data: " + result.execFile());
-            result.xmlReport().ifPresent(path -> spec.commandLine().getOut().println("XML report: " + path));
-            result.htmlDirectory().ifPresent(path -> spec.commandLine().getOut().println("HTML report: " + path));
-            result.testRunResult().reportsDirectory()
-                    .ifPresent(path -> spec.commandLine().getOut().println("Test reports: " + path));
+            printCoverageReports(output, "Coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
+            result.testRunResult().reportsDirectory().ifPresent(path -> output.detail("Test reports: " + path));
         } catch (BuildException
                 | CoverageException
                 | JavacException
@@ -212,14 +211,15 @@ public final class CoverageCommand implements Runnable {
                     attributes.put(CommandAttributeKeys.HTML_DIRECTORY, coverageResult.htmlDirectory().map(Path::toString).orElse("disabled"));
                     return attributes;
                 });
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         for (WorkspaceCoverageResult.MemberCoverageRunResult member : result.members()) {
             CommandOutput.printAndFlush(spec, member.result().output());
             if (!member.result().output().isEmpty() && !member.result().output().endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                CommandOutput.printAndFlush(spec, System.lineSeparator());
             }
-            spec.commandLine().getOut().println("Coverage tests passed in " + member.member());
+            output.success("Coverage tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    spec.commandLine().getOut().println("Wrote coverage test reports for "
+                    output.detail("Wrote coverage test reports for "
                             + member.member()
                             + " to "
                             + directory));
@@ -227,16 +227,22 @@ public final class CoverageCommand implements Runnable {
         if (!result.reportOutput().isBlank()) {
             CommandOutput.printAndFlush(spec, result.reportOutput());
             if (!result.reportOutput().endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                CommandOutput.printAndFlush(spec, System.lineSeparator());
             }
         }
-        spec.commandLine().getOut().println("Workspace coverage reports written");
-        spec.commandLine().getOut().println("Execution data: " + result.execFile());
-        result.xmlReport().ifPresent(path -> spec.commandLine().getOut().println("XML report: " + path));
-        result.htmlDirectory().ifPresent(path -> spec.commandLine().getOut().println("HTML report: " + path));
-        spec.commandLine().getOut().println(
-                "Coverage passed for "
-                        + result.members().size()
-                        + " workspace members");
+        printCoverageReports(output, "Workspace coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
+        output.success("Coverage passed for " + result.members().size() + " workspace members");
+    }
+
+    private static void printCoverageReports(
+            CommandHumanOutput output,
+            String summary,
+            Path execFile,
+            Optional<Path> xmlReport,
+            Optional<Path> htmlDirectory) {
+        output.success(summary);
+        output.detail("Execution data: " + execFile);
+        xmlReport.ifPresent(path -> output.detail("XML report: " + path));
+        htmlDirectory.ifPresent(path -> output.detail("HTML report: " + path));
     }
 }
