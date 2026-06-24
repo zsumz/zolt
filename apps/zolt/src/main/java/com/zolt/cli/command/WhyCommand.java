@@ -15,6 +15,7 @@ import com.zolt.tree.DependencyWhyException;
 import com.zolt.tree.DependencyWhyFormatter;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -36,8 +37,8 @@ public final class WhyCommand implements Runnable {
     @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Package id to explain.")
     private String packageId;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
@@ -70,9 +71,10 @@ public final class WhyCommand implements Runnable {
     @Override
     public void run() {
         try {
+            Path projectRoot = projectDirectory.path();
             Coordinate coordinate = coordinateParser.parse(packageId);
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
-            ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ZoltLockfile lockfile = lockfileReader.read(projectRoot.resolve("zolt.lock"));
             PackageId target = new PackageId(coordinate.groupId(), coordinate.artifactId());
             String output = format == Format.JSON
                     ? jsonFormatter.why(config, lockfile, target)

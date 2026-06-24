@@ -104,6 +104,16 @@ final class TreeWhyCommandTest {
     }
 
     @Test
+    void whyHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "why");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void whyPrintsJsonForExcludedPackage() throws IOException {
         Path projectDir = tempDir.resolve("why-json");
         writeProjectConfig(projectDir);
@@ -122,6 +132,25 @@ final class TreeWhyCommandTest {
         assertTrue(result.stdout().contains("\"path\": []"));
         assertTrue(result.stdout().contains(
                 "\"policy\": \"[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void whyAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("why-directory");
+        writeProjectConfig(projectDir);
+        writeAppLibLockfile(projectDir);
+
+        CommandResult result = execute(
+                "why",
+                "--directory", projectDir.toString(),
+                "--format", "json",
+                "com.example:lib");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"command\": \"why\""));
+        assertTrue(result.stdout().contains("\"target\": \"com.example:lib\""));
+        assertTrue(result.stdout().contains("\"status\": \"present\""));
         assertEquals("", result.stderr());
     }
 
