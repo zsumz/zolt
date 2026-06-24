@@ -31,6 +31,12 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Build output should keep compile, resources, generated sources, and skipped work visible"));
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));
+        assertTrue(design.contains("Implemented foundation:"));
+        assertTrue(design.contains("Cargo-style help guardrails."));
+        assertTrue(design.contains("A command-tree inventory keeps every registered command path assigned"));
+        assertTrue(design.contains("Remaining rollout:"));
+        assertTrue(design.contains("Refresh common success summaries."));
+        assertTrue(design.contains("Standardize error blocks."));
         assertTrue(design.contains("No full-screen terminal UI"));
         assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before"));
     }
