@@ -12,17 +12,33 @@ import java.util.Optional;
 
 final class EffectivePomInheritanceBuilder {
     EffectiveRawPom build(Coordinate coordinate, RawPom rawPom, List<RawPom> parents) {
-        String groupId = rawPom.groupId().or(() -> nearestGroupId(parents)).orElse(coordinate.groupId());
-        String version = rawPom.version()
-                .or(() -> nearestVersion(parents))
-                .orElse(coordinate.version().orElseThrow());
-        return new EffectiveRawPom(
-                rawPom,
-                parents,
+        EffectivePomInheritanceInput input = new EffectivePomInheritanceInput(coordinate, rawPom, parents);
+        return normalize(input).toEffectiveRawPom(input.rawPom(), input.parents());
+    }
+
+    EffectivePomInheritanceResult normalize(EffectivePomInheritanceInput input) {
+        String groupId = input.rawPom().groupId()
+                .or(() -> nearestGroupId(input.parents()))
+                .orElse(input.requestedCoordinate().groupId());
+        String version = input.rawPom().version()
+                .or(() -> nearestVersion(input.parents()))
+                .orElseGet(() -> requestedVersion(input));
+        return new EffectivePomInheritanceResult(
                 groupId,
                 version,
-                inheritedProperties(rawPom, parents),
-                inheritedDependencyManagement(rawPom, parents));
+                inheritedProperties(input.rawPom(), input.parents()),
+                inheritedDependencyManagement(input.rawPom(), input.parents()));
+    }
+
+    private static String requestedVersion(EffectivePomInheritanceInput input) {
+        return input.requestedCoordinate().version().orElseThrow(() -> new GraphTraversalException(
+                "POM "
+                        + input.rawPom().artifactId()
+                        + " for "
+                        + input.requestedCoordinate().groupId()
+                        + ":"
+                        + input.requestedCoordinate().artifactId()
+                        + " must declare or inherit a version."));
     }
 
     private static Optional<String> nearestGroupId(List<RawPom> parents) {

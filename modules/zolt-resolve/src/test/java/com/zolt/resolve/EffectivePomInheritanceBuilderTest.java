@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
@@ -35,22 +36,22 @@ final class EffectivePomInheritanceBuilderTest {
                 Map.of("child", "child-value", "override", "child"),
                 List.of(dependency("com.child", "child-lib", "3.0.0")));
 
-        EffectiveRawPom effective = builder.build(
+        EffectivePomInheritanceResult result = builder.normalize(new EffectivePomInheritanceInput(
                 new Coordinate("com.requested", "child", Optional.of("9.0.0")),
                 child,
-                List.of(root, nearest));
+                List.of(root, nearest)));
 
-        assertEquals("com.nearest", effective.groupId());
-        assertEquals("2.0.0", effective.version());
+        assertEquals("com.nearest", result.groupId());
+        assertEquals("2.0.0", result.version());
         assertEquals(Map.of(
                 "root", "root-value",
                 "nearest", "nearest-value",
                 "child", "child-value",
-                "override", "child"), effective.properties());
+                "override", "child"), result.properties());
         assertEquals(List.of(
                 dependency("com.root", "root-lib", "1.0.0"),
                 dependency("com.nearest", "nearest-lib", "2.0.0"),
-                dependency("com.child", "child-lib", "3.0.0")), effective.dependencyManagement());
+                dependency("com.child", "child-lib", "3.0.0")), result.dependencyManagement());
     }
 
     @Test
@@ -64,6 +65,38 @@ final class EffectivePomInheritanceBuilderTest {
 
         assertEquals("com.requested", effective.groupId());
         assertEquals("9.0.0", effective.version());
+    }
+
+    @Test
+    void effectiveResultConvertsBackToCurrentEffectivePomShape() {
+        RawPom child = pom("com.example", "child", "1.0.0", Map.of(), List.of());
+        EffectivePomInheritanceInput input = new EffectivePomInheritanceInput(
+                new Coordinate("com.example", "child", Optional.of("1.0.0")),
+                child,
+                List.of());
+
+        EffectiveRawPom effective = builder.normalize(input).toEffectiveRawPom(input.rawPom(), input.parents());
+
+        assertEquals(child, effective.rawPom());
+        assertEquals(List.of(), effective.parents());
+        assertEquals("com.example", effective.groupId());
+        assertEquals("1.0.0", effective.version());
+    }
+
+    @Test
+    void missingVersionHasActionableDiagnostic() {
+        RawPom child = pom(null, "child", null, Map.of(), List.of());
+
+        GraphTraversalException exception = assertThrows(
+                GraphTraversalException.class,
+                () -> builder.normalize(new EffectivePomInheritanceInput(
+                        new Coordinate("com.requested", "child", Optional.empty()),
+                        child,
+                        List.of())));
+
+        assertEquals(
+                "POM child for com.requested:child must declare or inherit a version.",
+                exception.getMessage());
     }
 
     private static RawPom pom(
