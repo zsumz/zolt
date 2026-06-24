@@ -40,7 +40,7 @@ public final class QuarkusCommand implements Runnable {
         spec.commandLine().usage(spec.commandLine().getOut());
     }
 
-    @Command(name = "plan", description = "Print the Quarkus augmentation input plan.")
+    @Command(name = "plan", description = "Print the Quarkus augmentation input plan.", mixinStandardHelpOptions = true)
     public static final class PlanCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final QuarkusPlanService quarkusPlanService;
@@ -105,7 +105,10 @@ public final class QuarkusCommand implements Runnable {
         }
     }
 
-    @Command(name = "test-plan", description = "Print the Quarkus test bootstrap plan.")
+    @Command(
+            name = "test-plan",
+            description = "Print the Quarkus test bootstrap plan.",
+            mixinStandardHelpOptions = true)
     public static final class TestPlanCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final QuarkusTestPlanService quarkusTestPlanService;

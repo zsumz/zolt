@@ -21,7 +21,10 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-@Command(name = "publish", description = "Publish Zolt-produced artifacts to Maven-compatible repositories.")
+@Command(
+        name = "publish",
+        description = "Publish Zolt-produced artifacts to Maven-compatible repositories.",
+        mixinStandardHelpOptions = true)
 public final class PublishCommand implements Callable<Integer> {
     private final PublishDryRunService dryRunService;
     private final PublishReleasePolicyService releasePolicyService;

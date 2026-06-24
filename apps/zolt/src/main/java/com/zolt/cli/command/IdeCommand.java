@@ -35,7 +35,7 @@ public final class IdeCommand implements Runnable {
         spec.commandLine().usage(spec.commandLine().getOut());
     }
 
-    @Command(name = "model", description = "Export the Zolt project model.")
+    @Command(name = "model", description = "Export the Zolt project model.", mixinStandardHelpOptions = true)
     public static final class ModelCommand implements Runnable {
         private final WorkspaceIdeModelService workspaceIdeModelService;
         private final WorkspaceIdeModelJsonWriter workspaceIdeModelJsonWriter;

@@ -17,13 +17,14 @@ final class QuarkusTestPlanCommandTest {
     private Path tempDir;
 
     @Test
-    void quarkusTestPlanUsageShowsDirectoryOption() {
+    void quarkusTestPlanHelpShowsDirectoryOption() {
         CommandResult result = execute("quarkus", "test-plan", "--help");
 
-        assertEquals(2, result.exitCode());
-        assertTrue(result.stderr().contains("--directory"));
-        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stderr().contains("directory."));
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+        assertEquals("", result.stderr());
     }
 
     @Test
