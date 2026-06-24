@@ -58,6 +58,30 @@ final class CleanCommandTest {
     }
 
     @Test
+    void cleanUsesModernHumanOutputControls() throws IOException {
+        Path colorProject = tempDir.resolve("color-clean");
+        writeProjectConfig(colorProject, "https://repo.maven.apache.org/maven2");
+        Files.createDirectories(colorProject.resolve("target/classes"));
+        Files.writeString(colorProject.resolve("target/classes/Main.class"), "compiled");
+        Path quietProject = tempDir.resolve("quiet-clean");
+        writeProjectConfig(quietProject, "https://repo.maven.apache.org/maven2");
+        Files.createDirectories(quietProject.resolve("target/classes"));
+        Files.writeString(quietProject.resolve("target/classes/Main.class"), "compiled");
+
+        CommandResult color = execute("--color=always", "clean", "--cwd", colorProject.toString());
+        CommandResult quiet = execute("--quiet", "clean", "--cwd", quietProject.toString());
+
+        assertEquals(0, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m 1 build output paths"));
+        assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m " + colorProject.resolve("target")));
+        assertEquals(0, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        assertEquals("", quiet.stderr());
+        assertFalse(Files.exists(colorProject.resolve("target")));
+        assertFalse(Files.exists(quietProject.resolve("target")));
+    }
+
+    @Test
     void cleanDeletesOutputRootWithoutDeletingMavenTargetOrGradleBuild() throws IOException {
         Path projectDir = tempDir.resolve("migration-demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.build.CleanException;
 import com.zolt.build.CleanResult;
 import com.zolt.build.CleanService;
@@ -38,13 +39,14 @@ public final class CleanCommand implements Runnable {
             Path projectRoot = projectDirectory.path();
             ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             CleanResult result = cleanService.clean(projectRoot, config);
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
             if (result.deletedPaths().isEmpty()) {
-                spec.commandLine().getOut().println("Nothing to clean");
+                output.detail("Nothing to clean");
                 return;
             }
-            spec.commandLine().getOut().println("Deleted " + result.deletedCount() + " build output paths");
+            output.success("Deleted " + result.deletedCount() + " build output paths");
             for (Path path : result.deletedPaths()) {
-                spec.commandLine().getOut().println("Deleted " + path);
+                output.success("Deleted " + path);
             }
         } catch (CleanException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
