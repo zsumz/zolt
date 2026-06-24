@@ -57,6 +57,46 @@ final class CliDependencyEditHelpSectionSurfaceTest {
     }
 
     @Test
+    void removeHelpGroupsArgumentsAndOptions() {
+        CommandResult result = execute("remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Remove a dependency and prune unused transitive packages.",
+                "Arguments:",
+                "DEPENDENCY...",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory");
+        assertFalse(result.stdout().contains("Resolution:"));
+    }
+
+    @Test
+    void removeHelpColorsArgumentsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt remove\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36mDEPENDENCY...\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
     void versionSetHelpGroupsArgumentsAndResolutionOptions() {
         CommandResult result = execute("version", "set", "--help");
 
@@ -94,6 +134,48 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36mzolt version set\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mALIAS\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mVERSION\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--no-resolve\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
+    void versionRemoveHelpGroupsArgumentsAndResolutionOptions() {
+        CommandResult result = execute("version", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Remove an unused version alias from zolt.toml and refresh zolt.lock.",
+                "Arguments:",
+                "ALIAS",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "Resolution:",
+                "--no-resolve");
+    }
+
+    @Test
+    void versionRemoveHelpColorsArgumentsResolutionAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "version", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt version remove\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36mALIAS\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--no-resolve\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
@@ -140,6 +222,46 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--version-ref\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--no-resolve\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
+    void platformRemoveHelpGroupsArgumentsAndOptions() {
+        CommandResult result = execute("platform", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Remove a platform BOM import and refresh zolt.lock.",
+                "Arguments:",
+                "GROUP:ARTIFACT",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory");
+        assertFalse(result.stdout().contains("Resolution:"));
+    }
+
+    @Test
+    void platformRemoveHelpColorsArgumentsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "platform", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt platform remove\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36mGROUP:ARTIFACT\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

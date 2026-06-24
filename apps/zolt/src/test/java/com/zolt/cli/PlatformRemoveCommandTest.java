@@ -17,16 +17,6 @@ final class PlatformRemoveCommandTest extends PlatformCommandTestSupport {
     private Path tempDir;
 
     @Test
-    void platformRemoveHelpShowsDirectoryOption() {
-        CommandResult result = execute("platform", "remove", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void platformRemoveDeletesPlatformAndRefreshesLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);

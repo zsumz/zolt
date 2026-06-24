@@ -33,17 +33,6 @@ final class VersionCommandTest {
     }
 
     @Test
-    void versionRemoveHelpShowsDirectoryOption() {
-        CommandResult result = execute("version", "remove", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void versionRemoveDeletesUnusedAliasWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("version-alias-remove");
         Files.createDirectories(projectDir);
