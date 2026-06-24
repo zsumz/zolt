@@ -12,8 +12,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,8 +26,6 @@ final class FollowUpMetadataTest {
             "Scope",
             "Acceptance",
             "Verification");
-    private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("follow-up-(\\d{3,})-.+\\.md");
-
     @Test
     void modernFollowUpsHaveMatchingTitleAndValidStatus() throws IOException {
         List<FollowUpFile> followUps = modernFollowUps(FOLLOW_UPS);
@@ -261,8 +257,8 @@ final class FollowUpMetadataTest {
     }
 
     private static Optional<FollowUpFile> followUpFile(Path path) {
-        Matcher matcher = FOLLOW_UP_FILENAME.matcher(path.getFileName().toString());
-        if (!matcher.matches()) {
+        Optional<String> id = ArchitectureFollowUpFileNames.numericId(path);
+        if (id.isEmpty()) {
             return Optional.empty();
         }
         try {
@@ -273,7 +269,7 @@ final class FollowUpMetadataTest {
                     .filter(line -> line.startsWith("Status:"))
                     .map(line -> line.substring("Status:".length()).trim())
                     .findFirst();
-            return Optional.of(new FollowUpFile(path, matcher.group(1), title, status, lines));
+            return Optional.of(new FollowUpFile(path, id.orElseThrow(), title, status, lines));
         } catch (IOException exception) {
             throw new IllegalStateException("Could not read followUp " + path, exception);
         }
