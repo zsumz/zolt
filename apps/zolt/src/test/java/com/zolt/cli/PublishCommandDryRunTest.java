@@ -17,6 +17,16 @@ final class PublishCommandDryRunTest {
     private Path tempDir;
 
     @Test
+    void publishUsageShowsDirectoryOption() {
+        CommandResult result = execute("publish", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void publishDryRunRoutesReleaseArtifactWithoutUploading() throws IOException {
         Path projectDir = tempDir.resolve("publish-dry-run-release");
         writeProjectConfig(projectDir);
@@ -50,7 +60,7 @@ final class PublishCommandDryRunTest {
                 "--progress=always",
                 "publish",
                 "--dry-run",
-                "--cwd", projectDir.toString());
+                "--directory", projectDir.toString());
 
         assertEquals(0, packageResult.exitCode());
         assertEquals(0, result.exitCode());

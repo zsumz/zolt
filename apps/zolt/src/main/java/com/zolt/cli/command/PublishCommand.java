@@ -16,6 +16,7 @@ import com.zolt.toml.ZoltConfigException;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -32,8 +33,8 @@ public final class PublishCommand implements Callable<Integer> {
     @Option(names = "--context", description = "Apply a publish context policy. Supported values: release.")
     private PublishContext context;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -54,6 +55,7 @@ public final class PublishCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         ProgressWriter progress = CommandProgress.human(spec);
+        Path projectRoot = projectDirectory.path();
         try {
             if (context != null && !dryRun) {
                 CommandFailures.printUser(spec, "Publish context policy is currently supported only with --dry-run.");
@@ -61,16 +63,16 @@ public final class PublishCommand implements Callable<Integer> {
             }
             if (dryRun) {
                 progress.start("Preparing publish dry run");
-                PublishDryRunPlan plan = dryRunService.plan(workingDirectory);
+                PublishDryRunPlan plan = dryRunService.plan(projectRoot);
                 if (context == PublishContext.RELEASE) {
-                    plan = releasePolicyService.apply(workingDirectory, plan);
+                    plan = releasePolicyService.apply(projectRoot, plan);
                 }
                 CommandOutput.printAndFlush(spec, PublishDryRunFormatter.text(plan));
                 progress.result("Prepared publish dry run");
                 return plan.ok() ? 0 : 1;
             }
             progress.start("Publishing artifacts");
-            PublishUploadResult result = uploadService.upload(workingDirectory);
+            PublishUploadResult result = uploadService.upload(projectRoot);
             CommandOutput.printAndFlush(spec, PublishUploadFormatter.text(result));
             progress.result("Published artifacts");
             return 0;
