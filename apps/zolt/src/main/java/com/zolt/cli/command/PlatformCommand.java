@@ -16,6 +16,7 @@ import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -57,8 +58,8 @@ public final class PlatformCommand implements Runnable {
         @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
         private boolean noResolve;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -86,7 +87,8 @@ public final class PlatformCommand implements Runnable {
             try {
                 Coordinate parsed = coordinateParser.parse(coordinate);
                 String platform = parsed.groupId() + ":" + parsed.artifactId();
-                Path configPath = workingDirectory.resolve("zolt.toml");
+                Path projectRoot = projectDirectory.path();
+                Path configPath = projectRoot.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
                 PlatformAddRequest request = addRequest(config, parsed, platform);
                 ProjectConfig updated = request.versionRef() == null
@@ -102,7 +104,7 @@ public final class PlatformCommand implements Runnable {
                     spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
-                CommandResolveOutput.print(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (PlatformCommandException
                     | ArtifactCacheException
                     | CoordinateParseException
@@ -206,8 +208,8 @@ public final class PlatformCommand implements Runnable {
         @Parameters(index = "0", paramLabel = "GROUP:ARTIFACT", description = "Platform BOM coordinate.")
         private String coordinate;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -239,7 +241,8 @@ public final class PlatformCommand implements Runnable {
                             "Platform remove coordinate must not include a version. Use `group:artifact`.");
                 }
                 String platform = parsed.groupId() + ":" + parsed.artifactId();
-                Path configPath = workingDirectory.resolve("zolt.toml");
+                Path projectRoot = projectDirectory.path();
+                Path configPath = projectRoot.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
                 if (!config.platforms().containsKey(platform)) {
                     spec.commandLine().getOut().println(
@@ -249,7 +252,7 @@ public final class PlatformCommand implements Runnable {
                 ProjectConfig updated = tomlWriter.removePlatform(config, platform);
                 tomlWriter.write(configPath, updated);
                 spec.commandLine().getOut().println("Removed platform " + platform + " from [platforms]");
-                CommandResolveOutput.print(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (PlatformCommandException
                     | ArtifactCacheException
                     | CoordinateParseException

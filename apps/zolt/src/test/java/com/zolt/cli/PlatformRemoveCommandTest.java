@@ -17,6 +17,16 @@ final class PlatformRemoveCommandTest extends PlatformCommandTestSupport {
     private Path tempDir;
 
     @Test
+    void platformRemoveHelpShowsDirectoryOption() {
+        CommandResult result = execute("platform", "remove", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void platformRemoveDeletesPlatformAndRefreshesLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
@@ -30,7 +40,7 @@ final class PlatformRemoveCommandTest extends PlatformCommandTestSupport {
         CommandResult remove = execute(
                 "platform",
                 "remove",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString(),
                 "com.example:enterprise-platform");
 
@@ -54,7 +64,7 @@ final class PlatformRemoveCommandTest extends PlatformCommandTestSupport {
                 "com.example:enterprise-platform:2026.1.0");
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains(
-                "Platform remove coordinate must not include a version. Use `group:artifact`."));
+        assertTrue(result.stderr().contains("Platform remove coordinate must not include a version."));
+        assertTrue(result.stderr().contains("Next: Use `group:artifact`."));
     }
 }

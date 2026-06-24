@@ -18,6 +18,16 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
     private Path tempDir;
 
     @Test
+    void platformAddHelpShowsDirectoryOption() {
+        CommandResult result = execute("platform", "add", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void platformAddRefreshesLockfileByDefault() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """
@@ -62,7 +72,7 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
         CommandResult result = execute(
                 "platform",
                 "add",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--no-resolve",
                 "com.example:enterprise-platform:2026.1.0");
 
@@ -128,11 +138,12 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
                 "com.example:enterprise-platform:2026.1.0");
 
         assertEquals(1, unknown.exitCode());
-        assertTrue(unknown.stderr().contains(
-                "Unknown versionRef `enterprise`. Add [versions].enterprise or use an explicit version."));
+        assertTrue(unknown.stderr().contains("Unknown versionRef `enterprise`."));
+        assertTrue(unknown.stderr().contains("Next: Add [versions].enterprise or use an explicit version."));
         assertEquals(1, explicit.exitCode());
+        assertTrue(explicit.stderr().contains("Version-ref platform coordinate must not include a version."));
         assertTrue(explicit.stderr().contains(
-                "Version-ref platform coordinate must not include a version. Use `--version-ref enterprise com.example:enterprise-platform`."));
+                "Next: Use `--version-ref enterprise com.example:enterprise-platform`."));
     }
 
     @Test
