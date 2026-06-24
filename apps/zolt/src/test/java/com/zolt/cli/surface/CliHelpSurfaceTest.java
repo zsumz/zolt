@@ -14,12 +14,24 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 final class CliHelpSurfaceTest {
+    private static final String ANSI_ESCAPE = "\u001B[";
+    private static final String BOLD_USAGE_HEADING = "\u001B[1mUsage\u001B[0m:";
+    private static final String BOLD_COMMANDS_HEADING = "\u001B[1mCommands\u001B[0m:";
+    private static final String BOLD_BASICS_HEADING = "\u001B[1mBasics\u001B[0m";
+    private static final String BOLD_GREEN_COLOR_OPTION = "\u001B[1;32m--color";
+    private static final String BOLD_GREEN_HELP_OPTION = "\u001B[1;32m--help\u001B[0m";
+    private static final String CYAN_HELP_COMMAND = "\u001B[36mzolt help <command>\u001B[0m";
+    private static final String CYAN_INIT_COMMAND = "\u001B[36minit\u001B[0m";
+    private static final String CYAN_SET_COMMAND = "\u001B[36mset\u001B[0m";
+    private static final String WARNING_COLOR = "\u001B[33m";
+    private static final String PLAIN_GREEN_OPTION = "\u001B[32m--";
+
     @Test
     void helpListsMvpCommands() {
         CommandResult result = execute("help");
 
         assertEquals(0, result.exitCode());
-        assertFalse(result.stdout().contains("\u001B["));
+        assertFalse(result.stdout().contains(ANSI_ESCAPE));
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
         assertTrue(result.stdout().contains("--color"));
         assertTrue(result.stdout().contains("--progress"));
@@ -57,15 +69,15 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=always", "help");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("\u001B[1mUsage\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32m--color"));
-        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
-        assertTrue(result.stdout().contains("Run \u001B[36mzolt help <command>\u001B[0m for more information"));
+        assertTrue(result.stdout().contains(BOLD_USAGE_HEADING));
+        assertTrue(result.stdout().contains(BOLD_GREEN_COLOR_OPTION));
+        assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
+        assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
+        assertTrue(result.stdout().contains(CYAN_INIT_COMMAND));
+        assertTrue(result.stdout().contains("Run " + CYAN_HELP_COMMAND + " for more information"));
         assertTrue(result.stdout().contains("Create a new Zolt project."));
-        assertFalse(result.stdout().contains("\u001B[33m"));
-        assertFalse(result.stderr().contains("\u001B["));
+        assertFalse(result.stdout().contains(WARNING_COLOR));
+        assertFalse(result.stderr().contains(ANSI_ESCAPE));
     }
 
     @Test
@@ -73,7 +85,7 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=never", "help");
 
         assertEquals(0, result.exitCode());
-        assertFalse(result.stdout().contains("\u001B["));
+        assertFalse(result.stdout().contains(ANSI_ESCAPE));
         assertTrue(result.stdout().contains("  Basics"));
         assertTrue(result.stdout().contains("    init                Create a new Zolt project."));
     }
@@ -84,7 +96,7 @@ final class CliHelpSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertFalse(result.stdout().contains("\u001B["));
+        assertFalse(result.stdout().contains(ANSI_ESCAPE));
         assertFalse(result.stdout().contains("Usage:"));
         assertContainsInOrder(
                 result.stdout(),
@@ -110,10 +122,10 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=always", "--list");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
-        assertFalse(result.stderr().contains("\u001B["));
+        assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
+        assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
+        assertTrue(result.stdout().contains(CYAN_INIT_COMMAND));
+        assertFalse(result.stderr().contains(ANSI_ESCAPE));
     }
 
     @Test
@@ -122,8 +134,8 @@ final class CliHelpSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[36mset\u001B[0m"));
+        assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
+        assertTrue(result.stdout().contains(CYAN_SET_COMMAND));
         assertFalse(result.stdout().contains("  Dependencies"));
     }
 
@@ -155,8 +167,8 @@ final class CliHelpSurfaceTest {
             String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
             assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
             assertEquals("", result.stderr(), commandName + " --help should not write stderr");
-            assertFalse(result.stdout().contains("\u001B["), commandName + " --help should not color stdout");
-            assertFalse(result.stderr().contains("\u001B["), commandName + " --help should not color stderr");
+            assertFalse(result.stdout().contains(ANSI_ESCAPE), commandName + " --help should not color stdout");
+            assertFalse(result.stderr().contains(ANSI_ESCAPE), commandName + " --help should not color stderr");
         }
     }
 
@@ -167,20 +179,20 @@ final class CliHelpSurfaceTest {
             assertEquals(0, colored.exitCode(), "zolt help " + command + " should exit successfully");
             assertEquals("", colored.stderr(), "zolt help " + command + " should not write stderr");
             assertTrue(
-                    colored.stdout().contains("\u001B[1mUsage\u001B[0m:"),
+                    colored.stdout().contains(BOLD_USAGE_HEADING),
                     "zolt help " + command + " should use a bold usage heading");
             assertTrue(
-                    colored.stdout().contains("\u001B[1;32m--help\u001B[0m"),
+                    colored.stdout().contains(BOLD_GREEN_HELP_OPTION),
                     "zolt help " + command + " should use bold green option tokens");
             assertFalse(
-                    colored.stdout().contains("\u001B[33m"),
+                    colored.stdout().contains(WARNING_COLOR),
                     "zolt help " + command + " should not use warning color");
 
             CommandResult plain = execute("--color=never", "help", command);
             assertEquals(0, plain.exitCode(), "zolt help " + command + " --color=never should exit successfully");
             assertEquals("", plain.stderr(), "zolt help " + command + " --color=never should not write stderr");
-            assertFalse(plain.stdout().contains("\u001B["), "zolt help " + command + " should not color stdout");
-            assertFalse(plain.stderr().contains("\u001B["), "zolt help " + command + " should not color stderr");
+            assertFalse(plain.stdout().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stdout");
+            assertFalse(plain.stderr().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stderr");
         }
     }
 
@@ -198,12 +210,12 @@ final class CliHelpSurfaceTest {
             assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
             assertEquals("", result.stderr(), commandName + " --help should not write stderr");
             assertTrue(
-                    result.stdout().contains("\u001B[1mUsage\u001B[0m:"),
+                    result.stdout().contains(BOLD_USAGE_HEADING),
                     commandName + " --help should use a bold usage heading");
-            assertFalse(result.stdout().contains("\u001B[33m"), commandName + " --help should not use warning color");
-            assertFalse(result.stdout().contains("\u001B[32m--"), commandName + " --help should not use plain green options");
+            assertFalse(result.stdout().contains(WARNING_COLOR), commandName + " --help should not use warning color");
+            assertFalse(result.stdout().contains(PLAIN_GREEN_OPTION), commandName + " --help should not use plain green options");
             assertTrue(
-                    result.stdout().contains("\u001B[1;32m--help\u001B[0m"),
+                    result.stdout().contains(BOLD_GREEN_HELP_OPTION),
                     commandName + " --help should use bold green option tokens");
         }
     }
@@ -249,7 +261,7 @@ final class CliHelpSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertFalse(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
+        assertFalse(result.stdout().contains(BOLD_COMMANDS_HEADING));
     }
 
     @Test
