@@ -44,7 +44,10 @@ final class ModernConsoleOutputDocumentationTest {
 
         assertTrue(docsIndex.contains("`modern-console-output.md`"));
         assertTrue(docsIndex.contains("`progress-output.md`"));
-        assertTrue(consoleOutput.contains("`modern-console-output.md` defines the follow-on human output design"));
+        assertTrue(consoleOutput.contains("`modern-console-output.md` defines the human output design"));
+        assertTrue(consoleOutput.contains("Zolt supports:"));
+        assertTrue(consoleOutput.contains("Default mode is `auto` for human-facing commands."));
+        assertTrue(consoleOutput.contains("Focused help-surface tests also guard Cargo-style whitespace"));
         assertTrue(consoleOutput.contains("`progress-output.md` defines"));
         assertTrue(modernConsoleOutput.contains("`progress-output.md` defines"));
         assertTrue(followUpIndex.contains("**M29** — Modern console output"));
