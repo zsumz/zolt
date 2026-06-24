@@ -16,12 +16,22 @@ final class PolicyCommandTest {
     private Path tempDir;
 
     @Test
+    void policyHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "policy");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void policyPrintsDependencyBaselineDiagnostics() throws IOException {
         Path projectDir = tempDir.resolve("policy-text");
         PolicyCommandTestSupport.writePolicyProject(projectDir);
         PolicyCommandTestSupport.writePolicyLockfile(projectDir);
 
-        CommandResult result = execute("policy", "--cwd", projectDir.toString());
+        CommandResult result = execute("policy", "--directory", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Dependency policy diagnostics"));
