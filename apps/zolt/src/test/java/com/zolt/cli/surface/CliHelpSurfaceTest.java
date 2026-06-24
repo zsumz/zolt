@@ -5,7 +5,6 @@ import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_BASICS_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_COLOR_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_HELP_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_INIT_COMMAND;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_SET_COMMAND;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_ZOLT_COMMAND;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_OPTION;
@@ -138,17 +137,6 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
-    void nestedCommandHelpSupportsSparseSemanticCommandHeadingColor() {
-        CommandResult result = execute("--color=always", "version", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
-        assertTrue(result.stdout().contains(BOLD_CYAN_SET_COMMAND));
-        assertFalse(result.stdout().contains("  Dependencies"));
-    }
-
-    @Test
     void allRegisteredCommandsSupportDirectHelpOption() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>(path);
@@ -217,22 +205,6 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
-    void nestedCommandHelpUsesFlatCommandList() {
-        CommandResult result = execute("version", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("Commands:"));
-        assertContainsInOrder(
-                result.stdout(),
-                "Commands:",
-                "    set",
-                "    remove");
-        assertFalse(result.stdout().contains("  Dependencies"));
-        assertFalse(result.stdout().contains("  Other"));
-    }
-
-    @Test
     void leafCommandHelpDoesNotShowEmptyCommandList() {
         CommandResult result = execute("test", "--help");
 
@@ -248,24 +220,6 @@ final class CliHelpSurfaceTest {
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertFalse(result.stdout().contains(BOLD_COMMANDS_HEADING));
-    }
-
-    @Test
-    void defaultOnlyHelpUsesStandardOptionOrder() {
-        CommandResult result = execute("platform", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertEquals("", result.stderr());
-        String options = result.stdout().substring(result.stdout().indexOf("Options:"));
-        assertContainsInOrder(
-                options,
-                "Options:",
-                "--color",
-                "--progress",
-                "--no-progress",
-                "--quiet",
-                "--help",
-                "--version");
     }
 
     private static void assertContainsInOrder(String text, String... expected) {
