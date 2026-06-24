@@ -132,9 +132,15 @@ public final class ZoltCli implements Runnable {
         ZoltCli rootCommand = new ZoltCli();
         CommandLine commandLine = new CommandLine(rootCommand)
                 .setCaseInsensitiveEnumValuesAllowed(true);
+        configureUniversalHelp(commandLine);
         CliUsageConfiguration.apply(commandLine, rootCommand::consoleStyle);
         configureExecutionHandling(commandLine);
         return commandLine;
+    }
+
+    private static void configureUniversalHelp(CommandLine commandLine) {
+        commandLine.getCommandSpec().mixinStandardHelpOptions(true);
+        commandLine.getSubcommands().values().forEach(ZoltCli::configureUniversalHelp);
     }
 
     private static void configureExecutionHandling(CommandLine commandLine) {

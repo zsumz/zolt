@@ -8,9 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.cli.CliTestSupport.CommandResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import picocli.CommandLine;
 
 final class CliSurfaceTest {
     @TempDir
@@ -179,6 +183,21 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void allRegisteredCommandsSupportDirectHelpOption() {
+        for (List<String> path : commandPaths(ZoltCli.newCommandLine())) {
+            List<String> args = new ArrayList<>(path);
+            args.add("--help");
+
+            CommandResult result = execute(args.toArray(String[]::new));
+
+            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
+            assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
+            assertEquals("", result.stderr(), commandName + " --help should not write stderr");
+            assertTrue(result.stdout().contains("Usage:"), commandName + " --help should print usage");
+        }
+    }
+
+    @Test
     void initHelpShowsDirectoryOption() {
         CommandResult result = execute("init", "--help");
 
@@ -290,6 +309,21 @@ final class CliSurfaceTest {
                 .userObject()
                 .getClass()
                 .getName();
+    }
+
+    private static List<List<String>> commandPaths(CommandLine root) {
+        List<List<String>> paths = new ArrayList<>();
+        collectCommandPaths(root, List.of(), paths);
+        return paths;
+    }
+
+    private static void collectCommandPaths(CommandLine commandLine, List<String> prefix, List<List<String>> paths) {
+        paths.add(prefix);
+        for (Map.Entry<String, CommandLine> entry : commandLine.getSubcommands().entrySet()) {
+            List<String> childPath = new ArrayList<>(prefix);
+            childPath.add(entry.getKey());
+            collectCommandPaths(entry.getValue(), childPath, paths);
+        }
     }
 
     private static void assertContainsInOrder(String text, String... expected) {
