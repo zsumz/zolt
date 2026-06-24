@@ -29,6 +29,7 @@ import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceConfigException;
 import com.zolt.workspace.WorkspacePackageResult;
 import com.zolt.workspace.WorkspacePackageService;
+import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +48,7 @@ public final class PackageCommand implements Runnable {
     private final BuildService buildService;
     private final WorkspacePackageService workspacePackageService;
     private final CommandLockfiles lockfiles;
+    private final CommandPackageResultWriter packageResultWriter;
 
     @Option(names = "--workspace", description = "Package workspace members in dependency order.")
     private boolean workspace;
@@ -86,6 +88,7 @@ public final class PackageCommand implements Runnable {
                 new ZoltTomlParser(),
                 new PackagePlanFormatter(),
                 CommandFrameworkServices.packageCommandServices(),
+                new CommandPackageResultWriter(),
                 new CommandLockfiles());
     }
 
@@ -93,6 +96,7 @@ public final class PackageCommand implements Runnable {
             ZoltTomlParser tomlParser,
             PackagePlanFormatter packagePlanFormatter,
             CommandPackageServices packageServices,
+            CommandPackageResultWriter packageResultWriter,
             CommandLockfiles lockfiles) {
         this(
                 tomlParser,
@@ -101,6 +105,7 @@ public final class PackageCommand implements Runnable {
                 packageServices.packageService(),
                 packageServices.buildService(),
                 packageServices.workspacePackageService(),
+                packageResultWriter,
                 lockfiles);
     }
 
@@ -112,12 +117,33 @@ public final class PackageCommand implements Runnable {
             BuildService buildService,
             WorkspacePackageService workspacePackageService,
             CommandLockfiles lockfiles) {
+        this(
+                tomlParser,
+                packagePlanService,
+                packagePlanFormatter,
+                packageService,
+                buildService,
+                workspacePackageService,
+                new CommandPackageResultWriter(),
+                lockfiles);
+    }
+
+    PackageCommand(
+            ZoltTomlParser tomlParser,
+            PackagePlanService packagePlanService,
+            PackagePlanFormatter packagePlanFormatter,
+            PackageService packageService,
+            BuildService buildService,
+            WorkspacePackageService workspacePackageService,
+            CommandPackageResultWriter packageResultWriter,
+            CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.packagePlanService = packagePlanService;
         this.packagePlanFormatter = packagePlanFormatter;
         this.packageService = packageService;
         this.buildService = buildService;
         this.workspacePackageService = workspacePackageService;
+        this.packageResultWriter = packageResultWriter;
         this.lockfiles = lockfiles;
     }
 
@@ -247,32 +273,38 @@ public final class PackageCommand implements Runnable {
     }
 
     private void printPackageResult(PackageResult result, String suffix) {
-        spec.commandLine().getOut().println(CommandPackageSupport.packageSummary(result) + suffix);
+        packageResultWriter.print(spec.commandLine().getOut(), result, suffix);
+    }
+}
+
+final class CommandPackageResultWriter {
+    void print(PrintWriter out, PackageResult result, String suffix) {
+        out.println(CommandPackageSupport.packageSummary(result) + suffix);
         if (result.hasMainClass()) {
-            spec.commandLine().getOut().println(suffix.isBlank()
+            out.println(suffix.isBlank()
                     ? "Included Main-Class manifest entry"
                     : "Included Main-Class manifest entry" + suffix);
             if (suffix.isBlank()) {
-                spec.commandLine().getOut().println("Run with: java -jar " + result.jarPath());
+                out.println("Run with: java -jar " + result.jarPath());
                 CommandPackageSupport.runInstruction(result)
-                        .ifPresent(instruction -> spec.commandLine().getOut().println(instruction));
+                        .ifPresent(out::println);
             }
         } else if (suffix.isBlank()) {
             Optional<String> noMainClassDetail = CommandPackageSupport.noMainClassDetail(result);
             if (noMainClassDetail.isPresent()) {
-                spec.commandLine().getOut().println(noMainClassDetail.orElseThrow());
+                out.println(noMainClassDetail.orElseThrow());
             } else {
-                spec.commandLine().getOut().println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
+                out.println("No Main-Class manifest entry; add [project].main to make the jar directly runnable.");
             }
         }
         if (suffix.isBlank()) {
-            printPackageModeDetail(result);
+            printPackageModeDetail(out, result);
         }
-        spec.commandLine().getOut().println("Wrote archive to " + result.jarPath());
+        out.println("Wrote archive to " + result.jarPath());
         result.evidenceManifestPath().ifPresent(path ->
-                spec.commandLine().getOut().println("Wrote package evidence to " + path));
+                out.println("Wrote package evidence to " + path));
         for (PackageArtifact artifact : result.artifacts()) {
-            spec.commandLine().getOut().println(
+            out.println(
                     "Wrote "
                             + artifact.classifier()
                             + " jar to "
@@ -280,9 +312,9 @@ public final class PackageCommand implements Runnable {
         }
     }
 
-    private void printPackageModeDetail(PackageResult result) {
+    private static void printPackageModeDetail(PrintWriter out, PackageResult result) {
         CommandPackageSupport.PackageModeDetail detail = CommandPackageSupport.packageModeDetail(result);
-        spec.commandLine().getOut().println(detail.message());
-        detail.secondaryMessage().ifPresent(message -> spec.commandLine().getOut().println(message));
+        out.println(detail.message());
+        detail.secondaryMessage().ifPresent(out::println);
     }
 }
