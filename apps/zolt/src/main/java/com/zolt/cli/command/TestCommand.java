@@ -83,8 +83,8 @@ public final class TestCommand implements Runnable {
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
     private Path reportsDir;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -117,6 +117,7 @@ public final class TestCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             TestSelection testSelection = TestSelection.fromCli(
                     testSelectors,
@@ -128,6 +129,7 @@ public final class TestCommand implements Runnable {
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
             if (workspace) {
                 runWorkspaceTests(
+                        projectRoot,
                         timings,
                         CommandProgress.human(spec),
                         testSelection,
@@ -137,6 +139,7 @@ public final class TestCommand implements Runnable {
                 return;
             }
             runSingleProjectTests(
+                    projectRoot,
                     timings,
                     CommandProgress.human(spec),
                     testSelection,
@@ -157,18 +160,19 @@ public final class TestCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "test", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "test", projectRoot, timingOptions, timings);
         }
     }
 
     private void runWorkspaceTests(
+            Path projectRoot,
             TimingRecorder timings,
             ProgressWriter progress,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
-        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         WorkspaceTestResult result = timings.measure(
@@ -177,7 +181,7 @@ public final class TestCommand implements Runnable {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace tests",
                             () -> workspaceTestService.planTests(
-                                    workingDirectory,
+                                    projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
@@ -221,6 +225,7 @@ public final class TestCommand implements Runnable {
     }
 
     private void runSingleProjectTests(
+            Path projectRoot,
             TimingRecorder timings,
             ProgressWriter progress,
             TestSelection testSelection,
@@ -229,8 +234,8 @@ public final class TestCommand implements Runnable {
             List<String> requestedTestEvents) {
         ProjectConfig config = timings.measure(
                 "config read",
-                () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+        lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         progress.start("Testing project");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         output.work("Testing " + config.project().name());
@@ -243,7 +248,7 @@ public final class TestCommand implements Runnable {
                                 BuildResultWithClasspaths buildResult = timings.measure(
                                         "build test inputs",
                                         () -> testRunService.buildTestInputs(
-                                                workingDirectory,
+                                                projectRoot,
                                                 config,
                                                 cacheRoot),
                                         resultWithClasspaths -> CommandBuildAttributes.build(
@@ -251,7 +256,7 @@ public final class TestCommand implements Runnable {
                                 TestCompileResult testCompileResult = timings.measure(
                                         "compile test sources",
                                         () -> testRunService.compileTests(
-                                                workingDirectory,
+                                                projectRoot,
                                                 config,
                                                 buildResult.classpaths(),
                                                 buildResult.buildResult()),
@@ -265,7 +270,7 @@ public final class TestCommand implements Runnable {
                     return timings.measure(
                             "execute tests",
                             () -> testRunService.runCompiledTests(
-                                    workingDirectory,
+                                    projectRoot,
                                     config,
                                     compileResult.classpaths(),
                                     compileResult.testCompileResult(),

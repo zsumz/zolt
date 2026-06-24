@@ -26,6 +26,7 @@ final class TestCommandValidationTest {
                 "--color",
                 "--help",
                 "--version",
+                "--directory",
                 "Workspace Selection:",
                 "--workspace",
                 "--all",

@@ -97,6 +97,27 @@ final class TestCommandTest extends TestCommandTestSupport {
     }
 
     @Test
+    void testAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-demo");
+        Path cacheRoot = tempDir.resolve("cache-directory");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("directory-demo"));
+        writeJUnitConsoleLockfile(projectDir);
+        writeDemoTestSource(projectDir);
+
+        CommandResult result = execute(
+                "test",
+                "--directory", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Tests passed"));
+    }
+
+    @Test
     void testReportsMissingJUnitConsoleClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
