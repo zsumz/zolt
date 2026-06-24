@@ -1,5 +1,6 @@
 package com.zolt.cli;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -37,15 +38,25 @@ final class ZoltHelpCommand implements Callable<Integer> {
 
     private CommandLine resolve(CommandLine root) {
         CommandLine target = root;
+        List<String> resolvedPath = new ArrayList<>();
         for (String command : commandPath) {
             CommandLine subcommand = target.getSubcommands().get(command);
             if (subcommand == null) {
-                spec.commandLine().getErr().println("Unknown subcommand '" + command + "'.");
-                root.usage(spec.commandLine().getErr());
+                spec.commandLine().getErr().println(
+                        "Unknown subcommand '" + command + "' under '" + displayName(root, resolvedPath) + "'.");
+                target.usage(spec.commandLine().getErr());
                 return null;
             }
+            resolvedPath.add(command);
             target = subcommand;
         }
         return target;
+    }
+
+    private static String displayName(CommandLine root, List<String> path) {
+        if (path.isEmpty()) {
+            return root.getCommandName();
+        }
+        return root.getCommandName() + " " + String.join(" ", path);
     }
 }

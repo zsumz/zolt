@@ -219,6 +219,20 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void helpCommandShowsNearestCommandUsageForUnknownNestedCommand() {
+        CommandResult result = execute("--color=never", "help", "version", "nope");
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
+        assertTrue(result.stderr().contains("Usage: zolt version"));
+        assertTrue(result.stderr().contains("Commands:"));
+        assertTrue(result.stderr().contains("    set"));
+        assertFalse(result.stderr().contains("  Dependencies"));
+        assertFalse(result.stderr().contains(ANSI_ESCAPE));
+    }
+
+    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
