@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -55,8 +56,8 @@ public final class ExplainCommand implements Callable<Integer> {
     @Option(names = "--blockers", description = "Print a focused migration blocker report instead of the raw explain report.")
     private boolean blockers;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -88,7 +89,7 @@ public final class ExplainCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        Path root = workingDirectory.toAbsolutePath().normalize();
+        Path root = projectDirectory.path().toAbsolutePath().normalize();
         if (scorecard && blockers) {
             throw new CommandLine.ParameterException(
                     spec.commandLine(),

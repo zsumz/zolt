@@ -26,11 +26,14 @@ final class ExplainCommandTest {
         assertTrue(result.stdout().contains("--format"));
         assertTrue(result.stdout().contains("--scorecard"));
         assertTrue(result.stdout().contains("--source"));
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
     }
 
     @Test
     void explainTextPlaceholderIsActionableWhenSourceIsUnknown() {
-        CommandResult result = execute("explain", "--cwd", tempDir.toString());
+        CommandResult result = execute("explain", "--directory", tempDir.toString());
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("zolt explain is not implemented yet."));
