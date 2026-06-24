@@ -57,6 +57,9 @@ public final class ResolveCommand implements Runnable {
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
 
+    @Option(names = "--directory", description = "Run as if Zolt was started in the given project directory.")
+    private Path directory;
+
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
@@ -89,6 +92,7 @@ public final class ResolveCommand implements Runnable {
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         ProgressWriter progress = CommandProgress.human(spec);
+        Path projectDirectory = projectDirectory();
         try {
             if (workspace) {
                 if (!repositoryOverlays.isEmpty() || noLocalOverlays) {
@@ -100,7 +104,7 @@ public final class ResolveCommand implements Runnable {
                 ResolveResult result = timings.measure(
                         "resolve workspace",
                         () -> workspaceResolveService.resolve(
-                                workingDirectory,
+                                projectDirectory,
                                 cacheRoot,
                                 locked,
                                 offline),
@@ -112,12 +116,12 @@ public final class ResolveCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(projectDirectory.resolve("zolt.toml")));
             progress.start("Resolving dependencies");
             ResolveResult result = timings.measure(
                     "resolve graph",
                     () -> resolveService.resolve(
-                            workingDirectory,
+                            projectDirectory,
                             config,
                             cacheRoot,
                             locked,
@@ -129,8 +133,12 @@ public final class ResolveCommand implements Runnable {
         } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "resolve", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "resolve", projectDirectory, timingOptions, timings);
         }
+    }
+
+    private Path projectDirectory() {
+        return directory == null ? workingDirectory : directory;
     }
 
     private ResolveOptions resolveOptions() {

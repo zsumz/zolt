@@ -20,6 +20,16 @@ final class ResolveCommandTest {
     private Path tempDir;
 
     @Test
+    void resolveHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "resolve");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void resolveReadsConfigWritesLockfileAndPrintsSummary() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
@@ -43,6 +53,30 @@ final class ResolveCommandTest {
             assertTrue(result.stdout().contains("Conflicts 0"));
             assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
             assertEquals("", result.stderr());
+            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
+    void resolveAcceptsVisibleProjectDirectoryOption() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("directory-demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+
+            CommandResult result = execute(
+                    "resolve",
+                    "--directory", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, result.exitCode());
+            assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
     }
