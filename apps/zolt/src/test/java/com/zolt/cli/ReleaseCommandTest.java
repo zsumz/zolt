@@ -70,6 +70,16 @@ final class ReleaseCommandTest {
     }
 
     @Test
+    void releaseVerifyUsageShowsDirectoryOption() {
+        CommandResult result = execute("release-verify", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void releaseVerifyReportsMissingArchiveClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -96,7 +106,7 @@ final class ReleaseCommandTest {
 
         CommandResult result = execute(
                 "release-verify",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "dist/missing.tar.gz");
 
         assertEquals(1, result.exitCode());

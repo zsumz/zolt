@@ -11,6 +11,7 @@ import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.List;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -27,8 +28,8 @@ public final class ReleaseVerifyCommand implements Runnable {
     @Option(names = "--work-dir", description = "Directory for unpacked verification work.")
     private Path workDirectory;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -45,15 +46,16 @@ public final class ReleaseVerifyCommand implements Runnable {
     @Override
     public void run() {
         ProgressWriter progress = CommandProgress.human(spec);
+        Path projectRoot = projectDirectory.path();
         try {
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             List<Path> resolvedArchives = archives.stream()
-                    .map(path -> workingDirectory.resolve(path).normalize())
+                    .map(path -> projectRoot.resolve(path).normalize())
                     .toList();
             progress.start("Verifying release archives");
             ReleaseVerificationResult result = releaseVerificationService.verify(
                     resolvedArchives,
-                    workingDirectory.resolve(effectiveWorkDirectory(config)).normalize(),
+                    projectRoot.resolve(effectiveWorkDirectory(config)).normalize(),
                     config.project().version());
             for (ReleaseVerificationResult.VerifiedArchive archive : result.archives()) {
                 spec.commandLine().getOut().println("Verified release archive " + archive.archivePath());
