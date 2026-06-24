@@ -42,9 +42,10 @@ final class ComplexityBudgetSupport {
             if (entry.isEmpty()) {
                 continue;
             }
-            AllowlistEntry previous = entries.put(entry.orElseThrow().path(), entry.orElseThrow());
+            AllowlistEntry allowlistEntry = entry.orElseThrow();
+            AllowlistEntry previous = entries.put(allowlistEntry.path(), allowlistEntry);
             if (previous != null) {
-                throw new IllegalArgumentException("Duplicate complexity allowlist entry: " + entry.orElseThrow().path());
+                throw new IllegalArgumentException("Duplicate complexity allowlist entry: " + allowlistEntry.path());
             }
         }
         return entries;

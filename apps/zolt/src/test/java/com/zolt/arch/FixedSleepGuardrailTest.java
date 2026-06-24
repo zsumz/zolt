@@ -136,10 +136,11 @@ final class FixedSleepGuardrailTest {
             if (entry.isEmpty()) {
                 continue;
             }
-            AllowlistEntry previous = entries.put(entry.orElseThrow().path(), entry.orElseThrow());
+            AllowlistEntry allowlistEntry = entry.orElseThrow();
+            AllowlistEntry previous = entries.put(allowlistEntry.path(), allowlistEntry);
             if (previous != null) {
                 throw new IllegalArgumentException("Duplicate fixed-sleep allowlist entry: "
-                        + entry.orElseThrow().path());
+                        + allowlistEntry.path());
             }
         }
         return entries;
