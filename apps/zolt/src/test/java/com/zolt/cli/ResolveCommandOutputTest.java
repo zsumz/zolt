@@ -42,6 +42,11 @@ final class ResolveCommandOutputTest {
                     "resolve",
                     "--cwd", projectDir.toString(),
                     "--cache-root", tempDir.resolve("cache").toString());
+            CommandResult auto = execute(
+                    "--progress=auto",
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
             CommandResult disabled = execute(
                     "--progress=always",
                     "--no-progress",
@@ -57,6 +62,9 @@ final class ResolveCommandOutputTest {
             assertEquals(0, never.exitCode());
             assertEquals("", never.stderr());
             assertTrue(never.stdout().contains("Resolved 1 packages"));
+            assertEquals(0, auto.exitCode());
+            assertEquals("", auto.stderr());
+            assertTrue(auto.stdout().contains("Resolved 1 packages"));
             assertEquals(0, disabled.exitCode());
             assertEquals("", disabled.stderr());
         }
