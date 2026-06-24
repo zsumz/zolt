@@ -155,22 +155,15 @@ final class PublicApiSurfaceTest {
 
     private static Set<String> publicTypes() throws IOException {
         Set<String> types = new TreeSet<>();
-        for (Path sourceRoot : publicSourceRoots()) {
-            try (var paths = Files.walk(sourceRoot)) {
-                for (Path javaFile : paths
-                        .filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .toList()) {
-                    String source = Files.readString(javaFile);
-                    Matcher packageMatcher = PACKAGE_PATTERN.matcher(source);
-                    if (!packageMatcher.find()) {
-                        continue;
-                    }
-                    Matcher typeMatcher = PUBLIC_TYPE_PATTERN.matcher(source);
-                    while (typeMatcher.find()) {
-                        types.add(packageMatcher.group(1) + "." + typeMatcher.group(1));
-                    }
-                }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(publicSourceRoots())) {
+            String source = Files.readString(javaFile);
+            Matcher packageMatcher = PACKAGE_PATTERN.matcher(source);
+            if (!packageMatcher.find()) {
+                continue;
+            }
+            Matcher typeMatcher = PUBLIC_TYPE_PATTERN.matcher(source);
+            while (typeMatcher.find()) {
+                types.add(packageMatcher.group(1) + "." + typeMatcher.group(1));
             }
         }
         return types;

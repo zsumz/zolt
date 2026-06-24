@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -61,20 +60,14 @@ final class ArchitectureCommandAttributeKeyTest {
 
     private static List<RawCommandAttributeKey> findRawCommandAttributeKeys(Path sourceRoot) throws IOException {
         List<RawCommandAttributeKey> violations = new ArrayList<>();
-        try (Stream<Path> paths = Files.walk(sourceRoot)) {
-            List<Path> javaFiles = paths
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .sorted()
-                    .toList();
-            for (Path javaFile : javaFiles) {
-                String source = Files.readString(javaFile);
-                Matcher matcher = RAW_COMMAND_ATTRIBUTE_KEY_PATTERN.matcher(source);
-                while (matcher.find()) {
-                    violations.add(new RawCommandAttributeKey(
-                            javaFile,
-                            lineNumber(source, matcher.start()),
-                            matcher.group(1)));
-                }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(List.of(sourceRoot))) {
+            String source = Files.readString(javaFile);
+            Matcher matcher = RAW_COMMAND_ATTRIBUTE_KEY_PATTERN.matcher(source);
+            while (matcher.find()) {
+                violations.add(new RawCommandAttributeKey(
+                        javaFile,
+                        lineNumber(source, matcher.start()),
+                        matcher.group(1)));
             }
         }
         return List.copyOf(violations);

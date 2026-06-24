@@ -1,7 +1,6 @@
 package com.zolt.arch;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Stream;
 
 final class PackageGraph {
     private final Map<String, Set<String>> edges;
@@ -27,28 +25,17 @@ final class PackageGraph {
 
     static PackageGraph scan(List<Path> sourceRoots) throws IOException {
         Map<String, Set<String>> edges = new TreeMap<>();
-        for (Path sourceRoot : sourceRoots) {
-            if (!Files.isDirectory(sourceRoot)) {
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(sourceRoots)) {
+            SourceFile source = SourceFileParser.parse(javaFile);
+            if (source.packageName().isBlank()) {
                 continue;
             }
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                List<Path> javaFiles = paths
-                        .filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .toList();
-                for (Path javaFile : javaFiles) {
-                    SourceFile source = SourceFileParser.parse(javaFile);
-                    if (source.packageName().isBlank()) {
-                        continue;
-                    }
-                    edges.computeIfAbsent(source.packageName(), ignored -> new TreeSet<>());
-                    for (String importedPackage : source.importedPackages()) {
-                        if (!source.packageName().equals(importedPackage)) {
-                            edges.computeIfAbsent(source.packageName(), ignored -> new TreeSet<>())
-                                    .add(importedPackage);
-                            edges.computeIfAbsent(importedPackage, ignored -> new TreeSet<>());
-                        }
-                    }
+            edges.computeIfAbsent(source.packageName(), ignored -> new TreeSet<>());
+            for (String importedPackage : source.importedPackages()) {
+                if (!source.packageName().equals(importedPackage)) {
+                    edges.computeIfAbsent(source.packageName(), ignored -> new TreeSet<>())
+                            .add(importedPackage);
+                    edges.computeIfAbsent(importedPackage, ignored -> new TreeSet<>());
                 }
             }
         }
