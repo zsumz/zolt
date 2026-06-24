@@ -3,6 +3,7 @@ package com.zolt.arch;
 import static com.zolt.arch.ComplexityBudgetSupport.readAllowlist;
 import static com.zolt.arch.ComplexityBudgetSupport.readBudgets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.arch.ComplexityBudgetSupport.AllowlistEntry;
 import com.zolt.arch.ComplexityBudgetSupport.Budget;
@@ -33,6 +34,16 @@ final class ComplexityBudgetParserTest {
     }
 
     @Test
+    void budgetFileParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path budgets = tempDir.resolve("budgets.txt");
+        Files.writeString(budgets, "apps/*/src/main/java|45|30|10\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readBudgets(budgets));
+
+        assertEquals("Invalid complexity budget line: apps/*/src/main/java|45|30|10", exception.getMessage());
+    }
+
+    @Test
     void allowlistParserReadsTrackedExceptions(@TempDir Path tempDir) throws IOException {
         Path allowlist = tempDir.resolve("allowlist.txt");
         Files.writeString(allowlist, """
@@ -52,5 +63,32 @@ final class ComplexityBudgetParserTest {
                                 "",
                                 "legacy coordinator")),
                 readAllowlist(allowlist));
+    }
+
+    @Test
+    void allowlistParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, "modules/zolt-build/src/main/java/com/zolt/build/Large.java|50|35|12|22|\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Invalid complexity allowlist line: modules/zolt-build/src/main/java/com/zolt/build/Large.java|50|35|12|22|",
+                exception.getMessage());
+    }
+
+    @Test
+    void allowlistParserRejectsDuplicatePaths(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, """
+                modules/zolt-build/src/main/java/com/zolt/build/Large.java|50|35|12|22||legacy coordinator
+                modules/zolt-build/src/main/java/com/zolt/build/Large.java|51|36|13|23||still large
+                """);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Duplicate complexity allowlist entry: modules/zolt-build/src/main/java/com/zolt/build/Large.java",
+                exception.getMessage());
     }
 }

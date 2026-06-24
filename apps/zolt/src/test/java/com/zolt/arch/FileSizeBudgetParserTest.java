@@ -3,6 +3,7 @@ package com.zolt.arch;
 import static com.zolt.arch.FileSizeBudgetSupport.readAllowlist;
 import static com.zolt.arch.FileSizeBudgetSupport.readBudgets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.arch.FileSizeBudgetSupport.AllowlistEntry;
 import com.zolt.arch.FileSizeBudgetSupport.Budget;
@@ -33,6 +34,16 @@ final class FileSizeBudgetParserTest {
     }
 
     @Test
+    void budgetFileParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path budgets = tempDir.resolve("budgets.txt");
+        Files.writeString(budgets, "apps/*/src/main/java|350\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readBudgets(budgets));
+
+        assertEquals("Invalid file-size budget line: apps/*/src/main/java|350", exception.getMessage());
+    }
+
+    @Test
     void allowlistParserReadsTrackedExceptions(@TempDir Path tempDir) throws IOException {
         Path allowlist = tempDir.resolve("allowlist.txt");
         Files.writeString(allowlist, """
@@ -48,5 +59,32 @@ final class FileSizeBudgetParserTest {
                                 700,
                                 "")),
                 readAllowlist(allowlist));
+    }
+
+    @Test
+    void allowlistParserRejectsMalformedLines(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, "modules/zolt-build/src/test/java/com/zolt/build/LargeTest.java|700\n");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Invalid file-size allowlist line: modules/zolt-build/src/test/java/com/zolt/build/LargeTest.java|700",
+                exception.getMessage());
+    }
+
+    @Test
+    void allowlistParserRejectsDuplicatePaths(@TempDir Path tempDir) throws IOException {
+        Path allowlist = tempDir.resolve("allowlist.txt");
+        Files.writeString(allowlist, """
+                modules/zolt-build/src/test/java/com/zolt/build/LargeTest.java|700|
+                modules/zolt-build/src/test/java/com/zolt/build/LargeTest.java|701|
+                """);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> readAllowlist(allowlist));
+
+        assertEquals(
+                "Duplicate file-size allowlist entry: modules/zolt-build/src/test/java/com/zolt/build/LargeTest.java",
+                exception.getMessage());
     }
 }
