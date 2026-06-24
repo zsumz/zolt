@@ -1,0 +1,183 @@
+package com.zolt.arch;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
+
+final class FileSizeBudgetSupport {
+    private FileSizeBudgetSupport() {}
+
+    static List<Budget> readBudgets(Path path) throws IOException {
+        List<Budget> budgets = new ArrayList<>();
+        for (String line : Files.readAllLines(path)) {
+            Optional<Budget> budget = parseBudgetLine(line);
+            budget.ifPresent(budgets::add);
+        }
+        return budgets;
+    }
+
+    static Map<String, AllowlistEntry> readAllowlist(Path path) throws IOException {
+        Map<String, AllowlistEntry> entries = new LinkedHashMap<>();
+        for (String line : Files.readAllLines(path)) {
+            Optional<AllowlistEntry> entry = parseAllowlistLine(line);
+            if (entry.isEmpty()) {
+                continue;
+            }
+            AllowlistEntry previous = entries.put(entry.orElseThrow().path(), entry.orElseThrow());
+            if (previous != null) {
+                throw new IllegalArgumentException("Duplicate file-size allowlist entry: " + entry.orElseThrow().path());
+            }
+        }
+        return entries;
+    }
+
+    static Map<String, SourceFileSize> filesAboveSoftThreshold(List<Budget> budgets) throws IOException {
+        Map<String, SourceFileSize> files = new LinkedHashMap<>();
+        for (Budget budget : budgets) {
+            for (SourceFileSize fileSize : sourceFileSizes(budget)) {
+                if (fileSize.lines() > budget.softThreshold()) {
+                    files.put(fileSize.path(), fileSize);
+                }
+            }
+        }
+        return files;
+    }
+
+    static Map<String, SourceFileSize> filesAboveHardThreshold(List<Budget> budgets) throws IOException {
+        Map<String, SourceFileSize> files = new LinkedHashMap<>();
+        for (Budget budget : budgets) {
+            for (SourceFileSize fileSize : sourceFileSizes(budget)) {
+                if (fileSize.lines() > budget.hardThreshold()) {
+                    files.put(fileSize.path(), fileSize);
+                }
+            }
+        }
+        return files;
+    }
+
+    static List<SourceFileSize> sourceFileSizes(Budget budget) throws IOException {
+        List<SourceFileSize> fileSizes = new ArrayList<>();
+        for (Path sourceRoot : sourceRoots(budget.rootPattern())) {
+            try (Stream<Path> paths = Files.walk(sourceRoot)) {
+                paths.filter(path -> path.toString().endsWith(".java"))
+                        .sorted()
+                        .map(path -> new SourceFileSize(RepositoryPaths.displayPath(path), lineCount(path)))
+                        .forEach(fileSizes::add);
+            }
+        }
+        fileSizes.sort(Comparator.comparing(SourceFileSize::path));
+        return List.copyOf(fileSizes);
+    }
+
+    static void writeLines(Path path, int count) throws IOException {
+        Files.createDirectories(path.getParent());
+        List<String> lines = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            lines.add("// line " + index);
+        }
+        Files.write(path, lines);
+    }
+
+    static String describe(List<String> values) {
+        StringBuilder description = new StringBuilder();
+        for (String value : values) {
+            description.append("- ").append(value).append('\n');
+        }
+        return description.toString();
+    }
+
+    private static Optional<Budget> parseBudgetLine(String line) {
+        String trimmed = line.trim();
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            return Optional.empty();
+        }
+        String[] parts = trimmed.split("\\|");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid file-size budget line: " + line);
+        }
+        return Optional.of(new Budget(
+                Path.of(parts[0]),
+                Integer.parseInt(parts[1]),
+                Integer.parseInt(parts[2])));
+    }
+
+    private static Optional<AllowlistEntry> parseAllowlistLine(String line) {
+        String trimmed = line.trim();
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            return Optional.empty();
+        }
+        String[] parts = trimmed.split("\\|");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid file-size allowlist line: " + line);
+        }
+        return Optional.of(new AllowlistEntry(parts[0], Integer.parseInt(parts[1]), parts[2]));
+    }
+
+    private static List<Path> sourceRoots(Path rootPattern) throws IOException {
+        Path resolvedPattern = resolveRootPattern(rootPattern);
+        if (!containsWildcard(resolvedPattern)) {
+            return Files.isDirectory(resolvedPattern) ? List.of(resolvedPattern) : List.of();
+        }
+        Path base = wildcardBase(resolvedPattern);
+        if (!Files.isDirectory(base)) {
+            return List.of();
+        }
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + resolvedPattern);
+        try (Stream<Path> paths = Files.walk(base)) {
+            return paths
+                    .filter(Files::isDirectory)
+                    .map(Path::normalize)
+                    .filter(matcher::matches)
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    private static Path resolveRootPattern(Path rootPattern) {
+        if (rootPattern.isAbsolute()) {
+            return rootPattern.normalize();
+        }
+        return RepositoryPaths.root().resolve(rootPattern).normalize();
+    }
+
+    private static boolean containsWildcard(Path path) {
+        return path.toString().contains("*");
+    }
+
+    private static Path wildcardBase(Path pattern) {
+        Path base = pattern.getRoot();
+        for (Path part : pattern) {
+            if (containsWildcard(part)) {
+                break;
+            }
+            base = base == null ? part : base.resolve(part);
+        }
+        return base == null ? Path.of(".") : base;
+    }
+
+    private static int lineCount(Path path) {
+        try (Stream<String> lines = Files.lines(path)) {
+            return Math.toIntExact(lines.count());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not count lines in " + path, exception);
+        }
+    }
+
+    record Budget(Path rootPattern, int softThreshold, int hardThreshold) {
+    }
+
+    record SourceFileSize(String path, int lines) {
+    }
+
+    record AllowlistEntry(String path, int maxLines, String followUp) {
+    }
+}
