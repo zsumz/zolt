@@ -77,6 +77,13 @@ public final class CommandHumanOutput {
         out.println(label + ": " + value);
     }
 
+    public void status(String label, String marker) {
+        if (quiet) {
+            return;
+        }
+        out.println(label + ": " + styleStatus(marker));
+    }
+
     public void next(String message) {
         if (quiet) {
             return;

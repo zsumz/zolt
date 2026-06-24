@@ -40,6 +40,30 @@ final class SelfCheckCommandTest {
     }
 
     @Test
+    void selfCheckUsesModernHumanOutputControls() {
+        Path colorProject = tempDir.resolve("color");
+        Path quietProject = tempDir.resolve("quiet");
+
+        CommandResult color = execute(
+                "--color=always",
+                "self-check",
+                "--directory", colorProject.toString(),
+                "--cache-root", tempDir.resolve("color-cache").toString());
+        CommandResult quiet = execute(
+                "--quiet",
+                "self-check",
+                "--directory", quietProject.toString(),
+                "--cache-root", tempDir.resolve("quiet-cache").toString());
+
+        assertEquals(1, color.exitCode());
+        assertTrue(color.stdout().contains("Self-check status: \u001B[31merror\u001B[0m"));
+        assertTrue(color.stdout().contains("error: config - Could not read zolt.toml"));
+        assertEquals(1, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        assertTrue(quiet.stderr().contains("Self-check failed."));
+    }
+
+    @Test
     void selfCheckKeepsHiddenCwdCompatibility() {
         Path projectDir = tempDir.resolve("hidden-cwd");
 

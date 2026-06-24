@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.selfhost.SelfCheckResult;
@@ -81,10 +82,11 @@ public final class SelfCheckCommand implements Runnable {
     }
 
     private void printSelfCheckStatus(SelfCheckResult result) {
-        spec.commandLine().getOut().println("Self-check status: " + (result.ok() ? "ok" : "error"));
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.status("Self-check status", result.ok() ? "ok" : "error");
         for (SelfCheckResult.SelfCheckStep step : result.steps()) {
             String marker = step.ok() ? "ok" : "error";
-            spec.commandLine().getOut().println(marker + ": " + step.name() + " - " + step.message());
+            output.line(marker + ": " + step.name() + " - " + step.message());
         }
     }
 }
