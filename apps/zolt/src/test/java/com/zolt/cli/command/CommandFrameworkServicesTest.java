@@ -7,6 +7,50 @@ import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
     @Test
+    void dependencyEditCommandServicesOwnsDefaultDependencyEditWiring() {
+        CommandDependencyEditServices services = CommandFrameworkServices.dependencyEditCommandServices();
+
+        assertNotNull(services.coordinateParser());
+        assertNotNull(services.tomlParser());
+        assertNotNull(services.tomlWriter());
+        assertNotNull(services.resolveService());
+    }
+
+    @Test
+    void dependencyEditCommandServicesRequiresEveryCollaborator() {
+        CommandDependencyEditServices services = CommandFrameworkServices.dependencyEditCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandDependencyEditServices(
+                        null,
+                        services.tomlParser(),
+                        services.tomlWriter(),
+                        services.resolveService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandDependencyEditServices(
+                        services.coordinateParser(),
+                        null,
+                        services.tomlWriter(),
+                        services.resolveService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandDependencyEditServices(
+                        services.coordinateParser(),
+                        services.tomlParser(),
+                        null,
+                        services.resolveService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandDependencyEditServices(
+                        services.coordinateParser(),
+                        services.tomlParser(),
+                        services.tomlWriter(),
+                        null));
+    }
+
+    @Test
     void resolveCommandServicesOwnsDefaultResolveWiring() {
         CommandResolveServices services = CommandFrameworkServices.resolveCommandServices();
 

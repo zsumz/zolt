@@ -59,7 +59,15 @@ public final class AddCommand implements Runnable {
     private CommandSpec spec;
 
     public AddCommand() {
-        this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+        this(CommandFrameworkServices.dependencyEditCommandServices());
+    }
+
+    private AddCommand(CommandDependencyEditServices services) {
+        this(
+                services.coordinateParser(),
+                services.tomlParser(),
+                services.tomlWriter(),
+                services.resolveService());
     }
 
     AddCommand(

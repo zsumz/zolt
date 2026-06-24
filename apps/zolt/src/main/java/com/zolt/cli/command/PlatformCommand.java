@@ -67,7 +67,15 @@ public final class PlatformCommand implements Runnable {
         private CommandSpec spec;
 
         public AddCommand() {
-            this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+            this(CommandFrameworkServices.dependencyEditCommandServices());
+        }
+
+        private AddCommand(CommandDependencyEditServices services) {
+            this(
+                    services.coordinateParser(),
+                    services.tomlParser(),
+                    services.tomlWriter(),
+                    services.resolveService());
         }
 
         AddCommand(
@@ -221,7 +229,15 @@ public final class PlatformCommand implements Runnable {
         private CommandSpec spec;
 
         public RemoveCommand() {
-            this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+            this(CommandFrameworkServices.dependencyEditCommandServices());
+        }
+
+        private RemoveCommand(CommandDependencyEditServices services) {
+            this(
+                    services.coordinateParser(),
+                    services.tomlParser(),
+                    services.tomlWriter(),
+                    services.resolveService());
         }
 
         RemoveCommand(

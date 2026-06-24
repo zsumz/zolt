@@ -50,7 +50,15 @@ public final class RemoveCommand implements Runnable {
     private CommandSpec spec;
 
     public RemoveCommand() {
-        this(new CoordinateParser(), new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+        this(CommandFrameworkServices.dependencyEditCommandServices());
+    }
+
+    private RemoveCommand(CommandDependencyEditServices services) {
+        this(
+                services.coordinateParser(),
+                services.tomlParser(),
+                services.tomlWriter(),
+                services.resolveService());
     }
 
     RemoveCommand(

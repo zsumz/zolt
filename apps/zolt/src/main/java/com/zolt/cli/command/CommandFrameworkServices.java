@@ -9,6 +9,7 @@ import com.zolt.build.TestRunService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.maven.CoordinateParser;
 import com.zolt.quarkus.QuarkusBuildAugmenter;
 import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
 import com.zolt.quarkus.QuarkusFrameworkTestRunner;
@@ -16,6 +17,8 @@ import com.zolt.quarkus.QuarkusPackageAugmenter;
 import com.zolt.quarkus.QuarkusPackagePlanRules;
 import com.zolt.quarkus.QuarkusRunAugmenter;
 import com.zolt.resolve.ResolveService;
+import com.zolt.toml.ZoltTomlParser;
+import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceNativeBuildService;
 import com.zolt.workspace.WorkspacePackageService;
@@ -31,6 +34,14 @@ final class CommandFrameworkServices {
 
     static ResolveService resolveService() {
         return new ResolveService(new QuarkusDependencyRequestPlanner());
+    }
+
+    static CommandDependencyEditServices dependencyEditCommandServices() {
+        return new CommandDependencyEditServices(
+                new CoordinateParser(),
+                new ZoltTomlParser(),
+                new ZoltTomlWriter(),
+                resolveService());
     }
 
     static WorkspaceResolveService workspaceResolveService() {
@@ -157,6 +168,19 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandDependencyEditServices(
+        CoordinateParser coordinateParser,
+        ZoltTomlParser tomlParser,
+        ZoltTomlWriter tomlWriter,
+        ResolveService resolveService) {
+    CommandDependencyEditServices {
+        Objects.requireNonNull(coordinateParser, "coordinateParser");
+        Objects.requireNonNull(tomlParser, "tomlParser");
+        Objects.requireNonNull(tomlWriter, "tomlWriter");
+        Objects.requireNonNull(resolveService, "resolveService");
     }
 }
 
