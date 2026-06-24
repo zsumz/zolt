@@ -4,7 +4,6 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.framework.FrameworkPackageAugmenter;
-import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
@@ -16,8 +15,7 @@ import java.util.Optional;
 
 public final class PackageService {
     private final BuildService buildService;
-    private final ResolveService resolveService;
-    private final ZoltLockfileReader lockfileReader;
+    private final SpringBootPackageToolingPreparer packageToolingPreparer;
     private final PackagePlanService packagePlanService;
     private final PackageEvidenceManifestWriter evidenceManifestWriter;
     private final PackagePrimaryArtifactAssembler primaryArtifactAssembler;
@@ -95,8 +93,7 @@ public final class PackageService {
             PackagePlanService packagePlanService,
             PackageEvidenceManifestWriter evidenceManifestWriter) {
         this.buildService = buildService;
-        this.resolveService = resolveService;
-        this.lockfileReader = lockfileReader;
+        this.packageToolingPreparer = new SpringBootPackageToolingPreparer(resolveService, lockfileReader);
         this.packagePlanService = packagePlanService == null ? new PackagePlanService() : packagePlanService;
         this.evidenceManifestWriter = evidenceManifestWriter;
         this.primaryArtifactAssembler = new PackagePrimaryArtifactAssembler(
@@ -121,35 +118,7 @@ public final class PackageService {
     }
 
     public void preparePackageToolingIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
-        Path projectRoot = projectRoot(projectDirectory);
-        if (!isSpringBootArchive(config.packageSettings().mode())) {
-            return;
-        }
-        Path lockfilePath = projectRoot.resolve("zolt.lock");
-        if (!Files.isRegularFile(lockfilePath)) {
-            return;
-        }
-        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        if (containsSpringBootLoader(lockfile) || !canResolveSpringBootLoader(config)) {
-            return;
-        }
-        resolveService.resolve(projectRoot, config, cacheRoot);
-    }
-
-    private static boolean containsSpringBootLoader(ZoltLockfile lockfile) {
-        return lockfile.packages().stream()
-                .anyMatch(lockPackage -> lockPackage.packageId().equals(SpringBootLoaderSupport.SPRING_BOOT_LOADER_PACKAGE)
-                        && lockPackage.scope().entersMainRuntimeClasspath());
-    }
-
-    private static boolean canResolveSpringBootLoader(ProjectConfig config) {
-        return !config.platforms().isEmpty()
-                || config.dependencies().containsKey(SpringBootLoaderSupport.SPRING_BOOT_LOADER_PACKAGE.toString())
-                || config.apiDependencies().containsKey(SpringBootLoaderSupport.SPRING_BOOT_LOADER_PACKAGE.toString());
-    }
-
-    private static boolean isSpringBootArchive(PackageMode mode) {
-        return mode == PackageMode.SPRING_BOOT || mode == PackageMode.SPRING_BOOT_WAR;
+        packageToolingPreparer.prepareIfNeeded(projectDirectory, config, cacheRoot);
     }
 
     public PackageResult packageJar(
