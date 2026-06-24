@@ -19,6 +19,8 @@ final class ResolverFixtureMatrixDocumentationTest {
         assertTrue(matrix.contains("Parents and BOMs"));
         assertTrue(matrix.contains("Relocation"));
         assertTrue(matrix.contains("Repository metadata and cache integrity"));
+        assertTrue(matrix.contains("Generated Graph And Timeout Gates"));
+        assertTrue(matrix.contains("DependencyGraphTraverserGeneratedGraphTest"));
         assertTrue(matrix.contains("Update golden output only with an implementation followUp or explicit reviewer note."));
     }
 
