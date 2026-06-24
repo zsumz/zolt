@@ -16,6 +16,16 @@ final class ReleaseCommandTest {
     private Path tempDir;
 
     @Test
+    void releaseArchiveUsageShowsDirectoryOption() {
+        CommandResult result = execute("release-archive", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void releaseArchiveAssemblesArchiveFromNativeBinary() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -27,7 +37,7 @@ final class ReleaseCommandTest {
         CommandResult result = execute(
                 "--progress=always",
                 "release-archive",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--target", "linux-x64");
 
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
