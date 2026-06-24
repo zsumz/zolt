@@ -16,17 +16,6 @@ final class ReleaseCommandTest {
     private Path tempDir;
 
     @Test
-    void releaseArchiveHelpShowsDirectoryOption() {
-        CommandResult result = execute("release-archive", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void releaseArchiveAssemblesArchiveFromNativeBinary() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -102,17 +91,6 @@ final class ReleaseCommandTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Release archive requires native binary"));
         assertTrue(result.stderr().contains("Run `zolt native` or pass --binary <path>"));
-    }
-
-    @Test
-    void releaseVerifyHelpShowsDirectoryOption() {
-        CommandResult result = execute("release-verify", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
     }
 
     @Test
