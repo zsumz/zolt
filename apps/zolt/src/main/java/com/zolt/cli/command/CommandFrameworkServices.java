@@ -24,6 +24,7 @@ import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceTestService;
 import com.zolt.workspace.WorkspaceResolveService;
 import java.util.List;
+import java.util.Objects;
 
 final class CommandFrameworkServices {
     private CommandFrameworkServices() {}
@@ -50,6 +51,17 @@ final class CommandFrameworkServices {
 
     static PackagePlanService packagePlanService() {
         return new PackagePlanService(List.of(new QuarkusPackagePlanRules()));
+    }
+
+    static CommandPackageServices packageCommandServices() {
+        ResolveService resolveService = resolveService();
+        PackagePlanService packagePlanService = packagePlanService();
+        FrameworkPackageAugmenter packageAugmenter = new QuarkusPackageAugmenter();
+        return new CommandPackageServices(
+                packagePlanService,
+                new PackageService(resolveService, packageAugmenter, packagePlanService),
+                new BuildService(resolveService),
+                new WorkspacePackageService(resolveService, packageAugmenter, packagePlanService));
     }
 
     static RunService runService() {
@@ -110,5 +122,18 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandPackageServices(
+        PackagePlanService packagePlanService,
+        PackageService packageService,
+        BuildService buildService,
+        WorkspacePackageService workspacePackageService) {
+    CommandPackageServices {
+        Objects.requireNonNull(packagePlanService, "packagePlanService");
+        Objects.requireNonNull(packageService, "packageService");
+        Objects.requireNonNull(buildService, "buildService");
+        Objects.requireNonNull(workspacePackageService, "workspacePackageService");
     }
 }
