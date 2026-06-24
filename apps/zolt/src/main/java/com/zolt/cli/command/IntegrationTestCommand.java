@@ -80,8 +80,8 @@ public final class IntegrationTestCommand implements Runnable {
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
     private Path reportsDir;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -114,6 +114,7 @@ public final class IntegrationTestCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             TestSelection testSelection = TestSelection.fromCli(
                     testSelectors,
@@ -124,6 +125,7 @@ public final class IntegrationTestCommand implements Runnable {
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             if (workspace) {
                 runWorkspaceIntegrationTests(
+                        projectRoot,
                         timings,
                         testSelection,
                         testJvmArguments,
@@ -131,7 +133,7 @@ public final class IntegrationTestCommand implements Runnable {
                         requestedTestEvents);
                 return;
             }
-            runSingleProjectIntegrationTests(timings, testSelection, testJvmArguments, requestedTestEvents);
+            runSingleProjectIntegrationTests(projectRoot, timings, testSelection, testJvmArguments, requestedTestEvents);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -146,24 +148,25 @@ public final class IntegrationTestCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "integration-test", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "integration-test", projectRoot, timingOptions, timings);
         }
     }
 
     private void runWorkspaceIntegrationTests(
+            Path projectRoot,
             TimingRecorder timings,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
-        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         WorkspaceTestResult result = timings.measure(
                 "integration-test workspace",
                 () -> {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace integration tests",
                             () -> workspaceTestService.planTests(
-                                    workingDirectory,
+                                    projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
@@ -203,14 +206,15 @@ public final class IntegrationTestCommand implements Runnable {
     }
 
     private void runSingleProjectIntegrationTests(
+            Path projectRoot,
             TimingRecorder timings,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             List<String> requestedTestEvents) {
         ProjectConfig config = timings.measure(
                 "config read",
-                () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+        lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         ProjectConfig integrationConfig = config.withBuildSettings(config.build().asIntegrationTestBuild());
         TestReportSettings reportSettings = TestReportSettings.reportsDirectory(integrationReportsDir(config));
         TestRunResult result = timings.measure(
@@ -222,7 +226,7 @@ public final class IntegrationTestCommand implements Runnable {
                                 BuildResultWithClasspaths buildResult = timings.measure(
                                         "build integration-test inputs",
                                         () -> testRunService.buildTestInputs(
-                                                workingDirectory,
+                                                projectRoot,
                                                 integrationConfig,
                                                 cacheRoot),
                                         resultWithClasspaths -> CommandBuildAttributes.build(
@@ -230,7 +234,7 @@ public final class IntegrationTestCommand implements Runnable {
                                 TestCompileResult testCompileResult = timings.measure(
                                         "compile integration-test sources",
                                         () -> testRunService.compileTests(
-                                                workingDirectory,
+                                                projectRoot,
                                                 integrationConfig,
                                                 buildResult.classpaths(),
                                                 buildResult.buildResult()),
@@ -244,7 +248,7 @@ public final class IntegrationTestCommand implements Runnable {
                     return timings.measure(
                             "execute integration tests",
                             () -> testRunService.runCompiledTests(
-                                    workingDirectory,
+                                    projectRoot,
                                     integrationConfig,
                                     compileResult.classpaths(),
                                     compileResult.testCompileResult(),

@@ -18,6 +18,16 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
     private Path tempDir;
 
     @Test
+    void integrationTestHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "integration-test");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void integrationTestUsesConfiguredRootsAndSeparateReportsByDefault() throws IOException {
         Path projectDir = tempDir.resolve("integration-demo");
         Path cacheRoot = tempDir.resolve("cache");
@@ -71,6 +81,44 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
         assertTrue(Files.exists(projectDir.resolve("target/it-classes/it.properties")));
         assertTrue(Files.exists(projectDir.resolve(".zolt/build/integration-test-reports/TEST-fake-console.xml")));
         assertFalse(Files.exists(projectDir.resolve("target/test-classes/com/example/AppTest.class")));
+    }
+
+    @Test
+    void integrationTestAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-integration-demo");
+        Path cacheRoot = tempDir.resolve("cache-directory");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "directory-integration-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [dependencies]
+
+                [test.dependencies]
+
+                [integrationTest]
+                sources = ["src/it/java"]
+                output = "target/it-classes"
+                """.formatted(currentJavaMajorVersion()));
+        writeJUnitConsoleLockfile(projectDir);
+        Path integrationTest = projectDir.resolve("src/it/java/com/example/AppIT.java");
+        Files.createDirectories(integrationTest.getParent());
+        Files.writeString(integrationTest, "package com.example; public final class AppIT {}\n");
+
+        CommandResult result = execute(
+                "integration-test",
+                "--directory", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("fake console"));
+        assertTrue(result.stdout().contains("Integration tests passed"));
+        assertTrue(Files.exists(projectDir.resolve("target/it-classes/com/example/AppIT.class")));
     }
 
     private static String currentJavaMajorVersion() {
