@@ -84,6 +84,7 @@ final class BuildCommandTest {
                 """);
 
         CommandResult result = execute(
+                "--progress=always",
                 "build",
                 "--cwd", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
@@ -92,6 +93,8 @@ final class BuildCommandTest {
         assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
         assertTrue(result.stdout().contains("Compiled 1 main source files"));
         assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
+        assertTrue(result.stderr().contains("Building project..."));
+        assertTrue(result.stderr().contains("Built 1 main source files"));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }

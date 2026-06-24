@@ -1,6 +1,8 @@
 package com.zolt.cli.command;
 
 import com.zolt.build.PackageException;
+import com.zolt.cli.CommandProgress;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.publish.PublishContext;
 import com.zolt.publish.PublishDryRunFormatter;
 import com.zolt.publish.PublishDryRunPlan;
@@ -51,21 +53,26 @@ public final class PublishCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             if (context != null && !dryRun) {
                 CommandFailures.printUser(spec, "Publish context policy is currently supported only with --dry-run.");
                 return 1;
             }
             if (dryRun) {
+                progress.start("Preparing publish dry run");
                 PublishDryRunPlan plan = dryRunService.plan(workingDirectory);
                 if (context == PublishContext.RELEASE) {
                     plan = releasePolicyService.apply(workingDirectory, plan);
                 }
                 CommandOutput.printAndFlush(spec, PublishDryRunFormatter.text(plan));
+                progress.result("Prepared publish dry run");
                 return plan.ok() ? 0 : 1;
             }
+            progress.start("Publishing artifacts");
             PublishUploadResult result = uploadService.upload(workingDirectory);
             CommandOutput.printAndFlush(spec, PublishUploadFormatter.text(result));
+            progress.result("Published artifacts");
             return 0;
         } catch (PublishException | ZoltConfigException | PackageException exception) {
             CommandFailures.printUser(spec, exception);

@@ -10,6 +10,8 @@ import com.zolt.build.NativeImageException;
 import com.zolt.build.PackageException;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
+import com.zolt.cli.CommandProgress;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
@@ -77,9 +79,11 @@ public final class NativeCommand implements Runnable {
 
     @Override
     public void run() {
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             if (workspace) {
                 lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+                progress.start("Building workspace native images");
                 WorkspaceNativeBuildResult result = workspaceNativeBuildService.buildNative(
                         workingDirectory,
                         cacheRoot,
@@ -102,9 +106,11 @@ public final class NativeCommand implements Runnable {
                 spec.commandLine().getOut().println("Built native binaries for "
                         + result.members().size()
                         + " workspace members");
+                progress.result("Built native binaries for " + result.members().size() + " workspace members");
                 return;
             }
             ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            progress.start("Building native image");
             NativeBuildResult result = nativeBuildService.buildNative(
                     workingDirectory,
                     config,
@@ -118,6 +124,7 @@ public final class NativeCommand implements Runnable {
             spec.commandLine().getOut().println("Native Image log written to "
                     + result.nativeImageResult().logFile());
             printSpringBootAotEvidence(result, "");
+            progress.result("Built native binary at " + result.nativeImageResult().outputBinary());
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException

@@ -1,6 +1,8 @@
 package com.zolt.cli.command;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.cli.CommandProgress;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.release.ReleaseArchiveException;
 import com.zolt.release.ReleaseArchiveResult;
 import com.zolt.release.ReleaseArchiveService;
@@ -44,12 +46,14 @@ public final class ReleaseArchiveCommand implements Runnable {
 
     @Override
     public void run() {
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
             Path nativeBinary = binary == null
                     ? defaultNativeBinary(config, releaseTarget)
                     : binary;
+            progress.start("Assembling release archive");
             ReleaseArchiveResult result = releaseArchiveService.assemble(
                     workingDirectory,
                     config,
@@ -61,6 +65,7 @@ public final class ReleaseArchiveCommand implements Runnable {
             spec.commandLine().getOut().println("Wrote archive to " + result.archivePath());
             spec.commandLine().getOut().println("Wrote checksum to " + result.checksumPath());
             spec.commandLine().getOut().println("Wrote manifest to " + result.manifestPath());
+            progress.result("Assembled " + result.target().id() + " release archive");
         } catch (ReleaseArchiveException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }

@@ -2,7 +2,9 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.RepositoryOverlay;
@@ -85,6 +87,7 @@ public final class ResolveCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             if (workspace) {
                 if (!repositoryOverlays.isEmpty() || noLocalOverlays) {
@@ -92,6 +95,7 @@ public final class ResolveCommand implements Runnable {
                             "Repository overlay options are currently supported for single-project resolve only. "
                                     + "Run without --workspace or wait for workspace overlay policy support.");
                 }
+                progress.start("Resolving workspace dependencies");
                 ResolveResult result = timings.measure(
                         "resolve workspace",
                         () -> workspaceResolveService.resolve(
@@ -101,11 +105,13 @@ public final class ResolveCommand implements Runnable {
                                 offline),
                         ResolveCommand::resolveAttributes);
                 CommandResolveOutput.print(spec, result, !locked);
+                progress.result("Resolved " + result.resolvedCount() + " packages");
                 return;
             }
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+            progress.start("Resolving dependencies");
             ResolveResult result = timings.measure(
                     "resolve graph",
                     () -> resolveService.resolve(
@@ -116,6 +122,7 @@ public final class ResolveCommand implements Runnable {
                             resolveOptions()),
                     ResolveCommand::resolveAttributes);
             CommandResolveOutput.print(spec, result, !locked);
+            progress.result("Resolved " + result.resolvedCount() + " packages");
         } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {

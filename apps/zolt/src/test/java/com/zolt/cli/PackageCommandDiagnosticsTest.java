@@ -61,6 +61,33 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageCommandEmitsSparseProgressWhenEnabled() throws IOException {
+        Path projectDir = tempDir.resolve("progress-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello");
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "--progress=always",
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Packaged 1 compiled files as thin jar"));
+        assertTrue(result.stderr().contains("Packaging project..."));
+        assertTrue(result.stderr().contains("Packaged " + projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
     void packageRejectsUnknownModeOverride() {
         CommandResult result = execute(
                 "package",

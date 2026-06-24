@@ -29,6 +29,7 @@ final class TestCommandTest extends TestCommandTestSupport {
         writeDemoTestSource(projectDir);
 
         CommandResult result = execute(
+                "--progress=always",
                 "test",
                 "--reports-dir", "target/test-reports",
                 "--cwd", projectDir.toString(),
@@ -40,6 +41,8 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertTrue(result.stdout().contains("Tests passed"));
         assertTrue(result.stdout().contains("Wrote test reports to "
                 + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
+        assertTrue(result.stderr().contains("Testing project..."));
+        assertTrue(result.stderr().contains("Tested project"));
         assertTrue(Files.exists(report));
         assertTrue(Files.readString(report).contains("testsuite"));
     }

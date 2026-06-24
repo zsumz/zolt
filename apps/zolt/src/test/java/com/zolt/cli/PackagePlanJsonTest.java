@@ -24,12 +24,14 @@ final class PackagePlanJsonTest extends PackagePlanCommandTestSupport {
         writePackagePlanLockfile(projectDir, true, false);
 
         CommandResult result = execute(
+                "--progress=always",
                 "package",
                 "--plan",
                 "--format", "json",
                 "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
         assertTrue(result.stdout().startsWith("{\n"));
         assertTrue(result.stdout().contains("\"mode\": \"thin\""));
         assertTrue(result.stdout().contains("\"runtimeClasspath\": \"" + projectDir.resolve("target/package-plan-json-0.1.0.runtime-classpath")));

@@ -15,7 +15,9 @@ import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
@@ -126,6 +128,7 @@ public final class TestCommand implements Runnable {
             if (workspace) {
                 runWorkspaceTests(
                         timings,
+                        CommandProgress.human(spec),
                         testSelection,
                         testJvmArguments,
                         reportSettings,
@@ -134,6 +137,7 @@ public final class TestCommand implements Runnable {
             }
             runSingleProjectTests(
                     timings,
+                    CommandProgress.human(spec),
                     testSelection,
                     testJvmArguments,
                     reportSettings,
@@ -158,11 +162,13 @@ public final class TestCommand implements Runnable {
 
     private void runWorkspaceTests(
             TimingRecorder timings,
+            ProgressWriter progress,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
         lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        progress.start("Testing workspace");
         WorkspaceTestResult result = timings.measure(
                 "test workspace",
                 () -> {
@@ -209,10 +215,12 @@ public final class TestCommand implements Runnable {
                 "Tests passed for "
                         + result.members().size()
                         + " workspace members");
+        progress.result("Tested " + result.members().size() + " workspace members");
     }
 
     private void runSingleProjectTests(
             TimingRecorder timings,
+            ProgressWriter progress,
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
@@ -221,6 +229,7 @@ public final class TestCommand implements Runnable {
                 "config read",
                 () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
         lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        progress.start("Testing project");
         TestRunResult result = timings.measure(
                 "run tests",
                 () -> {
@@ -270,5 +279,6 @@ public final class TestCommand implements Runnable {
         spec.commandLine().getOut().println("Tests passed");
         result.reportsDirectory().ifPresent(directory ->
                 spec.commandLine().getOut().println("Wrote test reports to " + directory));
+        progress.result("Tested project");
     }
 }

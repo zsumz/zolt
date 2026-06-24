@@ -16,7 +16,9 @@ import com.zolt.build.PackageService;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.PackageMode;
@@ -186,6 +188,8 @@ public final class PackageCommand implements Runnable {
             throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
         }
         lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        ProgressWriter progress = CommandProgress.human(spec);
+        progress.start("Packaging workspace");
         WorkspacePackageResult result = timings.measure(
                 "package workspace",
                 () -> {
@@ -219,6 +223,7 @@ public final class PackageCommand implements Runnable {
                 "Packaged "
                         + result.members().size()
                         + " workspace members");
+        progress.result("Packaged " + result.members().size() + " workspace members");
     }
 
     private void runSingleProjectPackage(
@@ -249,6 +254,8 @@ public final class PackageCommand implements Runnable {
             }
             return;
         }
+        ProgressWriter progress = CommandProgress.human(spec);
+        progress.start("Packaging project");
         PackageResult result = timings.measure(
                 "package",
                 () -> {
@@ -270,6 +277,7 @@ public final class PackageCommand implements Runnable {
             spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
         }
         printPackageResult(result, "");
+        progress.result("Packaged " + result.jarPath());
     }
 
     private void printPackageResult(PackageResult result, String suffix) {

@@ -9,7 +9,9 @@ import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.framework.FrameworkBuildAugmentationResult;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkBuildException;
@@ -92,9 +94,11 @@ public final class BuildCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             if (workspace) {
                 lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
+                progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
                         "build workspace",
                         () -> {
@@ -123,12 +127,14 @@ public final class BuildCommand implements Runnable {
                                     + member.member());
                 }
                 spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " workspace main source files");
+                progress.result("Built " + result.sourceCount() + " workspace main source files");
                 return;
             }
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
             lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
+            progress.start("Building project");
             BuildResult result = timings.measure(
                     "compile main",
                     () -> buildService.build(workingDirectory, config, cacheRoot, offline),
@@ -138,6 +144,7 @@ public final class BuildCommand implements Runnable {
             }
             spec.commandLine().getOut().println("Compiled " + result.sourceCount() + " main source files");
             spec.commandLine().getOut().println("Wrote classes to " + result.outputDirectory());
+            progress.result("Built " + result.sourceCount() + " main source files");
             Optional<FrameworkBuildAugmentationResult> augmentationResult =
                     timings.measure(
                             "framework augmentation",

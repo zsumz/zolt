@@ -1,6 +1,8 @@
 package com.zolt.cli.command;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.cli.CommandProgress;
+import com.zolt.cli.console.ProgressWriter;
 import com.zolt.release.ReleaseVerificationException;
 import com.zolt.release.ReleaseVerificationResult;
 import com.zolt.release.ReleaseVerificationService;
@@ -42,11 +44,13 @@ public final class ReleaseVerifyCommand implements Runnable {
 
     @Override
     public void run() {
+        ProgressWriter progress = CommandProgress.human(spec);
         try {
             ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
             List<Path> resolvedArchives = archives.stream()
                     .map(path -> workingDirectory.resolve(path).normalize())
                     .toList();
+            progress.start("Verifying release archives");
             ReleaseVerificationResult result = releaseVerificationService.verify(
                     resolvedArchives,
                     workingDirectory.resolve(effectiveWorkDirectory(config)).normalize(),
@@ -57,6 +61,7 @@ public final class ReleaseVerifyCommand implements Runnable {
                 spec.commandLine().getOut().println("Ran smoke binary " + archive.binaryPath());
             }
             spec.commandLine().getOut().println("Verified " + result.verifiedCount() + " release archives");
+            progress.result("Verified " + result.verifiedCount() + " release archives");
         } catch (ReleaseVerificationException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
