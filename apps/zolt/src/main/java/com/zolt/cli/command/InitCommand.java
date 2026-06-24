@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.project.ProjectConfigWriteException;
 import com.zolt.project.ProjectInitException;
 import com.zolt.project.ProjectInitResult;
@@ -55,8 +56,9 @@ public final class InitCommand implements Runnable {
     public void run() {
         try {
             ProjectInitResult result = projectInitializer.init(projectDirectory.path(), name, group, javaVersion);
-            spec.commandLine().getOut().println("Created Zolt project at " + result.projectDirectory());
-            spec.commandLine().getOut().println("Next: cd " + result.projectDirectory().getFileName());
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.success("Created Zolt project at " + result.projectDirectory());
+            output.action("cd " + result.projectDirectory().getFileName());
         } catch (ProjectInitException exception) {
             throw CommandFailures.user(spec, exception);
         }

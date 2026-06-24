@@ -95,6 +95,21 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void initUsesModernHumanOutputControls() {
+        CommandResult color = execute("--color=always", "init", "--directory", tempDir.toString(), "color-hello");
+        CommandResult quiet = execute("--quiet", "init", "--directory", tempDir.toString(), "quiet-hello");
+
+        assertEquals(0, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[32mCreated\u001B[0m Zolt project at"));
+        assertTrue(color.stdout().contains("Next: \u001B[36mcd color-hello\u001B[0m"));
+        assertEquals(0, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        assertEquals("", quiet.stderr());
+        assertTrue(Files.exists(tempDir.resolve("color-hello/zolt.toml")));
+        assertTrue(Files.exists(tempDir.resolve("quiet-hello/zolt.toml")));
+    }
+
+    @Test
     void packageReportsConfigErrorsCleanly() {
         CommandResult result = execute("package", "--cwd", tempDir.toString());
 
