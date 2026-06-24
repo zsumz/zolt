@@ -19,6 +19,16 @@ final class RemoveCommandTest {
     private Path tempDir;
 
     @Test
+    void removeUsageShowsDirectoryOption() {
+        CommandResult result = execute("remove", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void removeDeletesDependencyAndPrunesUnusedTransitivesFromLockfile() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
@@ -78,7 +88,7 @@ final class RemoveCommandTest {
 
         CommandResult result = execute(
                 "remove",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "com.example:missing");
 
         assertEquals(0, result.exitCode());

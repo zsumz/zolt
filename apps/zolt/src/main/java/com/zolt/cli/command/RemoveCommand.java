@@ -18,6 +18,7 @@ import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Path;
 import java.util.List;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -36,8 +37,8 @@ public final class RemoveCommand implements Runnable {
             description = "Dependency coordinate, optionally prefixed with a dependency section.")
     private List<String> arguments;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -64,7 +65,8 @@ public final class RemoveCommand implements Runnable {
     public void run() {
         try {
             RemoveRequest request = parseRequest(arguments);
-            Path configPath = workingDirectory.resolve("zolt.toml");
+            Path projectRoot = projectDirectory.path();
+            Path configPath = projectRoot.resolve("zolt.toml");
             ProjectConfig config = tomlParser.parse(configPath);
             String section = DependencyEditCommands.sectionName(request.section());
             if (!DependencyEditCommands.hasDependency(config, request.section(), request.coordinate())) {
@@ -76,7 +78,7 @@ public final class RemoveCommand implements Runnable {
             tomlWriter.write(configPath, updated);
             spec.commandLine().getOut().println(
                     "Removed dependency " + request.coordinate() + " from [" + section + "]");
-            CommandResolveOutput.print(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+            CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
         } catch (RemoveCommandException
                 | DependencySectionException
                 | ArtifactCacheException
