@@ -23,6 +23,7 @@ import com.zolt.workspace.WorkspaceNativeBuildService;
 import java.nio.file.Path;
 import java.util.List;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -49,8 +50,8 @@ public final class NativeCommand implements Runnable {
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
@@ -80,12 +81,13 @@ public final class NativeCommand implements Runnable {
     @Override
     public void run() {
         ProgressWriter progress = CommandProgress.human(spec);
+        Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
-                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+                lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
                 progress.start("Building workspace native images");
                 WorkspaceNativeBuildResult result = workspaceNativeBuildService.buildNative(
-                        workingDirectory,
+                        projectRoot,
                         cacheRoot,
                         CommandWorkspaceSelections.from(all, members, memberGroups),
                         nativeImageExecutable,
@@ -110,10 +112,10 @@ public final class NativeCommand implements Runnable {
                 progress.result("Built native binaries for " + result.members().size() + " workspace members");
                 return;
             }
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             progress.start("Building native image");
             NativeBuildResult result = nativeBuildService.buildNative(
-                    workingDirectory,
+                    projectRoot,
                     config,
                     cacheRoot,
                     nativeImageExecutable,

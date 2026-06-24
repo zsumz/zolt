@@ -17,13 +17,23 @@ final class NativeCommandValidationTest {
     private Path tempDir;
 
     @Test
+    void nativeUsageShowsDirectoryOption() {
+        CommandResult result = execute("native", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void nativeReportsMissingMainClassClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         NativeCommandTestSupport.writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");
 
         CommandResult result = execute(
                 "native",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(1, result.exitCode());

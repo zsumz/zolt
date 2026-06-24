@@ -26,7 +26,7 @@ final class NativeCommandWorkspaceTest {
                 "native",
                 "--workspace",
                 "--member", "apps/api",
-                "--cwd", workspaceDir.toString(),
+                "--directory", workspaceDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString(),
                 "--native-image", nativeImage.toString());
 
