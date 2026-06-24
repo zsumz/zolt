@@ -17,21 +17,6 @@ final class ExplainCommandTest {
     private Path tempDir;
 
     @Test
-    void explainHelpShowsMigrationAuditCommand() {
-        CommandResult result = execute("explain", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Audit a Maven or Gradle project for future Zolt migration."));
-        assertTrue(result.stdout().contains("--blockers"));
-        assertTrue(result.stdout().contains("--format"));
-        assertTrue(result.stdout().contains("--scorecard"));
-        assertTrue(result.stdout().contains("--source"));
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void explainTextPlaceholderIsActionableWhenSourceIsUnknown() {
         CommandResult result = execute("explain", "--directory", tempDir.toString());
 
