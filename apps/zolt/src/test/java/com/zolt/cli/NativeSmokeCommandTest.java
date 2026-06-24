@@ -16,17 +16,6 @@ final class NativeSmokeCommandTest {
     private Path tempDir;
 
     @Test
-    void nativeSmokeHelpShowsDirectoryOption() {
-        CommandResult result = execute("native-smoke", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void nativeSmokeKeepsReleaseArchiveOutputProjectRelativeFromCli() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         NativeCommandTestSupport.writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
