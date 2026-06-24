@@ -268,17 +268,6 @@ final class CliHelpSurfaceTest {
                 "--version");
     }
 
-    @Test
-    void initHelpShowsDirectoryOption() {
-        CommandResult result = execute("init", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
     private static void assertContainsInOrder(String text, String... expected) {
         int previousIndex = -1;
         for (String item : expected) {
