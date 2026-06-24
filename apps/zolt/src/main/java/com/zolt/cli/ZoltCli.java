@@ -41,7 +41,6 @@ import java.util.Locale;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.Model.UsageMessageSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ScopeType;
 import picocli.CommandLine.Spec;
@@ -117,28 +116,8 @@ public final class ZoltCli implements Runnable {
                     }
                     return parsedCommandLine.getCommandSpec().exitCodeOnExecutionException();
                 });
-        configureUsage(commandLine, rootCommand::consoleStyle);
+        CliUsageConfiguration.apply(commandLine, rootCommand::consoleStyle);
         return commandLine;
-    }
-
-    private static void configureUsage(CommandLine commandLine, java.util.function.Supplier<ConsoleStyle> styles) {
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .optionListHeading("Options:%n");
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
-                        help -> styles.get().heading("Options") + ":" + System.lineSeparator());
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST, new OptionGroupHelpRenderer(styles));
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer(styles));
-        commandLine.getSubcommands().values().forEach(subcommand -> configureUsage(subcommand, styles));
     }
 
     @Override
