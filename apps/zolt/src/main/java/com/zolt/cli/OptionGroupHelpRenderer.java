@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import picocli.CommandLine.Help;
+import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.IHelpSectionRenderer;
 import picocli.CommandLine.Model.OptionSpec;
 import picocli.CommandLine.Model.PositionalParamSpec;
@@ -140,10 +141,12 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
         return Integer.MAX_VALUE;
     }
 
-    private static String renderOptions(Help help, List<OptionSpec> options) {
+    private String renderOptions(Help help, List<OptionSpec> options) {
         List<PositionalParamSpec> positionals = List.of();
-        Help.Layout layout = help.createDefaultLayout(options, positionals, help.colorScheme());
-        return help.optionListExcludingGroups(options, layout, null, help.parameterLabelRenderer());
+        Help.ColorScheme colorScheme = new Help.ColorScheme.Builder(Ansi.OFF).build();
+        Help.Layout layout = help.createDefaultLayout(options, positionals, colorScheme);
+        String optionList = help.optionListExcludingGroups(options, layout, null, help.parameterLabelRenderer());
+        return HelpOptionHighlighter.highlight(optionList, styles.get());
     }
 
     private record OptionGroup(String heading, List<String> optionNames) {

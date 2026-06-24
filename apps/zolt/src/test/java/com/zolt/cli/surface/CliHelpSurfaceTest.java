@@ -56,9 +56,11 @@ final class CliHelpSurfaceTest {
         CommandResult result = execute("--color=always", "help");
 
         assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[32m--color"));
         assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
         assertTrue(result.stdout().contains("Create a new Zolt project."));
+        assertFalse(result.stdout().contains("\u001B[33m"));
         assertFalse(result.stderr().contains("\u001B["));
     }
 

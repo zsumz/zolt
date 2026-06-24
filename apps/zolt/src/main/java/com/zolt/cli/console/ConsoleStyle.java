@@ -49,6 +49,10 @@ public final class ConsoleStyle {
         return style(GREEN, text);
     }
 
+    public String option(String text) {
+        return style(GREEN, text);
+    }
+
     public String work(String text) {
         return style(CYAN, text);
     }
