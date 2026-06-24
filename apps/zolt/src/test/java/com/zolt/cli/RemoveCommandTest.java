@@ -87,6 +87,46 @@ final class RemoveCommandTest {
     }
 
     @Test
+    void removeUsesModernHumanOutputControls() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path colorProject = tempDir.resolve("color-remove");
+            Path quietProject = tempDir.resolve("quiet-remove");
+            writeProjectConfig(
+                    colorProject,
+                    repository.baseUri().toString(),
+                    Map.of("com.example:app", "1.0.0"),
+                    Map.of());
+            writeProjectConfig(quietProject);
+
+            CommandResult color = execute(
+                    "--color=always",
+                    "remove",
+                    "--directory", colorProject.toString(),
+                    "--cache-root", tempDir.resolve("color-cache").toString(),
+                    "com.example:app");
+            CommandResult quiet = execute(
+                    "--quiet",
+                    "remove",
+                    "--directory", quietProject.toString(),
+                    "com.example:missing");
+
+            assertEquals(0, color.exitCode(), color.stderr());
+            assertTrue(color.stdout().contains("\u001B[32mRemoved\u001B[0m dependency com.example:app from [dependencies]"));
+            assertTrue(color.stdout().contains("\u001B[32mResolved\u001B[0m 0 packages"));
+            assertEquals(0, quiet.exitCode(), quiet.stderr());
+            assertEquals("", quiet.stdout());
+            assertFalse(Files.exists(quietProject.resolve("zolt.lock")));
+        }
+    }
+
+    @Test
     void removeMissingDependencyPrintsFriendlyNoOpMessage() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);

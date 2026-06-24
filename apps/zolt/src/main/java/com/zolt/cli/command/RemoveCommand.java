@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.command.DependencyEditCommands.DependencySectionException;
 import com.zolt.cli.command.DependencyEditCommands.RemoveCommandException;
 import com.zolt.cli.command.DependencyEditCommands.RemoveRequest;
@@ -71,15 +72,15 @@ public final class RemoveCommand implements Runnable {
             Path configPath = projectRoot.resolve("zolt.toml");
             ProjectConfig config = tomlParser.parse(configPath);
             String section = DependencyEditCommands.sectionName(request.section());
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
             if (!DependencyEditCommands.hasDependency(config, request.section(), request.coordinate())) {
-                spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                output.detail("Dependency " + request.coordinate()
                         + " is not present in [" + section + "]; nothing to remove.");
                 return;
             }
             ProjectConfig updated = tomlWriter.removeDependency(config, request.section(), request.coordinate());
             tomlWriter.write(configPath, updated);
-            spec.commandLine().getOut().println(
-                    "Removed dependency " + request.coordinate() + " from [" + section + "]");
+            output.success("Removed dependency " + request.coordinate() + " from [" + section + "]");
             CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
         } catch (RemoveCommandException
                 | DependencySectionException
