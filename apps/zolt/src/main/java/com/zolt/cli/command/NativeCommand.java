@@ -10,6 +10,7 @@ import com.zolt.build.NativeImageException;
 import com.zolt.build.PackageException;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.console.ProgressWriter;
 import com.zolt.lockfile.LockfileReadException;
@@ -94,23 +95,22 @@ public final class NativeCommand implements Runnable {
                         CommandWorkspaceSelections.from(all, members, memberGroups),
                         nativeImageExecutable,
                         nativeImageProgress(progress));
+                CommandHumanOutput output = CommandHumanOutput.of(spec);
                 if (result.resolvedLockfile()) {
-                    spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+                    output.success("Resolved workspace dependencies because zolt.lock was missing");
                 }
                 for (WorkspaceNativeBuildResult.MemberNativeBuildResult member : result.members()) {
-                    spec.commandLine().getOut().println("Built native binary at "
+                    output.success("Built native binary at "
                             + member.result().nativeImageResult().outputBinary()
                             + " in "
                             + member.member());
-                    spec.commandLine().getOut().println("Native Image log written to "
+                    output.detail("Native Image log written to "
                             + member.result().nativeImageResult().logFile()
                             + " in "
                             + member.member());
                     printSpringBootAotEvidence(member.result(), " in " + member.member());
                 }
-                spec.commandLine().getOut().println("Built native binaries for "
-                        + result.members().size()
-                        + " workspace members");
+                output.success("Built native binaries for " + result.members().size() + " workspace members");
                 progress.result("Built native binaries for " + result.members().size() + " workspace members");
                 return;
             }
@@ -122,12 +122,13 @@ public final class NativeCommand implements Runnable {
                     cacheRoot,
                     nativeImageExecutable,
                     nativeImageProgress(progress));
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
             if (result.packageResult().buildResult().resolvedLockfile()) {
-                spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
+                output.success("Resolved dependencies because zolt.lock was missing");
             }
-            spec.commandLine().getOut().println("Built native binary at "
+            output.success("Built native binary at "
                     + result.nativeImageResult().outputBinary());
-            spec.commandLine().getOut().println("Native Image log written to "
+            output.detail("Native Image log written to "
                     + result.nativeImageResult().logFile());
             printSpringBootAotEvidence(result, "");
             progress.result("Built native binary at " + result.nativeImageResult().outputBinary());
@@ -148,8 +149,9 @@ public final class NativeCommand implements Runnable {
     }
 
     private void printSpringBootAotEvidence(NativeBuildResult result, String suffix) {
-        result.springBootAotEvidencePath().ifPresent(path -> spec.commandLine().getOut().println(
-                "Spring Boot AOT evidence written to " + path + suffix));
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        result.springBootAotEvidencePath().ifPresent(path ->
+                output.detail("Spring Boot AOT evidence written to " + path + suffix));
     }
 
     private static Runnable nativeImageProgress(ProgressWriter progress) {
