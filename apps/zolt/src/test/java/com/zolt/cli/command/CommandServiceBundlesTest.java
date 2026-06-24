@@ -118,6 +118,19 @@ final class CommandServiceBundlesTest {
     }
 
     @Test
+    void buildFrameworkServicesRequiresEveryCollaborator() {
+        CommandBuildFrameworkServices services = CommandFrameworkServices.buildFrameworkServices();
+
+        assertRejectsNullCollaborators(
+                () -> new CommandBuildFrameworkServices(
+                        null,
+                        services.resolveService()),
+                () -> new CommandBuildFrameworkServices(
+                        services.frameworkBuildAugmenter(),
+                        null));
+    }
+
+    @Test
     void packageCommandServicesRequiresEveryCollaborator() {
         CommandPackageServices services = CommandFrameworkServices.packageCommandServices();
 

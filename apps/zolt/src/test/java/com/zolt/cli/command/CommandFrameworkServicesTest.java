@@ -69,6 +69,14 @@ final class CommandFrameworkServicesTest {
     }
 
     @Test
+    void buildFrameworkServicesOwnsDefaultBuildFrameworkWiring() {
+        CommandBuildFrameworkServices services = CommandFrameworkServices.buildFrameworkServices();
+
+        assertNotNull(services.frameworkBuildAugmenter());
+        assertNotNull(services.resolveService());
+    }
+
+    @Test
     void packageCommandServicesOwnsDefaultPackageWiring() {
         CommandPackageServices services = CommandFrameworkServices.packageCommandServices();
 

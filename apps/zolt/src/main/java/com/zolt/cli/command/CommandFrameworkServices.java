@@ -67,23 +67,35 @@ final class CommandFrameworkServices {
     }
 
     static WorkspaceBuildService workspaceBuildService() {
-        return new WorkspaceBuildService(resolveService());
+        return workspaceBuildService(buildFrameworkServices());
     }
 
     static BuildService buildService() {
-        return new BuildService(resolveService());
+        return buildService(buildFrameworkServices());
     }
 
     static FrameworkBuildAugmenter buildAugmenter() {
-        return new QuarkusBuildAugmenter();
+        return buildFrameworkServices().frameworkBuildAugmenter();
+    }
+
+    static CommandBuildFrameworkServices buildFrameworkServices() {
+        return new CommandBuildFrameworkServices(new QuarkusBuildAugmenter(), resolveService());
     }
 
     static CommandBuildServices buildCommandServices() {
-        ResolveService resolveService = resolveService();
+        CommandBuildFrameworkServices buildFrameworkServices = buildFrameworkServices();
         return new CommandBuildServices(
-                new BuildService(resolveService),
-                new WorkspaceBuildService(resolveService),
-                buildAugmenter());
+                buildService(buildFrameworkServices),
+                workspaceBuildService(buildFrameworkServices),
+                buildFrameworkServices.frameworkBuildAugmenter());
+    }
+
+    private static BuildService buildService(CommandBuildFrameworkServices buildFrameworkServices) {
+        return new BuildService(buildFrameworkServices.resolveService());
+    }
+
+    private static WorkspaceBuildService workspaceBuildService(CommandBuildFrameworkServices buildFrameworkServices) {
+        return new WorkspaceBuildService(buildFrameworkServices.resolveService());
     }
 
     static PackagePlanService packagePlanService() {
