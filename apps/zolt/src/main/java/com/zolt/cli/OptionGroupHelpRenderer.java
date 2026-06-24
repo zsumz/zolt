@@ -18,6 +18,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
     private static final List<OptionGroup> GROUPS = List.of(
             new OptionGroup(DEFAULT_HEADING, List.of(
                     "--color",
+                    "--progress",
+                    "--no-progress",
                     "--help",
                     "--version")),
             new OptionGroup("Workspace Selection", List.of(

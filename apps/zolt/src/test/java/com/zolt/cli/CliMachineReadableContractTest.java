@@ -24,7 +24,7 @@ final class CliMachineReadableContractTest {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("plan-contract"));
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
 
-        CommandResult result = execute("plan", "--format", "json", "--cwd", projectDir.toString());
+        CommandResult result = execute("--progress=always", "plan", "--format", "json", "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
@@ -45,7 +45,7 @@ final class CliMachineReadableContractTest {
         writeProjectConfig(projectDir);
         writeLockfile(projectDir);
 
-        CommandResult result = execute("tree", "--format", "json", "--cwd", projectDir.toString());
+        CommandResult result = execute("--progress=always", "tree", "--format", "json", "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());

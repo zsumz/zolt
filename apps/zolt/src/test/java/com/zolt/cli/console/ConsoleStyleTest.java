@@ -18,6 +18,20 @@ final class ConsoleStyleTest {
     }
 
     @Test
+    void progressPolicyHonorsModesCiEnvironmentAndOutputContracts() {
+        assertTrue(ProgressPolicy.of(ProgressMode.ALWAYS, false, false, Map.of("CI", "true")).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.NEVER, false, true, Map.of()).enabledForHumanOutput());
+        assertTrue(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of()).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, false, Map.of()).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("CI", "true")).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("WOODPECKER", "1")).enabledForHumanOutput());
+        assertTrue(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("CI", "false")).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.ALWAYS, true, true, Map.of()).enabledForHumanOutput());
+        assertFalse(ProgressPolicy.of(ProgressMode.ALWAYS, false, true, Map.of()).enabledForParseableOutput());
+        assertTrue(ProgressPolicy.of(ProgressMode.ALWAYS, false, true, Map.of("NO_COLOR", "1")).enabledForHumanOutput());
+    }
+
+    @Test
     void disabledStyleLeavesTextUnchanged() {
         ConsoleStyle style = ConsoleStyle.disabled();
 

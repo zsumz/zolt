@@ -24,13 +24,25 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.ZoltCli$ColorModeConverter",
+    "name": "com.zolt.cli.ColorModeConverter",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.ProgressModeConverter",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
     "name": "com.zolt.cli.console.ColorMode",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.console.ProgressMode",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

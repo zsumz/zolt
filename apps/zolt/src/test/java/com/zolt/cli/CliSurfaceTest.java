@@ -34,6 +34,9 @@ final class CliSurfaceTest {
         assertEquals(0, result.exitCode());
         assertFalse(result.stdout().contains("\u001B["));
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
+        assertTrue(result.stdout().contains("--color"));
+        assertTrue(result.stdout().contains("--progress"));
+        assertTrue(result.stdout().contains("--no-progress"));
         assertContainsInOrder(
                 result.stdout(),
                 "Commands:",
@@ -103,6 +106,23 @@ final class CliSurfaceTest {
         assertEquals(2, result.exitCode());
         assertTrue(result.stderr().contains("Invalid value for option '--color'"));
         assertTrue(result.stderr().contains("expected one of: auto, always, never"));
+    }
+
+    @Test
+    void progressOptionsAreGlobalAndValidationMatchesColorMode() {
+        CommandResult forced = execute("--progress=always", "help");
+        CommandResult disabled = execute("--no-progress", "help");
+        CommandResult invalid = execute("--progress=sparkles", "help");
+
+        assertEquals(0, forced.exitCode());
+        assertEquals("", forced.stderr());
+        assertTrue(forced.stdout().contains("The modern Java build toolkit."));
+        assertEquals(0, disabled.exitCode());
+        assertEquals("", disabled.stderr());
+        assertTrue(disabled.stdout().contains("The modern Java build toolkit."));
+        assertEquals(2, invalid.exitCode());
+        assertTrue(invalid.stderr().contains("Invalid value for option '--progress'"));
+        assertTrue(invalid.stderr().contains("expected one of: auto, always, never"));
     }
 
     @Test

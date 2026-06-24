@@ -36,8 +36,9 @@ import com.zolt.cli.command.VersionCommand;
 import com.zolt.cli.command.WhyCommand;
 import com.zolt.cli.console.ColorMode;
 import com.zolt.cli.console.ConsoleStyle;
+import com.zolt.cli.console.ProgressMode;
+import com.zolt.cli.console.ProgressPolicy;
 import com.zolt.perf.TimingFormat;
-import java.util.Locale;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -97,6 +98,19 @@ public final class ZoltCli implements Runnable {
             description = "Control color in human output: auto, always, or never.")
     private ColorMode colorMode = ColorMode.AUTO;
 
+    @Option(
+            names = "--progress",
+            scope = ScopeType.INHERIT,
+            converter = ProgressModeConverter.class,
+            description = "Control progress in human output: auto, always, or never.")
+    private ProgressMode progressMode = ProgressMode.AUTO;
+
+    @Option(
+            names = "--no-progress",
+            scope = ScopeType.INHERIT,
+            description = "Disable progress output.")
+    private boolean noProgress;
+
     @Spec
     private CommandSpec spec;
 
@@ -130,21 +144,9 @@ public final class ZoltCli implements Runnable {
         return ConsoleStyle.of(colorMode, interactive, System.getenv());
     }
 
-    public static final class ColorModeConverter implements CommandLine.ITypeConverter<ColorMode> {
-        @Override
-        public ColorMode convert(String value) {
-            try {
-                return ColorMode.from(value);
-            } catch (IllegalArgumentException exception) {
-                String modes = String.join(
-                        ", ",
-                        ColorMode.AUTO.toString(),
-                        ColorMode.ALWAYS.toString(),
-                        ColorMode.NEVER.toString());
-                throw new CommandLine.TypeConversionException(
-                        "expected one of: " + modes + " (was `" + value.toLowerCase(Locale.ROOT) + "`)");
-            }
-        }
+    ProgressPolicy progressPolicy() {
+        boolean interactiveStderr = System.console() != null;
+        return ProgressPolicy.of(progressMode, noProgress, interactiveStderr, System.getenv());
     }
 
     public static final class TimingOptions {
