@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.command.DependencyEditCommands.AddCommandException;
 import com.zolt.cli.command.DependencyEditCommands.AddRequest;
 import com.zolt.cli.command.DependencyEditCommands.DependencySectionException;
@@ -81,9 +82,10 @@ public final class AddCommand implements Runnable {
             ProjectConfig config = tomlParser.parse(configPath);
             ProjectConfig updated = updateConfig(config, request);
             tomlWriter.write(configPath, updated);
-            printAddSummary(config, request);
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            printAddSummary(output, config, request);
             if (noResolve) {
-                spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                output.line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                 return;
             }
             CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
@@ -159,7 +161,7 @@ public final class AddCommand implements Runnable {
         return tomlWriter.addDependency(config, request.section(), request.coordinate(), request.version());
     }
 
-    private void printAddSummary(ProjectConfig original, AddRequest request) {
+    private void printAddSummary(CommandHumanOutput output, ProjectConfig original, AddRequest request) {
         Map<String, String> dependencies = DependencyEditCommands.dependencies(original, request.section());
         String section = DependencyEditCommands.sectionName(request.section());
         String existing = dependencies.get(request.coordinate());
@@ -174,21 +176,21 @@ public final class AddCommand implements Runnable {
                 DependencyEditCommands.conflictingManagedDependencies(original, request.section()).contains(request.coordinate());
         if (request.managed()) {
             if (existingManaged) {
-                spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                output.detail("Dependency " + request.coordinate()
                         + " already uses a platform-managed version in [" + section + "]");
             } else if (existing != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from " + existing + " to platform-managed version in [" + section + "]");
             } else if (existingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from workspace member " + existingWorkspace
                         + " to platform-managed version in [" + section + "]");
             } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                         + " to platform-managed version in [" + section + "]");
             } else {
-                spec.commandLine().getOut().println("Added dependency " + request.coordinate()
+                output.success("Added dependency " + request.coordinate()
                         + " with a platform-managed version to [" + section + "]");
             }
             return;
@@ -197,51 +199,51 @@ public final class AddCommand implements Runnable {
             String version = original.versionAliases().get(request.versionRef());
             String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
             if (request.versionRef().equals(existingVersionRef)) {
-                spec.commandLine().getOut().println("Dependency " + request.coordinate()
+                output.detail("Dependency " + request.coordinate()
                         + " already uses " + versionRefDescription + " in [" + section + "]");
             } else if (existingVersionRef != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from versionRef `" + existingVersionRef + "` to " + versionRefDescription
                         + " in [" + section + "]");
             } else if (existingManaged) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from managed version to " + versionRefDescription + " in [" + section + "]");
             } else if (existing != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from " + existing + " to " + versionRefDescription + " in [" + section + "]");
             } else if (existingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from workspace member " + existingWorkspace
                         + " to " + versionRefDescription + " in [" + section + "]");
             } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+                output.success("Updated dependency " + request.coordinate()
                         + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                         + " to " + versionRefDescription + " in [" + section + "]");
             } else {
-                spec.commandLine().getOut().println("Added dependency " + request.coordinate()
+                output.success("Added dependency " + request.coordinate()
                         + " with " + versionRefDescription + " to [" + section + "]");
             }
             return;
         }
         if (request.version().equals(existing)) {
-            spec.commandLine().getOut().println("Dependency " + request.coordinate() + ":" + request.version()
+            output.detail("Dependency " + request.coordinate() + ":" + request.version()
                     + " already exists in [" + section + "]");
         } else if (existingManaged) {
-            spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+            output.success("Updated dependency " + request.coordinate()
                     + " from managed version to " + request.version() + " in [" + section + "]");
         } else if (existing != null) {
-            spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+            output.success("Updated dependency " + request.coordinate()
                     + " from " + existing + " to " + request.version() + " in [" + section + "]");
         } else if (existingWorkspace != null) {
-            spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+            output.success("Updated dependency " + request.coordinate()
                     + " from workspace member " + existingWorkspace
                     + " to " + request.version() + " in [" + section + "]");
         } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-            spec.commandLine().getOut().println("Updated dependency " + request.coordinate()
+            output.success("Updated dependency " + request.coordinate()
                     + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                     + " to " + request.version() + " in [" + section + "]");
         } else {
-            spec.commandLine().getOut().println("Added dependency " + request.coordinate() + ":" + request.version()
+            output.success("Added dependency " + request.coordinate() + ":" + request.version()
                     + " to [" + section + "]");
         }
     }

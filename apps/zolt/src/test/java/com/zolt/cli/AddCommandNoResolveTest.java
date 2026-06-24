@@ -53,6 +53,36 @@ final class AddCommandNoResolveTest {
     }
 
     @Test
+    void addHumanOutputSupportsForcedColorAndQuietMode() throws IOException {
+        Path colorProjectDir = tempDir.resolve("color-demo");
+        writeProjectConfig(colorProjectDir);
+        Path quietProjectDir = tempDir.resolve("quiet-demo");
+        writeProjectConfig(quietProjectDir);
+
+        CommandResult color = execute(
+                "--color=always",
+                "add",
+                "--directory", colorProjectDir.toString(),
+                "--no-resolve",
+                "com.google.guava:guava:33.4.0-jre");
+        CommandResult quiet = execute(
+                "--quiet",
+                "add",
+                "--directory", quietProjectDir.toString(),
+                "--no-resolve",
+                "com.google.guava:guava:33.4.0-jre");
+
+        assertEquals(0, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m dependency "
+                + "com.google.guava:guava:33.4.0-jre to [dependencies]"));
+        assertEquals(0, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        String quietConfig = Files.readString(quietProjectDir.resolve("zolt.toml"));
+        assertTrue(quietConfig.contains("\"com.google.guava:guava\" = \"33.4.0-jre\""));
+        assertFalse(Files.exists(quietProjectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void addAddsTestDependencyWithoutDuplicatingExistingEntry() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
