@@ -95,6 +95,29 @@ final class CliHelpCommandSurfaceTest {
     }
 
     @Test
+    void helpCommandStylesUnknownCommandUsageWhenColorIsForced() {
+        CommandResult topLevel = execute("--color=always", "help", "nope");
+
+        assertEquals(2, topLevel.exitCode());
+        assertEquals("", topLevel.stdout());
+        assertTrue(topLevel.stderr().contains("Unknown subcommand 'nope' under 'zolt'."));
+        assertTrue(topLevel.stderr().contains(BOLD_USAGE_HEADING + " zolt"));
+        assertTrue(topLevel.stderr().contains(BOLD_COMMANDS_HEADING));
+        assertTrue(topLevel.stderr().contains(BOLD_GREEN_HELP_OPTION));
+        assertFalse(topLevel.stderr().contains(WARNING_COLOR));
+
+        CommandResult nested = execute("--color=always", "help", "version", "nope");
+
+        assertEquals(2, nested.exitCode());
+        assertEquals("", nested.stdout());
+        assertTrue(nested.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
+        assertTrue(nested.stderr().contains(BOLD_USAGE_HEADING + " zolt version"));
+        assertTrue(nested.stderr().contains(BOLD_COMMANDS_HEADING));
+        assertTrue(nested.stderr().contains(BOLD_GREEN_HELP_OPTION));
+        assertFalse(nested.stderr().contains(WARNING_COLOR));
+    }
+
+    @Test
     void helpCommandMatchesDirectHelpForRegisteredCommandPaths() {
         for (List<String> path : commandPaths(newCommandLine())) {
             CommandResult direct = directColorNeverHelp(path);
