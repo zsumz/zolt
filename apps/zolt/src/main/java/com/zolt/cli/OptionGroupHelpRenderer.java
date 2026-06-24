@@ -44,7 +44,9 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--test-event")),
             new OptionGroup("Resolution", List.of(
                     "--offline",
-                    "--locked")),
+                    "--locked",
+                    "--repository-overlay",
+                    "--no-local-overlays")),
             new OptionGroup("Diagnostics", List.of(
                     "--timings",
                     "--timings-format")));

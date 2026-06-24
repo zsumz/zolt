@@ -251,6 +251,55 @@ final class CliCommandHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
 
+    @Test
+    void resolveHelpGroupsWorkspaceResolutionAndDiagnosticsOptions() {
+        CommandResult result = execute("resolve", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "Workspace Selection:",
+                "--workspace",
+                "Resolution:",
+                "--offline",
+                "--locked",
+                "--repository-overlay",
+                "--no-local-overlays",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void resolveHelpColorsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "resolve", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt resolve\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--repository-overlay\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--no-local-overlays\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
     private static void assertContainsInOrder(String text, String... expected) {
         int previousIndex = -1;
         for (String item : expected) {
