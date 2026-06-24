@@ -214,6 +214,24 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void defaultOnlyHelpUsesStandardOptionOrder() {
+        CommandResult result = execute("platform", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        String options = result.stdout().substring(result.stdout().indexOf("Options:"));
+        assertContainsInOrder(
+                options,
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version");
+    }
+
+    @Test
     void initHelpShowsDirectoryOption() {
         CommandResult result = execute("init", "--help");
 

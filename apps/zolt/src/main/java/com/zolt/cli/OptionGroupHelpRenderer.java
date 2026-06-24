@@ -67,7 +67,7 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                 .filter(entry -> !entry.getValue().isEmpty())
                 .count();
         if (nonDefaultGroups == 0) {
-            return renderOptions(help, visibleOptions);
+            return renderOptions(help, grouped.get(GROUPS.getFirst()));
         }
 
         StringBuilder output = new StringBuilder();
