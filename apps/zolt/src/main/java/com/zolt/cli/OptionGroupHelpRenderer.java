@@ -41,7 +41,12 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--format",
                     "--reports-dir",
                     "--coverage-dir",
-                    "--test-event")),
+                    "--test-event",
+                    "--no-xml",
+                    "--no-html",
+                    "--exec-file",
+                    "--xml-report",
+                    "--html-dir")),
             new OptionGroup("Resolution", List.of(
                     "--offline",
                     "--locked",
