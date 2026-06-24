@@ -1,6 +1,7 @@
 package com.zolt.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -22,6 +23,20 @@ final class CliUnhandledFailureTest {
 
         assertEquals(1, exitCode);
         assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("error: boom detail"));
+        assertFalse(stderr.toString(StandardCharsets.UTF_8).contains("\u001B["));
+    }
+
+    @Test
+    void uncaughtRuntimeFailuresStyleOnlyErrorPrefixWhenColorIsForced() {
+        CommandLine commandLine = ZoltCli.newCommandLine();
+        commandLine.addSubcommand("boom", new BoomCommand());
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        commandLine.setErr(new PrintWriter(stderr, true, StandardCharsets.UTF_8));
+
+        int exitCode = commandLine.execute("--color=always", "boom");
+
+        assertEquals(1, exitCode);
+        assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("\u001B[31merror:\u001B[0m boom detail"));
     }
 
     @Command(name = "boom")

@@ -152,7 +152,8 @@ public final class ZoltCli implements Runnable {
             CommandLine parsedCommandLine,
             CommandLine.ParseResult parseResult) {
         if (!PrintedUserException.alreadyPrinted(exception)) {
-            parsedCommandLine.getErr().println("error: " + exception.getMessage());
+            CommandHumanOutput output = CommandHumanOutput.errors(parsedCommandLine.getCommandSpec());
+            output.error(exception.getMessage());
             parsedCommandLine.getErr().flush();
         }
         return parsedCommandLine.getCommandSpec().exitCodeOnExecutionException();
