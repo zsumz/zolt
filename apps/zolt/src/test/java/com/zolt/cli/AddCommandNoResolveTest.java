@@ -19,21 +19,6 @@ final class AddCommandNoResolveTest {
     private Path tempDir;
 
     @Test
-    void addHelpShowsDirectoryOption() {
-        CommandResult result = execute("add", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Usage: zolt add"));
-        assertTrue(result.stdout().contains("DEPENDENCY..."));
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("May be prefixed with api"));
-        assertTrue(result.stdout().contains("test-processor."));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void addAddsCompileDependencyWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);

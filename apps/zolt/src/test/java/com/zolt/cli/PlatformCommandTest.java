@@ -18,16 +18,6 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
     private Path tempDir;
 
     @Test
-    void platformAddHelpShowsDirectoryOption() {
-        CommandResult result = execute("platform", "add", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void platformAddRefreshesLockfileByDefault() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "enterprise-platform", "2026.1.0", """

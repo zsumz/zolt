@@ -51,7 +51,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--offline",
                     "--locked",
                     "--repository-overlay",
-                    "--no-local-overlays")),
+                    "--no-local-overlays",
+                    "--no-resolve")),
             new OptionGroup("Diagnostics", List.of(
                     "--timings",
                     "--timings-format")));
