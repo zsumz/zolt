@@ -37,6 +37,13 @@ final class CommandFrameworkServices {
         return new WorkspaceResolveService(resolveService());
     }
 
+    static CommandResolveServices resolveCommandServices() {
+        ResolveService resolveService = resolveService();
+        return new CommandResolveServices(
+                resolveService,
+                new WorkspaceResolveService(resolveService));
+    }
+
     static WorkspaceBuildService workspaceBuildService() {
         return new WorkspaceBuildService(resolveService());
     }
@@ -150,6 +157,15 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandResolveServices(
+        ResolveService resolveService,
+        WorkspaceResolveService workspaceResolveService) {
+    CommandResolveServices {
+        Objects.requireNonNull(resolveService, "resolveService");
+        Objects.requireNonNull(workspaceResolveService, "workspaceResolveService");
     }
 }
 
