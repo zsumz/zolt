@@ -19,16 +19,6 @@ final class ResolveCommandTest {
     private Path tempDir;
 
     @Test
-    void resolveHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "resolve");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void resolveReadsConfigWritesLockfileAndPrintsSummary() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """

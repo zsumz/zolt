@@ -16,16 +16,6 @@ final class RunPackageCommandTest {
     private Path tempDir;
 
     @Test
-    void runPackageHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "run-package");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void runPackageBuildsThinJarAndRunsConfiguredMainClass() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

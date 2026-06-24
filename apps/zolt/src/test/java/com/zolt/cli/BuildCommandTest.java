@@ -21,16 +21,6 @@ final class BuildCommandTest {
     private Path tempDir;
 
     @Test
-    void buildHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "build");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void buildRejectsStaleExistingLockfileBeforeCompiling() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """

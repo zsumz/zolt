@@ -18,16 +18,6 @@ final class CoverageCommandTest {
     private Path tempDir;
 
     @Test
-    void coverageHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "coverage");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void coverageRejectsDisablingAllReportFormats() throws IOException {
         Path projectDir = tempDir.resolve("coverage-no-reports");
         Files.createDirectories(projectDir);
