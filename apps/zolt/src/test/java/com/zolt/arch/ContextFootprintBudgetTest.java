@@ -112,6 +112,19 @@ final class ContextFootprintBudgetTest {
                 violation(footprint, budget));
     }
 
+    @Test
+    void reportScriptRejectsInvalidLimit() throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder("scripts/report-context-footprint");
+        builder.directory(RepositoryPaths.root().toFile());
+        builder.redirectErrorStream(true);
+        builder.environment().put("ZOLT_CONTEXT_FOOTPRINT_LIMIT", "zero");
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes());
+
+        assertEquals(2, process.waitFor(), output);
+        assertTrue(output.contains("ZOLT_CONTEXT_FOOTPRINT_LIMIT must be a positive integer"), output);
+    }
+
     private static List<Budget> readBudgets() throws IOException {
         return readBudgets(BUDGETS);
     }
