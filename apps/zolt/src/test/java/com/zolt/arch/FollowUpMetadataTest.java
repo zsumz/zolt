@@ -27,7 +27,7 @@ final class FollowUpMetadataTest {
             "Scope",
             "Acceptance",
             "Verification");
-    private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("follow-up-(\\d{3})-.+\\.md");
+    private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("follow-up-(\\d{3,})-.+\\.md");
 
     @Test
     void modernFollowUpsHaveMatchingTitleAndValidStatus() throws IOException {
@@ -167,6 +167,16 @@ final class FollowUpMetadataTest {
                 sequenceViolations(modernFollowUps(tempDir)));
     }
 
+    @Test
+    void modernFollowUpScannerSupportsIdsAfter999(@TempDir Path tempDir) throws IOException {
+        writeModernFollowUp(tempDir.resolve("-after.md"), "1000");
+
+        List<FollowUpFile> followUps = modernFollowUps(tempDir);
+
+        assertEquals(List.of("1000"), followUps.stream().map(FollowUpFile::id).toList());
+        assertEquals(List.of(), violations(followUps));
+    }
+
     private static List<String> violations(List<FollowUpFile> followUps) {
         List<String> violations = new ArrayList<>();
         for (FollowUpFile followUp : followUps) {
@@ -244,7 +254,7 @@ final class FollowUpMetadataTest {
                     .map(FollowUpMetadataTest::followUpFile)
                     .flatMap(Optional::stream)
                     .filter(followUp -> Integer.parseInt(followUp.id()) >= MODERN_FOLLOW_UP_MIN_ID)
-                    .sorted(Comparator.comparing(FollowUpFile::path))
+                    .sorted(Comparator.comparingInt(followUp -> Integer.parseInt(followUp.id())))
                     .toList();
         }
     }
@@ -277,6 +287,24 @@ final class FollowUpMetadataTest {
                 # follow-up-%s - FollowUp
 
                 Status: Done
+
+                ## Goal
+
+                Complete work.
+
+                ## Context
+
+                Keep metadata valid.
+
+                ## Scope
+
+                Track the completed item.
+
+                ## Acceptance
+
+                - [x] Complete
+
+                ## Verification
 
                 - [x] Complete
                 """.formatted(id));
