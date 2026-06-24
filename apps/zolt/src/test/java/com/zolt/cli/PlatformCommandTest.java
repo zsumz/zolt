@@ -86,6 +86,38 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
     }
 
     @Test
+    void platformAddHumanOutputSupportsForcedColorAndQuietMode() throws IOException {
+        Path colorProjectDir = tempDir.resolve("color-demo");
+        writeProjectConfig(colorProjectDir);
+        Path quietProjectDir = tempDir.resolve("quiet-demo");
+        writeProjectConfig(quietProjectDir);
+
+        CommandResult color = execute(
+                "--color=always",
+                "platform",
+                "add",
+                "--directory", colorProjectDir.toString(),
+                "--no-resolve",
+                "com.example:enterprise-platform:2026.1.0");
+        CommandResult quiet = execute(
+                "--quiet",
+                "platform",
+                "add",
+                "--directory", quietProjectDir.toString(),
+                "--no-resolve",
+                "com.example:enterprise-platform:2026.1.0");
+
+        assertEquals(0, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m platform "
+                + "com.example:enterprise-platform:2026.1.0 to [platforms]"));
+        assertEquals(0, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        String quietConfig = Files.readString(quietProjectDir.resolve("zolt.toml"));
+        assertTrue(quietConfig.contains("\"com.example:enterprise-platform\" = \"2026.1.0\""));
+        assertFalse(Files.exists(quietProjectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void platformAddWritesVersionRefPlatformWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);

@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.command.DependencyEditCommands.PlatformCommandException;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParseException;
@@ -97,9 +98,10 @@ public final class PlatformCommand implements Runnable {
                                 request.versionRef(),
                                 request.version());
                 tomlWriter.write(configPath, updated);
-                printAddSummary(config, platform, request);
+                CommandHumanOutput output = CommandHumanOutput.of(spec);
+                printAddSummary(output, config, platform, request);
                 if (noResolve) {
-                    spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                    output.line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
@@ -147,39 +149,43 @@ public final class PlatformCommand implements Runnable {
             return new PlatformAddRequest(version, versionRef);
         }
 
-        private void printAddSummary(ProjectConfig original, String platform, PlatformAddRequest request) {
+        private void printAddSummary(
+                CommandHumanOutput output,
+                ProjectConfig original,
+                String platform,
+                PlatformAddRequest request) {
             String version = request.version();
             String existing = original.platforms().get(platform);
             String existingVersionRef = platformVersionRef(original, platform);
             if (request.versionRef() != null) {
                 String versionRefDescription = "versionRef `" + request.versionRef() + "` = " + version;
                 if (request.versionRef().equals(existingVersionRef)) {
-                    spec.commandLine().getOut().println("Platform " + platform + " already uses "
+                    output.detail("Platform " + platform + " already uses "
                             + versionRefDescription + " in [platforms]");
                 } else if (existingVersionRef != null) {
-                    spec.commandLine().getOut().println("Updated platform " + platform
+                    output.success("Updated platform " + platform
                             + " from versionRef `" + existingVersionRef + "` to "
                             + versionRefDescription + " in [platforms]");
                 } else if (existing != null) {
-                    spec.commandLine().getOut().println("Updated platform " + platform
+                    output.success("Updated platform " + platform
                             + " from " + existing + " to " + versionRefDescription + " in [platforms]");
                 } else {
-                    spec.commandLine().getOut().println("Added platform " + platform
+                    output.success("Added platform " + platform
                             + " with " + versionRefDescription + " to [platforms]");
                 }
                 return;
             }
             if (existingVersionRef != null) {
-                spec.commandLine().getOut().println("Updated platform " + platform
+                output.success("Updated platform " + platform
                         + " from versionRef `" + existingVersionRef + "` to " + version + " in [platforms]");
             } else if (version.equals(existing)) {
-                spec.commandLine().getOut().println("Platform " + platform + ":" + version
+                output.detail("Platform " + platform + ":" + version
                         + " already exists in [platforms]");
             } else if (existing != null) {
-                spec.commandLine().getOut().println("Updated platform " + platform
+                output.success("Updated platform " + platform
                         + " from " + existing + " to " + version + " in [platforms]");
             } else {
-                spec.commandLine().getOut().println("Added platform " + platform + ":" + version
+                output.success("Added platform " + platform + ":" + version
                         + " to [platforms]");
             }
         }
@@ -241,14 +247,14 @@ public final class PlatformCommand implements Runnable {
                 Path projectRoot = projectDirectory.path();
                 Path configPath = projectRoot.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
+                CommandHumanOutput output = CommandHumanOutput.of(spec);
                 if (!config.platforms().containsKey(platform)) {
-                    spec.commandLine().getOut().println(
-                            "Platform " + platform + " is not present in [platforms]; nothing to remove.");
+                    output.detail("Platform " + platform + " is not present in [platforms]; nothing to remove.");
                     return;
                 }
                 ProjectConfig updated = tomlWriter.removePlatform(config, platform);
                 tomlWriter.write(configPath, updated);
-                spec.commandLine().getOut().println("Removed platform " + platform + " from [platforms]");
+                output.success("Removed platform " + platform + " from [platforms]");
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (PlatformCommandException
                     | ArtifactCacheException
