@@ -10,6 +10,7 @@ import com.zolt.tree.DependencyJsonFormatter;
 import com.zolt.tree.DependencyTreeFormatter;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -26,8 +27,8 @@ public final class TreeCommand implements Runnable {
         JSON
     }
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
@@ -57,8 +58,9 @@ public final class TreeCommand implements Runnable {
     @Override
     public void run() {
         try {
-            ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
-            ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
+            Path projectRoot = projectDirectory.path();
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ZoltLockfile lockfile = lockfileReader.read(projectRoot.resolve("zolt.lock"));
             String output = format == Format.JSON
                     ? jsonFormatter.tree(config, lockfile)
                     : treeFormatter.format(config, lockfile);

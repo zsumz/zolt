@@ -17,6 +17,16 @@ final class TreeWhyCommandTest {
     private Path tempDir;
 
     @Test
+    void treeHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "tree");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void treePrintsDependencyTreeFromProjectLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
@@ -46,6 +56,23 @@ final class TreeWhyCommandTest {
         assertTrue(result.stdout().contains("\"roots\": [\"com.example:app:1.0.0\"]"));
         assertTrue(result.stdout().contains("\"policyEffects\": ["));
         assertTrue(result.stdout().contains("\"id\": \"commons-logging:commons-logging\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void treeAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("tree-directory");
+        writeProjectConfig(projectDir);
+        writeAppLibLockfile(projectDir);
+
+        CommandResult result = execute(
+                "tree",
+                "--directory", projectDir.toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"command\": \"tree\""));
+        assertTrue(result.stdout().contains("\"roots\": [\"com.example:app:1.0.0\"]"));
         assertEquals("", result.stderr());
     }
 
