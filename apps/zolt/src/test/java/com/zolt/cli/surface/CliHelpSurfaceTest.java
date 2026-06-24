@@ -161,6 +161,30 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void helpCommandRespectsColorModesForTopLevelCommands() {
+        for (String command : topLevelCommandNames(newCommandLine())) {
+            CommandResult colored = execute("--color=always", "help", command);
+            assertEquals(0, colored.exitCode(), "zolt help " + command + " should exit successfully");
+            assertEquals("", colored.stderr(), "zolt help " + command + " should not write stderr");
+            assertTrue(
+                    colored.stdout().contains("\u001B[1mUsage\u001B[0m:"),
+                    "zolt help " + command + " should use a bold usage heading");
+            assertTrue(
+                    colored.stdout().contains("\u001B[1;32m--help\u001B[0m"),
+                    "zolt help " + command + " should use bold green option tokens");
+            assertFalse(
+                    colored.stdout().contains("\u001B[33m"),
+                    "zolt help " + command + " should not use warning color");
+
+            CommandResult plain = execute("--color=never", "help", command);
+            assertEquals(0, plain.exitCode(), "zolt help " + command + " --color=never should exit successfully");
+            assertEquals("", plain.stderr(), "zolt help " + command + " --color=never should not write stderr");
+            assertFalse(plain.stdout().contains("\u001B["), "zolt help " + command + " should not color stdout");
+            assertFalse(plain.stderr().contains("\u001B["), "zolt help " + command + " should not color stderr");
+        }
+    }
+
+    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
@@ -261,6 +285,12 @@ final class CliHelpSurfaceTest {
         List<List<String>> paths = new ArrayList<>();
         collectCommandPaths(root, List.of(), paths);
         return paths;
+    }
+
+    private static List<String> topLevelCommandNames(CommandLine root) {
+        return root.getSubcommands().keySet().stream()
+                .filter(command -> !command.equals("help"))
+                .toList();
     }
 
     private static List<Class<?>> zoltCommandTypes(CommandLine root) {
