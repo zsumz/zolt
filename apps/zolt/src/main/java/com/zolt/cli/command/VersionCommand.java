@@ -64,7 +64,14 @@ public final class VersionCommand implements Runnable {
         private CommandSpec spec;
 
         public SetCommand() {
-            this(new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+            this(CommandFrameworkServices.versionAliasCommandServices());
+        }
+
+        private SetCommand(CommandVersionAliasServices services) {
+            this(
+                    services.tomlParser(),
+                    services.tomlWriter(),
+                    services.resolveService());
         }
 
         SetCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {
@@ -137,7 +144,14 @@ public final class VersionCommand implements Runnable {
         private CommandSpec spec;
 
         public RemoveCommand() {
-            this(new ZoltTomlParser(), new ZoltTomlWriter(), CommandFrameworkServices.resolveService());
+            this(CommandFrameworkServices.versionAliasCommandServices());
+        }
+
+        private RemoveCommand(CommandVersionAliasServices services) {
+            this(
+                    services.tomlParser(),
+                    services.tomlWriter(),
+                    services.resolveService());
         }
 
         RemoveCommand(ZoltTomlParser tomlParser, ZoltTomlWriter tomlWriter, ResolveService resolveService) {

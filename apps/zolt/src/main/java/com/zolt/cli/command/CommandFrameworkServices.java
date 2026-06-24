@@ -44,6 +44,13 @@ final class CommandFrameworkServices {
                 resolveService());
     }
 
+    static CommandVersionAliasServices versionAliasCommandServices() {
+        return new CommandVersionAliasServices(
+                new ZoltTomlParser(),
+                new ZoltTomlWriter(),
+                resolveService());
+    }
+
     static WorkspaceResolveService workspaceResolveService() {
         return new WorkspaceResolveService(resolveService());
     }
@@ -168,6 +175,17 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandVersionAliasServices(
+        ZoltTomlParser tomlParser,
+        ZoltTomlWriter tomlWriter,
+        ResolveService resolveService) {
+    CommandVersionAliasServices {
+        Objects.requireNonNull(tomlParser, "tomlParser");
+        Objects.requireNonNull(tomlWriter, "tomlWriter");
+        Objects.requireNonNull(resolveService, "resolveService");
     }
 }
 

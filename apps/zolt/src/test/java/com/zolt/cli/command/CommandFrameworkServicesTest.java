@@ -7,6 +7,39 @@ import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
     @Test
+    void versionAliasCommandServicesOwnsDefaultVersionAliasWiring() {
+        CommandVersionAliasServices services = CommandFrameworkServices.versionAliasCommandServices();
+
+        assertNotNull(services.tomlParser());
+        assertNotNull(services.tomlWriter());
+        assertNotNull(services.resolveService());
+    }
+
+    @Test
+    void versionAliasCommandServicesRequiresEveryCollaborator() {
+        CommandVersionAliasServices services = CommandFrameworkServices.versionAliasCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandVersionAliasServices(
+                        null,
+                        services.tomlWriter(),
+                        services.resolveService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandVersionAliasServices(
+                        services.tomlParser(),
+                        null,
+                        services.resolveService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandVersionAliasServices(
+                        services.tomlParser(),
+                        services.tomlWriter(),
+                        null));
+    }
+
+    @Test
     void dependencyEditCommandServicesOwnsDefaultDependencyEditWiring() {
         CommandDependencyEditServices services = CommandFrameworkServices.dependencyEditCommandServices();
 
