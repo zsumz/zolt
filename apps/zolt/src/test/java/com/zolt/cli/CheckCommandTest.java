@@ -15,6 +15,16 @@ import org.junit.jupiter.api.Test;
 final class CheckCommandTest extends CheckCommandTestSupport {
 
     @Test
+    void checkHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "check");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void checkSucceedsForTypedProjectModel() throws IOException {
         Path projectDir = createProject("check-demo");
 
@@ -28,6 +38,18 @@ final class CheckCommandTest extends CheckCommandTestSupport {
                 Checked 1 quality checks: 1 passed, 0 warnings, 0 failed, 0 skipped
                 """,
                 result.stdout());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = createProject("check-directory");
+
+        CommandResult result = execute("check", "--directory", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Checking project"));
+        assertTrue(result.stdout().contains("ok command-surface check-directory"));
         assertEquals("", result.stderr());
     }
 

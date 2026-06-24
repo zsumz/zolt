@@ -67,8 +67,8 @@ public final class CheckCommand implements Callable<Integer> {
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -90,10 +90,11 @@ public final class CheckCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         QualityCheckReport report = timings.measure(
                 "run quality checks",
                 () -> qualityCheckService.check(new QualityCheckRequest(
-                        workingDirectory,
+                        projectRoot,
                         cacheRoot,
                         offline,
                         workspace,
@@ -111,7 +112,7 @@ public final class CheckCommand implements Callable<Integer> {
         } else {
             CommandCheckOutput.print(spec, report);
         }
-        CommandTimings.print(spec, "check", workingDirectory, timingOptions, timings);
+        CommandTimings.print(spec, "check", projectRoot, timingOptions, timings);
         return report.ok() ? 0 : 1;
     }
 
