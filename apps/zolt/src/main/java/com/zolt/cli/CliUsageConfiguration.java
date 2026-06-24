@@ -3,6 +3,7 @@ package com.zolt.cli;
 import com.zolt.cli.console.ConsoleStyle;
 import java.util.function.Supplier;
 import picocli.CommandLine;
+import picocli.CommandLine.Help;
 import picocli.CommandLine.Model.UsageMessageSpec;
 
 final class CliUsageConfiguration {
@@ -25,7 +26,7 @@ final class CliUsageConfiguration {
                 .usageMessage()
                 .sectionMap()
                 .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
-                        help -> styles.get().heading("Commands") + ":" + System.lineSeparator());
+                        help -> commandListHeading(help, styles));
         commandLine.getCommandSpec()
                 .usageMessage()
                 .sectionMap()
@@ -35,5 +36,14 @@ final class CliUsageConfiguration {
                 .sectionMap()
                 .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer(styles));
         commandLine.getSubcommands().values().forEach(subcommand -> apply(subcommand, styles));
+    }
+
+    private static String commandListHeading(Help help, Supplier<ConsoleStyle> styles) {
+        boolean hasVisibleSubcommands = help.subcommands().values().stream()
+                .anyMatch(subcommand -> !subcommand.commandSpec().usageMessage().hidden());
+        if (!hasVisibleSubcommands) {
+            return "";
+        }
+        return styles.get().heading("Commands") + ":" + System.lineSeparator();
     }
 }

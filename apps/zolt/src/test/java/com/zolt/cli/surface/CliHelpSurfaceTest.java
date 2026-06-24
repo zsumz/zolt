@@ -168,6 +168,24 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void leafCommandHelpDoesNotShowEmptyCommandList() {
+        CommandResult result = execute("test", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("Commands:"));
+    }
+
+    @Test
+    void leafCommandForcedColorHelpDoesNotShowEmptyCommandList() {
+        CommandResult result = execute("--color=always", "test", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B[1mCommands\u001B[0m:"));
+    }
+
+    @Test
     void defaultOnlyHelpUsesStandardOptionOrder() {
         CommandResult result = execute("platform", "--help");
 
