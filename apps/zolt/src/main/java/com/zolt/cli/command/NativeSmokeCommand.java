@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.project.ProjectConfig;
 import com.zolt.selfhost.NativeSmokeException;
 import com.zolt.selfhost.NativeSmokeResult;
@@ -51,10 +52,11 @@ public final class NativeSmokeCommand implements Runnable {
                     config,
                     binary,
                     effectiveWorkDirectory(config));
-            spec.commandLine().getOut().println("Native smoke status: ok");
-            spec.commandLine().getOut().println("Smoked binary " + result.binary());
-            spec.commandLine().getOut().println("Verified release archive " + result.archive());
-            spec.commandLine().getOut().println("Ran generated project " + result.projectDirectory());
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.success("Native smoke status: ok");
+            output.success("Smoked binary " + result.binary());
+            output.success("Verified release archive " + result.archive());
+            output.success("Ran generated project " + result.projectDirectory());
         } catch (NativeSmokeException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
