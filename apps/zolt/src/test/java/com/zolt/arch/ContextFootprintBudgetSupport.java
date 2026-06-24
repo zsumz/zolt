@@ -42,15 +42,11 @@ final class ContextFootprintBudgetSupport {
         Map<PackageKey, PackageFootprintBuilder> footprints = new LinkedHashMap<>();
         for (Path sourceRoot : sourceRoots(budget.rootPattern())) {
             String displayRoot = RepositoryPaths.displayPath(sourceRoot);
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                for (Path javaFile : paths.filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .toList()) {
-                    String packageName = packageName(javaFile);
-                    PackageKey key = new PackageKey(displayRoot, packageName);
-                    footprints.computeIfAbsent(key, ignored -> new PackageFootprintBuilder(displayRoot, packageName))
-                            .add(lineCount(javaFile));
-                }
+            for (Path javaFile : ArchitectureSourceFiles.javaFiles(List.of(sourceRoot))) {
+                String packageName = packageName(javaFile);
+                PackageKey key = new PackageKey(displayRoot, packageName);
+                footprints.computeIfAbsent(key, ignored -> new PackageFootprintBuilder(displayRoot, packageName))
+                        .add(lineCount(javaFile));
             }
         }
         return footprints.values().stream()

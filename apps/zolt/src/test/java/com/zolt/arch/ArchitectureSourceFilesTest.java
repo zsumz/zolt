@@ -15,9 +15,11 @@ final class ArchitectureSourceFilesTest {
         Path alpha = tempDir.resolve("alpha/src/main/java/com/example/Alpha.java");
         Path beta = tempDir.resolve("beta/src/main/java/com/example/Beta.java");
         Path readme = tempDir.resolve("alpha/src/main/java/com/example/README.md");
+        Path directoryWithJavaSuffix = tempDir.resolve("alpha/src/main/java/com/example/Nested.java");
         write(beta, "final class Beta {}\n");
         write(readme, "not java\n");
         write(alpha, "final class Alpha {}\n");
+        Files.createDirectories(directoryWithJavaSuffix);
 
         assertEquals(
                 List.of(alpha, beta),

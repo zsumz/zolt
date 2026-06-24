@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,15 +58,9 @@ final class FileSizeBudgetSupport {
 
     static List<SourceFileSize> sourceFileSizes(Budget budget) throws IOException {
         List<SourceFileSize> fileSizes = new ArrayList<>();
-        for (Path sourceRoot : sourceRoots(budget.rootPattern())) {
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                paths.filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .map(path -> new SourceFileSize(RepositoryPaths.displayPath(path), lineCount(path)))
-                        .forEach(fileSizes::add);
-            }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(sourceRoots(budget.rootPattern()))) {
+            fileSizes.add(new SourceFileSize(RepositoryPaths.displayPath(javaFile), lineCount(javaFile)));
         }
-        fileSizes.sort(Comparator.comparing(SourceFileSize::path));
         return List.copyOf(fileSizes);
     }
 

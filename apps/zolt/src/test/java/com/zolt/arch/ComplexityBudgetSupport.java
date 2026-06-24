@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 final class ComplexityBudgetSupport {
     private static final Pattern IMPORT_PATTERN = Pattern.compile("^\\s*import\\s+(?:static\\s+)?([\\w.]+)(?:\\.\\*)?\\s*;");
@@ -134,16 +132,9 @@ final class ComplexityBudgetSupport {
 
     private static List<SourceComplexity> sourceComplexities(Budget budget) throws IOException {
         List<SourceComplexity> complexities = new ArrayList<>();
-        for (Path sourceRoot : sourceRoots(budget.rootPattern())) {
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                for (Path javaFile : paths.filter(path -> path.toString().endsWith(".java"))
-                        .sorted()
-                        .toList()) {
-                    complexities.add(scan(javaFile));
-                }
-            }
+        for (Path javaFile : ArchitectureSourceFiles.javaFiles(sourceRoots(budget.rootPattern()))) {
+            complexities.add(scan(javaFile));
         }
-        complexities.sort(Comparator.comparing(SourceComplexity::path));
         return List.copyOf(complexities);
     }
 
