@@ -16,6 +16,16 @@ final class RunCommandTest {
     private Path tempDir;
 
     @Test
+    void runHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "run");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void runBuildsAndRunsConfiguredMainClass() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -39,6 +49,33 @@ final class RunCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("hello one two"));
+        assertTrue(result.stdout().contains("Ran com.example.Main"));
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
+    }
+
+    @Test
+    void runAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("hello " + args[0]);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--directory", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache-directory").toString(),
+                "--",
+                "directory");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("hello directory"));
         assertTrue(result.stdout().contains("Ran com.example.Main"));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }

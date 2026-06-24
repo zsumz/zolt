@@ -54,8 +54,8 @@ public final class RunCommand implements Runnable {
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -88,16 +88,17 @@ public final class RunCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
-                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+                lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
                 WorkspaceRunResult result = timings.measure(
                         "run workspace",
                         () -> {
                             WorkspaceBuildPlan plan = timings.measure(
                                     "plan workspace run",
                                     () -> workspaceRunService.planRun(
-                                            workingDirectory,
+                                            projectRoot,
                                             cacheRoot,
                                             CommandWorkspaceSelections.from(all, members, memberGroups)),
                                     CommandBuildAttributes::workspaceBuildPlan);
@@ -132,12 +133,12 @@ public final class RunCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-            lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                    () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+            lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
             RunResult result = timings.measure(
                     "run application",
                     () -> runService.run(
-                            workingDirectory,
+                            projectRoot,
                             config,
                             cacheRoot,
                             arguments,
@@ -163,7 +164,7 @@ public final class RunCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "run", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "run", projectRoot, timingOptions, timings);
         }
     }
 
