@@ -27,6 +27,12 @@ final class CliUsageConfiguration {
                 UsageMessageSpec.SECTION_KEY_DESCRIPTION,
                 CliUsageConfiguration::descriptionSection);
         usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_PARAMETER_LIST_HEADING,
+                help -> parameterListHeading(help, styles));
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_PARAMETER_LIST,
+                help -> HelpParameterHighlighter.highlight(help.parameterList(), styles.get()));
+        usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
                 help -> styles.get().helpHeading("Options") + ":" + System.lineSeparator());
         usage.sectionMap().put(
@@ -55,5 +61,12 @@ final class CliUsageConfiguration {
             return description + System.lineSeparator();
         }
         return description + System.lineSeparator() + System.lineSeparator();
+    }
+
+    private static String parameterListHeading(Help help, Supplier<ConsoleStyle> styles) {
+        if (help.commandSpec().positionalParameters().isEmpty()) {
+            return "";
+        }
+        return styles.get().helpHeading("Arguments") + ":" + System.lineSeparator();
     }
 }

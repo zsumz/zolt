@@ -1,0 +1,169 @@
+package com.zolt.cli.surface;
+
+import static com.zolt.cli.CliTestSupport.execute;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.cli.CliTestSupport.CommandResult;
+import org.junit.jupiter.api.Test;
+
+final class CliCommandHelpSectionSurfaceTest {
+    @Test
+    void buildHelpGroupsWorkspaceResolutionAndDiagnosticsOptions() {
+        CommandResult result = execute("build", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Resolution:",
+                "--offline",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void buildHelpColorsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "build", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt build\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--offline\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
+    void packageHelpGroupsWorkspaceOutputAndDiagnosticsOptions() {
+        CommandResult result = execute("package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "--mode",
+                "--plan",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Output:",
+                "--format",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void packageHelpColorsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt package\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--mode\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
+    void runHelpGroupsArgumentsWorkspaceAndDiagnosticsOptions() {
+        CommandResult result = execute("run", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Build and run the configured main class.",
+                "Arguments:",
+                "[ARGS...]",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void runHelpColorsArgumentsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "run", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt run\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m[ARGS...]\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    private static void assertContainsInOrder(String text, String... expected) {
+        int previousIndex = -1;
+        for (String item : expected) {
+            int index = text.indexOf(item, previousIndex + 1);
+            assertTrue(index > previousIndex, "Expected `" + item + "` after index " + previousIndex);
+            previousIndex = index;
+        }
+    }
+}
