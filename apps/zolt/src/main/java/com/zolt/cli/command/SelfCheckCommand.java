@@ -27,8 +27,8 @@ public final class SelfCheckCommand implements Runnable {
     @Option(names = "--native-image", description = "Path to the native-image executable.")
     private Path nativeImageExecutable;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -50,11 +50,12 @@ public final class SelfCheckCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             SelfCheckResult result = timings.measure(
                     "self-check",
                     () -> selfCheckService.check(
-                            workingDirectory,
+                            projectRoot,
                             cacheRoot,
                             offline,
                             nativeCheck,
@@ -65,7 +66,7 @@ public final class SelfCheckCommand implements Runnable {
                 throw new CommandLine.ExecutionException(spec.commandLine(), "Self-check failed.");
             }
         } finally {
-            CommandTimings.print(spec, "self-check", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "self-check", projectRoot, timingOptions, timings);
         }
     }
 
