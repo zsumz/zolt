@@ -117,6 +117,9 @@ public final class ZoltCli implements Runnable {
             description = "Suppress Zolt human summaries and auto progress.")
     private boolean quiet;
 
+    @Option(names = "--list", description = "List available commands.")
+    private boolean listCommands;
+
     @Spec
     private CommandSpec spec;
 
@@ -142,6 +145,12 @@ public final class ZoltCli implements Runnable {
 
     @Override
     public void run() {
+        if (listCommands) {
+            spec.commandLine().getOut().println("Commands:");
+            spec.commandLine().getOut().print(RootCommandListRenderer.render(spec.commandLine(), consoleStyle()));
+            spec.commandLine().getOut().flush();
+            return;
+        }
         spec.commandLine().usage(spec.commandLine().getOut());
     }
 

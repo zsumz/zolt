@@ -38,6 +38,7 @@ final class CliSurfaceTest {
         assertTrue(result.stdout().contains("--progress"));
         assertTrue(result.stdout().contains("--no-progress"));
         assertTrue(result.stdout().contains("--quiet"));
+        assertTrue(result.stdout().contains("--list"));
         assertContainsInOrder(
                 result.stdout(),
                 "Commands:",
@@ -82,6 +83,42 @@ final class CliSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertTrue(result.stdout().contains("  Basics"));
         assertTrue(result.stdout().contains("    init                Create a new Zolt project."));
+    }
+
+    @Test
+    void listShowsGroupedCommandInventoryWithoutUsage() {
+        CommandResult result = execute("--list");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertFalse(result.stdout().contains("Usage:"));
+        assertContainsInOrder(
+                result.stdout(),
+                "Commands:",
+                "  Basics",
+                "    help",
+                "    init",
+                "  Dependencies",
+                "    resolve",
+                "  Build, Test, Run",
+                "    build",
+                "  Insight and Tooling",
+                "    check",
+                "  Native and Release",
+                "    native",
+                "  Self-Hosting",
+                "    self-check");
+    }
+
+    @Test
+    void listSupportsSparseSemanticColor() {
+        CommandResult result = execute("--color=always", "--list");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
+        assertFalse(result.stderr().contains("\u001B["));
     }
 
     @Test
