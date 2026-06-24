@@ -21,6 +21,13 @@ public final class CommandHumanOutput {
         return new CommandHumanOutput(commandLine.getOut(), style);
     }
 
+    public static CommandHumanOutput errors(CommandSpec spec) {
+        CommandLine commandLine = spec.commandLine();
+        ZoltCli root = root(commandLine);
+        ConsoleStyle style = root == null ? ConsoleStyle.disabled() : root.consoleStyle();
+        return new CommandHumanOutput(commandLine.getErr(), style);
+    }
+
     public void work(String message) {
         out.println(styledLead(message, LeadStyle.WORK));
     }
@@ -39,6 +46,18 @@ public final class CommandHumanOutput {
 
     public void check(String marker, String message) {
         out.println(styleStatus(marker) + " " + message);
+    }
+
+    public void error(String message) {
+        out.println(style.error("error:") + " " + message);
+    }
+
+    public void context(String label, String value) {
+        out.println(label + ": " + value);
+    }
+
+    public void next(String message) {
+        out.println("Next: " + message);
     }
 
     public void line(String message) {

@@ -1,6 +1,7 @@
 package com.zolt.cli;
 
 import static com.zolt.cli.BuildCommandTestSupport.enableQuarkus;
+import static com.zolt.cli.BuildCommandTestSupport.currentJavaMajorVersion;
 import static com.zolt.cli.BuildCommandTestSupport.writeMainSource;
 import static com.zolt.cli.BuildCommandTestSupport.writeProjectConfig;
 import static com.zolt.cli.CliTestSupport.execute;
@@ -64,9 +65,32 @@ final class BuildCommandDiagnosticsTest {
             assertEquals(0, resolve.exitCode());
             assertEquals(1, result.exitCode());
             assertTrue(result.stderr().contains("zolt.lock is out of date"));
-            assertTrue(result.stderr().contains("Run `zolt resolve` to refresh it"));
+            assertTrue(result.stderr().contains("File: zolt.lock"));
+            assertTrue(result.stderr().contains("Next: Run `zolt resolve` to refresh it"));
             assertFalse(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
         }
+    }
+
+    @Test
+    void buildReportsInvalidConfigFieldAsErrorBlock() throws IOException {
+        Path projectDir = tempDir.resolve("invalid-config-field");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "invalid-config-field"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                packaging = "jar"
+                """.formatted(currentJavaMajorVersion()));
+
+        CommandResult result = execute("build", "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: Unknown field [project].packaging in zolt.toml."));
+        assertTrue(result.stderr().contains("File: zolt.toml"));
+        assertTrue(result.stderr().contains("Field: [project].packaging"));
+        assertTrue(result.stderr().contains("Next: Remove it or check the spelling."));
     }
 
     @Test

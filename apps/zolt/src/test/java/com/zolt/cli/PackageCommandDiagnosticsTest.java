@@ -125,6 +125,7 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unsupported package mode `ear`"));
+        assertTrue(result.stderr().contains("Unsupported: `ear`"));
         assertTrue(result.stderr().contains("thin, spring-boot, war, spring-boot-war, quarkus, uber"));
     }
 

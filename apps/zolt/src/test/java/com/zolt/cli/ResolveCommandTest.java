@@ -189,7 +189,8 @@ final class ResolveCommandTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Locked resolve requires zolt.lock"));
-        assertTrue(result.stderr().contains("Run `zolt resolve` to create it"));
+        assertTrue(result.stderr().contains("File: " + projectDir.resolve("zolt.lock")));
+        assertTrue(result.stderr().contains("Next: Run `zolt resolve` to create it"));
     }
 
     @Test
@@ -205,7 +206,8 @@ final class ResolveCommandTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Offline mode requires cached POM"));
-        assertTrue(result.stderr().contains("Run the command without --offline"));
+        assertTrue(result.stderr().contains("Coordinate: com.example:missing:1.0.0"));
+        assertTrue(result.stderr().contains("Next: Run the command without --offline"));
     }
 
 }

@@ -83,7 +83,8 @@ final class CliMachineReadableContractTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("error: Could not read zolt.toml at "
                 + projectDir.resolve("zolt.toml")));
-        assertTrue(result.stderr().contains("Check that the file exists and is readable."));
+        assertTrue(result.stderr().contains("File: " + projectDir.resolve("zolt.toml")));
+        assertTrue(result.stderr().contains("Next: Check that the file exists and is readable."));
         assertNoAnsi(result.stderr());
         assertEquals("", result.stdout());
     }
