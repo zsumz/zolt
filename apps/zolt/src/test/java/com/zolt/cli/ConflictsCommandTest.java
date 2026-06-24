@@ -19,6 +19,16 @@ final class ConflictsCommandTest {
     private Path tempDir;
 
     @Test
+    void conflictsHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "conflicts");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void conflictsPrintsConflictSummaryFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);
@@ -32,7 +42,7 @@ final class ConflictsCommandTest {
                 reason = "direct dependency wins"
                 """);
 
-        CommandResult result = execute("conflicts", "--cwd", projectDir.toString());
+        CommandResult result = execute("conflicts", "--directory", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("""

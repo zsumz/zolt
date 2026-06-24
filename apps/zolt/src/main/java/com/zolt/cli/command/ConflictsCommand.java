@@ -3,10 +3,9 @@ package com.zolt.cli.command;
 import com.zolt.conflict.DependencyConflictFormatter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfileReader;
-import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
 @Command(name = "conflicts", description = "Show version conflicts and selected versions.")
@@ -14,8 +13,8 @@ public final class ConflictsCommand implements Runnable {
     private final ZoltLockfileReader lockfileReader;
     private final DependencyConflictFormatter conflictFormatter;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Spec
     private CommandSpec spec;
@@ -32,7 +31,7 @@ public final class ConflictsCommand implements Runnable {
     @Override
     public void run() {
         try {
-            String output = conflictFormatter.format(lockfileReader.read(workingDirectory.resolve("zolt.lock")));
+            String output = conflictFormatter.format(lockfileReader.read(projectDirectory.path().resolve("zolt.lock")));
             CommandOutput.printAndFlush(spec, output);
         } catch (LockfileReadException exception) {
             throw CommandFailures.user(spec, exception);
