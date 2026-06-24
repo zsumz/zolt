@@ -47,7 +47,7 @@ final class ConsoleStyleTest {
         assertEquals("\u001B[1mBasics\u001B[0m", style.heading("Basics"));
         assertEquals("\u001B[36mresolve\u001B[0m", style.command("resolve"));
         assertEquals("\u001B[32mResolved\u001B[0m", style.success("Resolved"));
-        assertEquals("\u001B[32m--workspace\u001B[0m", style.option("--workspace"));
+        assertEquals("\u001B[1;32m--workspace\u001B[0m", style.option("--workspace"));
         assertEquals("\u001B[33mwarning:\u001B[0m", style.warning("warning:"));
         assertEquals("\u001B[31merror:\u001B[0m", style.error("error:"));
         assertEquals("\u001B[2m12ms\u001B[0m", style.muted("12ms"));

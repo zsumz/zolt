@@ -56,9 +56,9 @@ final class TestCommandValidationTest {
         assertTrue(result.stdout().contains("\u001B[1mWorkspace Selection\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1mTest Selection\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1mDiagnostics\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[32m--color"));
-        assertTrue(result.stdout().contains("\u001B[32m--workspace"));
-        assertTrue(result.stdout().contains("\u001B[32m--test"));
+        assertTrue(result.stdout().contains("\u001B[1;32m--color"));
+        assertTrue(result.stdout().contains("\u001B[1;32m--workspace"));
+        assertTrue(result.stdout().contains("\u001B[1;32m--test"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
 

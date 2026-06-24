@@ -5,6 +5,7 @@ import java.util.Map;
 public final class ConsoleStyle {
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";
+    private static final String BOLD_GREEN = "\u001B[1;32m";
     private static final String DIM = "\u001B[2m";
     private static final String RED = "\u001B[31m";
     private static final String GREEN = "\u001B[32m";
@@ -50,7 +51,7 @@ public final class ConsoleStyle {
     }
 
     public String option(String text) {
-        return style(GREEN, text);
+        return style(BOLD_GREEN, text);
     }
 
     public String work(String text) {
