@@ -118,6 +118,52 @@ final class NativeBuildServiceSpringNativeFailureModeTest extends NativeBuildSer
         assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
     }
 
+    @Test
+    void rejectsSpringCloudNativeBoundaryBeforePackaging() {
+        NativeBuildService service = service(command -> {
+            throw new AssertionError("native-image should not run");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        springBootNativeBoundaryConfig("""
+                                [dependencies]
+                                "org.springframework.cloud:spring-cloud-starter-gateway" = "4.1.5"
+                                """),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("Spring Cloud native applications"));
+        assertTrue(exception.getMessage().contains("not part of Zolt's proven Spring Boot native fixture family yet"));
+        assertTrue(exception.getMessage().contains("Use the JVM Spring Boot path"));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
+    void rejectsExternalDatabaseNativeBoundaryBeforePackaging() {
+        NativeBuildService service = service(command -> {
+            throw new AssertionError("native-image should not run");
+        });
+
+        NativeImageException exception = assertThrows(
+                NativeImageException.class,
+                () -> service.buildNative(
+                        projectDir,
+                        springBootNativeBoundaryConfig("""
+                                [runtime.dependencies]
+                                "org.postgresql:postgresql" = "42.7.4"
+                                """),
+                        projectDir.resolve("cache"),
+                        Path.of("native-image")));
+
+        assertTrue(exception.getMessage().contains("external database native topologies"));
+        assertTrue(exception.getMessage().contains("Spring JDBC/H2 native fixture row"));
+        assertTrue(exception.getMessage().contains("JVM Spring Boot path"));
+        assertFalse(Files.exists(projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
     private static ProjectConfig springBootNativeConfig() {
         return new ZoltTomlParser().parse("""
                 [project]
@@ -137,6 +183,25 @@ final class NativeBuildServiceSpringNativeFailureModeTest extends NativeBuildSer
                 imageName = "demo-native"
                 args = ["--no-fallback"]
                 """);
+    }
+
+    private static ProjectConfig springBootNativeBoundaryConfig(String dependencySection) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                main = "com.example.Main"
+
+                [platforms]
+                "org.springframework.boot:spring-boot-dependencies" = "3.3.6"
+
+                [framework.springBoot.native]
+                enabled = true
+
+                %s
+                """.formatted(dependencySection));
     }
 
     private static void writeSpringBootAotOutput(Path aotRoot) throws IOException {

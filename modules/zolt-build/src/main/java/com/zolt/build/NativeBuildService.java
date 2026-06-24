@@ -193,6 +193,7 @@ public final class NativeBuildService {
                                 + ". Use Spring Boot 3.3 or keep this project on the JVM Spring Boot path until this baseline has executable smoke evidence.");
             }
         });
+        SpringBootNativeBoundaryDiagnostics.rejectUnsupportedEcosystem(config);
     }
 
     private static void preflightNativeImageExecutable(Path nativeImageExecutable) {

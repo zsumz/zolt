@@ -173,10 +173,15 @@ final class PublicReadinessDocumentationTest {
         assertTrue(frameworkReadiness.contains("not broad Spring native-image support"));
         assertTrue(frameworkReadiness.contains("bounded M26 fixture family"));
         assertTrue(frameworkReadiness.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows"));
+        assertTrue(frameworkReadiness.contains("Native support-boundary diagnostics reject selected unproven ecosystem shapes"));
+        assertTrue(frameworkReadiness.contains("Spring Cloud native applications"));
+        assertTrue(frameworkReadiness.contains("external database native topologies with PostgreSQL, MySQL, MariaDB, or SQL Server drivers"));
         assertTrue(nativeGraalvm.contains("not arbitrary Spring native-image support"));
         assertTrue(nativeGraalvm.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"));
         assertTrue(springBootReadiness.contains("bounded to the proven Spring Boot 3.3 Java 21 M26 fixture family"));
         assertTrue(springBootReadiness.contains("Projects outside the WebMVC baseline, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows"));
+        assertTrue(springBootReadiness.contains("declare Spring Cloud dependencies or external database drivers"));
+        assertTrue(springBootReadiness.contains("Ordinary Spring Boot JVM build, test, run, and executable jar workflows are not rejected"));
     }
 
     @Test
