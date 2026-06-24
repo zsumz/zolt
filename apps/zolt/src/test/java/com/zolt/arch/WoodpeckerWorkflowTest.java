@@ -69,6 +69,7 @@ final class WoodpeckerWorkflowTest {
         String workflow = Files.readString(WOODPECKER.resolve("jvm.yml"));
 
         assertTrue(workflow.contains("scripts/ci-ensure-curl-test"));
+        assertTrue(workflow.contains("scripts/smoke-spring-boot-petclinic-resources-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-common-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-crud-test"));
         assertTrue(workflow.contains("scripts/smoke-vertx-postgres-native-test"));
