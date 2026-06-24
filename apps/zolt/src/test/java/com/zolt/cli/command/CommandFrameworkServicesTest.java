@@ -111,6 +111,14 @@ final class CommandFrameworkServicesTest {
     }
 
     @Test
+    void runFrameworkServicesOwnsDefaultRunFrameworkWiring() {
+        CommandRunFrameworkServices services = CommandFrameworkServices.runFrameworkServices();
+
+        assertNotNull(services.frameworkRunAugmenter());
+        assertNotNull(services.resolveService());
+    }
+
+    @Test
     void testCommandServicesOwnsDefaultTestWiring() {
         CommandTestServices services = CommandFrameworkServices.testCommandServices();
 

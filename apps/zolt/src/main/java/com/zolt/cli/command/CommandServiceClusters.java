@@ -3,6 +3,7 @@ package com.zolt.cli.command;
 import com.zolt.build.PackagePlanService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
+import com.zolt.framework.FrameworkRunAugmenter;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
@@ -43,6 +44,15 @@ record CommandTestFrameworkServices(
         ResolveService resolveService) {
     CommandTestFrameworkServices {
         Objects.requireNonNull(frameworkTestRunner, "frameworkTestRunner");
+        Objects.requireNonNull(resolveService, "resolveService");
+    }
+}
+
+record CommandRunFrameworkServices(
+        FrameworkRunAugmenter frameworkRunAugmenter,
+        ResolveService resolveService) {
+    CommandRunFrameworkServices {
+        Objects.requireNonNull(frameworkRunAugmenter, "frameworkRunAugmenter");
         Objects.requireNonNull(resolveService, "resolveService");
     }
 }

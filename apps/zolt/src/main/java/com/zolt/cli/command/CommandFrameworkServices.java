@@ -10,6 +10,7 @@ import com.zolt.build.RunService;
 import com.zolt.build.TestRunService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
+import com.zolt.framework.FrameworkRunAugmenter;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.quarkus.QuarkusBuildAugmenter;
@@ -119,13 +120,26 @@ final class CommandFrameworkServices {
     }
 
     static RunService runService() {
-        return new RunService(new QuarkusRunAugmenter());
+        return runService(runFrameworkServices());
+    }
+
+    static RunService runService(FrameworkRunAugmenter frameworkRunAugmenter) {
+        return runService(new CommandRunFrameworkServices(frameworkRunAugmenter, resolveService()));
+    }
+
+    static CommandRunFrameworkServices runFrameworkServices() {
+        return new CommandRunFrameworkServices(new QuarkusRunAugmenter(), resolveService());
+    }
+
+    private static RunService runService(CommandRunFrameworkServices runFrameworkServices) {
+        return new RunService(runFrameworkServices.frameworkRunAugmenter());
     }
 
     static CommandRunServices runCommandServices() {
+        CommandRunFrameworkServices runFrameworkServices = runFrameworkServices();
         return new CommandRunServices(
-                runService(),
-                workspaceRunService());
+                runService(runFrameworkServices),
+                workspaceRunService(runFrameworkServices));
     }
 
     static PackageService packageService() {
@@ -222,7 +236,11 @@ final class CommandFrameworkServices {
     }
 
     static WorkspaceRunService workspaceRunService() {
-        return new WorkspaceRunService(resolveService());
+        return workspaceRunService(runFrameworkServices());
+    }
+
+    private static WorkspaceRunService workspaceRunService(CommandRunFrameworkServices runFrameworkServices) {
+        return new WorkspaceRunService(runFrameworkServices.resolveService());
     }
 
     static CommandTestFrameworkServices testFrameworkServices() {
