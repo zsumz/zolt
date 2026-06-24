@@ -17,6 +17,16 @@ final class CleanCommandTest {
     private Path tempDir;
 
     @Test
+    void cleanHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "clean");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void cleanDeletesBuildOutputWithoutDeletingCache() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -31,6 +41,20 @@ final class CleanCommandTest {
         assertTrue(result.stdout().contains("Deleted 1 build output paths"));
         assertFalse(Files.exists(projectDir.resolve("target")));
         assertTrue(Files.exists(projectDir.resolve(".zolt/cache/artifact.jar")));
+    }
+
+    @Test
+    void cleanAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.createDirectories(projectDir.resolve("target/classes"));
+        Files.writeString(projectDir.resolve("target/classes/Main.class"), "compiled");
+
+        CommandResult result = execute("clean", "--directory", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Deleted 1 build output paths"));
+        assertFalse(Files.exists(projectDir.resolve("target")));
     }
 
     @Test
