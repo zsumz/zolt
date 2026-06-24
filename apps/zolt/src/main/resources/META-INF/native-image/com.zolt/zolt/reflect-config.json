@@ -24,6 +24,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$ColorModeConverter",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.console.ColorMode",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.perf.TimingFormat",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

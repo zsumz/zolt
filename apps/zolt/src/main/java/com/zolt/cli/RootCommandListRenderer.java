@@ -1,10 +1,12 @@
 package com.zolt.cli;
 
+import com.zolt.cli.console.ConsoleStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import picocli.CommandLine.Help;
 import picocli.CommandLine.IHelpSectionRenderer;
 
@@ -53,6 +55,12 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "self-check",
                     "self-parity")));
 
+    private final Supplier<ConsoleStyle> styles;
+
+    RootCommandListRenderer(Supplier<ConsoleStyle> styles) {
+        this.styles = styles;
+    }
+
     @Override
     public String render(Help help) {
         Map<String, Help> subcommands = help.subcommands();
@@ -62,10 +70,11 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
 
         StringBuilder output = new StringBuilder();
         Set<String> rendered = new LinkedHashSet<>();
+        ConsoleStyle style = styles.get();
         for (CommandGroup group : GROUPS) {
-            appendGroup(output, group, subcommands, rendered);
+            appendGroup(output, group, subcommands, rendered, style);
         }
-        appendUngroupedCommands(output, subcommands, rendered);
+        appendUngroupedCommands(output, subcommands, rendered, style);
         return output.toString();
     }
 
@@ -73,7 +82,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
             StringBuilder output,
             CommandGroup group,
             Map<String, Help> subcommands,
-            Set<String> rendered) {
+            Set<String> rendered,
+            ConsoleStyle style) {
         List<String> visibleCommands = new ArrayList<>();
         for (String command : group.commands()) {
             Help commandHelp = subcommands.get(command);
@@ -85,9 +95,9 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
             return;
         }
 
-        appendHeading(output, group.heading());
+        appendHeading(output, group.heading(), style);
         for (String command : visibleCommands) {
-            appendCommand(output, command, subcommands.get(command));
+            appendCommand(output, command, subcommands.get(command), style);
             rendered.add(command);
         }
         output.append(System.lineSeparator());
@@ -96,7 +106,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
     private static void appendUngroupedCommands(
             StringBuilder output,
             Map<String, Help> subcommands,
-            Set<String> rendered) {
+            Set<String> rendered,
+            ConsoleStyle style) {
         List<String> ungrouped = new ArrayList<>();
         for (Map.Entry<String, Help> entry : subcommands.entrySet()) {
             if (!rendered.contains(entry.getKey())
@@ -108,31 +119,32 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
             return;
         }
 
-        appendHeading(output, "Other");
+        appendHeading(output, "Other", style);
         for (String command : ungrouped) {
-            appendCommand(output, command, subcommands.get(command));
+            appendCommand(output, command, subcommands.get(command), style);
         }
         output.append(System.lineSeparator());
     }
 
-    private static void appendHeading(StringBuilder output, String heading) {
+    private static void appendHeading(StringBuilder output, String heading, ConsoleStyle style) {
         output.append("  ")
-                .append(heading)
+                .append(style.heading(heading))
                 .append(System.lineSeparator());
     }
 
-    private static void appendCommand(StringBuilder output, String command, Help commandHelp) {
+    private static void appendCommand(StringBuilder output, String command, Help commandHelp, ConsoleStyle style) {
         output.append("    ")
-                .append(pad(command))
+                .append(style.command(command))
+                .append(padding(command))
                 .append(description(commandHelp))
                 .append(System.lineSeparator());
     }
 
-    private static String pad(String command) {
+    private static String padding(String command) {
         if (command.length() >= COMMAND_COLUMN_WIDTH) {
-            return command + "  ";
+            return "  ";
         }
-        return command + " ".repeat(COMMAND_COLUMN_WIDTH - command.length());
+        return " ".repeat(COMMAND_COLUMN_WIDTH - command.length());
     }
 
     private static String description(Help commandHelp) {

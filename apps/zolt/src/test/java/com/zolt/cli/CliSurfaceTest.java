@@ -32,6 +32,7 @@ final class CliSurfaceTest {
         CommandResult result = execute("help");
 
         assertEquals(0, result.exitCode());
+        assertFalse(result.stdout().contains("\u001B["));
         assertTrue(result.stdout().contains("The modern Java build toolkit."));
         assertContainsInOrder(
                 result.stdout(),
@@ -56,6 +57,52 @@ final class CliSurfaceTest {
                 "    self-check");
         assertTrue(result.stdout().contains("help                Display help for zolt or a command."));
         assertFalse(result.stdout().contains("%n"));
+    }
+
+    @Test
+    void helpSupportsSparseSemanticColor() {
+        CommandResult result = execute("--color=always", "help");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[1mBasics\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36minit\u001B[0m"));
+        assertTrue(result.stdout().contains("Create a new Zolt project."));
+        assertFalse(result.stderr().contains("\u001B["));
+    }
+
+    @Test
+    void colorNeverKeepsHelpAnsiFree() {
+        CommandResult result = execute("--color=never", "help");
+
+        assertEquals(0, result.exitCode());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertTrue(result.stdout().contains("  Basics"));
+        assertTrue(result.stdout().contains("    init                Create a new Zolt project."));
+    }
+
+    @Test
+    void colorAlwaysDoesNotColorJsonOutput() throws Exception {
+        Files.writeString(tempDir.resolve("zolt.toml"), CliTestSupport.memberConfig("json-output"));
+
+        CommandResult result = execute(
+                "--color=always",
+                "plan",
+                "--cwd", tempDir.toString(),
+                "--format", "json");
+
+        assertEquals(1, result.exitCode());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertTrue(result.stdout().contains("\"target\": \"package\""));
+        assertTrue(result.stdout().contains("\"status\": \"blocked\""));
+    }
+
+    @Test
+    void invalidColorModeFailsBeforeCommandExecution() {
+        CommandResult result = execute("--color=rainbow", "help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("Invalid value for option '--color'"));
+        assertTrue(result.stderr().contains("expected one of: auto, always, never"));
     }
 
     @Test

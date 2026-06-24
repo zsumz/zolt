@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -164,6 +165,12 @@ final class ClasspathCommandTest {
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "quarkus-deployment");
+            CommandResult colorAlwaysCompile = CliTestSupport.execute(
+                "--color=always",
+                "classpath",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "compile");
 
         assertEquals(0, compile.exitCode());
         assertEquals(compileJar + System.lineSeparator(), compile.stdout());
@@ -181,5 +188,8 @@ final class ClasspathCommandTest {
         assertEquals(testProcessorJar + System.lineSeparator(), testProcessor.stdout());
         assertEquals(0, quarkusDeployment.exitCode());
         assertEquals(quarkusDeploymentJar + System.lineSeparator(), quarkusDeployment.stdout());
+        assertEquals(0, colorAlwaysCompile.exitCode());
+        assertFalse(colorAlwaysCompile.stdout().contains("\u001B["));
+        assertEquals(compile.stdout(), colorAlwaysCompile.stdout());
     }
 }

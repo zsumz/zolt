@@ -34,12 +34,16 @@ import com.zolt.cli.command.TreeCommand;
 import com.zolt.cli.command.UpdateCommand;
 import com.zolt.cli.command.VersionCommand;
 import com.zolt.cli.command.WhyCommand;
+import com.zolt.cli.console.ColorMode;
+import com.zolt.cli.console.ConsoleStyle;
 import com.zolt.perf.TimingFormat;
+import java.util.Locale;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Model.UsageMessageSpec;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.ScopeType;
 import picocli.CommandLine.Spec;
 
 @Command(
@@ -87,6 +91,13 @@ import picocli.CommandLine.Spec;
 public final class ZoltCli implements Runnable {
     public static final String VERSION = "0.1.0-SNAPSHOT";
 
+    @Option(
+            names = "--color",
+            scope = ScopeType.INHERIT,
+            converter = ColorModeConverter.class,
+            description = "Control color in human output: auto, always, or never.")
+    private ColorMode colorMode = ColorMode.AUTO;
+
     @Spec
     private CommandSpec spec;
 
@@ -96,7 +107,8 @@ public final class ZoltCli implements Runnable {
     }
 
     static CommandLine newCommandLine() {
-        CommandLine commandLine = new CommandLine(new ZoltCli())
+        ZoltCli rootCommand = new ZoltCli();
+        CommandLine commandLine = new CommandLine(rootCommand)
                 .setCaseInsensitiveEnumValuesAllowed(true)
                 .setExecutionExceptionHandler((exception, parsedCommandLine, parseResult) -> {
                     if (!(exception instanceof CommandLine.ExecutionException)) {
@@ -108,13 +120,35 @@ public final class ZoltCli implements Runnable {
         commandLine.getCommandSpec()
                 .usageMessage()
                 .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer());
+                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer(rootCommand::consoleStyle));
         return commandLine;
     }
 
     @Override
     public void run() {
         spec.commandLine().usage(spec.commandLine().getOut());
+    }
+
+    ConsoleStyle consoleStyle() {
+        boolean interactive = System.console() != null;
+        return ConsoleStyle.of(colorMode, interactive, System.getenv());
+    }
+
+    public static final class ColorModeConverter implements CommandLine.ITypeConverter<ColorMode> {
+        @Override
+        public ColorMode convert(String value) {
+            try {
+                return ColorMode.from(value);
+            } catch (IllegalArgumentException exception) {
+                String modes = String.join(
+                        ", ",
+                        ColorMode.AUTO.toString(),
+                        ColorMode.ALWAYS.toString(),
+                        ColorMode.NEVER.toString());
+                throw new CommandLine.TypeConversionException(
+                        "expected one of: " + modes + " (was `" + value.toLowerCase(Locale.ROOT) + "`)");
+            }
+        }
     }
 
     public static final class TimingOptions {

@@ -13,6 +13,7 @@ final class ModernConsoleOutputDocumentationTest {
 
         assertTrue(design.contains("sharp infrastructure tool"));
         assertTrue(design.contains("Cargo is a useful reference"));
+        assertTrue(design.contains("uv is also useful inspiration for the control surface around output"));
         assertTrue(design.contains("color and formatting are additive"));
         assertTrue(design.contains("--color=auto|always|never"));
         assertTrue(design.contains("NO_COLOR"));
