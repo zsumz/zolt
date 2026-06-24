@@ -70,6 +70,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Progress writes to stderr."));
         assertTrue(design.contains("Machine-readable or parseable outputs ignore `--progress=auto`"));
         assertTrue(design.contains("CI indicators such as `CI`, `WOODPECKER`,"));
+        assertTrue(design.contains("`--color=never --progress=always` emits plain progress lines."));
         assertTrue(design.contains("`NO_COLOR` affects color only."));
         assertTrue(design.contains("no spinners, bars, or carriage-return rewrites"));
         assertTrue(design.contains("Core resolver, planner, and build services should"));

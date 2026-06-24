@@ -32,6 +32,7 @@ final class ResolveCommandOutputTest {
             writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
 
             CommandResult progress = execute(
+                    "--color=never",
                     "--progress=always",
                     "resolve",
                     "--cwd", projectDir.toString(),
@@ -47,6 +48,7 @@ final class ResolveCommandOutputTest {
             assertTrue(progress.stderr().contains("Resolving dependencies..."));
             assertTrue(progress.stderr().contains("Resolved 1 packages"));
             assertFalse(progress.stderr().contains("\u001B["));
+            assertFalse(progress.stdout().contains("\u001B["));
             assertEquals(0, disabled.exitCode());
             assertEquals("", disabled.stderr());
         }
