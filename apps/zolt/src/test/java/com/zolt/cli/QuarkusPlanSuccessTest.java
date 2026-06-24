@@ -21,6 +21,16 @@ final class QuarkusPlanSuccessTest {
     private Path tempDir;
 
     @Test
+    void quarkusPlanUsageShowsDirectoryOption() {
+        CommandResult result = execute("quarkus", "plan", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void quarkusPlanPrintsAugmentationInputsFromLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Path cacheRoot = tempDir.resolve("cache");
@@ -39,7 +49,7 @@ final class QuarkusPlanSuccessTest {
         CommandResult result = execute(
                 "quarkus",
                 "plan",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--cache-root", cacheRoot.toString());
 
         assertEquals(0, result.exitCode());

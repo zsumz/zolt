@@ -47,8 +47,8 @@ public final class QuarkusCommand implements Runnable {
         private final QuarkusPlanFormatter quarkusPlanFormatter;
         private final QuarkusAugmentationRequestFactory augmentationRequestFactory;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -81,13 +81,14 @@ public final class QuarkusCommand implements Runnable {
         @Override
         public void run() {
             TimingRecorder timings = CommandTimings.recorder(timingOptions);
+            Path projectRoot = projectDirectory.path();
             try {
                 ProjectConfig config = timings.measure(
                         "config read",
-                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+                        () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
                 QuarkusPlan plan = timings.measure(
                         "quarkus plan",
-                        () -> quarkusPlanService.plan(workingDirectory, config, cacheRoot),
+                        () -> quarkusPlanService.plan(projectRoot, config, cacheRoot),
                         QuarkusCommand::quarkusPlanAttributes);
                 String output = timings.measure(
                         "quarkus plan format",
@@ -99,7 +100,7 @@ public final class QuarkusCommand implements Runnable {
             } catch (LockfileReadException | QuarkusPlanException | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);
             } finally {
-                CommandTimings.print(spec, "quarkus plan", workingDirectory, timingOptions, timings);
+                CommandTimings.print(spec, "quarkus plan", projectRoot, timingOptions, timings);
             }
         }
     }
@@ -110,8 +111,8 @@ public final class QuarkusCommand implements Runnable {
         private final QuarkusTestPlanService quarkusTestPlanService;
         private final QuarkusTestPlanFormatter quarkusTestPlanFormatter;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Spec
         private CommandSpec spec;
@@ -132,8 +133,9 @@ public final class QuarkusCommand implements Runnable {
         @Override
         public void run() {
             try {
-                ProjectConfig config = tomlParser.parse(workingDirectory.resolve("zolt.toml"));
-                QuarkusTestPlan plan = quarkusTestPlanService.plan(workingDirectory, config);
+                Path projectRoot = projectDirectory.path();
+                ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+                QuarkusTestPlan plan = quarkusTestPlanService.plan(projectRoot, config);
                 CommandOutput.printAndFlush(spec, quarkusTestPlanFormatter.format(plan));
             } catch (QuarkusPlanException | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);

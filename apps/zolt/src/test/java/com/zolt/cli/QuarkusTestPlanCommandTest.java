@@ -17,6 +17,16 @@ final class QuarkusTestPlanCommandTest {
     private Path tempDir;
 
     @Test
+    void quarkusTestPlanUsageShowsDirectoryOption() {
+        CommandResult result = execute("quarkus", "test-plan", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void quarkusTestPlanReportsPlainJUnitStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
@@ -28,7 +38,7 @@ final class QuarkusTestPlanCommandTest {
         CommandResult result = execute(
                 "quarkus",
                 "test-plan",
-                "--cwd", projectDir.toString());
+                "--directory", projectDir.toString());
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
