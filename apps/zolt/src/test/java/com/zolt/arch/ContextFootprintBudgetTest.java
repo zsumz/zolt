@@ -1,6 +1,6 @@
 package com.zolt.arch;
 
-import static com.zolt.arch.ContextFootprintBudgetSupport.describe;
+import static com.zolt.arch.ArchitectureBudgetSupport.describe;
 import static com.zolt.arch.ContextFootprintBudgetSupport.packageFootprints;
 import static com.zolt.arch.ContextFootprintBudgetSupport.readBudgets;
 import static com.zolt.arch.ContextFootprintBudgetSupport.violation;

@@ -87,10 +87,6 @@ final class FileSizeBudgetSupport {
         Files.write(path, lines);
     }
 
-    static String describe(List<String> values) {
-        return ArchitectureBudgetSupport.describe(values);
-    }
-
     private static Optional<Budget> parseBudgetLine(String line) {
         String trimmed = line.trim();
         if (trimmed.isEmpty() || trimmed.startsWith("#")) {
