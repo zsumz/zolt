@@ -101,7 +101,14 @@ public final class CoverageCommand implements Runnable {
     private CommandSpec spec;
 
     public CoverageCommand() {
-        this(new ZoltTomlParser(), new CoverageService(), new WorkspaceCoverageService());
+        this(CommandFrameworkServices.coverageCommandServices());
+    }
+
+    private CoverageCommand(CommandCoverageServices services) {
+        this(
+                services.tomlParser(),
+                services.coverageService(),
+                services.workspaceCoverageService());
     }
 
     CoverageCommand(

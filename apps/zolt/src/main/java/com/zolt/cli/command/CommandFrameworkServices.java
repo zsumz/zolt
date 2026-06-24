@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.build.BuildService;
+import com.zolt.build.CoverageService;
 import com.zolt.build.NativeBuildService;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
@@ -21,6 +22,7 @@ import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.workspace.WorkspaceBuildService;
+import com.zolt.workspace.WorkspaceCoverageService;
 import com.zolt.workspace.WorkspaceNativeBuildService;
 import com.zolt.workspace.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceRunPackageService;
@@ -150,6 +152,13 @@ final class CommandFrameworkServices {
                 workspaceNativeBuildService());
     }
 
+    static CommandCoverageServices coverageCommandServices() {
+        return new CommandCoverageServices(
+                new ZoltTomlParser(),
+                new CoverageService(),
+                new WorkspaceCoverageService());
+    }
+
     static WorkspaceRunPackageService workspaceRunPackageService() {
         return workspaceRunPackageService(new QuarkusPackageAugmenter());
     }
@@ -183,6 +192,17 @@ final class CommandFrameworkServices {
 
     static WorkspaceTestService workspaceTestService() {
         return workspaceTestService(new QuarkusFrameworkTestRunner());
+    }
+}
+
+record CommandCoverageServices(
+        ZoltTomlParser tomlParser,
+        CoverageService coverageService,
+        WorkspaceCoverageService workspaceCoverageService) {
+    CommandCoverageServices {
+        Objects.requireNonNull(tomlParser, "tomlParser");
+        Objects.requireNonNull(coverageService, "coverageService");
+        Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
     }
 }
 

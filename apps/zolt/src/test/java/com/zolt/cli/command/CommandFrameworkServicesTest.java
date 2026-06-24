@@ -7,6 +7,39 @@ import org.junit.jupiter.api.Test;
 
 final class CommandFrameworkServicesTest {
     @Test
+    void coverageCommandServicesOwnsDefaultCoverageWiring() {
+        CommandCoverageServices services = CommandFrameworkServices.coverageCommandServices();
+
+        assertNotNull(services.tomlParser());
+        assertNotNull(services.coverageService());
+        assertNotNull(services.workspaceCoverageService());
+    }
+
+    @Test
+    void coverageCommandServicesRequiresEveryCollaborator() {
+        CommandCoverageServices services = CommandFrameworkServices.coverageCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandCoverageServices(
+                        null,
+                        services.coverageService(),
+                        services.workspaceCoverageService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandCoverageServices(
+                        services.tomlParser(),
+                        null,
+                        services.workspaceCoverageService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandCoverageServices(
+                        services.tomlParser(),
+                        services.coverageService(),
+                        null));
+    }
+
+    @Test
     void nativeCommandServicesOwnsDefaultNativeWiring() {
         CommandNativeServices services = CommandFrameworkServices.nativeCommandServices();
 
