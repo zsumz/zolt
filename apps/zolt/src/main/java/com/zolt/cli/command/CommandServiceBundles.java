@@ -9,6 +9,7 @@ import com.zolt.build.RunPackageService;
 import com.zolt.build.RunService;
 import com.zolt.build.TestRunService;
 import com.zolt.framework.FrameworkBuildAugmenter;
+import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
@@ -99,6 +100,15 @@ record CommandPackageServices(
         Objects.requireNonNull(packageService, "packageService");
         Objects.requireNonNull(buildService, "buildService");
         Objects.requireNonNull(workspacePackageService, "workspacePackageService");
+    }
+}
+
+record CommandPackageFrameworkServices(
+        FrameworkPackageAugmenter packageAugmenter,
+        PackagePlanService packagePlanService) {
+    CommandPackageFrameworkServices {
+        Objects.requireNonNull(packageAugmenter, "packageAugmenter");
+        Objects.requireNonNull(packagePlanService, "packagePlanService");
     }
 }
 

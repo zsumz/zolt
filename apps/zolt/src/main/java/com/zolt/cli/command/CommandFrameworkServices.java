@@ -88,10 +88,15 @@ final class CommandFrameworkServices {
         return new PackagePlanService(List.of(new QuarkusPackagePlanRules()));
     }
 
+    static CommandPackageFrameworkServices packageFrameworkServices() {
+        return new CommandPackageFrameworkServices(new QuarkusPackageAugmenter(), packagePlanService());
+    }
+
     static CommandPackageServices packageCommandServices() {
         ResolveService resolveService = resolveService();
-        PackagePlanService packagePlanService = packagePlanService();
-        FrameworkPackageAugmenter packageAugmenter = new QuarkusPackageAugmenter();
+        CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
+        PackagePlanService packagePlanService = packageFrameworkServices.packagePlanService();
+        FrameworkPackageAugmenter packageAugmenter = packageFrameworkServices.packageAugmenter();
         return new CommandPackageServices(
                 packagePlanService,
                 new PackageService(resolveService, packageAugmenter, packagePlanService),
@@ -110,38 +115,65 @@ final class CommandFrameworkServices {
     }
 
     static PackageService packageService() {
-        return packageService(new QuarkusPackageAugmenter());
+        return packageService(packageFrameworkServices());
     }
 
     static PackageService packageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        return new PackageService(resolveService(), frameworkPackageAugmenter, packagePlanService());
+        return packageService(new CommandPackageFrameworkServices(frameworkPackageAugmenter, packagePlanService()));
+    }
+
+    private static PackageService packageService(CommandPackageFrameworkServices packageFrameworkServices) {
+        return new PackageService(
+                resolveService(),
+                packageFrameworkServices.packageAugmenter(),
+                packageFrameworkServices.packagePlanService());
     }
 
     static RunPackageService runPackageService() {
-        return runPackageService(new QuarkusPackageAugmenter());
+        return runPackageService(packageFrameworkServices());
     }
 
     static CommandRunPackageServices runPackageCommandServices() {
-        FrameworkPackageAugmenter packageAugmenter = new QuarkusPackageAugmenter();
+        CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
         return new CommandRunPackageServices(
-                runPackageService(packageAugmenter),
-                workspaceRunPackageService(packageAugmenter));
+                runPackageService(packageFrameworkServices),
+                workspaceRunPackageService(packageFrameworkServices));
     }
 
     static RunPackageService runPackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        return new RunPackageService(resolveService(), frameworkPackageAugmenter, packagePlanService());
+        return runPackageService(new CommandPackageFrameworkServices(frameworkPackageAugmenter, packagePlanService()));
+    }
+
+    private static RunPackageService runPackageService(CommandPackageFrameworkServices packageFrameworkServices) {
+        return new RunPackageService(
+                resolveService(),
+                packageFrameworkServices.packageAugmenter(),
+                packageFrameworkServices.packagePlanService());
     }
 
     static WorkspacePackageService workspacePackageService() {
-        return workspacePackageService(new QuarkusPackageAugmenter());
+        return workspacePackageService(packageFrameworkServices());
     }
 
     static WorkspacePackageService workspacePackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        return new WorkspacePackageService(resolveService(), frameworkPackageAugmenter, packagePlanService());
+        return workspacePackageService(
+                new CommandPackageFrameworkServices(frameworkPackageAugmenter, packagePlanService()));
+    }
+
+    private static WorkspacePackageService workspacePackageService(
+            CommandPackageFrameworkServices packageFrameworkServices) {
+        return new WorkspacePackageService(
+                resolveService(),
+                packageFrameworkServices.packageAugmenter(),
+                packageFrameworkServices.packagePlanService());
     }
 
     static WorkspaceNativeBuildService workspaceNativeBuildService() {
-        return new WorkspaceNativeBuildService(resolveService(), new QuarkusPackageAugmenter(), packagePlanService());
+        CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
+        return new WorkspaceNativeBuildService(
+                resolveService(),
+                packageFrameworkServices.packageAugmenter(),
+                packageFrameworkServices.packagePlanService());
     }
 
     static CommandNativeServices nativeCommandServices() {
@@ -159,11 +191,20 @@ final class CommandFrameworkServices {
     }
 
     static WorkspaceRunPackageService workspaceRunPackageService() {
-        return workspaceRunPackageService(new QuarkusPackageAugmenter());
+        return workspaceRunPackageService(packageFrameworkServices());
     }
 
     static WorkspaceRunPackageService workspaceRunPackageService(FrameworkPackageAugmenter frameworkPackageAugmenter) {
-        return new WorkspaceRunPackageService(resolveService(), frameworkPackageAugmenter, packagePlanService());
+        return workspaceRunPackageService(
+                new CommandPackageFrameworkServices(frameworkPackageAugmenter, packagePlanService()));
+    }
+
+    private static WorkspaceRunPackageService workspaceRunPackageService(
+            CommandPackageFrameworkServices packageFrameworkServices) {
+        return new WorkspaceRunPackageService(
+                resolveService(),
+                packageFrameworkServices.packageAugmenter(),
+                packageFrameworkServices.packagePlanService());
     }
 
     static WorkspaceRunService workspaceRunService() {
