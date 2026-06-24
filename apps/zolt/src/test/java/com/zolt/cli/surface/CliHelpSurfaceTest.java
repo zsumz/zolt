@@ -1,5 +1,18 @@
 package com.zolt.cli.surface;
 
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.ANSI_ESCAPE;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_BASICS_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_COLOR_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_HELP_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_HELP_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_INIT_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_SET_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.PLAIN_GREEN_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.WARNING_COLOR;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.commandPaths;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.zoltCommandTypes;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.newCommandLine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,23 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.cli.CliTestSupport.CommandResult;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 final class CliHelpSurfaceTest {
-    private static final String ANSI_ESCAPE = "\u001B[";
-    private static final String BOLD_USAGE_HEADING = "\u001B[1mUsage\u001B[0m:";
-    private static final String BOLD_COMMANDS_HEADING = "\u001B[1mCommands\u001B[0m:";
-    private static final String BOLD_BASICS_HEADING = "\u001B[1mBasics\u001B[0m";
-    private static final String BOLD_GREEN_COLOR_OPTION = "\u001B[1;32m--color";
-    private static final String BOLD_GREEN_HELP_OPTION = "\u001B[1;32m--help\u001B[0m";
-    private static final String CYAN_HELP_COMMAND = "\u001B[36mzolt help <command>\u001B[0m";
-    private static final String CYAN_INIT_COMMAND = "\u001B[36minit\u001B[0m";
-    private static final String CYAN_SET_COMMAND = "\u001B[36mset\u001B[0m";
-    private static final String WARNING_COLOR = "\u001B[33m";
-    private static final String PLAIN_GREEN_OPTION = "\u001B[32m--";
-
     @Test
     void helpListsMvpCommands() {
         CommandResult result = execute("help");
@@ -173,81 +173,6 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
-    void helpCommandRespectsColorModesForTopLevelCommands() {
-        for (String command : topLevelCommandNames(newCommandLine())) {
-            CommandResult colored = execute("--color=always", "help", command);
-            assertEquals(0, colored.exitCode(), "zolt help " + command + " should exit successfully");
-            assertEquals("", colored.stderr(), "zolt help " + command + " should not write stderr");
-            assertTrue(
-                    colored.stdout().contains(BOLD_USAGE_HEADING),
-                    "zolt help " + command + " should use a bold usage heading");
-            assertTrue(
-                    colored.stdout().contains(BOLD_GREEN_HELP_OPTION),
-                    "zolt help " + command + " should use bold green option tokens");
-            assertFalse(
-                    colored.stdout().contains(WARNING_COLOR),
-                    "zolt help " + command + " should not use warning color");
-
-            CommandResult plain = execute("--color=never", "help", command);
-            assertEquals(0, plain.exitCode(), "zolt help " + command + " --color=never should exit successfully");
-            assertEquals("", plain.stderr(), "zolt help " + command + " --color=never should not write stderr");
-            assertFalse(plain.stdout().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stdout");
-            assertFalse(plain.stderr().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stderr");
-        }
-    }
-
-    @Test
-    void helpCommandResolvesNestedCommandPaths() {
-        CommandResult colored = execute("--color=always", "help", "version", "set");
-
-        assertEquals(0, colored.exitCode());
-        assertEquals("", colored.stderr());
-        assertTrue(colored.stdout().contains(BOLD_USAGE_HEADING + " zolt version set"));
-        assertTrue(colored.stdout().contains("ALIAS VERSION"));
-        assertTrue(colored.stdout().contains(BOLD_GREEN_HELP_OPTION));
-        assertFalse(colored.stdout().contains(BOLD_COMMANDS_HEADING));
-        assertFalse(colored.stdout().contains(WARNING_COLOR));
-
-        CommandResult plain = execute("--color=never", "help", "version", "set");
-
-        assertEquals(0, plain.exitCode());
-        assertEquals("", plain.stderr());
-        assertTrue(plain.stdout().contains("Usage: zolt version set"));
-        assertTrue(plain.stdout().contains("ALIAS VERSION"));
-        assertFalse(plain.stdout().contains("Commands:"));
-        assertFalse(plain.stdout().contains(ANSI_ESCAPE));
-    }
-
-    @Test
-    void helpCommandShowsNearestCommandUsageForUnknownNestedCommand() {
-        CommandResult result = execute("--color=never", "help", "version", "nope");
-
-        assertEquals(2, result.exitCode());
-        assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
-        assertTrue(result.stderr().contains("Usage: zolt version"));
-        assertTrue(result.stderr().contains("Commands:"));
-        assertTrue(result.stderr().contains("    set"));
-        assertFalse(result.stderr().contains("  Dependencies"));
-        assertFalse(result.stderr().contains(ANSI_ESCAPE));
-    }
-
-    @Test
-    void helpCommandMatchesDirectHelpForRegisteredCommandPaths() {
-        for (List<String> path : commandPaths(newCommandLine())) {
-            CommandResult direct = directColorNeverHelp(path);
-            CommandResult viaHelp = helpCommandColorNever(path);
-
-            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
-            assertEquals(0, direct.exitCode(), commandName + " direct help should exit successfully");
-            assertEquals(0, viaHelp.exitCode(), commandName + " help command should exit successfully");
-            assertEquals("", direct.stderr(), commandName + " direct help should not write stderr");
-            assertEquals("", viaHelp.stderr(), commandName + " help command should not write stderr");
-            assertEquals(direct.stdout(), viaHelp.stdout(), commandName + " help output should match");
-        }
-    }
-
-    @Test
     void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
@@ -342,60 +267,6 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
         assertTrue(result.stdout().contains("directory."));
         assertEquals("", result.stderr());
-    }
-
-    private static List<List<String>> commandPaths(CommandLine root) {
-        List<List<String>> paths = new ArrayList<>();
-        collectCommandPaths(root, List.of(), paths);
-        return paths;
-    }
-
-    private static CommandResult directColorNeverHelp(List<String> path) {
-        List<String> args = new ArrayList<>();
-        args.add("--color=never");
-        args.addAll(path);
-        args.add("--help");
-        return execute(args.toArray(String[]::new));
-    }
-
-    private static CommandResult helpCommandColorNever(List<String> path) {
-        List<String> args = new ArrayList<>();
-        args.add("--color=never");
-        args.add("help");
-        args.addAll(path);
-        return execute(args.toArray(String[]::new));
-    }
-
-    private static List<String> topLevelCommandNames(CommandLine root) {
-        return root.getSubcommands().keySet().stream()
-                .filter(command -> !command.equals("help"))
-                .toList();
-    }
-
-    private static List<Class<?>> zoltCommandTypes(CommandLine root) {
-        List<Class<?>> types = new ArrayList<>();
-        collectZoltCommandTypes(root, types);
-        return types;
-    }
-
-    private static void collectCommandPaths(CommandLine commandLine, List<String> prefix, List<List<String>> paths) {
-        paths.add(prefix);
-        for (Map.Entry<String, CommandLine> entry : commandLine.getSubcommands().entrySet()) {
-            List<String> childPath = new ArrayList<>(prefix);
-            childPath.add(entry.getKey());
-            collectCommandPaths(entry.getValue(), childPath, paths);
-        }
-    }
-
-    private static void collectZoltCommandTypes(CommandLine commandLine, List<Class<?>> types) {
-        Object userObject = commandLine.getCommandSpec().userObject();
-        if (userObject != null) {
-            Class<?> type = userObject instanceof Class<?> commandClass ? commandClass : userObject.getClass();
-            if (type.getName().startsWith("com.zolt.cli")) {
-                types.add(type);
-            }
-        }
-        commandLine.getSubcommands().values().forEach(subcommand -> collectZoltCommandTypes(subcommand, types));
     }
 
     private static void assertContainsInOrder(String text, String... expected) {

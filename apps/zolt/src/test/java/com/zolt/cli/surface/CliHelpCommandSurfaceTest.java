@@ -1,0 +1,97 @@
+package com.zolt.cli.surface;
+
+import static com.zolt.cli.CliTestSupport.execute;
+import static com.zolt.cli.CliTestSupport.newCommandLine;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.ANSI_ESCAPE;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_HELP_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.WARNING_COLOR;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.commandPaths;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.directColorNeverHelp;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.helpCommandColorNever;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.topLevelCommandNames;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.cli.CliTestSupport.CommandResult;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+final class CliHelpCommandSurfaceTest {
+    @Test
+    void helpCommandRespectsColorModesForTopLevelCommands() {
+        for (String command : topLevelCommandNames(newCommandLine())) {
+            CommandResult colored = execute("--color=always", "help", command);
+            assertEquals(0, colored.exitCode(), "zolt help " + command + " should exit successfully");
+            assertEquals("", colored.stderr(), "zolt help " + command + " should not write stderr");
+            assertTrue(
+                    colored.stdout().contains(BOLD_USAGE_HEADING),
+                    "zolt help " + command + " should use a bold usage heading");
+            assertTrue(
+                    colored.stdout().contains(BOLD_GREEN_HELP_OPTION),
+                    "zolt help " + command + " should use bold green option tokens");
+            assertFalse(
+                    colored.stdout().contains(WARNING_COLOR),
+                    "zolt help " + command + " should not use warning color");
+
+            CommandResult plain = execute("--color=never", "help", command);
+            assertEquals(0, plain.exitCode(), "zolt help " + command + " --color=never should exit successfully");
+            assertEquals("", plain.stderr(), "zolt help " + command + " --color=never should not write stderr");
+            assertFalse(plain.stdout().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stdout");
+            assertFalse(plain.stderr().contains(ANSI_ESCAPE), "zolt help " + command + " should not color stderr");
+        }
+    }
+
+    @Test
+    void helpCommandResolvesNestedCommandPaths() {
+        CommandResult colored = execute("--color=always", "help", "version", "set");
+
+        assertEquals(0, colored.exitCode());
+        assertEquals("", colored.stderr());
+        assertTrue(colored.stdout().contains(BOLD_USAGE_HEADING + " zolt version set"));
+        assertTrue(colored.stdout().contains("ALIAS VERSION"));
+        assertTrue(colored.stdout().contains(BOLD_GREEN_HELP_OPTION));
+        assertFalse(colored.stdout().contains(BOLD_COMMANDS_HEADING));
+        assertFalse(colored.stdout().contains(WARNING_COLOR));
+
+        CommandResult plain = execute("--color=never", "help", "version", "set");
+
+        assertEquals(0, plain.exitCode());
+        assertEquals("", plain.stderr());
+        assertTrue(plain.stdout().contains("Usage: zolt version set"));
+        assertTrue(plain.stdout().contains("ALIAS VERSION"));
+        assertFalse(plain.stdout().contains("Commands:"));
+        assertFalse(plain.stdout().contains(ANSI_ESCAPE));
+    }
+
+    @Test
+    void helpCommandShowsNearestCommandUsageForUnknownNestedCommand() {
+        CommandResult result = execute("--color=never", "help", "version", "nope");
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
+        assertTrue(result.stderr().contains("Usage: zolt version"));
+        assertTrue(result.stderr().contains("Commands:"));
+        assertTrue(result.stderr().contains("    set"));
+        assertFalse(result.stderr().contains("  Dependencies"));
+        assertFalse(result.stderr().contains(ANSI_ESCAPE));
+    }
+
+    @Test
+    void helpCommandMatchesDirectHelpForRegisteredCommandPaths() {
+        for (List<String> path : commandPaths(newCommandLine())) {
+            CommandResult direct = directColorNeverHelp(path);
+            CommandResult viaHelp = helpCommandColorNever(path);
+
+            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
+            assertEquals(0, direct.exitCode(), commandName + " direct help should exit successfully");
+            assertEquals(0, viaHelp.exitCode(), commandName + " help command should exit successfully");
+            assertEquals("", direct.stderr(), commandName + " direct help should not write stderr");
+            assertEquals("", viaHelp.stderr(), commandName + " help command should not write stderr");
+            assertEquals(direct.stdout(), viaHelp.stdout(), commandName + " help output should match");
+        }
+    }
+}
