@@ -283,6 +283,27 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void enterpriseSpringBootBoundarySeparatesZoltPrimitivesFromBuildToolCompatibility() throws IOException {
+        String blueprint = Files.readString(RepositoryPaths.root().resolve("docs/enterprise-spring-boot-blueprint.md"));
+        String normalizedBlueprint = blueprint.replaceAll("\\s+", " ");
+
+        assertTrue(blueprint.contains("## Support Boundary Audit"));
+        assertTrue(blueprint.contains("Implemented Enterprise JVM Primitives"));
+        assertTrue(blueprint.contains("Authenticated Maven-compatible repositories with redaction-safe credential"));
+        assertTrue(blueprint.contains("Typed OpenAPI generated-source execution before Java compilation"));
+        assertTrue(blueprint.contains("Spring Boot executable WAR packaging with package evidence"));
+        assertTrue(blueprint.contains("Static `zolt explain` and focused blocker reports for a redacted Gradle"));
+        assertTrue(blueprint.contains("Publish dry-run routing for the selected Spring Boot WAR artifact"));
+        assertTrue(blueprint.contains("Explicitly Unclaimed"));
+        assertTrue(blueprint.contains("Executing Gradle tasks, Gradle plugins, Maven plugins"));
+        assertTrue(blueprint.contains("Enterprise-shaped Spring native images"));
+        assertTrue(blueprint.contains("Spring Cloud, external database native topologies, container image assembly"));
+        assertTrue(blueprint.contains("Broad OpenAPI generator/plugin parity"));
+        assertTrue(normalizedBlueprint.contains(
+                "It should not say that Zolt can run or emulate the source Gradle or Maven build."));
+    }
+
+    @Test
     void vertxPostgresReadinessStaysSpecificUntilSmokesExist() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
