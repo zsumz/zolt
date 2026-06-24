@@ -127,6 +127,46 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageResolvedLockfileNoticeUsesModernHumanOutputControls() throws IOException {
+        Path colorProject = tempDir.resolve("color-missing-lock");
+        Path quietProject = tempDir.resolve("quiet-missing-lock");
+        writeProjectConfig(colorProject, "https://repo.maven.apache.org/maven2");
+        writeProjectConfig(quietProject, "https://repo.maven.apache.org/maven2");
+        writeMainSource(colorProject, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+        writeMainSource(quietProject, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+
+        CommandResult color = execute(
+                "--color=always",
+                "package",
+                "--directory", colorProject.toString(),
+                "--cache-root", tempDir.resolve("color-cache").toString());
+        CommandResult quiet = execute(
+                "--quiet",
+                "package",
+                "--directory", quietProject.toString(),
+                "--cache-root", tempDir.resolve("quiet-cache").toString());
+
+        assertEquals(0, color.exitCode(), color.stderr());
+        assertTrue(color.stdout().contains(
+                "\u001B[32mResolved\u001B[0m dependencies because zolt.lock was missing"));
+        assertTrue(color.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+        assertTrue(Files.exists(quietProject.resolve("zolt.lock")));
+        assertTrue(Files.exists(quietProject.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
     void packageAcceptsVisibleProjectDirectoryOption() throws IOException {
         Path projectDir = tempDir.resolve("directory-package");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

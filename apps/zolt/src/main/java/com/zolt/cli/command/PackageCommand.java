@@ -214,16 +214,14 @@ public final class PackageCommand implements Runnable {
                             CommandPackageAttributes::workspacePackage);
                 },
                 CommandPackageAttributes::workspacePackage);
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         if (result.resolvedLockfile()) {
-            spec.commandLine().getOut().println("Resolved workspace dependencies because zolt.lock was missing");
+            output.success("Resolved workspace dependencies because zolt.lock was missing");
         }
         for (WorkspacePackageResult.MemberPackageResult member : result.members()) {
             printPackageResult(member.result(), " in " + member.member());
         }
-        spec.commandLine().getOut().println(
-                "Packaged "
-                        + result.members().size()
-                        + " workspace members");
+        output.success("Packaged " + result.members().size() + " workspace members");
         progress.result("Packaged " + result.members().size() + " workspace members");
     }
 
@@ -275,8 +273,9 @@ public final class PackageCommand implements Runnable {
                             CommandPackageAttributes::packageResult);
                 },
                 CommandPackageAttributes::packageResult);
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         if (result.buildResult().resolvedLockfile()) {
-            spec.commandLine().getOut().println("Resolved dependencies because zolt.lock was missing");
+            output.success("Resolved dependencies because zolt.lock was missing");
         }
         printPackageResult(result, "");
         progress.result("Packaged " + result.jarPath());
