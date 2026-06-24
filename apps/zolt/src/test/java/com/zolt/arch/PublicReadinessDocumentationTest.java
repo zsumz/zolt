@@ -20,16 +20,19 @@ final class PublicReadinessDocumentationTest {
                 readme.contains("[framework.springBoot.native] enabled = true"),
                 "README should name the explicit Spring Boot native support flag");
         assertTrue(
-                readme.contains("Spring Boot 3.3 Java 21 M26 native fixture family"),
-                "README should mention the proven bounded Spring Boot native fixture family");
+                readme.contains("documented WebMVC, PetClinic-style medium app, and enterprise canary paths"),
+                "README should mention the promoted Spring Boot JVM support surface");
         assertTrue(
-                readme.contains("WebMVC, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"),
-                "README should list the promoted M26 Spring Boot native rows");
+                readme.contains("recurring Spring Boot 3.3 Java 21 fixture family"),
+                "README should mention the recurring bounded Spring Boot native fixture family");
+        assertTrue(
+                readme.contains("WebMVC baseline, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"),
+                "README should list the recurring Spring Boot native rows");
         assertTrue(
                 readme.contains("not arbitrary Spring native-image support"),
                 "README should not over-claim Spring Boot native-image support");
         assertTrue(
-                readme.contains("Spring Boot 4, Spring Cloud, container images, and Maven/Gradle plugin behavior remain unclaimed"),
+                readme.contains("Spring Boot 4, Spring Cloud, enterprise native images, external database native topologies, container images, and Maven/Gradle plugin behavior remain unclaimed"),
                 "README should keep unsupported Spring native areas explicit");
     }
 
@@ -39,7 +42,9 @@ final class PublicReadinessDocumentationTest {
 
         assertTrue(readiness.contains("## Public Support Surface"));
         assertTrue(readiness.contains("| Plain Java applications | Supported |"));
+        assertTrue(readiness.contains("| Spring Boot JVM applications | Supported | BOM-managed WebMVC apps, PetClinic-style medium apps, and the public-safe enterprise canary"));
         assertTrue(readiness.contains("| Spring Boot AOT/native | Supported bounded fixture family, not arbitrary Spring native support |"));
+        assertTrue(readiness.contains("recurring Spring Boot 3.3 Java 21 native fixture family covers WebMVC baseline, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"));
         assertTrue(readiness.contains("| Quarkus JVM applications | Experimental |"));
         assertTrue(readiness.contains("| Groovy and Spock | Planned |"));
         assertTrue(readiness.contains("Non-goal for public beta"));
@@ -262,17 +267,20 @@ final class PublicReadinessDocumentationTest {
 
         assertTrue(springBootReadiness.contains("## Broader Spring Boot And Spring Native Support Milestone"));
         assertTrue(springBootReadiness.contains("M27 is the follow-on milestone after M26."));
-        assertTrue(springBootReadiness.contains("M27 starts only after M26 has enough evidence"));
+        assertTrue(springBootReadiness.contains("M27 now has enough evidence to promote broader Spring Boot JVM readiness"));
+        assertTrue(springBootReadiness.contains("M27 promoted fixture families:"));
         assertTrue(springBootReadiness.contains("| PetClinic-style single module |"));
         assertTrue(springBootReadiness.contains("| Enterprise single service |"));
         assertTrue(springBootReadiness.contains("| Spring native web service |"));
         assertTrue(springBootReadiness.contains("| Spring ecosystem boundary fixtures |"));
         assertTrue(springBootReadiness.contains("Spring Boot 4 native support and any Spring/JDK combination beyond the proven toolchain."));
         assertTrue(springBootReadiness.contains("Maven or Gradle plugin execution, lifecycle compatibility, profiles, or compatibility mode."));
-        assertTrue(springBootReadiness.contains(" audits medium Spring Boot JVM fixture gaps."));
-        assertTrue(springBootReadiness.contains(" promotes broader Spring readiness docs only after M27 evidence exists."));
-        assertTrue(nativeGraalvm.contains("M27 is the planned broader Spring Boot and Spring native support milestone after M26."));
-        assertTrue(frameworkReadiness.contains("The broader Spring Boot and Spring native support milestone is M27."));
+        assertTrue(springBootReadiness.contains(" audited medium Spring Boot JVM fixture gaps."));
+        assertTrue(springBootReadiness.contains(" added medium Spring Boot frontend resource depth."));
+        assertTrue(springBootReadiness.contains(" added medium Spring Boot HTTP and package evidence."));
+        assertTrue(springBootReadiness.contains(" promotes broader Spring readiness docs from that evidence."));
+        assertTrue(nativeGraalvm.contains("M27 promoted the evidence-backed JVM Spring Boot surface"));
+        assertTrue(frameworkReadiness.contains("M27 promoted the evidence-backed JVM Spring Boot surface"));
         assertTrue(milestone.contains("M27 - Broader Spring Boot and Spring native support"));
         assertTrue(milestone.contains("Keep M26 as the prerequisite proof before any broader Spring native public claim."));
         assertTrue(milestone.contains(": audit medium Spring Boot JVM fixture gaps."));
