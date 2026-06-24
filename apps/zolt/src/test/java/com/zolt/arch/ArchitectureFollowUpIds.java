@@ -17,7 +17,7 @@ final class ArchitectureFollowUpIds {
         if (!Files.isDirectory(root)) {
             return Set.of();
         }
-        try (Stream<Path> paths = Files.list(root)) {
+        try (Stream<Path> paths = Files.walk(root)) {
             return paths
                     .filter(Files::isRegularFile)
                     .map(ArchitectureFollowUpFileNames::followUpId)
