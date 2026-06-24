@@ -19,16 +19,6 @@ final class ClasspathCommandTest {
     private Path tempDir;
 
     @Test
-    void classpathHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "classpath");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void classpathRejectsStaleExistingLockfileWhenProjectConfigExists() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """

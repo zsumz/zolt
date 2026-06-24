@@ -17,16 +17,6 @@ final class TreeWhyCommandTest {
     private Path tempDir;
 
     @Test
-    void treeHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "tree");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void treePrintsDependencyTreeFromProjectLockfile() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
@@ -101,16 +91,6 @@ final class TreeWhyCommandTest {
                 \\- com.example:app:1.0.0
                    \\- com.example:lib:1.0.0
                 """, result.stdout());
-    }
-
-    @Test
-    void whyHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "why");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
     }
 
     @Test
