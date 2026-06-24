@@ -49,4 +49,28 @@ final class CommandFrameworkServicesTest {
                         services.buildService(),
                         null));
     }
+
+    @Test
+    void runPackageCommandServicesOwnsDefaultRunPackageWiring() {
+        CommandRunPackageServices services = CommandFrameworkServices.runPackageCommandServices();
+
+        assertNotNull(services.runPackageService());
+        assertNotNull(services.workspaceRunPackageService());
+    }
+
+    @Test
+    void runPackageCommandServicesRequiresEveryCollaborator() {
+        CommandRunPackageServices services = CommandFrameworkServices.runPackageCommandServices();
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandRunPackageServices(
+                        null,
+                        services.workspaceRunPackageService()));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CommandRunPackageServices(
+                        services.runPackageService(),
+                        null));
+    }
 }
