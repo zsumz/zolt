@@ -19,6 +19,16 @@ final class ClasspathCommandTest {
     private Path tempDir;
 
     @Test
+    void classpathHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "classpath");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void classpathRejectsStaleExistingLockfileWhenProjectConfigExists() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """
@@ -135,37 +145,42 @@ final class ClasspathCommandTest {
         Path quarkusDeploymentJar = cacheRoot.resolve(
                 "io/quarkus/quarkus-rest-deployment/3.33.0/quarkus-rest-deployment-3.33.0.jar");
 
-            CommandResult compile = CliTestSupport.execute(
+        CommandResult compile = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "compile");
-            CommandResult runtime = CliTestSupport.execute(
+        CommandResult directoryCompile = CliTestSupport.execute(
+                "classpath",
+                "--directory", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "compile");
+        CommandResult runtime = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "runtime");
-            CommandResult test = CliTestSupport.execute(
+        CommandResult test = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test");
-            CommandResult processor = CliTestSupport.execute(
+        CommandResult processor = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "processor");
-            CommandResult testProcessor = CliTestSupport.execute(
+        CommandResult testProcessor = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "test-processor");
-            CommandResult quarkusDeployment = CliTestSupport.execute(
+        CommandResult quarkusDeployment = CliTestSupport.execute(
                 "classpath",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString(),
                 "quarkus-deployment");
-            CommandResult colorAlwaysCompile = CliTestSupport.execute(
+        CommandResult colorAlwaysCompile = CliTestSupport.execute(
                 "--color=always",
                 "--progress=always",
                 "classpath",
@@ -175,6 +190,8 @@ final class ClasspathCommandTest {
 
         assertEquals(0, compile.exitCode());
         assertEquals(compileJar + System.lineSeparator(), compile.stdout());
+        assertEquals(0, directoryCompile.exitCode());
+        assertEquals(compile.stdout(), directoryCompile.stdout());
         assertEquals(0, runtime.exitCode());
         assertEquals(
                 compileJar + File.pathSeparator + runtimeJar + System.lineSeparator(),

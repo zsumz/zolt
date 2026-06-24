@@ -5,17 +5,18 @@ import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathFormatter;
 import com.zolt.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -74,8 +75,8 @@ public final class ClasspathCommand implements Runnable {
     @Option(names = "--format", description = "Output format for audit: text or json.")
     private Format format = Format.TEXT;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
@@ -111,12 +112,13 @@ public final class ClasspathCommand implements Runnable {
     @Override
     public void run() {
         try {
-            Path configPath = workingDirectory.resolve("zolt.toml");
+            Path projectRoot = projectDirectory.path();
+            Path configPath = projectRoot.resolve("zolt.toml");
             if (Files.isRegularFile(configPath)) {
                 ProjectConfig config = tomlParser.parse(configPath);
-                lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+                lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
             }
-            ZoltLockfile lockfile = lockfileReader.read(workingDirectory.resolve("zolt.lock"));
+            ZoltLockfile lockfile = lockfileReader.read(projectRoot.resolve("zolt.lock"));
             Kind parsedKind = Kind.parse(kind);
             if (parsedKind == Kind.AUDIT) {
                 String output = format == Format.JSON
