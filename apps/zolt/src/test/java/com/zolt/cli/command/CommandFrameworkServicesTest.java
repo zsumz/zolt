@@ -33,6 +33,15 @@ final class CommandFrameworkServicesTest {
     }
 
     @Test
+    void configEditServicesOwnsDefaultConfigEditWiring() {
+        CommandConfigEditServices services = CommandFrameworkServices.configEditServices();
+
+        assertNotNull(services.tomlParser());
+        assertNotNull(services.tomlWriter());
+        assertNotNull(services.resolveService());
+    }
+
+    @Test
     void dependencyEditCommandServicesOwnsDefaultDependencyEditWiring() {
         CommandDependencyEditServices services = CommandFrameworkServices.dependencyEditCommandServices();
 

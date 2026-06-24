@@ -48,23 +48,50 @@ record CommandNativeServices(
 }
 
 record CommandVersionAliasServices(
-        ZoltTomlParser tomlParser,
-        ZoltTomlWriter tomlWriter,
-        ResolveService resolveService) {
+        CommandConfigEditServices configEditServices) {
     CommandVersionAliasServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(tomlWriter, "tomlWriter");
-        Objects.requireNonNull(resolveService, "resolveService");
+        Objects.requireNonNull(configEditServices, "configEditServices");
+    }
+
+    ZoltTomlParser tomlParser() {
+        return configEditServices.tomlParser();
+    }
+
+    ZoltTomlWriter tomlWriter() {
+        return configEditServices.tomlWriter();
+    }
+
+    ResolveService resolveService() {
+        return configEditServices.resolveService();
     }
 }
 
 record CommandDependencyEditServices(
         CoordinateParser coordinateParser,
+        CommandConfigEditServices configEditServices) {
+    CommandDependencyEditServices {
+        Objects.requireNonNull(coordinateParser, "coordinateParser");
+        Objects.requireNonNull(configEditServices, "configEditServices");
+    }
+
+    ZoltTomlParser tomlParser() {
+        return configEditServices.tomlParser();
+    }
+
+    ZoltTomlWriter tomlWriter() {
+        return configEditServices.tomlWriter();
+    }
+
+    ResolveService resolveService() {
+        return configEditServices.resolveService();
+    }
+}
+
+record CommandConfigEditServices(
         ZoltTomlParser tomlParser,
         ZoltTomlWriter tomlWriter,
         ResolveService resolveService) {
-    CommandDependencyEditServices {
-        Objects.requireNonNull(coordinateParser, "coordinateParser");
+    CommandConfigEditServices {
         Objects.requireNonNull(tomlParser, "tomlParser");
         Objects.requireNonNull(tomlWriter, "tomlWriter");
         Objects.requireNonNull(resolveService, "resolveService");

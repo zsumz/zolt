@@ -50,16 +50,6 @@ final class CommandServiceBundlesTest {
 
         assertRejectsNullCollaborators(
                 () -> new CommandVersionAliasServices(
-                        null,
-                        services.tomlWriter(),
-                        services.resolveService()),
-                () -> new CommandVersionAliasServices(
-                        services.tomlParser(),
-                        null,
-                        services.resolveService()),
-                () -> new CommandVersionAliasServices(
-                        services.tomlParser(),
-                        services.tomlWriter(),
                         null));
     }
 
@@ -70,21 +60,26 @@ final class CommandServiceBundlesTest {
         assertRejectsNullCollaborators(
                 () -> new CommandDependencyEditServices(
                         null,
-                        services.tomlParser(),
-                        services.tomlWriter(),
-                        services.resolveService()),
+                        services.configEditServices()),
                 () -> new CommandDependencyEditServices(
                         services.coordinateParser(),
+                        null));
+    }
+
+    @Test
+    void configEditServicesRequiresEveryCollaborator() {
+        CommandConfigEditServices services = CommandFrameworkServices.configEditServices();
+
+        assertRejectsNullCollaborators(
+                () -> new CommandConfigEditServices(
                         null,
                         services.tomlWriter(),
                         services.resolveService()),
-                () -> new CommandDependencyEditServices(
-                        services.coordinateParser(),
+                () -> new CommandConfigEditServices(
                         services.tomlParser(),
                         null,
                         services.resolveService()),
-                () -> new CommandDependencyEditServices(
-                        services.coordinateParser(),
+                () -> new CommandConfigEditServices(
                         services.tomlParser(),
                         services.tomlWriter(),
                         null));

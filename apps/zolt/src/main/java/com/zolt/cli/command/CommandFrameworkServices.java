@@ -38,19 +38,21 @@ final class CommandFrameworkServices {
         return new ResolveService(new QuarkusDependencyRequestPlanner());
     }
 
-    static CommandDependencyEditServices dependencyEditCommandServices() {
-        return new CommandDependencyEditServices(
-                new CoordinateParser(),
+    static CommandConfigEditServices configEditServices() {
+        return new CommandConfigEditServices(
                 new ZoltTomlParser(),
                 new ZoltTomlWriter(),
                 resolveService());
     }
 
+    static CommandDependencyEditServices dependencyEditCommandServices() {
+        return new CommandDependencyEditServices(
+                new CoordinateParser(),
+                configEditServices());
+    }
+
     static CommandVersionAliasServices versionAliasCommandServices() {
-        return new CommandVersionAliasServices(
-                new ZoltTomlParser(),
-                new ZoltTomlWriter(),
-                resolveService());
+        return new CommandVersionAliasServices(configEditServices());
     }
 
     static WorkspaceResolveService workspaceResolveService() {
