@@ -61,8 +61,8 @@ public final class RunPackageCommand implements Runnable {
     @Option(names = "--mode", description = "Package mode: thin, spring-boot, war, spring-boot-war, quarkus, or uber.")
     private String mode;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -95,13 +95,14 @@ public final class RunPackageCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             Optional<PackageMode> packageModeOverride = CommandPackageSupport.packageModeOverride(mode);
             if (workspace) {
-                runWorkspacePackages(timings, packageModeOverride);
+                runWorkspacePackages(projectRoot, timings, packageModeOverride);
                 return;
             }
-            runSinglePackage(timings, packageModeOverride);
+            runSinglePackage(projectRoot, timings, packageModeOverride);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -117,21 +118,22 @@ public final class RunPackageCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "run-package", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "run-package", projectRoot, timingOptions, timings);
         }
     }
 
     private void runWorkspacePackages(
+            Path projectRoot,
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride) {
-        lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, false);
+        lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         WorkspaceRunPackageResult result = timings.measure(
                 "run workspace packages",
                 () -> {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace run packages",
                             () -> workspaceRunPackageService.planRunPackages(
-                                    workingDirectory,
+                                    projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
@@ -174,18 +176,19 @@ public final class RunPackageCommand implements Runnable {
     }
 
     private void runSinglePackage(
+            Path projectRoot,
             TimingRecorder timings,
             Optional<PackageMode> packageModeOverride) {
         ProjectConfig config = CommandPackageSupport.withPackageModeOverride(
                 timings.measure(
                         "config read",
-                        () -> tomlParser.parse(workingDirectory.resolve("zolt.toml"))),
+                        () -> tomlParser.parse(projectRoot.resolve("zolt.toml"))),
                 packageModeOverride);
-        lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, false);
+        lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         RunPackageResult result = timings.measure(
                 "run packaged application",
                 () -> runPackageService.runPackage(
-                        workingDirectory,
+                        projectRoot,
                         config,
                         cacheRoot,
                         arguments),

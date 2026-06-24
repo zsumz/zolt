@@ -16,6 +16,16 @@ final class RunPackageCommandTest {
     private Path tempDir;
 
     @Test
+    void runPackageHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "run-package");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
+
+    @Test
     void runPackageBuildsThinJarAndRunsConfiguredMainClass() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -40,6 +50,34 @@ final class RunPackageCommandTest {
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("packaged one two"));
+        assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
+        assertTrue(Files.exists(jarPath));
+    }
+
+    @Test
+    void runPackageAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("directory-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("packaged " + args[0]);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run-package",
+                "--directory", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache-directory").toString(),
+                "--",
+                "directory");
+
+        Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("packaged directory"));
         assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
         assertTrue(Files.exists(jarPath));
     }
