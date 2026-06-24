@@ -47,10 +47,25 @@ public final class WorkspaceNativeBuildService {
             Path cacheRoot,
             WorkspaceSelectionRequest selectionRequest,
             Path nativeImageExecutable) {
+        return buildNative(
+                startDirectory,
+                cacheRoot,
+                selectionRequest,
+                nativeImageExecutable,
+                () -> {
+                });
+    }
+
+    public WorkspaceNativeBuildResult buildNative(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            Path nativeImageExecutable,
+            Runnable progress) {
         WorkspaceBuildPlan plan = planNative(startDirectory, cacheRoot, selectionRequest);
         WorkspaceBuildResult buildResult = buildNativeInputs(plan, cacheRoot);
         WorkspacePackageResult packageResult = packageNativeInputs(plan, buildResult);
-        return buildNativeImages(plan, packageResult, nativeImageExecutable);
+        return buildNativeImages(plan, packageResult, nativeImageExecutable, progress);
     }
 
     public WorkspaceBuildPlan planNative(
@@ -77,6 +92,15 @@ public final class WorkspaceNativeBuildService {
             WorkspaceBuildPlan plan,
             WorkspacePackageResult packageResult,
             Path nativeImageExecutable) {
+        return buildNativeImages(plan, packageResult, nativeImageExecutable, () -> {
+        });
+    }
+
+    public WorkspaceNativeBuildResult buildNativeImages(
+            WorkspaceBuildPlan plan,
+            WorkspacePackageResult packageResult,
+            Path nativeImageExecutable,
+            Runnable progress) {
         Map<String, WorkspaceMember> membersByPath = membersByPath(plan.workspace());
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(packageResult);
         List<WorkspaceNativeBuildResult.MemberNativeBuildResult> results = new ArrayList<>();
@@ -89,7 +113,8 @@ public final class WorkspaceNativeBuildService {
                     member.config(),
                     memberPackage.result(),
                     memberBuild.classpaths().runtime().entries(),
-                    nativeImageExecutable);
+                    nativeImageExecutable,
+                    progress);
             results.add(new WorkspaceNativeBuildResult.MemberNativeBuildResult(member.path(), result));
         }
         return new WorkspaceNativeBuildResult(

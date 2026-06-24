@@ -65,6 +65,36 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
     }
 
     @Test
+    void forwardsNativeImageProgressFromBuildServiceToRunner() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        writeRuntimeLockfile();
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                    }
+                }
+                """);
+        List<String> progressEvents = new ArrayList<>();
+        NativeBuildService service = serviceLauncher((command, progress) -> {
+            progress.run();
+            writeNativeBinary(Path.of(command.getLast()));
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeBuildResult result = service.buildNative(
+                projectDir,
+                config(Optional.of("com.example.Main")),
+                cacheRoot,
+                Path.of("custom-native-image"),
+                () -> progressEvents.add("Still running: Native Image"));
+
+        assertEquals(projectDir.resolve("target/native-custom/demo-native"), result.nativeImageResult().outputBinary());
+        assertEquals(List.of("Still running: Native Image"), progressEvents);
+    }
+
+    @Test
     void springBootNativeFailsBeforeInvokingNativeImage() {
         List<List<String>> commands = new ArrayList<>();
         NativeBuildService service = service(command -> {

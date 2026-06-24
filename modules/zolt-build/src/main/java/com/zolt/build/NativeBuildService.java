@@ -53,6 +53,21 @@ public final class NativeBuildService {
             ProjectConfig config,
             Path cacheRoot,
             Path nativeImageExecutable) {
+        return buildNative(
+                projectDirectory,
+                config,
+                cacheRoot,
+                nativeImageExecutable,
+                () -> {
+                });
+    }
+
+    public NativeBuildResult buildNative(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            Path nativeImageExecutable,
+            Runnable progress) {
         rejectUnsupportedFrameworkNative(config);
         nativeMainClass(config);
         preflightNativeImageExecutable(nativeImageExecutable);
@@ -69,7 +84,8 @@ public final class NativeBuildService {
                 config,
                 packageResult,
                 classpaths.runtime().entries(),
-                nativeImageExecutable);
+                nativeImageExecutable,
+                progress);
     }
 
     public NativeBuildResult buildNativeImage(
@@ -78,6 +94,23 @@ public final class NativeBuildService {
             PackageResult packageResult,
             List<Path> runtimeClasspath,
             Path nativeImageExecutable) {
+        return buildNativeImage(
+                projectDirectory,
+                config,
+                packageResult,
+                runtimeClasspath,
+                nativeImageExecutable,
+                () -> {
+                });
+    }
+
+    public NativeBuildResult buildNativeImage(
+            Path projectDirectory,
+            ProjectConfig config,
+            PackageResult packageResult,
+            List<Path> runtimeClasspath,
+            Path nativeImageExecutable,
+            Runnable progress) {
         rejectUnsupportedFrameworkNative(config);
         String mainClass = nativeMainClass(config);
         preflightNativeImageExecutable(nativeImageExecutable);
@@ -108,7 +141,7 @@ public final class NativeBuildService {
                 mainClass,
                 outputDirectory.resolve(imageName),
                 outputDirectory.resolve("native-image.log"),
-                nativeSettings.args()));
+                nativeSettings.args()), progress);
         reportSeriousWarnings(nativeImageResult);
         return new NativeBuildResult(packageResult, nativeImageResult, springBootAotEvidencePath);
     }

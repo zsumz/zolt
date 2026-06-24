@@ -75,6 +75,31 @@ final class NativeImageRunnerTest {
     }
 
     @Test
+    void forwardsProgressHeartbeatToNativeImageProcessExecution() throws IOException {
+        List<String> progressEvents = new ArrayList<>();
+        Path outputBinary = tempDir.resolve("target/native/demo");
+        NativeImageRunner runner = new NativeImageRunner(":", (command, progress) -> {
+            progress.run();
+            writeNativeBinary(outputBinary, "native");
+            return new NativeImageRunner.ProcessResult(0, "native ok\n");
+        });
+
+        NativeImageResult result = runner.build(
+                new NativeImageRequest(
+                        Path.of("native-image"),
+                        Path.of("target/demo.jar"),
+                        List.of(),
+                        "com.example.Main",
+                        outputBinary,
+                        tempDir.resolve("target/native/native-image.log"),
+                        List.of()),
+                () -> progressEvents.add("Still running: Native Image"));
+
+        assertEquals(outputBinary, result.outputBinary());
+        assertEquals(List.of("Still running: Native Image"), progressEvents);
+    }
+
+    @Test
     void removesExistingOutputBinaryBeforeNativeImageRuns() throws IOException {
         Path outputBinary = tempDir.resolve("target/native/demo");
         Files.createDirectories(outputBinary.getParent());

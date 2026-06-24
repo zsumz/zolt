@@ -47,6 +47,7 @@ final class PublishCommandDryRunTest {
                 "--cache-root", tempDir.resolve("cache").toString());
 
         CommandResult result = execute(
+                "--progress=always",
                 "publish",
                 "--dry-run",
                 "--cwd", projectDir.toString());
@@ -66,8 +67,9 @@ final class PublishCommandDryRunTest {
         assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
+        assertTrue(result.stderr().contains("Preparing publish dry run..."));
+        assertTrue(result.stderr().contains("Prepared publish dry run"));
         assertTrue(Files.exists(projectDir.resolve(".zolt/build/publish/demo-0.1.0.pom")));
-        assertEquals("", result.stderr());
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {

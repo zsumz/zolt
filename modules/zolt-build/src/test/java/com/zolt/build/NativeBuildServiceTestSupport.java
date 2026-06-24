@@ -29,6 +29,14 @@ abstract class NativeBuildServiceTestSupport {
                 new NativeImageRunner(":", processRunner));
     }
 
+    protected NativeBuildService serviceLauncher(NativeImageRunner.ProcessLauncher processLauncher) {
+        return new NativeBuildService(
+                new PackageService(),
+                new ZoltLockfileReader(),
+                new ClasspathBuilder(),
+                new NativeImageRunner(":", processLauncher));
+    }
+
     protected void writeRuntimeLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1

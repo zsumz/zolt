@@ -25,6 +25,7 @@ final class ReleaseCommandTest {
         Files.writeString(binary, "native");
 
         CommandResult result = execute(
+                "--progress=always",
                 "release-archive",
                 "--cwd", projectDir.toString(),
                 "--target", "linux-x64");
@@ -36,6 +37,8 @@ final class ReleaseCommandTest {
         assertTrue(result.stdout().contains("Wrote archive to " + archive));
         assertTrue(result.stdout().contains("Wrote checksum to " + archive + ".sha256"));
         assertTrue(result.stdout().contains("Wrote manifest to " + projectDir.resolve("dist/release-manifest.json")));
+        assertTrue(result.stderr().contains("Assembling release archive..."));
+        assertTrue(result.stderr().contains("Assembled linux-x64 release archive"));
         assertTrue(Files.exists(archive));
         assertTrue(Files.exists(projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz.sha256")));
         assertTrue(Files.exists(projectDir.resolve("dist/release-manifest.json")));

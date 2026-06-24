@@ -1,32 +1,50 @@
 package com.zolt.build;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 public final class NativeImageRunner {
+    private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(60);
+
     private final String pathSeparator;
-    private final ProcessRunner processRunner;
+    private final ProcessLauncher processLauncher;
 
     public NativeImageRunner() {
-        this(java.io.File.pathSeparator, NativeImageRunner::runProcess);
+        this(
+                java.io.File.pathSeparator,
+                (command, progress) -> runProcess(command, progress, HEARTBEAT_INTERVAL));
     }
 
     NativeImageRunner(String pathSeparator, ProcessRunner processRunner) {
+        this(pathSeparator, (command, progress) -> processRunner.run(command));
+    }
+
+    NativeImageRunner(String pathSeparator, ProcessLauncher processLauncher) {
         this.pathSeparator = pathSeparator;
-        this.processRunner = processRunner;
+        this.processLauncher = processLauncher;
     }
 
     public NativeImageResult build(NativeImageRequest request) {
+        return build(request, () -> {
+        });
+    }
+
+    public NativeImageResult build(NativeImageRequest request, Runnable progress) {
         validate(request);
         createDirectories(request.outputBinary(), request.logFile());
         removeExistingOutputBinary(request.outputBinary());
         List<String> command = command(request);
-        ProcessResult result = processRunner.run(command);
+        ProcessResult result = processLauncher.run(command, progress);
         writeLog(request.logFile(), result.output());
         if (result.exitCode() != 0) {
             throw new NativeImageException(
@@ -125,14 +143,20 @@ public final class NativeImageRunner {
         }
     }
 
-    private static ProcessResult runProcess(List<String> command) {
+    private static ProcessResult runProcess(
+            List<String> command,
+            Runnable progress,
+            Duration heartbeatInterval) {
         try {
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exitCode = process.waitFor();
-            return new ProcessResult(exitCode, output);
+            CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> readProcessOutput(process));
+            while (!process.waitFor(heartbeatInterval.toMillis(), TimeUnit.MILLISECONDS)) {
+                progress.run();
+            }
+            int exitCode = process.exitValue();
+            return resultFrom(exitCode, output);
         } catch (IOException exception) {
             throw new NativeImageException(
                     "Could not run native-image. Install GraalVM Native Image or configure the native-image executable.",
@@ -143,9 +167,36 @@ public final class NativeImageRunner {
         }
     }
 
+    private static String readProcessOutput(Process process) {
+        try {
+            return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private static ProcessResult resultFrom(int exitCode, CompletableFuture<String> output) {
+        try {
+            return new ProcessResult(exitCode, output.join());
+        } catch (CompletionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof UncheckedIOException ioException) {
+                throw new NativeImageException(
+                        "Could not read native-image output. Check process output permissions.",
+                        ioException.getCause());
+            }
+            throw exception;
+        }
+    }
+
     @FunctionalInterface
     interface ProcessRunner {
         ProcessResult run(List<String> command);
+    }
+
+    @FunctionalInterface
+    interface ProcessLauncher {
+        ProcessResult run(List<String> command, Runnable progress);
     }
 
     record ProcessResult(int exitCode, String output) {
