@@ -1,6 +1,7 @@
 package com.zolt.cli.surface;
 
 import static com.zolt.cli.CliTestSupport.execute;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
 import java.util.ArrayList;
@@ -60,6 +61,15 @@ final class CliHelpSurfaceFixtures {
         List<Class<?>> types = new ArrayList<>();
         collectZoltCommandTypes(root, types);
         return types;
+    }
+
+    static void assertContainsInOrder(String text, String... expected) {
+        int previousIndex = -1;
+        for (String item : expected) {
+            int index = text.indexOf(item, previousIndex + 1);
+            assertTrue(index > previousIndex, "Expected `" + item + "` after index " + previousIndex);
+            previousIndex = index;
+        }
     }
 
     private static void collectCommandPaths(CommandLine commandLine, List<String> prefix, List<List<String>> paths) {
