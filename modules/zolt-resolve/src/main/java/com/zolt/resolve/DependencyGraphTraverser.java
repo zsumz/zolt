@@ -1,12 +1,9 @@
 package com.zolt.resolve;
 
-import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.PomDependencyManager;
-import com.zolt.maven.RawPomDependency;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyPolicySettings;
 import java.util.ArrayDeque;
@@ -24,11 +21,8 @@ public final class DependencyGraphTraverser {
     private final DependencyMetadataSource metadataSource;
     private final PomDependencyManager dependencyManager;
     private final DependencyNormalizer normalizer;
-    private final DependencyTraversalPolicy traversalPolicy;
-    private final DependencyTransitiveScopeSelector transitiveScopeSelector;
+    private final DependencyTraversalCandidateSelector candidateSelector;
     private final DependencyRelocator relocator;
-    private final List<DependencyGlobalExclusion> globalExclusions;
-    private final Map<PackageId, DependencyConstraint> strictConstraints;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
         this(metadataSource, DependencyPolicySettings.defaults());
@@ -54,11 +48,12 @@ public final class DependencyGraphTraverser {
         this.metadataSource = metadataSource;
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
-        this.traversalPolicy = traversalPolicy;
-        this.transitiveScopeSelector = new DependencyTransitiveScopeSelector();
         this.relocator = new DependencyRelocator(metadataSource);
-        this.globalExclusions = globalExclusions(dependencyPolicy);
-        this.strictConstraints = strictConstraints(dependencyPolicy);
+        this.candidateSelector = new DependencyTraversalCandidateSelector(
+                traversalPolicy,
+                new DependencyTransitiveScopeSelector(),
+                globalExclusions(dependencyPolicy),
+                strictConstraints(dependencyPolicy));
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
@@ -103,56 +98,10 @@ public final class DependencyGraphTraverser {
                         .toList();
 
                 for (NormalizedDependency dependency : dependencies) {
-                    Coordinate candidate = coordinate(dependency.rawDependency());
-                    List<DependencyPolicyEffect> exclusionEffects = exclusionEffects(item, node, dependency, candidate);
-                    if (!exclusionEffects.isEmpty()) {
-                        policyEffects.addAll(exclusionEffects);
-                        continue;
-                    }
-
-                    DependencyTraversalDecision decision = traversalPolicy.decide(dependency, false);
-                    if (!decision.included()) {
-                        continue;
-                    }
-                    Optional<DependencyScope> requestScope = transitiveScopeSelector.select(
-                            item.request().scope(),
-                            dependency.scope());
-                    if (requestScope.isEmpty()) {
-                        continue;
-                    }
-
-                    PackageId packageId = new PackageId(
-                            dependency.rawDependency().groupId(),
-                            dependency.rawDependency().artifactId());
-                    DependencyConstraint constraint = strictConstraints.get(packageId);
-                    Optional<String> originalRequestedVersion = dependency.rawDependency().version();
-                    String requestedVersion = constraint == null
-                            ? originalRequestedVersion
-                                    .orElseThrow(() -> new GraphTraversalException(
-                                            "Dependency "
-                                                    + dependency.rawDependency().groupId()
-                                                    + ":"
-                                                    + dependency.rawDependency().artifactId()
-                                                    + " from "
-                                                    + node.packageId()
-                                                    + ":"
-                                                    + node.selectedVersion()
-                                                    + " does not declare or inherit a version."))
-                            : constraint.version();
-                    if (constraint != null) {
-                        policyEffects.add(strictVersionEffect(
-                                packageId,
-                                originalRequestedVersion,
-                                node,
-                                constraint));
-                    }
-                    DependencyRequest transitiveRequest = new DependencyRequest(
-                            packageId,
-                            requestedVersion,
-                            requestScope.orElseThrow(),
-                            RequestOrigin.TRANSITIVE,
-                            artifactDescriptor(packageId, requestedVersion, dependency.rawDependency()));
-                    queue.add(DependencyTraversalItem.transitive(node, transitiveRequest, dependency.exclusions(), decision));
+                    DependencyTraversalSelection selection = candidateSelector.select(
+                            new DependencyTraversalCandidate(item, node, dependency));
+                    policyEffects.addAll(selection.policyEffects());
+                    selection.selectedItem().ifPresent(queue::add);
                 }
             }
         }
@@ -183,22 +132,6 @@ public final class DependencyGraphTraverser {
                     "Dependency request for " + request.packageId() + " must include a version.");
         }
         return request.requestedVersion();
-    }
-
-    private static Coordinate coordinate(RawPomDependency dependency) {
-        return new Coordinate(dependency.groupId(), dependency.artifactId(), dependency.version());
-    }
-
-    private static Optional<ArtifactDescriptor> artifactDescriptor(
-            PackageId packageId,
-            String version,
-            RawPomDependency dependency) {
-        String extension = dependency.type().orElse("jar");
-        if (dependency.classifier().isEmpty() && "jar".equals(extension)) {
-            return Optional.empty();
-        }
-        Coordinate coordinate = new Coordinate(packageId.groupId(), packageId.artifactId(), Optional.of(version));
-        return Optional.of(new ArtifactDescriptor(coordinate, dependency.classifier(), extension));
     }
 
     private static Coordinate coordinate(DependencyRequest request) {
@@ -235,78 +168,6 @@ public final class DependencyGraphTraverser {
             constraints.put(new PackageId(parts[0], parts[1]), constraint);
         }
         return Map.copyOf(constraints);
-    }
-
-    private List<DependencyPolicyEffect> exclusionEffects(
-            DependencyTraversalItem item,
-            PackageNode source,
-            NormalizedDependency dependency,
-            Coordinate coordinate) {
-        List<DependencyPolicyEffect> effects = new ArrayList<>();
-        item.matchingExclusions(coordinate).stream()
-                .map(exclusion -> new DependencyPolicyEffect(
-                        "edge-exclusion",
-                        new PackageId(coordinate.groupId(), coordinate.artifactId()),
-                        dependency.rawDependency().version(),
-                        Optional.of(coordinate(source)),
-                        "dependency edge exclusion from "
-                                + coordinate(source)
-                                + " to "
-                                + coordinate.groupId()
-                                + ":"
-                                + coordinate.artifactId()))
-                .forEach(effects::add);
-        matchingGlobalExclusions(coordinate).stream()
-                .map(exclusion -> new DependencyPolicyEffect(
-                        "global-exclusion",
-                        new PackageId(coordinate.groupId(), coordinate.artifactId()),
-                        dependency.rawDependency().version(),
-                        Optional.of(coordinate(source)),
-                        exclusion.reason()
-                                .map(reason -> "[dependencyPolicy].exclude "
-                                        + coordinate.groupId()
-                                        + ":"
-                                        + coordinate.artifactId()
-                                        + " ("
-                                        + reason
-                                        + ")")
-                                .orElse("[dependencyPolicy].exclude "
-                                        + coordinate.groupId()
-                                        + ":"
-                                        + coordinate.artifactId())))
-                .forEach(effects::add);
-        return effects;
-    }
-
-    private List<DependencyGlobalExclusion> matchingGlobalExclusions(Coordinate coordinate) {
-        return globalExclusions.stream()
-                .filter(exclusion -> exclusion.exclusion().matches(coordinate))
-                .toList();
-    }
-
-    private static DependencyPolicyEffect strictVersionEffect(
-            PackageId packageId,
-            Optional<String> requestedVersion,
-            PackageNode source,
-            DependencyConstraint constraint) {
-        String policy = "strict-version: "
-                + packageId
-                + " requested "
-                + requestedVersion.orElse("<missing>")
-                + " -> "
-                + constraint.version();
-        return new DependencyPolicyEffect(
-                "strict-version",
-                packageId,
-                requestedVersion,
-                Optional.of(coordinate(source)),
-                constraint.reason()
-                        .map(reason -> policy + " (" + reason + ")")
-                        .orElse(policy));
-    }
-
-    private static String coordinate(PackageNode node) {
-        return node.packageId() + ":" + node.selectedVersion();
     }
 
 }
