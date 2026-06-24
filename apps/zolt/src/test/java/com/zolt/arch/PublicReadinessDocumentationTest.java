@@ -283,6 +283,27 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void springNativeFixtureFamilyAfterM26NamesRecurringRowsAndRejectedShapes() throws IOException {
+        String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));
+        String springBootReadiness = Files.readString(RepositoryPaths.root().resolve("docs/spring-boot-readiness.md"));
+
+        assertTrue(springBootReadiness.contains("## Recurring Spring Native Fixture Family After M26"));
+        assertTrue(springBootReadiness.contains("Only rows with real Spring AOT output, real Native Image execution"));
+        assertTrue(springBootReadiness.contains("| WebMVC baseline |"));
+        assertTrue(springBootReadiness.contains("| WebMVC plus Actuator |"));
+        assertTrue(springBootReadiness.contains("| WebMVC contract |"));
+        assertTrue(springBootReadiness.contains("| Spring JDBC/H2 data access |"));
+        assertTrue(springBootReadiness.contains("PetClinic-style medium JVM fixture native images"));
+        assertTrue(springBootReadiness.contains("Enterprise Spring Boot native images"));
+        assertTrue(springBootReadiness.contains("Spring Boot 4 native support or any Spring/JDK combination beyond Spring Boot"));
+        assertTrue(springBootReadiness.contains("Spring Cloud native applications, external database native topologies"));
+        assertTrue(springBootReadiness.contains("Support-boundary diagnostics should be added before implementation"));
+        assertTrue(nativeGraalvm.contains("M27 keeps the M26 rows as the recurring Spring native fixture family after M26"));
+        assertTrue(nativeGraalvm.contains("WebMVC baseline, WebMVC plus Actuator, WebMVC contract, and Spring JDBC/H2 data access"));
+        assertTrue(nativeGraalvm.contains("PetClinic-style medium JVM native images, enterprise Spring Boot native images"));
+    }
+
+    @Test
     void enterpriseSpringBootBoundarySeparatesZoltPrimitivesFromBuildToolCompatibility() throws IOException {
         String blueprint = Files.readString(RepositoryPaths.root().resolve("docs/enterprise-spring-boot-blueprint.md"));
         String normalizedBlueprint = blueprint.replaceAll("\\s+", " ");
