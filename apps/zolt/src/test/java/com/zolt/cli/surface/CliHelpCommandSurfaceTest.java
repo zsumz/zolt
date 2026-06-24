@@ -8,6 +8,7 @@ import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.WARNING_COLOR;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.assertContainsInOrder;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.commandPaths;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.directColorNeverHelp;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.helpCommandColorNever;
@@ -21,6 +22,43 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class CliHelpCommandSurfaceTest {
+    @Test
+    void helpCommandHelpPlacesCommandPathArgumentBeforeOptions() {
+        CommandResult result = execute("help", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains(ANSI_ESCAPE));
+        assertContainsInOrder(
+                result.stdout(),
+                "Usage:",
+                "Display help for zolt or a command.",
+                "Arguments:",
+                "[COMMAND...]",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version");
+    }
+
+    @Test
+    void helpCommandHelpColorsArgumentsSectionAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "help", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt help\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m[COMMAND...]\u001B[0m"));
+        assertTrue(result.stdout().contains(BOLD_CYAN_HELP_OPTION));
+        assertFalse(result.stdout().contains(BOLD_GREEN_OPTION));
+        assertFalse(result.stdout().contains(WARNING_COLOR));
+    }
+
     @Test
     void helpCommandRespectsColorModesForTopLevelCommands() {
         for (String command : topLevelCommandNames(newCommandLine())) {
