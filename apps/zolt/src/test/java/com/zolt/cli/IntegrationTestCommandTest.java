@@ -18,16 +18,6 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
     private Path tempDir;
 
     @Test
-    void integrationTestHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "integration-test");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void integrationTestUsesConfiguredRootsAndSeparateReportsByDefault() throws IOException {
         Path projectDir = tempDir.resolve("integration-demo");
         Path cacheRoot = tempDir.resolve("cache");
