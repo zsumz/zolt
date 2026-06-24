@@ -34,10 +34,35 @@ final class HelpOptionHighlighter {
 
         Matcher matcher = OPTION_TOKEN.matcher(line);
         StringBuilder highlighted = new StringBuilder(line.length());
+        int previous = 0;
         while (matcher.find()) {
-            matcher.appendReplacement(highlighted, Matcher.quoteReplacement(style.option(matcher.group())));
+            highlighted.append(line, previous, matcher.start());
+            highlighted.append(style.option(matcher.group()));
+            int metaEnd = metaEnd(line, matcher.end());
+            if (metaEnd > matcher.end()) {
+                highlighted.append(style.helpMeta(line.substring(matcher.end(), metaEnd)));
+            }
+            previous = metaEnd;
         }
-        matcher.appendTail(highlighted);
+        highlighted.append(line, previous, line.length());
         return highlighted.toString();
+    }
+
+    private static int metaEnd(String line, int index) {
+        if (index >= line.length()) {
+            return index;
+        }
+        char next = line.charAt(index);
+        if (next == '=' || next == '[') {
+            int end = index + 1;
+            while (end < line.length() && !Character.isWhitespace(line.charAt(end))) {
+                end++;
+            }
+            return end;
+        }
+        if (next == '.' && line.startsWith("...", index)) {
+            return index + 3;
+        }
+        return index;
     }
 }

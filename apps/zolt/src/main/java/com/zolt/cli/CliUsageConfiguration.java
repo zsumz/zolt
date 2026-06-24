@@ -7,6 +7,8 @@ import picocli.CommandLine.Help;
 import picocli.CommandLine.Model.UsageMessageSpec;
 
 final class CliUsageConfiguration {
+    private static final int USAGE_HEADING_WIDTH = "Usage: ".length();
+
     private CliUsageConfiguration() {
     }
 
@@ -16,10 +18,17 @@ final class CliUsageConfiguration {
         usage.commandListHeading("Commands:%n");
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
-                help -> styles.get().heading("Usage") + ": ");
+                help -> styles.get().helpHeading("Usage") + ": ");
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_SYNOPSIS,
+                help -> HelpSynopsisHighlighter.highlight(help.synopsis(USAGE_HEADING_WIDTH), styles.get())
+                        + System.lineSeparator());
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_DESCRIPTION,
+                CliUsageConfiguration::descriptionSection);
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
-                help -> styles.get().heading("Options") + ":" + System.lineSeparator());
+                help -> styles.get().helpHeading("Options") + ":" + System.lineSeparator());
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
                 help -> commandListHeading(help, styles));
@@ -34,6 +43,17 @@ final class CliUsageConfiguration {
         if (!hasVisibleSubcommands) {
             return "";
         }
-        return styles.get().heading("Commands") + ":" + System.lineSeparator();
+        return System.lineSeparator() + styles.get().helpHeading("Commands") + ":" + System.lineSeparator();
+    }
+
+    private static String descriptionSection(Help help) {
+        String description = help.description();
+        if (description.isBlank()) {
+            return "";
+        }
+        if (description.endsWith(System.lineSeparator())) {
+            return description + System.lineSeparator();
+        }
+        return description + System.lineSeparator() + System.lineSeparator();
     }
 }

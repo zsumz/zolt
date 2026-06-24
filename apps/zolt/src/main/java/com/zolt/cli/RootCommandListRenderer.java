@@ -156,13 +156,13 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
 
     private static void appendHeading(StringBuilder output, String heading, ConsoleStyle style) {
         output.append("  ")
-                .append(style.heading(heading))
+                .append(style.helpHeading(heading))
                 .append(System.lineSeparator());
     }
 
     private static void appendCommand(StringBuilder output, String command, CommandSpec commandSpec, ConsoleStyle style) {
         output.append("    ")
-                .append(style.command(command))
+                .append(style.helpCommand(command))
                 .append(padding(command))
                 .append(description(commandSpec))
                 .append(System.lineSeparator());
@@ -170,7 +170,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
 
     private static void appendHelpFooter(StringBuilder output, ConsoleStyle style) {
         output.append("Run ")
-                .append(style.command(HELP_COMMAND))
+                .append(style.helpCommand("zolt help"))
+                .append(style.helpMeta(" <command>"))
                 .append(" for more information on a command.")
                 .append(System.lineSeparator());
     }

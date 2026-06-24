@@ -36,7 +36,10 @@ final class ConsoleStyleTest {
         ConsoleStyle style = ConsoleStyle.disabled();
 
         assertEquals("Basics", style.heading("Basics"));
+        assertEquals("Usage", style.helpHeading("Usage"));
         assertEquals("resolve", style.command("resolve"));
+        assertEquals("zolt test", style.helpCommand("zolt test"));
+        assertEquals("[COMMAND]", style.helpMeta("[COMMAND]"));
         assertEquals("error:", style.error("error:"));
     }
 
@@ -45,9 +48,12 @@ final class ConsoleStyleTest {
         ConsoleStyle style = ConsoleStyle.enabled();
 
         assertEquals("\u001B[1mBasics\u001B[0m", style.heading("Basics"));
+        assertEquals("\u001B[1;32mUsage\u001B[0m", style.helpHeading("Usage"));
         assertEquals("\u001B[36mresolve\u001B[0m", style.command("resolve"));
+        assertEquals("\u001B[1;36mzolt test\u001B[0m", style.helpCommand("zolt test"));
+        assertEquals("\u001B[36m[COMMAND]\u001B[0m", style.helpMeta("[COMMAND]"));
         assertEquals("\u001B[32mResolved\u001B[0m", style.success("Resolved"));
-        assertEquals("\u001B[1;32m--workspace\u001B[0m", style.option("--workspace"));
+        assertEquals("\u001B[1;36m--workspace\u001B[0m", style.option("--workspace"));
         assertEquals("\u001B[33mwarning:\u001B[0m", style.warning("warning:"));
         assertEquals("\u001B[31merror:\u001B[0m", style.error("error:"));
         assertEquals("\u001B[2m12ms\u001B[0m", style.muted("12ms"));

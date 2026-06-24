@@ -6,6 +6,7 @@ public final class ConsoleStyle {
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";
     private static final String BOLD_GREEN = "\u001B[1;32m";
+    private static final String BOLD_CYAN = "\u001B[1;36m";
     private static final String DIM = "\u001B[2m";
     private static final String RED = "\u001B[31m";
     private static final String GREEN = "\u001B[32m";
@@ -38,7 +39,19 @@ public final class ConsoleStyle {
         return style(BOLD, text);
     }
 
+    public String helpHeading(String text) {
+        return style(BOLD_GREEN, text);
+    }
+
     public String command(String text) {
+        return style(CYAN, text);
+    }
+
+    public String helpCommand(String text) {
+        return style(BOLD_CYAN, text);
+    }
+
+    public String helpMeta(String text) {
         return style(CYAN, text);
     }
 
@@ -51,7 +64,7 @@ public final class ConsoleStyle {
     }
 
     public String option(String text) {
-        return style(BOLD_GREEN, text);
+        return style(BOLD_CYAN, text);
     }
 
     public String work(String text) {

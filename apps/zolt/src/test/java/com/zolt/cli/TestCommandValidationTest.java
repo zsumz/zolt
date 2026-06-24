@@ -52,13 +52,15 @@ final class TestCommandValidationTest {
         CommandResult result = execute("--color=always", "test", "--help");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("\u001B[1mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1mWorkspace Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1mTest Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1mDiagnostics\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32m--color"));
-        assertTrue(result.stdout().contains("\u001B[1;32m--workspace"));
-        assertTrue(result.stdout().contains("\u001B[1;32m--test"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt test\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m=<colorMode>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m=<testSelectors>\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
 

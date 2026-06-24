@@ -2,13 +2,17 @@ package com.zolt.cli.surface;
 
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.ANSI_ESCAPE;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_BASICS_HEADING;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_COLOR_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_HELP_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_INIT_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_SET_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_ZOLT_COMMAND;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_COLOR_OPTION;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_HELP_OPTION;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_HELP_COMMAND;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_INIT_COMMAND;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_SET_COMMAND;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_COLOR_METAVAR;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_COMMAND_ARGUMENT;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.HELP_COMMAND_HINT;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.PLAIN_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.WARNING_COLOR;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.commandPaths;
@@ -70,12 +74,17 @@ final class CliHelpSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(BOLD_USAGE_HEADING));
-        assertTrue(result.stdout().contains(BOLD_GREEN_COLOR_OPTION));
+        assertTrue(result.stdout().contains(BOLD_CYAN_ZOLT_COMMAND));
+        assertTrue(result.stdout().contains(CYAN_COMMAND_ARGUMENT));
+        assertTrue(result.stdout().contains(BOLD_CYAN_COLOR_OPTION));
+        assertTrue(result.stdout().contains(CYAN_COLOR_METAVAR));
         assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
         assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
-        assertTrue(result.stdout().contains(CYAN_INIT_COMMAND));
-        assertTrue(result.stdout().contains("Run " + CYAN_HELP_COMMAND + " for more information"));
+        assertTrue(result.stdout().contains("    " + BOLD_CYAN_INIT_COMMAND
+                + "                Create a new Zolt project."));
+        assertTrue(result.stdout().contains("Run " + HELP_COMMAND_HINT + " for more information"));
         assertTrue(result.stdout().contains("Create a new Zolt project."));
+        assertFalse(result.stdout().contains(BOLD_GREEN_OPTION));
         assertFalse(result.stdout().contains(WARNING_COLOR));
         assertFalse(result.stderr().contains(ANSI_ESCAPE));
     }
@@ -124,7 +133,7 @@ final class CliHelpSurfaceTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
         assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
-        assertTrue(result.stdout().contains(CYAN_INIT_COMMAND));
+        assertTrue(result.stdout().contains(BOLD_CYAN_INIT_COMMAND));
         assertFalse(result.stderr().contains(ANSI_ESCAPE));
     }
 
@@ -135,7 +144,7 @@ final class CliHelpSurfaceTest {
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
-        assertTrue(result.stdout().contains(CYAN_SET_COMMAND));
+        assertTrue(result.stdout().contains(BOLD_CYAN_SET_COMMAND));
         assertFalse(result.stdout().contains("  Dependencies"));
     }
 
@@ -173,7 +182,7 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
-    void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
+    void allRegisteredCommandHelpUsesCargoStyleCyanOptionsWithoutWarningColor() {
         for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>();
             args.add("--color=always");
@@ -187,12 +196,13 @@ final class CliHelpSurfaceTest {
             assertEquals("", result.stderr(), commandName + " --help should not write stderr");
             assertTrue(
                     result.stdout().contains(BOLD_USAGE_HEADING),
-                    commandName + " --help should use a bold usage heading");
+                    commandName + " --help should use a bold green usage heading");
             assertFalse(result.stdout().contains(WARNING_COLOR), commandName + " --help should not use warning color");
+            assertFalse(result.stdout().contains(BOLD_GREEN_OPTION), commandName + " --help should not use green options");
             assertFalse(result.stdout().contains(PLAIN_GREEN_OPTION), commandName + " --help should not use plain green options");
             assertTrue(
-                    result.stdout().contains(BOLD_GREEN_HELP_OPTION),
-                    commandName + " --help should use bold green option tokens");
+                    result.stdout().contains(BOLD_CYAN_HELP_OPTION),
+                    commandName + " --help should use bold cyan option tokens");
         }
     }
 
