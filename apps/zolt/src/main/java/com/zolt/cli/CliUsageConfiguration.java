@@ -11,35 +11,20 @@ final class CliUsageConfiguration {
     }
 
     static void apply(CommandLine commandLine, Supplier<ConsoleStyle> styles) {
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .optionListHeading("Options:%n");
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .commandListHeading("Commands:%n");
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
-                        help -> styles.get().heading("Usage") + ": ");
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
-                        help -> styles.get().heading("Options") + ":" + System.lineSeparator());
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
-                        help -> commandListHeading(help, styles));
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_OPTION_LIST, new OptionGroupHelpRenderer(styles));
-        commandLine.getCommandSpec()
-                .usageMessage()
-                .sectionMap()
-                .put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer(styles));
+        UsageMessageSpec usage = commandLine.getCommandSpec().usageMessage();
+        usage.optionListHeading("Options:%n");
+        usage.commandListHeading("Commands:%n");
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
+                help -> styles.get().heading("Usage") + ": ");
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
+                help -> styles.get().heading("Options") + ":" + System.lineSeparator());
+        usage.sectionMap().put(
+                UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
+                help -> commandListHeading(help, styles));
+        usage.sectionMap().put(UsageMessageSpec.SECTION_KEY_OPTION_LIST, new OptionGroupHelpRenderer(styles));
+        usage.sectionMap().put(UsageMessageSpec.SECTION_KEY_COMMAND_LIST, new RootCommandListRenderer(styles));
         commandLine.getSubcommands().values().forEach(subcommand -> apply(subcommand, styles));
     }
 
