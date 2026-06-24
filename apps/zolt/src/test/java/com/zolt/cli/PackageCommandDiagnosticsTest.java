@@ -27,6 +27,57 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageHelpGroupsWorkspaceOutputAndDiagnosticsOptions() {
+        CommandResult result = execute("package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "--mode",
+                "--plan",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members",
+                "Output:",
+                "--format",
+                "Diagnostics:",
+                "--timings",
+                "--timings-format");
+    }
+
+    @Test
+    void packageHelpColorsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "package", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt package\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--mode\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
+    @Test
     void packageCommandPrintsNestedJsonTimingsWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
@@ -237,5 +288,14 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Could not package jar"));
         assertTrue(result.stderr().contains("Check that target/ is writable"));
+    }
+
+    private static void assertContainsInOrder(String text, String... expected) {
+        int previousIndex = -1;
+        for (String item : expected) {
+            int index = text.indexOf(item, previousIndex + 1);
+            assertTrue(index > previousIndex, "Expected `" + item + "` after index " + previousIndex);
+            previousIndex = index;
+        }
     }
 }
