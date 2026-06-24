@@ -17,6 +17,16 @@ final class VersionCommandSetTest {
     private Path tempDir;
 
     @Test
+    void versionSetUsageShowsDirectoryOption() {
+        CommandResult result = execute("version", "set", "--help");
+
+        assertEquals(2, result.exitCode());
+        assertTrue(result.stderr().contains("--directory"));
+        assertTrue(result.stderr().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stderr().contains("directory."));
+    }
+
+    @Test
     void versionSetAddsAndUpdatesAliasWithoutResolveWhenRequested() throws IOException {
         Path projectDir = tempDir.resolve("version-alias-set");
         Files.createDirectories(projectDir);
@@ -34,7 +44,7 @@ final class VersionCommandSetTest {
         CommandResult added = execute(
                 "version",
                 "set",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--no-resolve",
                 "guava",
                 "33.4.8-jre");
@@ -50,7 +60,7 @@ final class VersionCommandSetTest {
         CommandResult updated = execute(
                 "version",
                 "set",
-                "--cwd", projectDir.toString(),
+                "--directory", projectDir.toString(),
                 "--no-resolve",
                 "guava",
                 "33.4.9-jre");

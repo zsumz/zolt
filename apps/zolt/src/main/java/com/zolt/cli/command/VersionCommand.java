@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -50,8 +51,8 @@ public final class VersionCommand implements Runnable {
         @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
         private boolean noResolve;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
@@ -74,7 +75,8 @@ public final class VersionCommand implements Runnable {
             try {
                 String normalizedAlias = VersionAliasCommands.validateAlias(alias);
                 String normalizedVersion = VersionAliasCommands.validateValue(normalizedAlias, version);
-                Path configPath = workingDirectory.resolve("zolt.toml");
+                Path projectRoot = projectDirectory.path();
+                Path configPath = projectRoot.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
                 Map<String, String> aliases = new LinkedHashMap<>(config.versionAliases());
                 String previous = aliases.put(normalizedAlias, normalizedVersion);
@@ -85,7 +87,7 @@ public final class VersionCommand implements Runnable {
                     spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
-                CommandResolveOutput.print(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (ArtifactCacheException
                     | ResolveException
                     | VersionAliasCommandException
@@ -120,8 +122,8 @@ public final class VersionCommand implements Runnable {
         @Option(names = "--no-resolve", description = "Update zolt.toml without refreshing zolt.lock.")
         private boolean noResolve;
 
-        @Option(names = "--cwd", hidden = true)
-        private Path workingDirectory = Path.of(".");
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
         @Option(names = "--cache-root", hidden = true)
         private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
@@ -143,7 +145,8 @@ public final class VersionCommand implements Runnable {
         public void run() {
             try {
                 String normalizedAlias = VersionAliasCommands.validateAlias(alias);
-                Path configPath = workingDirectory.resolve("zolt.toml");
+                Path projectRoot = projectDirectory.path();
+                Path configPath = projectRoot.resolve("zolt.toml");
                 ProjectConfig config = tomlParser.parse(configPath);
                 Map<String, String> aliases = new LinkedHashMap<>(config.versionAliases());
                 if (!aliases.containsKey(normalizedAlias)) {
@@ -170,7 +173,7 @@ public final class VersionCommand implements Runnable {
                     spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
-                CommandResolveOutput.print(spec, resolveService.resolve(workingDirectory, updated, cacheRoot));
+                CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (ArtifactCacheException
                     | ResolveException
                     | VersionAliasCommandException
