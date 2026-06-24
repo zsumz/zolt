@@ -23,12 +23,24 @@ final class ConsoleStyleTest {
         assertFalse(ProgressPolicy.of(ProgressMode.NEVER, false, true, Map.of()).enabledForHumanOutput());
         assertTrue(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of()).enabledForHumanOutput());
         assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, false, Map.of()).enabledForHumanOutput());
-        assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("CI", "true")).enabledForHumanOutput());
-        assertFalse(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("WOODPECKER", "1")).enabledForHumanOutput());
-        assertTrue(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("CI", "false")).enabledForHumanOutput());
         assertFalse(ProgressPolicy.of(ProgressMode.ALWAYS, true, true, Map.of()).enabledForHumanOutput());
         assertFalse(ProgressPolicy.of(ProgressMode.ALWAYS, false, true, Map.of()).enabledForParseableOutput());
         assertTrue(ProgressPolicy.of(ProgressMode.ALWAYS, false, true, Map.of("NO_COLOR", "1")).enabledForHumanOutput());
+    }
+
+    @Test
+    void progressAutoHonorsCiEnvironmentFlags() {
+        Map.of(
+                        "CI", "true",
+                        "WOODPECKER", "1",
+                        "GITHUB_ACTIONS", "true",
+                        "BUILDKITE", "yes")
+                .forEach((key, value) -> assertFalse(
+                        ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of(key, value)).enabledForHumanOutput()));
+
+        for (String value : new String[] {"0", "false", "no", " "}) {
+            assertTrue(ProgressPolicy.of(ProgressMode.AUTO, false, true, Map.of("CI", value)).enabledForHumanOutput());
+        }
     }
 
     @Test
