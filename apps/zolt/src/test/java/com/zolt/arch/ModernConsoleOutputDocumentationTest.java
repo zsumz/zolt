@@ -21,6 +21,10 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("`progress-output.md` defines"));
         assertTrue(design.contains("NO_COLOR"));
         assertTrue(design.contains("Machine-readable formats such as `--format json` ignore color"));
+        assertTrue(design.contains("Zolt keeps grouped root commands"));
+        assertTrue(design.contains("help section headings are bold green"));
+        assertTrue(design.contains("help command and option tokens are bold cyan"));
+        assertTrue(design.contains("usage metavars, optional brackets, and ellipses are cyan"));
         assertTrue(design.contains("Subcommand help should also be grouped by purpose."));
         assertTrue(design.contains("Workspace Selection:"));
         assertTrue(design.contains("Resolve output should answer"));
