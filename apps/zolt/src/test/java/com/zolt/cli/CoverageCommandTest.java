@@ -3,6 +3,7 @@ package com.zolt.cli;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -15,6 +16,16 @@ import org.junit.jupiter.api.io.TempDir;
 final class CoverageCommandTest {
     @TempDir
     private Path tempDir;
+
+    @Test
+    void coverageHelpShowsDirectoryOption() {
+        CommandResult result = execute("help", "coverage");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
+        assertTrue(result.stdout().contains("directory."));
+    }
 
     @Test
     void coverageRejectsDisablingAllReportFormats() throws IOException {
@@ -30,5 +41,22 @@ final class CoverageCommandTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Coverage requires at least one report format"));
+    }
+
+    @Test
+    void coverageAcceptsVisibleProjectDirectoryOption() throws IOException {
+        Path projectDir = tempDir.resolve("coverage-directory");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("coverage-directory"));
+
+        CommandResult result = execute(
+                "coverage",
+                "--no-xml",
+                "--no-html",
+                "--directory", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Coverage requires at least one report format"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
     }
 }

@@ -87,8 +87,8 @@ public final class CoverageCommand implements Runnable {
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
     private Path reportsDir;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -115,6 +115,7 @@ public final class CoverageCommand implements Runnable {
     @Override
     public void run() {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
+        Path projectRoot = projectDirectory.path();
         try {
             TestSelection testSelection = TestSelection.fromCli(
                     testSelectors,
@@ -123,17 +124,17 @@ public final class CoverageCommand implements Runnable {
                     excludedTags);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             if (workspace) {
-                runWorkspaceCoverage(timings, testSelection, coverageReportSettings(Path.of("target")), requestedTestEvents);
+                runWorkspaceCoverage(projectRoot, timings, testSelection, coverageReportSettings(Path.of("target")), requestedTestEvents);
                 return;
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
+                    () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
             CoverageReportSettings reportSettings = coverageReportSettings(Path.of(config.build().outputRoot()));
             CoverageResult result = timings.measure(
                     "run coverage",
                     () -> coverageService.runCoverage(
-                            workingDirectory,
+                            projectRoot,
                             config,
                             cacheRoot,
                             testSelection,
@@ -174,7 +175,7 @@ public final class CoverageCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "coverage", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "coverage", projectRoot, timingOptions, timings);
         }
     }
 
@@ -190,6 +191,7 @@ public final class CoverageCommand implements Runnable {
     }
 
     private void runWorkspaceCoverage(
+            Path projectRoot,
             TimingRecorder timings,
             TestSelection testSelection,
             CoverageReportSettings reportSettings,
@@ -197,7 +199,7 @@ public final class CoverageCommand implements Runnable {
         WorkspaceCoverageResult result = timings.measure(
                 "workspace coverage",
                 () -> workspaceCoverageService.runCoverage(
-                        workingDirectory,
+                        projectRoot,
                         cacheRoot,
                         CommandWorkspaceSelections.from(all, members, memberGroups),
                         testSelection,
