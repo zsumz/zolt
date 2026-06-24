@@ -195,9 +195,10 @@ final class PublicReadinessDocumentationTest {
         assertTrue(springBootReadiness.contains("Spring Boot BOM-managed starter dependencies"));
         assertTrue(springBootReadiness.contains("Thymeleaf, and validation"));
         assertTrue(springBootReadiness.contains("nested generated frontend/static assets and WebJar-style resources"));
+        assertTrue(springBootReadiness.contains("launched HTTP probes for the home controller/template path"));
+        assertTrue(springBootReadiness.contains("executable jar assertions for templates, SQL initialization resources"));
         assertTrue(springBootReadiness.contains("native-Zolt proof for the same Spring Boot JVM workflow"));
-        assertTrue(springBootReadiness.contains("Missing medium-JVM fixture depth"));
-        assertTrue(springBootReadiness.contains("tracked by "));
+        assertTrue(springBootReadiness.contains("remaining PetClinic-class gaps are broader enterprise and deployment"));
         assertTrue(springBootReadiness.contains("Intentionally unsupported by this medium JVM audit"));
         assertTrue(springBootReadiness.contains("Spring native-image support for the full PetClinic-style fixture"));
         assertTrue(springBootReadiness.contains("Maven or Gradle plugin execution, frontend plugin execution"));
