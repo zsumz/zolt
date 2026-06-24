@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.Set;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
@@ -28,8 +29,8 @@ public final class SelfParityCommand implements Runnable {
     @Option(names = "--bootstrap-jar", required = true, description = "Bootstrap-built jar to compare against.")
     private Path bootstrapJar;
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = com.zolt.cache.LocalArtifactCache.defaultRoot();
@@ -47,8 +48,9 @@ public final class SelfParityCommand implements Runnable {
 
     @Override
     public void run() {
+        Path projectRoot = projectDirectory.path();
         try {
-            SelfHostingParityResult result = selfHostingParityService.compare(workingDirectory, cacheRoot, bootstrapJar);
+            SelfHostingParityResult result = selfHostingParityService.compare(projectRoot, cacheRoot, bootstrapJar);
             if (!result.ok()) {
                 spec.commandLine().getErr().println("error: Self-hosting parity failed: bootstrap jar and Zolt-built jar contents differ.");
                 spec.commandLine().getErr().println("Missing from Zolt-built jar:");
