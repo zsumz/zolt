@@ -37,6 +37,17 @@ final class ConfigCommandTest {
     }
 
     @Test
+    void configShowQuietSuppressesHumanDiagnostics() {
+        Path configPath = tempDir.resolve("missing/config.toml");
+
+        CommandResult result = execute("--quiet", "config", "show", "--config", configPath.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stdout());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void configShowPrintsConfiguredMachinePreferences() throws IOException {
         Path configPath = tempDir.resolve("config.toml");
         Files.writeString(configPath, """

@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.config.RepositoryOverlayConfig;
 import com.zolt.config.RepositoryOverlayConfigSource;
 import com.zolt.config.UserGlobalConfig;
@@ -57,62 +58,45 @@ public final class ConfigCommand implements Runnable {
 
         private void print(UserGlobalConfig config, boolean configExists) {
             String configPathSource = isDefaultConfigPath(config.configPath()) ? "built-in default" : "flag";
-            spec.commandLine().getOut().println("User global config: " + config.configPath());
-            spec.commandLine().getOut().println("config path source: " + configPathSource);
-            spec.commandLine().getOut().println("config file: " + (configExists ? "present" : "missing"));
-            spec.commandLine().getOut().println("schema version: "
-                    + config.version()
-                    + " (source: "
-                    + config.sources().version()
-                    + ")");
-            spec.commandLine().getOut().println("machine preferences only: yes");
-            spec.commandLine().getOut().println("project semantics source: committed zolt.toml, zolt-workspace.toml, zolt.lock, env references, and command flags");
-            spec.commandLine().getOut().println("cache.root: "
-                    + config.cacheRoot()
-                    + " (source: "
-                    + config.sources().cacheRoot()
-                    + ")");
-            spec.commandLine().getOut().println("repository.downloadConcurrency: "
-                    + config.repository().downloadConcurrency()
-                    + " (source: "
-                    + config.sources().repositoryDownloadConcurrency()
-                    + ")");
-            spec.commandLine().getOut().println("repository.executionLane: "
-                    + config.repository().executionLane()
-                    + " (source: "
-                    + config.sources().repositoryExecutionLane()
-                    + ")");
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.context("User global config", config.configPath().toString());
+            output.context("config path source", configPathSource);
+            output.context("config file", configExists ? "present" : "missing");
+            output.context("schema version", config.version() + " (source: " + config.sources().version() + ")");
+            output.context("machine preferences only", "yes");
+            output.context(
+                    "project semantics source",
+                    "committed zolt.toml, zolt-workspace.toml, zolt.lock, env references, and command flags");
+            output.context("cache.root", config.cacheRoot() + " (source: " + config.sources().cacheRoot() + ")");
+            output.context(
+                    "repository.downloadConcurrency",
+                    config.repository().downloadConcurrency()
+                            + " (source: "
+                            + config.sources().repositoryDownloadConcurrency()
+                            + ")");
+            output.context(
+                    "repository.executionLane",
+                    config.repository().executionLane()
+                            + " (source: "
+                            + config.sources().repositoryExecutionLane()
+                            + ")");
             for (RepositoryOverlayConfig overlay : config.repositoryOverlays().values()) {
                 RepositoryOverlayConfigSource source = config.sources()
                         .repositoryOverlays()
                         .getOrDefault(overlay.id(), RepositoryOverlayConfigSource.defaults());
-                spec.commandLine().getOut().println("repositoryOverlays."
-                        + overlay.id()
-                        + ".kind: "
-                        + overlay.kind()
-                        + " (source: "
-                        + source.kind()
-                        + ")");
-                spec.commandLine().getOut().println("repositoryOverlays."
-                        + overlay.id()
-                        + ".enabled: "
-                        + overlay.enabled()
-                        + " (source: "
-                        + source.enabled()
-                        + ")");
+                output.context(
+                        "repositoryOverlays." + overlay.id() + ".kind",
+                        overlay.kind() + " (source: " + source.kind() + ")");
+                output.context(
+                        "repositoryOverlays." + overlay.id() + ".enabled",
+                        overlay.enabled() + " (source: " + source.enabled() + ")");
             }
-            spec.commandLine().getOut().println("ui.color: "
-                    + config.ui().color()
-                    + " (source: "
-                    + config.sources().uiColor()
-                    + ")");
-            spec.commandLine().getOut().println("ui.progress: "
-                    + config.ui().progress()
-                    + " (source: "
-                    + config.sources().uiProgress()
-                    + ")");
-            spec.commandLine().getOut().println("local overlay CI policy: reject with --no-local-overlays or zolt check --context ci");
-            spec.commandLine().getOut().println("redaction: secret values are not read from user global config; repository credentials stay in env references from committed project config");
+            output.context("ui.color", config.ui().color() + " (source: " + config.sources().uiColor() + ")");
+            output.context("ui.progress", config.ui().progress() + " (source: " + config.sources().uiProgress() + ")");
+            output.context("local overlay CI policy", "reject with --no-local-overlays or zolt check --context ci");
+            output.context(
+                    "redaction",
+                    "secret values are not read from user global config; repository credentials stay in env references from committed project config");
         }
 
         private static Path defaultConfigPath() {
