@@ -20,6 +20,7 @@ import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class BuildService {
@@ -70,11 +71,15 @@ public final class BuildService {
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
-        return build(projectDirectory, config, cacheRoot, false);
+        return build(new BuildRequest(projectDirectory, config, cacheRoot, false));
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot, boolean offline) {
-        return buildWithClasspaths(projectDirectory, config, cacheRoot, offline).buildResult();
+        return build(new BuildRequest(projectDirectory, config, cacheRoot, offline));
+    }
+
+    private BuildResult build(BuildRequest request) {
+        return buildWithClasspaths(request).buildResult();
     }
 
     public BuildResultWithClasspaths buildWithClasspaths(
@@ -82,38 +87,51 @@ public final class BuildService {
             ProjectConfig config,
             Path cacheRoot,
             boolean offline) {
-        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        return buildWithClasspaths(new BuildRequest(projectDirectory, config, cacheRoot, offline));
+    }
+
+    private BuildResultWithClasspaths buildWithClasspaths(BuildRequest request) {
+        Path lockfilePath = request.projectDirectory().resolve("zolt.lock");
         Optional<ResolveResult> resolveResult = Optional.empty();
         if (!Files.isRegularFile(lockfilePath)) {
-            resolveResult = Optional.of(resolveService.resolve(projectDirectory, config, cacheRoot, false, offline));
+            resolveResult = Optional.of(resolveService.resolve(
+                    request.projectDirectory(),
+                    request.config(),
+                    request.cacheRoot(),
+                    false,
+                    request.offline()));
         }
-        if (openApiToolingMissing(projectDirectory, config, offline)) {
-            resolveResult = Optional.of(resolveService.resolve(projectDirectory, config, cacheRoot, false, offline));
+        if (openApiToolingMissing(request)) {
+            resolveResult = Optional.of(resolveService.resolve(
+                    request.projectDirectory(),
+                    request.config(),
+                    request.cacheRoot(),
+                    false,
+                    request.offline()));
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        List<ResolvedClasspathPackage> classpathPackages = LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
+        List<ResolvedClasspathPackage> classpathPackages = LockfileClasspathPackageConverter.classpathPackages(
+                lockfile,
+                request.cacheRoot());
         ClasspathSet classpaths = classpathBuilder.build(classpathPackages);
-        openApiGeneratedSourceService.generateMain(projectDirectory, config, classpathPackages);
+        openApiGeneratedSourceService.generateMain(request.projectDirectory(), request.config(), classpathPackages);
         try {
-            protobufGeneratedSourceService.generateMain(projectDirectory, config);
+            protobufGeneratedSourceService.generateMain(request.projectDirectory(), request.config());
         } catch (GeneratedSourceException exception) {
             throw new BuildException(exception.getMessage(), exception);
         }
         return new BuildResultWithClasspaths(
-                build(projectDirectory, config, classpaths, resolveResult, classpathPackages),
+                build(request.projectDirectory(), request.config(), classpaths, resolveResult, classpathPackages),
                 classpaths,
                 classpathPackages);
     }
 
-    private boolean openApiToolingMissing(
-            Path projectDirectory,
-            ProjectConfig config,
-            boolean offline) {
-        if (!hasOpenApiGeneratedSources(config)) {
+    private boolean openApiToolingMissing(BuildRequest request) {
+        if (!hasOpenApiGeneratedSources(request.config())) {
             return false;
         }
-        Path lockfilePath = projectDirectory.resolve("zolt.lock");
+        Path lockfilePath = request.projectDirectory().resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath)) {
             return false;
         }
@@ -123,7 +141,7 @@ public final class BuildService {
         if (hasTool) {
             return false;
         }
-        if (offline) {
+        if (request.offline()) {
             throw new BuildException(
                     "OpenAPI generation requires locked tool artifacts in scope `tool-openapi`, but zolt.lock does not contain them. "
                             + "Run `zolt resolve` without --offline to seed the OpenAPI generator tooling, then retry.");
@@ -247,4 +265,16 @@ public final class BuildService {
         return path;
     }
 
+}
+
+record BuildRequest(
+        Path projectDirectory,
+        ProjectConfig config,
+        Path cacheRoot,
+        boolean offline) {
+    BuildRequest {
+        Objects.requireNonNull(projectDirectory, "projectDirectory");
+        Objects.requireNonNull(config, "config");
+        Objects.requireNonNull(cacheRoot, "cacheRoot");
+    }
 }
