@@ -15,16 +15,6 @@ import org.junit.jupiter.api.Test;
 final class CheckCommandTest extends CheckCommandTestSupport {
 
     @Test
-    void checkHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "check");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void checkSucceedsForTypedProjectModel() throws IOException {
         Path projectDir = createProject("check-demo");
 

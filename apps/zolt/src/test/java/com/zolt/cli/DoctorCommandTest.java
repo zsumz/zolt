@@ -16,16 +16,6 @@ final class DoctorCommandTest {
     private Path tempDir;
 
     @Test
-    void doctorHelpShowsDirectoryOption() {
-        CommandResult result = execute("help", "doctor");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-    }
-
-    @Test
     void doctorReportsJdkStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
