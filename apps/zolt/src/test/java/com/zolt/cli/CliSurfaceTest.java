@@ -28,6 +28,20 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void updateUsesModernHumanOutputControls() {
+        CommandResult color = execute("--color=always", "update");
+        CommandResult quiet = execute("--quiet", "update");
+
+        assertEquals(1, color.exitCode());
+        assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m update is not available yet."));
+        assertTrue(color.stdout().contains("verified native archive"));
+        assertEquals("", color.stderr());
+        assertEquals(1, quiet.exitCode());
+        assertEquals("", quiet.stdout());
+        assertEquals("", quiet.stderr());
+    }
+
+    @Test
     void colorAlwaysDoesNotColorJsonOutput() throws Exception {
         Files.writeString(tempDir.resolve("zolt.toml"), CliTestSupport.memberConfig("json-output"));
 

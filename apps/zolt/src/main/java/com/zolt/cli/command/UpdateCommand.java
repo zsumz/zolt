@@ -1,5 +1,6 @@
 package com.zolt.cli.command;
 
+import com.zolt.cli.CommandHumanOutput;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -12,11 +13,11 @@ public final class UpdateCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        spec.commandLine().getOut().println("""
-                zolt update is not available yet.
-                Future behavior: check the release channel, download a verified native archive, replace the current zolt executable atomically, and keep a rollback copy.
-                Track this work in followUps/-design-zolt-update-command.md.
-                """.stripTrailing());
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.work("zolt update is not available yet.");
+        output.line("Future behavior: check the release channel, download a verified native archive, "
+                + "replace the current zolt executable atomically, and keep a rollback copy.");
+        output.line("Track this work in followUps/-design-zolt-update-command.md.");
         return 1;
     }
 }
