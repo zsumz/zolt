@@ -142,6 +142,27 @@ final class CliHelpSurfaceTest {
     }
 
     @Test
+    void allRegisteredCommandHelpUsesGreenOptionsWithoutWarningColor() {
+        for (List<String> path : commandPaths(newCommandLine())) {
+            List<String> args = new ArrayList<>();
+            args.add("--color=always");
+            args.addAll(path);
+            args.add("--help");
+
+            CommandResult result = execute(args.toArray(String[]::new));
+
+            String commandName = path.isEmpty() ? "zolt" : "zolt " + String.join(" ", path);
+            assertEquals(0, result.exitCode(), commandName + " --help should exit successfully");
+            assertEquals("", result.stderr(), commandName + " --help should not write stderr");
+            assertFalse(result.stdout().contains("\u001B[33m"), commandName + " --help should not use warning color");
+            assertFalse(result.stdout().contains("\u001B[32m--"), commandName + " --help should not use plain green options");
+            assertTrue(
+                    result.stdout().contains("\u001B[1;32m--help\u001B[0m"),
+                    commandName + " --help should use bold green option tokens");
+        }
+    }
+
+    @Test
     void directHelpIsConfiguredFromCompositionRoot() {
         for (Class<?> commandType : zoltCommandTypes(newCommandLine())) {
             CommandLine.Command annotation = commandType.getAnnotation(CommandLine.Command.class);
