@@ -12,12 +12,12 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import picocli.CommandLine;
 
-final class CliTestSupport {
+public final class CliTestSupport {
     private CliTestSupport() {
     }
 
-    static CommandResult execute(String... args) {
-        CommandLine commandLine = ZoltCli.newCommandLine();
+    public static CommandResult execute(String... args) {
+        CommandLine commandLine = newCommandLine();
         StringWriter stdout = new StringWriter();
         StringWriter stderr = new StringWriter();
         commandLine.setOut(new PrintWriter(stdout));
@@ -26,6 +26,10 @@ final class CliTestSupport {
         int exitCode = commandLine.execute(args);
 
         return new CommandResult(exitCode, stdout.toString(), stderr.toString());
+    }
+
+    public static CommandLine newCommandLine() {
+        return ZoltCli.newCommandLine();
     }
 
     static String memberConfig(String name) {
@@ -129,6 +133,6 @@ final class CliTestSupport {
                 : name;
     }
 
-    record CommandResult(int exitCode, String stdout, String stderr) {
+    public record CommandResult(int exitCode, String stdout, String stderr) {
     }
 }

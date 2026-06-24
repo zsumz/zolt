@@ -1,6 +1,7 @@
-package com.zolt.cli;
+package com.zolt.cli.surface;
 
 import static com.zolt.cli.CliTestSupport.execute;
+import static com.zolt.cli.CliTestSupport.newCommandLine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -109,7 +110,7 @@ final class CliHelpSurfaceTest {
 
     @Test
     void allRegisteredCommandsSupportDirectHelpOption() {
-        for (List<String> path : commandPaths(ZoltCli.newCommandLine())) {
+        for (List<String> path : commandPaths(newCommandLine())) {
             List<String> args = new ArrayList<>(path);
             args.add("--help");
 
@@ -124,7 +125,7 @@ final class CliHelpSurfaceTest {
 
     @Test
     void directHelpIsConfiguredFromCompositionRoot() {
-        for (Class<?> commandType : zoltCommandTypes(ZoltCli.newCommandLine())) {
+        for (Class<?> commandType : zoltCommandTypes(newCommandLine())) {
             CommandLine.Command annotation = commandType.getAnnotation(CommandLine.Command.class);
             assertFalse(
                     annotation.mixinStandardHelpOptions(),
