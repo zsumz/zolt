@@ -81,6 +81,20 @@ final class CliHelpCommandSurfaceTest {
     }
 
     @Test
+    void helpCommandShowsRootUsageForUnknownTopLevelCommand() {
+        CommandResult result = execute("--color=never", "help", "nope");
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt'."));
+        assertTrue(result.stderr().contains("Usage: zolt"));
+        assertTrue(result.stderr().contains("  Basics"));
+        assertTrue(result.stderr().contains("    version"));
+        assertTrue(result.stderr().contains("  Dependencies"));
+        assertFalse(result.stderr().contains(ANSI_ESCAPE));
+    }
+
+    @Test
     void helpCommandMatchesDirectHelpForRegisteredCommandPaths() {
         for (List<String> path : commandPaths(newCommandLine())) {
             CommandResult direct = directColorNeverHelp(path);
