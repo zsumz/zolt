@@ -13,8 +13,9 @@ final class ArchitectureFollowUpIdsTest {
     @Test
     void scannerFindsModernFollowUpIds(@TempDir Path tempDir) throws IOException {
         Files.writeString(tempDir.resolve("-add-complexity-budget.md"), "#  - Add complexity budget\n");
+        Files.writeString(tempDir.resolve("-support-four-digit-followUp-ids.md"), "#  - Support four digit followUp ids\n");
         Files.writeString(tempDir.resolve("README.md"), "# FollowUps\n");
 
-        assertEquals(Set.of(""), ArchitectureFollowUpIds.read(tempDir));
+        assertEquals(Set.of("", ""), ArchitectureFollowUpIds.read(tempDir));
     }
 }

@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 final class ArchitectureFollowUpIds {
-    private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("(follow-up-\\d{3})-.+\\.md");
+    private static final Pattern FOLLOW_UP_FILENAME = Pattern.compile("(follow-up-\\d{3,})-.+\\.md");
 
     private ArchitectureFollowUpIds() {
     }
