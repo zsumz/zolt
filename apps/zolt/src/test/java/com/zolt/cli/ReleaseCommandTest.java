@@ -56,6 +56,40 @@ final class ReleaseCommandTest {
     }
 
     @Test
+    void releaseArchiveUsesModernHumanOutputControls() throws IOException {
+        Path projectDir = tempDir.resolve("archive-output");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Path binary = projectDir.resolve("target/native/demo");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "native");
+
+        CommandResult color = execute(
+                "--color=always",
+                "release-archive",
+                "--directory", projectDir.toString(),
+                "--target", "linux-x64",
+                "--output", "dist-color");
+        CommandResult quiet = execute(
+                "--quiet",
+                "release-archive",
+                "--directory", projectDir.toString(),
+                "--target", "linux-x64",
+                "--output", "dist-quiet");
+
+        Path archive = projectDir.resolve("dist-color/demo-0.1.0-linux-x64.tar.gz");
+        assertEquals(0, color.exitCode(), color.stderr());
+        assertTrue(color.stdout().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));
+        assertTrue(color.stdout().contains("\u001B[32mIncluded\u001B[0m 2 files under demo-0.1.0-linux-x64"));
+        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + archive));
+        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m checksum to " + archive + ".sha256"));
+        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m manifest to "
+                + projectDir.resolve("dist-color/release-manifest.json")));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+        assertTrue(Files.exists(projectDir.resolve("dist-quiet/demo-0.1.0-linux-x64.tar.gz")));
+    }
+
+    @Test
     void releaseArchiveReportsMissingBinaryClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

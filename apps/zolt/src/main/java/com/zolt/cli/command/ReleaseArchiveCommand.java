@@ -1,8 +1,9 @@
 package com.zolt.cli.command;
 
-import com.zolt.project.ProjectConfig;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.console.ProgressWriter;
+import com.zolt.project.ProjectConfig;
 import com.zolt.release.ReleaseArchiveException;
 import com.zolt.release.ReleaseArchiveResult;
 import com.zolt.release.ReleaseArchiveService;
@@ -64,11 +65,12 @@ public final class ReleaseArchiveCommand implements Runnable {
                     releaseTarget,
                     nativeBinary,
                     outputDirectory);
-            spec.commandLine().getOut().println("Assembled " + result.target().id() + " release archive");
-            spec.commandLine().getOut().println("Included " + result.fileCount() + " files under " + result.rootDirectory());
-            spec.commandLine().getOut().println("Wrote archive to " + result.archivePath());
-            spec.commandLine().getOut().println("Wrote checksum to " + result.checksumPath());
-            spec.commandLine().getOut().println("Wrote manifest to " + result.manifestPath());
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.success("Assembled " + result.target().id() + " release archive");
+            output.detail("Included " + result.fileCount() + " files under " + result.rootDirectory());
+            output.detail("Wrote archive to " + result.archivePath());
+            output.detail("Wrote checksum to " + result.checksumPath());
+            output.detail("Wrote manifest to " + result.manifestPath());
             progress.result("Assembled " + result.target().id() + " release archive");
         } catch (ReleaseArchiveException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
