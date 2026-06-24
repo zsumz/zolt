@@ -210,6 +210,47 @@ final class CliCommandHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
 
+    @Test
+    void nativeHelpGroupsNativeImageAndWorkspaceOptions() {
+        CommandResult result = execute("native", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "--native-image",
+                "Workspace Selection:",
+                "--workspace",
+                "--all",
+                "--member",
+                "--members");
+    }
+
+    @Test
+    void nativeHelpColorsSectionHeadingsAndOptionsWithoutWarningColor() {
+        CommandResult result = execute("--color=always", "native", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;36mzolt native\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--native-image\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32m--"));
+        assertFalse(result.stdout().contains("\u001B[33m"));
+    }
+
     private static void assertContainsInOrder(String text, String... expected) {
         int previousIndex = -1;
         for (String item : expected) {
