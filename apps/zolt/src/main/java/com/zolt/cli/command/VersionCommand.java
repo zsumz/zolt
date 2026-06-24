@@ -1,6 +1,7 @@
 package com.zolt.cli.command;
 
 import com.zolt.cache.ArtifactCacheException;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.command.VersionAliasCommands.VersionAliasCommandException;
 import com.zolt.project.ProjectConfig;
@@ -86,7 +87,7 @@ public final class VersionCommand implements Runnable {
                 tomlWriter.write(configPath, updated);
                 printVersionAliasSummary(normalizedAlias, normalizedVersion, previous);
                 if (noResolve) {
-                    spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                    CommandHumanOutput.of(spec).line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
@@ -100,13 +101,13 @@ public final class VersionCommand implements Runnable {
 
         private void printVersionAliasSummary(String alias, String version, String previous) {
             if (version.equals(previous)) {
-                spec.commandLine().getOut().println(
+                CommandHumanOutput.of(spec).detail(
                         "Version alias " + alias + " already equals " + version + " in [versions]");
             } else if (previous == null) {
-                spec.commandLine().getOut().println(
+                CommandHumanOutput.of(spec).success(
                         "Added version alias " + alias + " = " + version + " to [versions]");
             } else {
-                spec.commandLine().getOut().println(
+                CommandHumanOutput.of(spec).success(
                         "Updated version alias " + alias + " from " + previous + " to " + version + " in [versions]");
             }
         }
@@ -171,10 +172,10 @@ public final class VersionCommand implements Runnable {
                 aliases.remove(normalizedAlias);
                 ProjectConfig updated = config.withVersionAliases(aliases);
                 tomlWriter.write(configPath, updated);
-                spec.commandLine().getOut().println(
-                        "Removed version alias " + normalizedAlias + " from [versions]");
+                CommandHumanOutput output = CommandHumanOutput.of(spec);
+                output.success("Removed version alias " + normalizedAlias + " from [versions]");
                 if (noResolve) {
-                    spec.commandLine().getOut().println("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                    output.line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));

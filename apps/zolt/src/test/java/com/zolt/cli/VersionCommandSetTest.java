@@ -43,6 +43,7 @@ final class VersionCommandSetTest {
                 """);
 
         CommandResult added = execute(
+                "--color=always",
                 "version",
                 "set",
                 "--directory", projectDir.toString(),
@@ -51,7 +52,7 @@ final class VersionCommandSetTest {
                 "33.4.8-jre");
 
         assertEquals(0, added.exitCode());
-        assertTrue(added.stdout().contains("Added version alias guava = 33.4.8-jre to [versions]"));
+        assertTrue(added.stdout().contains("\u001B[32mAdded\u001B[0m version alias guava = 33.4.8-jre to [versions]"));
         assertTrue(added.stdout().contains("Skipped resolve"));
         assertEquals("", added.stderr());
         String addedConfig = Files.readString(projectDir.resolve("zolt.toml"));
@@ -72,6 +73,18 @@ final class VersionCommandSetTest {
         String updatedConfig = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(updatedConfig.contains("[versions]\n\"guava\" = \"33.4.9-jre\""));
         assertFalse(Files.exists(projectDir.resolve("zolt.lock")));
+
+        CommandResult quiet = execute(
+                "--quiet",
+                "version",
+                "set",
+                "--directory", projectDir.toString(),
+                "--no-resolve",
+                "junit",
+                "5.12.1");
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+        assertTrue(Files.readString(projectDir.resolve("zolt.toml")).contains("\"junit\" = \"5.12.1\""));
     }
 
     @Test

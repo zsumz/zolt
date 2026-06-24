@@ -60,6 +60,7 @@ final class VersionCommandTest {
                 """);
 
         CommandResult result = execute(
+                "--color=always",
                 "version",
                 "remove",
                 "--directory", projectDir.toString(),
@@ -67,7 +68,7 @@ final class VersionCommandTest {
                 "guava");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Removed version alias guava from [versions]"));
+        assertTrue(result.stdout().contains("\u001B[32mRemoved\u001B[0m version alias guava from [versions]"));
         assertTrue(result.stdout().contains("Skipped resolve"));
         assertEquals("", result.stderr());
         String config = Files.readString(projectDir.resolve("zolt.toml"));
