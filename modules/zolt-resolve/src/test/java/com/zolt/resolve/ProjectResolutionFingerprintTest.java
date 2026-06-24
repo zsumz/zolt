@@ -34,9 +34,11 @@ final class ProjectResolutionFingerprintTest {
                 new Case("repository", baseToml().replace("https://repo.acme.example/maven", "https://mirror.acme.example/maven")),
                 new Case("repository credentials", baseToml().replace("ACME_REPO_PASSWORD", "ACME_REPO_SECRET")),
                 new Case("dependency", baseToml().replace("33.4.0-jre", "33.4.1-jre")),
+                new Case("workspace member path", baseToml().replace("modules/shared", "modules/shared-v2")),
                 new Case("platform", baseToml().replace("3.3.6", "3.3.7")),
                 new Case("processor", baseToml().replace("1.6.3", "1.6.4")),
                 new Case("generated source tool", baseToml().replace("7.11.0", "7.12.0")),
+                new Case("generated source required flag", baseToml().replace("required = true", "required = false")),
                 new Case("package mode", baseToml().replace("mode = \"spring-boot\"", "mode = \"thin\"")),
                 new Case("spring boot native setting", baseToml().replace(
                         "enabled = false\n\n[framework.quarkus]",
@@ -106,6 +108,7 @@ final class ProjectResolutionFingerprintTest {
 
                 [dependencies]
                 "com.google.guava:guava" = { versionRef = "guava" }
+                "com.example:shared" = { workspace = "modules/shared" }
 
                 [annotationProcessors]
                 "org.mapstruct:mapstruct-processor" = { versionRef = "mapstruct" }
@@ -120,6 +123,7 @@ final class ProjectResolutionFingerprintTest {
                 input = "src/main/openapi/public-api.yaml"
                 output = "target/generated/sources/openapi/public-api"
                 generator = "spring"
+                required = true
 
                 [package]
                 mode = "spring-boot"
@@ -164,6 +168,7 @@ final class ProjectResolutionFingerprintTest {
                 [generated.main.public-api]
                 output = "target/generated/sources/openapi/public-api"
                 input = "src/main/openapi/public-api.yaml"
+                required = true
                 language = "java"
                 generator = "spring"
                 kind = "openapi"
@@ -172,6 +177,7 @@ final class ProjectResolutionFingerprintTest {
                 "org.mapstruct:mapstruct-processor" = { versionRef = "mapstruct" }
 
                 [dependencies]
+                "com.example:shared" = { workspace = "modules/shared" }
                 "com.google.guava:guava" = { versionRef = "guava" }
 
                 [platforms]
