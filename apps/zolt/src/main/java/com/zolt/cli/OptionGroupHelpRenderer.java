@@ -20,6 +20,7 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--color",
                     "--progress",
                     "--no-progress",
+                    "--quiet",
                     "--help",
                     "--version")),
             new OptionGroup("Workspace Selection", List.of(

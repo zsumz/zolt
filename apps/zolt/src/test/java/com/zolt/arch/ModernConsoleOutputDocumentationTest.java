@@ -16,7 +16,8 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("uv is also useful inspiration for the control surface around output"));
         assertTrue(design.contains("color and formatting are additive"));
         assertTrue(design.contains("--color=auto|always|never"));
-        assertTrue(design.contains("Progress is planned but separate from static command summaries."));
+        assertTrue(design.contains("Progress"));
+        assertTrue(design.contains("`--quiet` for stable low-noise runs"));
         assertTrue(design.contains("`progress-output.md` defines"));
         assertTrue(design.contains("NO_COLOR"));
         assertTrue(design.contains("Machine-readable formats such as `--format json` ignore color"));
@@ -61,5 +62,6 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Native Image smoke logs do not depend on terminal animation support."));
         assertTrue(milestones.contains(" — Add global progress mode"));
         assertTrue(milestones.contains(" — Add progress writer and command progress events"));
+        assertTrue(milestones.contains(" — Add global quiet mode"));
     }
 }

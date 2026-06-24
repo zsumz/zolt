@@ -8,43 +8,61 @@ import picocli.CommandLine.Model.CommandSpec;
 public final class CommandHumanOutput {
     private final PrintWriter out;
     private final ConsoleStyle style;
+    private final boolean quiet;
 
-    private CommandHumanOutput(PrintWriter out, ConsoleStyle style) {
+    private CommandHumanOutput(PrintWriter out, ConsoleStyle style, boolean quiet) {
         this.out = out;
         this.style = style;
+        this.quiet = quiet;
     }
 
     public static CommandHumanOutput of(CommandSpec spec) {
         CommandLine commandLine = spec.commandLine();
         ZoltCli root = root(commandLine);
         ConsoleStyle style = root == null ? ConsoleStyle.disabled() : root.consoleStyle();
-        return new CommandHumanOutput(commandLine.getOut(), style);
+        boolean quiet = root != null && root.quiet();
+        return new CommandHumanOutput(commandLine.getOut(), style, quiet);
     }
 
     public static CommandHumanOutput errors(CommandSpec spec) {
         CommandLine commandLine = spec.commandLine();
         ZoltCli root = root(commandLine);
         ConsoleStyle style = root == null ? ConsoleStyle.disabled() : root.consoleStyle();
-        return new CommandHumanOutput(commandLine.getErr(), style);
+        return new CommandHumanOutput(commandLine.getErr(), style, false);
     }
 
     public void work(String message) {
+        if (quiet) {
+            return;
+        }
         out.println(styledLead(message, LeadStyle.WORK));
     }
 
     public void success(String message) {
+        if (quiet) {
+            return;
+        }
         out.println(styledLead(message, LeadStyle.SUCCESS));
     }
 
     public void detail(String message) {
+        if (quiet) {
+            return;
+        }
         out.println(styledLead(message, LeadStyle.DETAIL));
     }
 
     public void action(String command) {
+        if (quiet) {
+            return;
+        }
         out.println("Next: " + style.command(command));
     }
 
     public void check(String marker, String message) {
+        if (quiet) {
+            return;
+        }
         out.println(styleStatus(marker) + " " + message);
     }
 
@@ -53,18 +71,30 @@ public final class CommandHumanOutput {
     }
 
     public void context(String label, String value) {
+        if (quiet) {
+            return;
+        }
         out.println(label + ": " + value);
     }
 
     public void next(String message) {
+        if (quiet) {
+            return;
+        }
         out.println("Next: " + message);
     }
 
     public void line(String message) {
+        if (quiet) {
+            return;
+        }
         out.println(message);
     }
 
     public void blankLine() {
+        if (quiet) {
+            return;
+        }
         out.println();
     }
 

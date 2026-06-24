@@ -111,6 +111,12 @@ public final class ZoltCli implements Runnable {
             description = "Disable progress output.")
     private boolean noProgress;
 
+    @Option(
+            names = {"-q", "--quiet"},
+            scope = ScopeType.INHERIT,
+            description = "Suppress Zolt human summaries and auto progress.")
+    private boolean quiet;
+
     @Spec
     private CommandSpec spec;
 
@@ -146,7 +152,12 @@ public final class ZoltCli implements Runnable {
 
     ProgressPolicy progressPolicy() {
         boolean interactiveStderr = System.console() != null;
-        return ProgressPolicy.of(progressMode, noProgress, interactiveStderr, System.getenv());
+        boolean suppressProgress = noProgress || (quiet && progressMode != ProgressMode.ALWAYS);
+        return ProgressPolicy.of(progressMode, suppressProgress, interactiveStderr, System.getenv());
+    }
+
+    boolean quiet() {
+        return quiet;
     }
 
     public static final class TimingOptions {

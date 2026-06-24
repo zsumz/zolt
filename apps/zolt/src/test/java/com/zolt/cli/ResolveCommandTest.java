@@ -82,6 +82,42 @@ final class ResolveCommandTest {
     }
 
     @Test
+    void quietSuppressesHumanSummaryAndDefaultProgress() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "app", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>app</artifactId>
+                      <version>1.0.0</version>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("quiet-demo");
+            writeProjectConfig(projectDir, repository.baseUri().toString(), Map.of("com.example:app", "1.0.0"));
+
+            CommandResult quiet = execute(
+                    "--quiet",
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+            CommandResult forcedProgress = execute(
+                    "--quiet",
+                    "--progress=always",
+                    "resolve",
+                    "--locked",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, quiet.exitCode());
+            assertEquals("", quiet.stdout());
+            assertEquals("", quiet.stderr());
+            assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
+            assertEquals(0, forcedProgress.exitCode());
+            assertEquals("", forcedProgress.stdout());
+            assertTrue(forcedProgress.stderr().contains("Resolving dependencies..."));
+        }
+    }
+
+    @Test
     void resolveColorsOnlyProgressLeadFragmentsWhenForced() throws IOException {
         try (CliTestRepository repository = CliTestRepository.start()) {
             repository.addArtifact("com.example", "app", "1.0.0", """

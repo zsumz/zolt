@@ -37,6 +37,7 @@ final class CliSurfaceTest {
         assertTrue(result.stdout().contains("--color"));
         assertTrue(result.stdout().contains("--progress"));
         assertTrue(result.stdout().contains("--no-progress"));
+        assertTrue(result.stdout().contains("--quiet"));
         assertContainsInOrder(
                 result.stdout(),
                 "Commands:",
@@ -112,6 +113,7 @@ final class CliSurfaceTest {
     void progressOptionsAreGlobalAndValidationMatchesColorMode() {
         CommandResult forced = execute("--progress=always", "help");
         CommandResult disabled = execute("--no-progress", "help");
+        CommandResult quiet = execute("--quiet", "help");
         CommandResult invalid = execute("--progress=sparkles", "help");
 
         assertEquals(0, forced.exitCode());
@@ -120,9 +122,23 @@ final class CliSurfaceTest {
         assertEquals(0, disabled.exitCode());
         assertEquals("", disabled.stderr());
         assertTrue(disabled.stdout().contains("The modern Java build toolkit."));
+        assertEquals(0, quiet.exitCode());
+        assertEquals("", quiet.stderr());
+        assertTrue(quiet.stdout().contains("The modern Java build toolkit."));
         assertEquals(2, invalid.exitCode());
         assertTrue(invalid.stderr().contains("Invalid value for option '--progress'"));
         assertTrue(invalid.stderr().contains("expected one of: auto, always, never"));
+    }
+
+    @Test
+    void quietKeepsFailuresActionable() {
+        CommandResult result = execute("--quiet", "resolve", "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("error: Could not read zolt.toml"));
+        assertTrue(result.stderr().contains("File: " + tempDir.resolve("zolt.toml")));
+        assertTrue(result.stderr().contains("Next: Check that the file exists"));
     }
 
     @Test
