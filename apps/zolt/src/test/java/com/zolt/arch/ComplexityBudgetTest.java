@@ -1,6 +1,6 @@
 package com.zolt.arch;
 
-import static com.zolt.arch.ArchitectureBudgetSupport.describe;
+import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static com.zolt.arch.ComplexityBudgetSupport.overBudgetSources;
 import static com.zolt.arch.ComplexityBudgetSupport.readAllowlist;
 import static com.zolt.arch.ComplexityBudgetSupport.readBudgets;

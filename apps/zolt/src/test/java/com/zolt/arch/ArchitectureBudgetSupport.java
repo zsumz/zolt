@@ -30,14 +30,6 @@ final class ArchitectureBudgetSupport {
         }
     }
 
-    static String describe(List<String> values) {
-        StringBuilder description = new StringBuilder();
-        for (String value : values) {
-            description.append("- ").append(value).append('\n');
-        }
-        return description.toString();
-    }
-
     private static Path resolveRootPattern(Path rootPattern) {
         if (rootPattern.isAbsolute()) {
             return rootPattern.normalize();

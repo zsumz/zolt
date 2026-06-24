@@ -1,6 +1,6 @@
 package com.zolt.arch;
 
-import static com.zolt.arch.ArchitectureBudgetSupport.describe;
+import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static com.zolt.arch.FileSizeBudgetSupport.filesAboveHardThreshold;
 import static com.zolt.arch.FileSizeBudgetSupport.filesAboveSoftThreshold;
 import static com.zolt.arch.FileSizeBudgetSupport.readAllowlist;

@@ -1,5 +1,6 @@
 package com.zolt.arch;
 
+import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -161,14 +162,6 @@ final class FixedSleepGuardrailTest {
     private static void write(Path path, String contents) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, contents);
-    }
-
-    private static String describe(List<String> values) {
-        StringBuilder description = new StringBuilder();
-        for (String value : values) {
-            description.append("- ").append(value).append('\n');
-        }
-        return description.toString();
     }
 
     private record AllowlistEntry(String path, String followUp, String owner, String gate, String reason) {

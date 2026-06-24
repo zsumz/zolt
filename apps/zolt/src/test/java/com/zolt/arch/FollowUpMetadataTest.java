@@ -1,5 +1,6 @@
 package com.zolt.arch;
 
+import static com.zolt.arch.ArchitectureDiagnostics.describe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -308,14 +309,6 @@ final class FollowUpMetadataTest {
 
                 - [x] Complete
                 """.formatted(id));
-    }
-
-    private static String describe(List<String> values) {
-        StringBuilder description = new StringBuilder();
-        for (String value : values) {
-            description.append("- ").append(value).append('\n');
-        }
-        return description.toString();
     }
 
     private record FollowUpFile(Path path, String id, String title, Optional<String> status, List<String> lines) {

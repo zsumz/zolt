@@ -1,6 +1,5 @@
 package com.zolt.arch;
 
-import static com.zolt.arch.ArchitectureBudgetSupport.describe;
 import static com.zolt.arch.ArchitectureBudgetSupport.sourceRoots;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -36,10 +35,5 @@ final class ArchitectureBudgetSupportTest {
         assertEquals(
                 List.of(alpha, beta),
                 sourceRoots(tempDir.resolve("modules/*/src/main/java")));
-    }
-
-    @Test
-    void describeFormatsBulletList() {
-        assertEquals("- first\n- second\n", describe(List.of("first", "second")));
     }
 }
