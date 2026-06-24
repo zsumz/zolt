@@ -3,6 +3,7 @@ package com.zolt.cli;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -24,6 +25,7 @@ final class PackagePlanJsonTest extends PackagePlanCommandTestSupport {
         writePackagePlanLockfile(projectDir, true, false);
 
         CommandResult result = execute(
+                "--color=always",
                 "--progress=always",
                 "package",
                 "--plan",
@@ -32,6 +34,8 @@ final class PackagePlanJsonTest extends PackagePlanCommandTestSupport {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["), "JSON output should not contain ANSI: " + result.stdout());
+        assertFalse(result.stdout().contains("Packaging "), "JSON output should not contain progress text: " + result.stdout());
         assertTrue(result.stdout().startsWith("{\n"));
         assertTrue(result.stdout().contains("\"mode\": \"thin\""));
         assertTrue(result.stdout().contains("\"runtimeClasspath\": \"" + projectDir.resolve("target/package-plan-json-0.1.0.runtime-classpath")));
