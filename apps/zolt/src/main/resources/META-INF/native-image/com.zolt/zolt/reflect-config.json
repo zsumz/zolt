@@ -132,6 +132,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.CommandProjectDirectory",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.ResolveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

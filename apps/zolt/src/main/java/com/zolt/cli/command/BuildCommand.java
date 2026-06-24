@@ -58,8 +58,8 @@ public final class BuildCommand implements Runnable {
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
 
-    @Option(names = "--cwd", hidden = true)
-    private Path workingDirectory = Path.of(".");
+    @Mixin
+    private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
@@ -97,9 +97,10 @@ public final class BuildCommand implements Runnable {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         ProgressWriter progress = CommandProgress.human(spec);
         CommandHumanOutput output = CommandHumanOutput.of(spec);
+        Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
-                lockfiles.requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline);
+                lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline);
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
                         "build workspace",
@@ -107,7 +108,7 @@ public final class BuildCommand implements Runnable {
                             WorkspaceBuildPlan plan = timings.measure(
                                     "plan workspace build",
                                     () -> workspaceBuildService.planBuild(
-                                            workingDirectory,
+                                            projectRoot,
                                             cacheRoot,
                                             offline,
                                             CommandWorkspaceSelections.from(all, members, memberGroups)),
@@ -134,13 +135,13 @@ public final class BuildCommand implements Runnable {
             }
             ProjectConfig config = timings.measure(
                     "config read",
-                    () -> tomlParser.parse(workingDirectory.resolve("zolt.toml")));
-            lockfiles.requireFreshLockfile(workingDirectory, config, cacheRoot, offline);
+                    () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+            lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, offline);
             progress.start("Building project");
             output.work("Building " + config.project().name());
             BuildResult result = timings.measure(
                     "compile main",
-                    () -> buildService.build(workingDirectory, config, cacheRoot, offline),
+                    () -> buildService.build(projectRoot, config, cacheRoot, offline),
                     CommandBuildAttributes::build);
             if (result.resolvedLockfile()) {
                 output.detail("Resolved dependencies because zolt.lock was missing");
@@ -159,7 +160,7 @@ public final class BuildCommand implements Runnable {
                     timings.measure(
                             "framework augmentation",
                             () -> frameworkBuildAugmenter.augmentIfEnabled(
-                                    workingDirectory,
+                                    projectRoot,
                                     config,
                                     cacheRoot),
                             CommandBuildAttributes::frameworkAugmentation);
@@ -184,7 +185,7 @@ public final class BuildCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandTimings.print(spec, "build", workingDirectory, timingOptions, timings);
+            CommandTimings.print(spec, "build", projectRoot, timingOptions, timings);
         }
     }
 }
