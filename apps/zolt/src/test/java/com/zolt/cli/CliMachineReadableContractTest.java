@@ -90,6 +90,23 @@ final class CliMachineReadableContractTest {
     }
 
     @Test
+    void representativeSadPathForcedColorStylesOnlyErrorPrefix() throws IOException {
+        Path projectDir = tempDir.resolve("missing-config-forced-color");
+        Files.createDirectories(projectDir);
+
+        CommandResult result = execute("--color=always", "build", "--cwd", projectDir.toString());
+
+        String errorPrefix = "\u001B[31merror:\u001B[0m";
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().startsWith(errorPrefix + " Could not read zolt.toml at "
+                + projectDir.resolve("zolt.toml") + "."));
+        assertTrue(result.stderr().contains("File: " + projectDir.resolve("zolt.toml")));
+        assertTrue(result.stderr().contains("Next: Check that the file exists and is readable."));
+        assertFalse(result.stderr().replace(errorPrefix, "error:").contains("\u001B["));
+        assertEquals("", result.stdout());
+    }
+
+    @Test
     void classpathOutputIgnoresForcedColorAndProgress() throws IOException {
         Path projectDir = tempDir.resolve("classpath-contract");
         Path cacheRoot = tempDir.resolve("cache");
