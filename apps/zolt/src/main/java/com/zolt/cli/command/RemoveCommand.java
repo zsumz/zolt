@@ -36,8 +36,8 @@ public final class RemoveCommand implements Runnable {
 
     @Parameters(
             arity = "1..2",
-            paramLabel = "[api|runtime|provided|dev|test|processor|test-processor] GROUP:ARTIFACT",
-            description = "Dependency coordinate, optionally prefixed with a dependency section.")
+            paramLabel = "DEPENDENCY",
+            description = "Dependency coordinate. May be prefixed with api, runtime, provided, dev, test, processor, or test-processor.")
     private List<String> arguments;
 
     @Mixin

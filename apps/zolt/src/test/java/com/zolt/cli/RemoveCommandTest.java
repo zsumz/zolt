@@ -23,7 +23,11 @@ final class RemoveCommandTest {
         CommandResult result = execute("remove", "--help");
 
         assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Usage: zolt remove"));
+        assertTrue(result.stdout().contains("DEPENDENCY..."));
         assertTrue(result.stdout().contains("--directory"));
+        assertTrue(result.stdout().contains("May be prefixed with api"));
+        assertTrue(result.stdout().contains("test-processor."));
         assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
         assertTrue(result.stdout().contains("directory."));
         assertEquals("", result.stderr());

@@ -35,8 +35,8 @@ public final class AddCommand implements Runnable {
 
     @Parameters(
             arity = "1..2",
-            paramLabel = "[api|runtime|provided|dev|test|processor|test-processor] GROUP:ARTIFACT[:VERSION]",
-            description = "Dependency coordinate, optionally prefixed with a dependency section.")
+            paramLabel = "DEPENDENCY",
+            description = "Dependency coordinate. May be prefixed with api, runtime, provided, dev, test, processor, or test-processor.")
     private List<String> arguments;
 
     @Option(names = "--managed", description = "Use a version managed by a declared platform.")
