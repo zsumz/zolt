@@ -198,6 +198,22 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void nestedCommandHelpUsesFlatCommandList() {
+        CommandResult result = execute("version", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Commands:"));
+        assertContainsInOrder(
+                result.stdout(),
+                "Commands:",
+                "    set",
+                "    remove");
+        assertFalse(result.stdout().contains("  Dependencies"));
+        assertFalse(result.stdout().contains("  Other"));
+    }
+
+    @Test
     void initHelpShowsDirectoryOption() {
         CommandResult result = execute("init", "--help");
 

@@ -74,7 +74,10 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
     public String render(Help help) {
         Map<String, CommandSpec> subcommands = new LinkedHashMap<>();
         help.subcommands().forEach((name, commandHelp) -> subcommands.put(name, commandHelp.commandSpec()));
-        return render(subcommands, styles.get());
+        if ("zolt".equals(help.commandSpec().name())) {
+            return render(subcommands, styles.get());
+        }
+        return renderUngrouped(subcommands, styles.get());
     }
 
     private static String render(Map<String, CommandSpec> subcommands, ConsoleStyle style) {
@@ -137,6 +140,16 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
             appendCommand(output, command, subcommands.get(command), style);
         }
         output.append(System.lineSeparator());
+    }
+
+    private static String renderUngrouped(Map<String, CommandSpec> subcommands, ConsoleStyle style) {
+        StringBuilder output = new StringBuilder();
+        for (Map.Entry<String, CommandSpec> entry : subcommands.entrySet()) {
+            if (!entry.getValue().usageMessage().hidden()) {
+                appendCommand(output, entry.getKey(), entry.getValue(), style);
+            }
+        }
+        return output.toString();
     }
 
     private static void appendHeading(StringBuilder output, String heading, ConsoleStyle style) {
