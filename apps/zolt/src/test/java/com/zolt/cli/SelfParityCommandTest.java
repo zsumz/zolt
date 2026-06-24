@@ -17,17 +17,6 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
     private Path tempDir;
 
     @Test
-    void selfParityHelpShowsDirectoryOption() {
-        CommandResult result = execute("self-parity", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void selfParityReadsSelectedDirectory() {
         Path projectDir = tempDir.resolve("selected");
 

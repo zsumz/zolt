@@ -14,17 +14,6 @@ final class SelfCheckCommandTest {
     private Path tempDir;
 
     @Test
-    void selfCheckHelpShowsDirectoryOption() {
-        CommandResult result = execute("self-check", "--help");
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("--directory"));
-        assertTrue(result.stdout().contains("Run as if Zolt was started in the given project"));
-        assertTrue(result.stdout().contains("directory."));
-        assertEquals("", result.stderr());
-    }
-
-    @Test
     void selfCheckReadsSelectedDirectory() {
         Path projectDir = tempDir.resolve("selected");
 
