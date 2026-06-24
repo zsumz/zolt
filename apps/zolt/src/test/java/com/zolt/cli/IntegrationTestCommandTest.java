@@ -68,15 +68,23 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
         Files.writeString(resource, "mode=it\n");
 
         CommandResult result = execute(
+                "--color=always",
+                "integration-test",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+        CommandResult quiet = execute(
+                "--quiet",
                 "integration-test",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString());
 
         assertEquals(0, result.exitCode(), result.stderr());
         assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("Integration tests passed"));
-        assertTrue(result.stdout().contains("Wrote integration test reports to "
+        assertTrue(result.stdout().contains("\u001B[32mIntegration\u001B[0m tests passed"));
+        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m integration test reports to "
                 + projectDir.resolve(".zolt/build/integration-test-reports").toAbsolutePath().normalize()));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("fake console\n", quiet.stdout());
         assertTrue(Files.exists(projectDir.resolve("target/it-classes/com/example/AppIT.class")));
         assertTrue(Files.exists(projectDir.resolve("target/it-classes/it.properties")));
         assertTrue(Files.exists(projectDir.resolve(".zolt/build/integration-test-reports/TEST-fake-console.xml")));

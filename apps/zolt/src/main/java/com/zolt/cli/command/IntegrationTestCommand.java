@@ -15,6 +15,7 @@ import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
 import com.zolt.build.TestRunService;
 import com.zolt.cache.LocalArtifactCache;
+import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
@@ -186,22 +187,20 @@ public final class IntegrationTestCommand implements Runnable {
                             CommandTestAttributes::workspaceTest);
                 },
                 CommandTestAttributes::workspaceTest);
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         for (WorkspaceTestResult.MemberTestRunResult member : result.members()) {
             CommandOutput.printAndFlush(spec, member.result().output());
             if (!member.result().output().isEmpty() && !member.result().output().endsWith("\n")) {
-                spec.commandLine().getOut().println();
+                output.blankLine();
             }
-            spec.commandLine().getOut().println("Integration tests passed in " + member.member());
+            output.success("Integration tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    spec.commandLine().getOut().println("Wrote integration test reports for "
+                    output.detail("Wrote integration test reports for "
                             + member.member()
                             + " to "
                             + directory));
         }
-        spec.commandLine().getOut().println(
-                "Integration tests passed for "
-                        + result.members().size()
-                        + " workspace members");
+        output.success("Integration tests passed for " + result.members().size() + " workspace members");
     }
 
     private void runSingleProjectIntegrationTests(
@@ -259,12 +258,13 @@ public final class IntegrationTestCommand implements Runnable {
                 },
                 CommandTestAttributes::testRun);
         CommandOutput.printAndFlush(spec, result.output());
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
         if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
-            spec.commandLine().getOut().println();
+            output.blankLine();
         }
-        spec.commandLine().getOut().println("Integration tests passed");
+        output.success("Integration tests passed");
         result.reportsDirectory().ifPresent(directory ->
-                spec.commandLine().getOut().println("Wrote integration test reports to " + directory));
+                output.detail("Wrote integration test reports to " + directory));
     }
 
     private Path integrationReportsDir(ProjectConfig config) {
