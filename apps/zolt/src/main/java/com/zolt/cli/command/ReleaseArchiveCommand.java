@@ -18,7 +18,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "release-archive",
-        mixinStandardHelpOptions = true,
         description = "Assemble a release archive from a native binary.")
 public final class ReleaseArchiveCommand implements Runnable {
     private final ZoltTomlParser tomlParser;

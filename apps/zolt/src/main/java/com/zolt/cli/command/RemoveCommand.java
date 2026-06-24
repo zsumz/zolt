@@ -26,8 +26,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "remove",
-        description = "Remove a dependency and prune unused transitive packages.",
-        mixinStandardHelpOptions = true)
+        description = "Remove a dependency and prune unused transitive packages.")
 public final class RemoveCommand implements Runnable {
     private final CoordinateParser coordinateParser;
     private final ZoltTomlParser tomlParser;

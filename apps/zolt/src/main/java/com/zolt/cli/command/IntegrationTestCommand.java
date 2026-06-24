@@ -39,7 +39,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "integration-test",
-        mixinStandardHelpOptions = true,
         description = "Compile and run integration tests from configured integration-test roots.")
 public final class IntegrationTestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;

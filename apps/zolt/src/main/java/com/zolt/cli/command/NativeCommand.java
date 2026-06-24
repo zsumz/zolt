@@ -30,7 +30,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "native",
-        mixinStandardHelpOptions = true,
         description = "Build a native binary with GraalVM Native Image.")
 public final class NativeCommand implements Runnable {
     private final ZoltTomlParser tomlParser;

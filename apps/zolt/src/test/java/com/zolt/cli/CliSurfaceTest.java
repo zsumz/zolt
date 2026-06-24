@@ -198,6 +198,16 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void directHelpIsConfiguredFromCompositionRoot() {
+        for (Class<?> commandType : zoltCommandTypes(ZoltCli.newCommandLine())) {
+            picocli.CommandLine.Command annotation = commandType.getAnnotation(picocli.CommandLine.Command.class);
+            assertFalse(
+                    annotation.mixinStandardHelpOptions(),
+                    commandType.getName() + " should rely on ZoltCli.configureUniversalHelp");
+        }
+    }
+
+    @Test
     void nestedCommandHelpUsesFlatCommandList() {
         CommandResult result = execute("version", "--help");
 
@@ -351,6 +361,12 @@ final class CliSurfaceTest {
         return paths;
     }
 
+    private static List<Class<?>> zoltCommandTypes(CommandLine root) {
+        List<Class<?>> types = new ArrayList<>();
+        collectZoltCommandTypes(root, types);
+        return types;
+    }
+
     private static void collectCommandPaths(CommandLine commandLine, List<String> prefix, List<List<String>> paths) {
         paths.add(prefix);
         for (Map.Entry<String, CommandLine> entry : commandLine.getSubcommands().entrySet()) {
@@ -358,6 +374,17 @@ final class CliSurfaceTest {
             childPath.add(entry.getKey());
             collectCommandPaths(entry.getValue(), childPath, paths);
         }
+    }
+
+    private static void collectZoltCommandTypes(CommandLine commandLine, List<Class<?>> types) {
+        Object userObject = commandLine.getCommandSpec().userObject();
+        if (userObject != null) {
+            Class<?> type = userObject instanceof Class<?> commandClass ? commandClass : userObject.getClass();
+            if (type.getName().startsWith("com.zolt.cli")) {
+                types.add(type);
+            }
+        }
+        commandLine.getSubcommands().values().forEach(subcommand -> collectZoltCommandTypes(subcommand, types));
     }
 
     private static void assertContainsInOrder(String text, String... expected) {

@@ -25,7 +25,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "quarkus",
-        mixinStandardHelpOptions = true,
         description = "Inspect Quarkus build-time augmentation inputs.",
         subcommands = {
                 QuarkusCommand.PlanCommand.class,
@@ -40,7 +39,7 @@ public final class QuarkusCommand implements Runnable {
         spec.commandLine().usage(spec.commandLine().getOut());
     }
 
-    @Command(name = "plan", description = "Print the Quarkus augmentation input plan.", mixinStandardHelpOptions = true)
+    @Command(name = "plan", description = "Print the Quarkus augmentation input plan.")
     public static final class PlanCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final QuarkusPlanService quarkusPlanService;
@@ -107,8 +106,7 @@ public final class QuarkusCommand implements Runnable {
 
     @Command(
             name = "test-plan",
-            description = "Print the Quarkus test bootstrap plan.",
-            mixinStandardHelpOptions = true)
+            description = "Print the Quarkus test bootstrap plan.")
     public static final class TestPlanCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final QuarkusTestPlanService quarkusTestPlanService;

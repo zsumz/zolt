@@ -48,7 +48,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "zolt",
-        mixinStandardHelpOptions = true,
         version = ZoltCli.VERSION,
         description = "The modern Java build toolkit.",
         subcommands = {

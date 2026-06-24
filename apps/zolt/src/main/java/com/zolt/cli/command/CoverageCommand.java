@@ -35,7 +35,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "coverage",
-        mixinStandardHelpOptions = true,
         description = "Run tests with Jacoco instrumentation and write coverage reports.")
 public final class CoverageCommand implements Runnable {
     private final ZoltTomlParser tomlParser;

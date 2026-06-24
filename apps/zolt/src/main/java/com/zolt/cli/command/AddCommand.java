@@ -26,7 +26,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
-@Command(name = "add", description = "Add a dependency to zolt.toml and refresh zolt.lock.", mixinStandardHelpOptions = true)
+@Command(name = "add", description = "Add a dependency to zolt.toml and refresh zolt.lock.")
 public final class AddCommand implements Runnable {
     private final CoordinateParser coordinateParser;
     private final ZoltTomlParser tomlParser;

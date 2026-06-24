@@ -24,7 +24,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "self-parity",
-        mixinStandardHelpOptions = true,
         description = "Compare bootstrap and Zolt-built jar entries.")
 public final class SelfParityCommand implements Runnable {
     private final SelfHostingParityService selfHostingParityService;

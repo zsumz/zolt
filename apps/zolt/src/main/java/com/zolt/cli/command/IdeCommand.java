@@ -21,7 +21,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "ide",
-        mixinStandardHelpOptions = true,
         description = "Export project models for IDE and tooling integrations.",
         subcommands = {
                 IdeCommand.ModelCommand.class
@@ -35,7 +34,7 @@ public final class IdeCommand implements Runnable {
         spec.commandLine().usage(spec.commandLine().getOut());
     }
 
-    @Command(name = "model", description = "Export the Zolt project model.", mixinStandardHelpOptions = true)
+    @Command(name = "model", description = "Export the Zolt project model.")
     public static final class ModelCommand implements Runnable {
         private final WorkspaceIdeModelService workspaceIdeModelService;
         private final WorkspaceIdeModelJsonWriter workspaceIdeModelJsonWriter;

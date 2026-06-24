@@ -38,8 +38,7 @@ public final class VersionCommand implements Runnable {
 
     @Command(
             name = "set",
-            description = "Set a version alias in zolt.toml and refresh zolt.lock.",
-            mixinStandardHelpOptions = true)
+            description = "Set a version alias in zolt.toml and refresh zolt.lock.")
     public static final class SetCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final ZoltTomlWriter tomlWriter;
@@ -115,8 +114,7 @@ public final class VersionCommand implements Runnable {
 
     @Command(
             name = "remove",
-            description = "Remove an unused version alias from zolt.toml and refresh zolt.lock.",
-            mixinStandardHelpOptions = true)
+            description = "Remove an unused version alias from zolt.toml and refresh zolt.lock.")
     public static final class RemoveCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final ZoltTomlWriter tomlWriter;

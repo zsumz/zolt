@@ -15,7 +15,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "native-smoke",
-        mixinStandardHelpOptions = true,
         description = "Smoke a native Zolt binary against real workflows.")
 public final class NativeSmokeCommand implements Runnable {
     private final ZoltTomlParser tomlParser;

@@ -24,7 +24,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "platform",
-        mixinStandardHelpOptions = true,
         description = "Manage BOM/platform imports in zolt.toml.",
         subcommands = {
                 PlatformCommand.AddCommand.class,
@@ -41,7 +40,6 @@ public final class PlatformCommand implements Runnable {
 
     @Command(
             name = "add",
-            mixinStandardHelpOptions = true,
             description = "Add a platform BOM import to zolt.toml and refresh zolt.lock.")
     public static final class AddCommand implements Runnable {
         private final CoordinateParser coordinateParser;
@@ -197,7 +195,6 @@ public final class PlatformCommand implements Runnable {
 
     @Command(
             name = "remove",
-            mixinStandardHelpOptions = true,
             description = "Remove a platform BOM import and refresh zolt.lock.")
     public static final class RemoveCommand implements Runnable {
         private final CoordinateParser coordinateParser;

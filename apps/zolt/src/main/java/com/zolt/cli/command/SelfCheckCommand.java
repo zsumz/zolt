@@ -16,7 +16,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "self-check",
-        mixinStandardHelpOptions = true,
         description = "Run the self-hosting verification path.")
 public final class SelfCheckCommand implements Runnable {
     private final SelfCheckService selfCheckService;

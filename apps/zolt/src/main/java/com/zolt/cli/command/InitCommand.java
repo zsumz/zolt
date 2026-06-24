@@ -13,7 +13,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
-@Command(name = "init", description = "Create a new Zolt project.", mixinStandardHelpOptions = true)
+@Command(name = "init", description = "Create a new Zolt project.")
 public final class InitCommand implements Runnable {
     private final ProjectInitializer projectInitializer;
 

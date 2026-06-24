@@ -23,7 +23,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "explain",
-        mixinStandardHelpOptions = true,
         description = "Audit a Maven or Gradle project for future Zolt migration.")
 public final class ExplainCommand implements Callable<Integer> {
     enum Format {

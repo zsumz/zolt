@@ -42,7 +42,6 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "test",
-        mixinStandardHelpOptions = true,
         description = "Compile and run tests, starting with JUnit support.")
 public final class TestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
