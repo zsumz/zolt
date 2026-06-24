@@ -113,9 +113,15 @@ final class CliSurfaceTest {
         CommandResult color = execute("--color=always", "init", "--directory", tempDir.toString(), "color-hello");
         CommandResult quiet = execute("--quiet", "init", "--directory", tempDir.toString(), "quiet-hello");
 
+        String createdLead = "\u001B[32mCreated\u001B[0m";
+        String nextCommand = "\u001B[36mcd color-hello\u001B[0m";
         assertEquals(0, color.exitCode());
-        assertTrue(color.stdout().contains("\u001B[32mCreated\u001B[0m Zolt project at"));
-        assertTrue(color.stdout().contains("Next: \u001B[36mcd color-hello\u001B[0m"));
+        assertTrue(color.stdout().contains(createdLead + " Zolt project at"));
+        assertTrue(color.stdout().contains("Next: " + nextCommand));
+        assertFalse(color.stdout()
+                .replace(createdLead, "Created")
+                .replace(nextCommand, "cd color-hello")
+                .contains("\u001B["));
         assertEquals(0, quiet.exitCode());
         assertEquals("", quiet.stdout());
         assertEquals("", quiet.stderr());

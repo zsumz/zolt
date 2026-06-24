@@ -37,6 +37,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Remaining rollout:"));
         assertTrue(design.contains("Refresh common success summaries."));
         assertTrue(design.contains("Standardize error blocks."));
+        assertTrue(design.contains("color-enabled golden test for help, success, and error"));
         assertTrue(design.contains("No full-screen terminal UI"));
         assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before"));
     }
