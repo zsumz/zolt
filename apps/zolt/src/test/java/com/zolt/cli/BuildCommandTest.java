@@ -164,6 +164,11 @@ final class BuildCommandTest {
                 "build",
                 "--cwd", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
+        CommandResult noOp = execute(
+                "--color=always",
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[36mBuilding\u001B[0m demo"));
@@ -171,6 +176,9 @@ final class BuildCommandTest {
         assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m classes to "
                 + projectDir.resolve("target/classes")));
         assertFalse(result.stdout().contains("\u001B[32mCompiled 1 main source files\u001B[0m"));
+        assertEquals(0, noOp.exitCode());
+        assertTrue(noOp.stdout().contains("\u001B[32mSkipped\u001B[0m main compilation; inputs are unchanged"));
+        assertFalse(noOp.stdout().contains("\u001B[32mSkipped main compilation; inputs are unchanged\u001B[0m"));
     }
 
 }

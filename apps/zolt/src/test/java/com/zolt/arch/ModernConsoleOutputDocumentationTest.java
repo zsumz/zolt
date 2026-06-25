@@ -30,6 +30,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Resolve output should answer"));
         assertTrue(design.contains("Downloaded 3 artifacts"));
         assertTrue(design.contains("Build output should keep compile, resources, generated sources, and skipped work visible"));
+        assertTrue(design.contains("Skipped main compilation; inputs are unchanged"));
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));
         assertTrue(design.contains("Unpacked archive to target/release-verify"));
