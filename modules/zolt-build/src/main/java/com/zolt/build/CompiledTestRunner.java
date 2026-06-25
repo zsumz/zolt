@@ -16,10 +16,13 @@ import com.zolt.test.TestInventoryEntry;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestWorkerPoolPlan;
 import com.zolt.test.TestWorkerPoolWave;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -320,8 +323,8 @@ final class CompiledTestRunner {
                     testRuntimeClasspath,
                     testOutputDirectory,
                     workerSelection(testSelection, entry),
-                    jvmArguments,
-                    workerEnvironment(projectDirectory, config, environment, workerId),
+                    workerJvmArguments(jvmArguments, workerId),
+                    workerEnvironment(projectDirectory, config, environment, jvmArguments, workerId),
                     workerReportsDirectory(reportsDirectory, workerId),
                     events);
             return new WorkerTaskResult(entry.className(), result);
@@ -362,6 +365,7 @@ final class CompiledTestRunner {
             Path projectDirectory,
             ProjectConfig config,
             Map<String, String> environment,
+            TestJvmArguments jvmArguments,
             String workerId) {
         Map<String, String> values = new LinkedHashMap<>(environment);
         Path outputDirectory = projectDirectory.resolve(config.build().outputRoot())
@@ -371,11 +375,70 @@ final class CompiledTestRunner {
                 .normalize();
         values.put("ZOLT_TEST_WORKER_ID", workerId);
         values.put("ZOLT_TEST_WORKER_OUTPUT_DIR", outputDirectory.toString());
+        jacocoWorkerExecFile(jvmArguments, workerId)
+                .ifPresent(path -> values.put("ZOLT_COVERAGE_EXEC_FILE", path.toString()));
         return Map.copyOf(values);
     }
 
     private static Optional<Path> workerReportsDirectory(Optional<Path> reportsDirectory, String workerId) {
         return reportsDirectory.map(directory -> directory.resolve("workers").resolve(workerId));
+    }
+
+    private static TestJvmArguments workerJvmArguments(TestJvmArguments jvmArguments, String workerId) {
+        List<String> values = jvmArguments.values().stream()
+                .map(argument -> rewriteJacocoDestfile(argument, workerId).orElse(argument))
+                .toList();
+        return new TestJvmArguments(values);
+    }
+
+    private static Optional<Path> jacocoWorkerExecFile(TestJvmArguments jvmArguments, String workerId) {
+        return jvmArguments.values().stream()
+                .map(argument -> jacocoWorkerExecFile(argument, workerId))
+                .flatMap(Optional::stream)
+                .findFirst();
+    }
+
+    private static Optional<String> rewriteJacocoDestfile(String argument, String workerId) {
+        Optional<Path> execFile = jacocoWorkerExecFile(argument, workerId);
+        if (execFile.isEmpty()) {
+            return Optional.empty();
+        }
+        int valueStart = argument.indexOf("destfile=") + "destfile=".length();
+        int valueEnd = argument.indexOf(',', valueStart);
+        if (valueEnd < 0) {
+            valueEnd = argument.length();
+        }
+        return Optional.of(argument.substring(0, valueStart) + execFile.orElseThrow() + argument.substring(valueEnd));
+    }
+
+    private static Optional<Path> jacocoWorkerExecFile(String argument, String workerId) {
+        if (argument == null || !argument.startsWith("-javaagent:")
+                || !argument.toLowerCase(Locale.ROOT).contains("jacoco")) {
+            return Optional.empty();
+        }
+        int valueStart = argument.indexOf("destfile=");
+        if (valueStart < 0) {
+            return Optional.empty();
+        }
+        valueStart += "destfile=".length();
+        int valueEnd = argument.indexOf(',', valueStart);
+        if (valueEnd < 0) {
+            valueEnd = argument.length();
+        }
+        Path execFile = Path.of(argument.substring(valueStart, valueEnd));
+        Path parent = execFile.getParent();
+        if (parent == null) {
+            return Optional.empty();
+        }
+        Path workerExecFile = parent.resolve("workers").resolve(workerId).resolve(execFile.getFileName())
+                .toAbsolutePath()
+                .normalize();
+        try {
+            Files.createDirectories(workerExecFile.getParent());
+        } catch (IOException exception) {
+            throw new TestRunException("Could not create worker coverage directory " + workerExecFile.getParent() + ".", exception);
+        }
+        return Optional.of(workerExecFile);
     }
 
     static PlainJunitWorkerRunResult runPlainJunitWorker(

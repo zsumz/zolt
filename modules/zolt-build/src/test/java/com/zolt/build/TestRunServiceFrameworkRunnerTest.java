@@ -151,6 +151,7 @@ final class TestRunServiceFrameworkRunnerTest {
         source(projectDir, "src/test/java/com/example/KafkaTest.java", "package com.example; public final class KafkaTest {}\n");
         source(projectDir, "src/test/java/com/example/NoLockTest.java", "package com.example; public final class NoLockTest {}\n");
         List<TestSelection> selections = Collections.synchronizedList(new ArrayList<>());
+        List<TestJvmArguments> workerJvmArguments = Collections.synchronizedList(new ArrayList<>());
         List<Map<String, String>> environments = Collections.synchronizedList(new ArrayList<>());
         List<Optional<Path>> reportDirectories = Collections.synchronizedList(new ArrayList<>());
         AtomicInteger activeDatabaseWorkers = new AtomicInteger();
@@ -162,6 +163,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
                     selections.add(testSelection);
+                    workerJvmArguments.add(testJvmArguments);
                     environments.add(environment);
                     reportDirectories.add(reportsDirectory);
                     String className = testSelection.classSelectors().getFirst();
@@ -189,7 +191,9 @@ final class TestRunServiceFrameworkRunnerTest {
                 parallelFastConfig(),
                 projectDir.resolve("cache"),
                 TestSelection.empty(),
-                TestJvmArguments.empty(),
+                new TestJvmArguments(List.of("-javaagent:/tools/org.jacoco.agent.jar=destfile="
+                        + projectDir.resolve("target/coverage/jacoco.exec").toAbsolutePath().normalize()
+                        + ",append=false")),
                 TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
                 List.of(),
                 "fast");
@@ -210,8 +214,14 @@ final class TestRunServiceFrameworkRunnerTest {
                         .toList());
         assertFalse(lockViolation.get());
         assertEquals(4, environments.size());
+        assertEquals(4, workerJvmArguments.size());
+        assertTrue(workerJvmArguments.stream()
+                .map(arguments -> arguments.values().getFirst())
+                .allMatch(argument -> argument.contains("target/coverage/workers/wave-")
+                        && argument.endsWith("/jacoco.exec,append=false")));
         assertTrue(environments.stream().allMatch(environment -> environment.containsKey("ZOLT_TEST_WORKER_ID")));
         assertTrue(environments.stream().allMatch(environment -> environment.containsKey("ZOLT_TEST_WORKER_OUTPUT_DIR")));
+        assertTrue(environments.stream().allMatch(environment -> environment.containsKey("ZOLT_COVERAGE_EXEC_FILE")));
         assertTrue(reportDirectories.stream().allMatch(Optional::isPresent));
         assertTrue(reportDirectories.stream()
                 .map(Optional::orElseThrow)

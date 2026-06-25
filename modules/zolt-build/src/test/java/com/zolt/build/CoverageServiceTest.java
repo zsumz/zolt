@@ -96,6 +96,40 @@ final class CoverageServiceTest {
     }
 
     @Test
+    void mergesSplitWorkerExecutionDataBeforeGeneratingReports() throws IOException {
+        writeCoverageLockfile();
+        Path coverageRoot = projectDir.resolve("target/coverage");
+        Files.createDirectories(coverageRoot.resolve("workers/wave-1-worker-1"));
+        Files.createDirectories(coverageRoot.resolve("workers/wave-1-worker-2"));
+        Files.writeString(coverageRoot.resolve("workers/wave-1-worker-1/jacoco.exec"), "worker-one\n");
+        Files.writeString(coverageRoot.resolve("workers/wave-1-worker-2/jacoco.exec"), "worker-two\n");
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) ->
+                        new TestRunResult(null, "Tests passed\n"),
+                reportCommands);
+
+        Path execFile = projectDir.resolve("target/coverage/jacoco.exec").toAbsolutePath().normalize();
+        service.runCoverage(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                CoverageReportSettings.defaults(),
+                List.of());
+
+        assertEquals(2, reportCommands.size());
+        List<String> mergeCommand = reportCommands.getFirst();
+        assertTrue(mergeCommand.contains("merge"));
+        assertTrue(mergeCommand.contains(projectDir.resolve("target/coverage/workers/wave-1-worker-1/jacoco.exec").toAbsolutePath().normalize().toString()));
+        assertTrue(mergeCommand.contains(projectDir.resolve("target/coverage/workers/wave-1-worker-2/jacoco.exec").toAbsolutePath().normalize().toString()));
+        assertEquals(execFile.toString(), argumentAfter(mergeCommand, "--destfile"));
+        List<String> reportCommand = reportCommands.get(1);
+        assertTrue(reportCommand.contains("report"));
+        assertTrue(reportCommand.contains(execFile.toString()));
+    }
+
+    @Test
     void omittedCoverageSettingsDefaultUnderBuildOutputRoot() throws IOException {
         writeCoverageLockfile();
         List<TestReportSettings> testReportSettings = new ArrayList<>();

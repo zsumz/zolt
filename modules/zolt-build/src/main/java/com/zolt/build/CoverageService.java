@@ -16,6 +16,7 @@ import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -79,6 +80,7 @@ public final class CoverageService {
                 coverageJvmArguments,
                 settings.testReports(),
                 cliEvents);
+        mergeWorkerExecFilesIfPresent(projectRoot, config, execFile, tooling.cliClasspath());
         JavaRunResult reportResult = runReport(projectRoot, config, settings, execFile, tooling.cliClasspath());
         return new CoverageResult(
                 testResult,
@@ -178,6 +180,90 @@ public final class CoverageService {
             throw new CoverageException(
                     "Coverage report generation failed. Check Jacoco output, test classes, and source paths, then run `zolt coverage` again.\n"
                             + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    public JavaRunResult mergeExecFiles(
+            Path projectRoot,
+            ProjectConfig config,
+            Path destinationExecFile,
+            List<Path> sourceExecFiles,
+            List<Path> cliClasspath) {
+        List<Path> inputs = sourceExecFiles.stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .sorted(Comparator.comparing(Path::toString))
+                .toList();
+        if (inputs.isEmpty()) {
+            throw new CoverageException("Coverage merge requires at least one Jacoco execution data file.");
+        }
+        createParent(destinationExecFile);
+        if (inputs.size() == 1) {
+            try {
+                Files.copy(inputs.getFirst(), destinationExecFile, StandardCopyOption.REPLACE_EXISTING);
+                return new JavaRunResult(JACOCO_CLI_MAIN_CLASS, "Copied split coverage execution data\n");
+            } catch (IOException exception) {
+                throw new CoverageException(
+                        "Coverage merge failed while copying split Jacoco execution data to "
+                                + destinationExecFile
+                                + ".",
+                        exception);
+            }
+        }
+        JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
+        if (!jdkStatus.ok()) {
+            throw new CoverageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
+        }
+        List<String> arguments = new ArrayList<>();
+        arguments.add("merge");
+        inputs.stream().map(Path::toString).forEach(arguments::add);
+        arguments.add("--destfile");
+        arguments.add(destinationExecFile.toAbsolutePath().normalize().toString());
+        try {
+            return javaRunner.run(
+                    jdkStatus.java().orElseThrow(),
+                    new Classpath(cliClasspath),
+                    JACOCO_CLI_MAIN_CLASS,
+                    List.of(),
+                    arguments);
+        } catch (JavaRunException exception) {
+            throw new CoverageException(
+                    "Coverage merge failed. Check split Jacoco execution data, then run `zolt coverage` again.\n"
+                            + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    private void mergeWorkerExecFilesIfPresent(
+            Path projectRoot,
+            ProjectConfig config,
+            Path execFile,
+            List<Path> cliClasspath) {
+        List<Path> workerExecFiles = workerExecFiles(execFile);
+        if (!workerExecFiles.isEmpty()) {
+            mergeExecFiles(projectRoot, config, execFile, workerExecFiles, cliClasspath);
+        }
+    }
+
+    private static List<Path> workerExecFiles(Path execFile) {
+        Path parent = execFile.getParent();
+        if (parent == null) {
+            return List.of();
+        }
+        Path workersDirectory = parent.resolve("workers");
+        if (!Files.isDirectory(workersDirectory)) {
+            return List.of();
+        }
+        try (java.util.stream.Stream<Path> paths = Files.walk(workersDirectory)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().equals(execFile.getFileName()))
+                    .map(path -> path.toAbsolutePath().normalize())
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList();
+        } catch (IOException exception) {
+            throw new CoverageException(
+                    "Could not inspect split coverage execution data under " + workersDirectory + ".",
                     exception);
         }
     }
