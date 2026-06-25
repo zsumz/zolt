@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -60,6 +61,30 @@ final class NativeSmokeCommandTest {
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(colorProject.resolve("target/native-smoke/release/demo-0.1.0-linux-x64.tar.gz")));
         assertTrue(Files.exists(quietProject.resolve("target/native-smoke/release/demo-0.1.0-linux-x64.tar.gz")));
+    }
+
+    @Test
+    void nativeSmokeLogsDoNotDependOnProgressAnimation() throws IOException {
+        Path projectDir = tempDir.resolve("progress-smoke");
+        NativeCommandTestSupport.writeProjectConfigWithMain(projectDir, "https://repo.maven.apache.org/maven2");
+        NativeCommandTestSupport.writeFakeNativeBinary(projectDir);
+
+        CommandResult result = execute(
+                "--progress=always",
+                "native-smoke",
+                "--directory", projectDir.toString(),
+                "--binary", Path.of("target/native/zolt").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Native smoke status: ok"));
+        assertTrue(result.stdout().contains("Smoked binary"));
+        assertFalse(result.stdout().contains("Still running:"), "native-smoke stdout should not contain progress heartbeat");
+        assertFalse(result.stderr().contains("Still running:"), "native-smoke stderr should not contain progress heartbeat");
+        assertFalse(result.stdout().contains("\r"), "native-smoke stdout should stay line-based");
+        assertFalse(result.stderr().contains("\r"), "native-smoke stderr should stay line-based");
+        assertFalse(result.stdout().contains("\u001B["), "native-smoke stdout should not require terminal animation");
+        assertTrue(Files.exists(projectDir.resolve("target/native-smoke/release/demo-0.1.0-linux-x64.tar.gz")));
     }
 
     @Test
