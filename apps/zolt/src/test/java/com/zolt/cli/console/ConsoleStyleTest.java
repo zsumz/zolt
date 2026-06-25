@@ -70,8 +70,10 @@ final class ConsoleStyleTest {
         assertEquals("\u001B[36mresolve\u001B[0m", style.command("resolve"));
         assertEquals("\u001B[1;36mzolt test\u001B[0m", style.helpCommand("zolt test"));
         assertEquals("\u001B[36m[COMMAND]\u001B[0m", style.helpMeta("[COMMAND]"));
+        assertEquals("\u001B[36mtarget/classes\u001B[0m", style.path("target/classes"));
         assertEquals("\u001B[32mResolved\u001B[0m", style.success("Resolved"));
         assertEquals("\u001B[1;36m--workspace\u001B[0m", style.option("--workspace"));
+        assertEquals("\u001B[36mBuilding\u001B[0m", style.work("Building"));
         assertEquals("\u001B[33mwarning:\u001B[0m", style.warning("warning:"));
         assertEquals("\u001B[31merror:\u001B[0m", style.error("error:"));
         assertEquals("\u001B[2m12ms\u001B[0m", style.muted("12ms"));
