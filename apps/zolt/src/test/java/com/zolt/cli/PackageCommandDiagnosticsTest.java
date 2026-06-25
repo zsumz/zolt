@@ -113,9 +113,13 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
         assertTrue(result.stdout().contains("\u001B[32mIncluded\u001B[0m Main-Class manifest entry"));
         assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + jarPath));
+        assertTrue(result.stdout().contains("Run with: "));
+        assertTrue(result.stdout().contains("Run with dependencies: "));
         assertFalse(result.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[32mIncluded Main-Class manifest entry"));
         assertFalse(result.stdout().contains("\u001B[32mWrote archive to "));
+        assertFalse(result.stdout().contains("\u001B[32mRun with"));
+        assertFalse(result.stdout().contains("\u001B[36mRun with"));
     }
 
     @Test
