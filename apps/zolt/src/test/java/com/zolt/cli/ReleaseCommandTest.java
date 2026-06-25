@@ -104,12 +104,10 @@ final class ReleaseCommandTest {
     void releaseVerifyReportsMissingArchiveClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
-
         CommandResult result = execute(
                 "release-verify",
                 "--cwd", projectDir.toString(),
                 "dist/missing.tar.gz");
-
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Release archive verification failed for"));
         assertTrue(result.stderr().contains("archive does not exist"));
@@ -130,6 +128,7 @@ final class ReleaseCommandTest {
         assertEquals(0, archiveResult.exitCode(), archiveResult.stderr());
         CommandResult color = execute(
                 "--color=always",
+                "--progress=always",
                 "release-verify",
                 "--directory", projectDir.toString(),
                 "--work-dir", "target/release-verify-color",
@@ -140,7 +139,6 @@ final class ReleaseCommandTest {
                 "--directory", projectDir.toString(),
                 "--work-dir", "target/release-verify-quiet",
                 "dist/demo-0.1.0-linux-x64.tar.gz");
-
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m release archive " + archive));
         assertFalse(color.stdout().contains("\u001B[32mVerified release archive"));
@@ -150,6 +148,10 @@ final class ReleaseCommandTest {
         assertFalse(color.stdout().contains("\u001B[32mRan smoke binary"));
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
         assertFalse(color.stdout().contains("\u001B[32mVerified 1 release archives"));
+        assertTrue(color.stderr().contains("\u001B[36mVerifying\u001B[0m release archives..."));
+        assertTrue(color.stderr().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
+        assertFalse(color.stderr().contains("\u001B[36mVerifying release archives...")
+                || color.stderr().contains("\u001B[32mVerified 1 release archives"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
     }
@@ -162,12 +164,10 @@ final class ReleaseCommandTest {
                 projectDir.resolve("zolt.toml"),
                 Files.readString(projectDir.resolve("zolt.toml"))
                         .replace("[build]\n", "[build]\n                outputRoot = \".zolt/build\"\n"));
-
         CommandResult result = execute(
                 "release-verify",
                 "--directory", projectDir.toString(),
                 "dist/missing.tar.gz");
-
         assertEquals(1, result.exitCode());
         assertTrue(Files.isDirectory(projectDir.resolve(".zolt/build/release-verify")));
         assertTrue(result.stderr().contains("archive does not exist"));
