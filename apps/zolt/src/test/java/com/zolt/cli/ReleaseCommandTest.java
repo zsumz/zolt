@@ -138,10 +138,13 @@ final class ReleaseCommandTest {
 
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m release archive " + archive));
+        assertFalse(color.stdout().contains("\u001B[32mVerified release archive"));
         assertTrue(color.stdout().contains("\u001B[32mUnpacked\u001B[0m to "));
         assertFalse(color.stdout().contains("\u001B[32mUnpacked to "));
         assertTrue(color.stdout().contains("\u001B[32mRan\u001B[0m smoke binary"));
+        assertFalse(color.stdout().contains("\u001B[32mRan smoke binary"));
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
+        assertFalse(color.stdout().contains("\u001B[32mVerified 1 release archives"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
     }
