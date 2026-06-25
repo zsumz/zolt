@@ -192,6 +192,18 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (profileTestClassBeanMissing(result.output())) {
+                return "error: Quarkus annotation test bootstrap activated a test profile, restarted the "
+                    + "Quarkus application, then Arc could not instantiate the profiled @QuarkusTest class "
+                    + "as a CDI bean. Zolt can instantiate the public QuarkusTestProfile and can produce "
+                    + "test-class bean customizer output for the selected class, but profile reload still "
+                    + "needs a separate Arc additional-bean registration handoff before @TestProfile can be "
+                    + "enabled. Keep profiles unsupported for now, or run `zolt quarkus test-plan` to inspect "
+                    + "blocked tests."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             if (testClassBeanMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap started the Quarkus application, then Arc could "
                     + "not instantiate the selected @QuarkusTest class as a CDI bean. Zolt moved this "
@@ -272,6 +284,11 @@ public final class QuarkusAnnotationWorkerRunner {
         return output.contains("jakarta.enterprise.inject.UnsatisfiedResolutionException")
                 && output.contains("No bean found for required type")
                 && output.contains("io.quarkus.test.junit");
+    }
+
+    private static boolean profileTestClassBeanMissing(String output) {
+        return testClassBeanMissing(output)
+                && output.contains("Profile test activated.");
     }
 
     public record Result(int exitCode, String output) {

@@ -118,6 +118,28 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
     }
 
     @Test
+    void explainsProfileReloadMissingTestClassBean() {
+        QuarkusAnnotationWorkerRunner.Result result = diagnosticResult("""
+                2026-06-25 12:41:42,718 INFO  [io.quarkus] (main) Profile test activated.
+                org.junit.jupiter.api.extension.TestInstantiationException: Failed to create test instance
+                Caused by: jakarta.enterprise.inject.UnsatisfiedResolutionException:
+                No bean found for required type [class com.example.quarkus.ProfiledHelloResourceQuarkusTest]
+                    at io.quarkus.test.junit.QuarkusTestExtension.createActualTestInstance(QuarkusTestExtension.java:818)
+                Zolt Quarkus test-class-bean customizer diagnostic:
+                  producer.candidates=com.example.quarkus.ProfiledHelloResourceQuarkusTest
+                  additionalBeanStep.produced=com.example.quarkus.ProfiledHelloResourceQuarkusTest
+                """);
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("activated a test profile"));
+        assertTrue(result.output().contains("restarted the Quarkus application"));
+        assertTrue(result.output().contains("profile reload"));
+        assertTrue(result.output().contains("Arc additional-bean registration handoff"));
+        assertTrue(result.output().contains("@TestProfile"));
+        assertTrue(result.output().contains("Profile test activated"));
+    }
+
+    @Test
     void explainsTestScopeSetupClassloaderSplit() {
         QuarkusAnnotationWorkerRunner.Result result = diagnosticResult("""
                 java.util.ServiceConfigurationError: io.quarkus.runtime.test.TestScopeSetup: io.quarkus.arc.runtime.ArcTestRequestScopeProvider not a subtype
