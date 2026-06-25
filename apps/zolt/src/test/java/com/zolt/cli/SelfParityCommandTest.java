@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -68,6 +69,8 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
         assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Self-hosting parity failed"));
         assertTrue(result.stderr().contains("Missing from Zolt-built jar:"));
         assertTrue(result.stderr().contains("only-bootstrap.txt"));
+        assertFalse(result.stderr().contains("\u001B[31mMissing"));
+        assertFalse(result.stderr().contains("\u001B[31m  - only-bootstrap.txt"));
         assertEquals(1, occurrences(result.stderr(), "Self-hosting parity failed"));
     }
 
