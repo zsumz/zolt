@@ -96,6 +96,7 @@ public final class QuarkusAnnotationWorkerRunner {
         QuarkusAnnotationApi api = apiProbe.probe(plan.descriptor());
         QuarkusAnnotationLaunchRequest launchRequest = launchRequestFactory.create(plan, api);
         testIndexWriter.write(launchRequest);
+        QuarkusAnnotationDiagnosticFiles.reset(launchRequest);
         QuarkusAnnotationJvmRunner.Result result = launchRunner.run(launchRequest);
         return new Result(result.exitCode(), diagnosedOutput(launchRequest, result));
     }
