@@ -29,9 +29,7 @@ public record QuarkusTestWorkerPlan(
     }
 
     public List<QuarkusUnsupportedTest> annotationRunnerTests() {
-        return unsupportedTests.stream()
-                .filter(QuarkusUnsupportedTest::annotationRunnerSupported)
-                .toList();
+        return QuarkusAnnotationRunnerCandidates.select(unsupportedTests);
     }
 
     public List<QuarkusUnsupportedTest> blockedUnsupportedTests() {

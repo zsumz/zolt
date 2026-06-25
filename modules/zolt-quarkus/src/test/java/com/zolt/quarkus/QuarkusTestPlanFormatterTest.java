@@ -59,6 +59,40 @@ final class QuarkusTestPlanFormatterTest {
     }
 
     @Test
+    void formatsOverlappingSupportedMarkersAsOneAnnotationRunnerTest() {
+        QuarkusUnsupportedTest profileModifier = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@TestProfile",
+                true);
+        QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@QuarkusTest",
+                true);
+        QuarkusTestPlan plan = new QuarkusTestPlan(
+                Path.of("/repo"),
+                Path.of("/repo/target/test-classes"),
+                true,
+                Path.of("/repo/target/quarkus/test-application-model.dat"),
+                Path.of("/repo/target/quarkus/zolt-test-bootstrap.properties"),
+                List.of(profileModifier, quarkusTest));
+
+        assertEquals("""
+                Quarkus test plan
+                Status: Quarkus annotation runner selected
+                Test output: /repo/target/test-classes
+                Compiled test output: present
+                Serialized application model: /repo/target/quarkus/test-application-model.dat
+                Test runner descriptor: /repo/target/quarkus/zolt-test-bootstrap.properties
+                Quarkus annotation runner tests: 1
+                  com/example/ProfiledHttpTest.class (@QuarkusTest)
+                Unsupported Quarkus tests: 0
+                Next: run `zolt test` to execute supported direct `@QuarkusTest` classes through Zolt's Quarkus annotation runner.
+                """, new QuarkusTestPlanFormatter().format(plan));
+    }
+
+    @Test
     void formatsBlockedPlan() {
         QuarkusTestPlan plan = new QuarkusTestPlan(
                 Path.of("/repo"),

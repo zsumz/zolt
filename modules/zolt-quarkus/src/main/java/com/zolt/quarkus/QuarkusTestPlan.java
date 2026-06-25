@@ -31,13 +31,11 @@ public record QuarkusTestPlan(
     }
 
     public boolean hasAnnotationRunnerTests() {
-        return unsupportedTests.stream().anyMatch(QuarkusUnsupportedTest::annotationRunnerSupported);
+        return !annotationRunnerTests().isEmpty();
     }
 
     public List<QuarkusUnsupportedTest> annotationRunnerTests() {
-        return unsupportedTests.stream()
-                .filter(QuarkusUnsupportedTest::annotationRunnerSupported)
-                .toList();
+        return QuarkusAnnotationRunnerCandidates.select(unsupportedTests);
     }
 
     public List<QuarkusUnsupportedTest> blockedUnsupportedTests() {

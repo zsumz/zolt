@@ -36,6 +36,27 @@ final class QuarkusTestWorkerPlanServiceTest {
     }
 
     @Test
+    void selectsEachAnnotationRunnerClassOnlyOnceWhenSupportedMarkersOverlap() {
+        QuarkusUnsupportedTest profileModifier = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@TestProfile",
+                true);
+        QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@QuarkusTest",
+                true);
+
+        QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(profileModifier, quarkusTest))
+                .plan(descriptor());
+
+        assertEquals(QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED, plan.status());
+        assertEquals(List.of(quarkusTest), plan.annotationRunnerTests());
+        assertTrue(plan.blockedUnsupportedTests().isEmpty());
+    }
+
+    @Test
     void legacyDescriptorsStillBlockWhenAnnotationSupportIsDisabled() {
         QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),

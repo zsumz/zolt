@@ -74,6 +74,26 @@ final class QuarkusTestPlanServiceTest {
     }
 
     @Test
+    void selectsEachAnnotationRunnerClassOnlyOnceWhenSupportedMarkersOverlap() {
+        Path testOutput = projectDir.toAbsolutePath().normalize().resolve("target/test-classes");
+        QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
+                testOutput.resolve("com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@QuarkusTest",
+                true);
+        QuarkusUnsupportedTest profileModifier = new QuarkusUnsupportedTest(
+                testOutput.resolve("com/example/ProfiledHttpTest.class"),
+                Path.of("com/example/ProfiledHttpTest.class"),
+                "@TestProfile",
+                true);
+        QuarkusTestPlan plan = new QuarkusTestPlanService(path -> List.of(profileModifier, quarkusTest))
+                .plan(projectDir, config(true));
+
+        assertFalse(plan.hasUnsupportedTests());
+        assertEquals(List.of(quarkusTest), plan.annotationRunnerTests());
+    }
+
+    @Test
     void rejectsWhenQuarkusIsDisabled() {
         QuarkusPlanException exception = assertThrows(
                 QuarkusPlanException.class,
