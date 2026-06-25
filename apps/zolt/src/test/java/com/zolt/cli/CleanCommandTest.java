@@ -64,6 +64,8 @@ final class CleanCommandTest {
         assertEquals(0, color.exitCode());
         assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m 1 build output paths"));
         assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m " + colorProject.resolve("target")));
+        assertFalse(color.stdout().contains("\u001B[32mDeleted 1 build output paths"));
+        assertFalse(color.stdout().contains("\u001B[32mDeleted " + colorProject.resolve("target")));
         assertEquals(0, quiet.exitCode());
         assertEquals("", quiet.stdout());
         assertEquals("", quiet.stderr());
