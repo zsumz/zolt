@@ -189,6 +189,38 @@ final class CliMachineReadableContractTest {
         assertFalse(result.stdout().contains("Checked 1 quality checks"));
     }
 
+    @Test
+    void explainJsonIgnoresForcedColorAndProgress() throws IOException {
+        Path projectDir = tempDir.resolve("explain-json-contract");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "explain",
+                "--cwd", projectDir.toString(),
+                "--source", "maven",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"source\": \"maven\""));
+        assertTrue(result.stdout().contains("\"root\": \"" + projectDir.toAbsolutePath().normalize()));
+        assertTrue(result.stdout().contains("\"name\": \"demo\""));
+        assertFalse(result.stdout().contains("Zolt explain: Maven project"));
+    }
+
     private static void writeProjectConfig(Path projectDir) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
@@ -220,6 +252,7 @@ final class CliMachineReadableContractTest {
         assertFalse(output.contains("Resolving "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Building "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Packaging "), "output should not contain progress text: " + output);
+        assertFalse(output.contains("Explaining "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Still running:"), "output should not contain progress text: " + output);
     }
 }
