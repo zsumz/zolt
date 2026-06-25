@@ -64,6 +64,8 @@ final class DoctorCommandTest {
         assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m JUnit Platform Console"));
         assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m native no-fallback"));
         assertFalse(result.stdout().contains("\u001B[32mok: main class"));
+        assertFalse(result.stdout().contains("\u001B[32mok: JUnit Platform Console"));
+        assertFalse(result.stdout().contains("\u001B[32mok: native no-fallback"));
     }
 
     @Test
