@@ -79,6 +79,30 @@ final class CheckExecutionContextEvidenceCommandTest {
     }
 
     @Test
+    void checkContextCiRejectsMissingShardJUnitReportsWhenManifestExists() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-shard-reports");
+        Path reportsDir = projectDir.resolve("target/test-reports");
+        Files.createDirectories(reportsDir);
+        Files.createDirectories(projectDir.resolve("target/test-shards/fast"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-shard-reports"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(reportsDir.resolve("TEST-other.xml"), "<testsuite tests=\"1\" failures=\"0\"/>\n");
+        Files.writeString(projectDir.resolve("target/test-shards/fast/shard-1-of-2.json"), shardManifest("fast", 1, 2, false));
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "target/test-reports",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context target/test-reports/shards/fast/shard-1-of-2 CI context expected JUnit XML reports for shard `fast/shard-1-of-2`, but none were found."));
+        assertTrue(result.stdout().contains("next: Run `zolt test --suite fast --shard 1/2 --reports-dir target/test-reports`"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiRejectsMissingCoverageReportsWhenConfigured() throws IOException {
         Path projectDir = tempDir.resolve("check-context-ci-missing-coverage");
         Files.createDirectories(projectDir);
@@ -142,4 +166,81 @@ final class CheckExecutionContextEvidenceCommandTest {
         assertEquals("", result.stderr());
     }
 
+    @Test
+    void checkContextCiAcceptsShardCoverageReportsWhenManifestExists() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-shard-coverage-ok");
+        Path coverageDir = projectDir.resolve("target/coverage/shards/fast/shard-1-of-2");
+        Files.createDirectories(coverageDir.resolve("html"));
+        Files.createDirectories(projectDir.resolve("target/test-shards/fast"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-shard-coverage-ok"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(projectDir.resolve("target/test-shards/fast/shard-1-of-2.json"), shardManifest("fast", 1, 2, false));
+        Files.writeString(coverageDir.resolve("jacoco.exec"), "exec\n");
+        Files.writeString(coverageDir.resolve("jacoco.xml"), "<report name=\"demo\"/>\n");
+        Files.writeString(coverageDir.resolve("html/index.html"), "<!doctype html>\n");
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--coverage-dir", "target/coverage",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context coverage-reports CI coverage preflight found split Jacoco evidence."));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void checkContextCiRejectsMissingWorkerCoverageWhenManifestExists() throws IOException {
+        Path projectDir = tempDir.resolve("check-context-ci-missing-worker-coverage");
+        Path coverageDir = projectDir.resolve("target/coverage");
+        Files.createDirectories(coverageDir.resolve("html"));
+        Files.createDirectories(coverageDir.resolve("workers"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-worker-coverage"));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(coverageDir.resolve("jacoco.exec"), "exec\n");
+        Files.writeString(coverageDir.resolve("jacoco.xml"), "<report name=\"demo\"/>\n");
+        Files.writeString(coverageDir.resolve("html/index.html"), "<!doctype html>\n");
+        Files.writeString(coverageDir.resolve("workers/zolt-workers.json"), """
+                {
+                  "version": 1,
+                  "workers": [
+                    "wave-1-worker-1"
+                  ]
+                }
+                """);
+
+        CommandResult result = execute(
+                "check",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--coverage-dir", "target/coverage",
+                "--cwd", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("error execution-context target/coverage/workers/wave-1-worker-1/jacoco.exec CI context expected Jacoco execution data for worker `wave-1-worker-1`, but jacoco.exec is missing."));
+        assertTrue(result.stdout().contains("next: Rerun `zolt coverage` so worker coverage evidence is regenerated under target/coverage."));
+        assertEquals("", result.stderr());
+    }
+
+    private static String shardManifest(String suite, int index, int total, boolean empty) {
+        return """
+                {
+                  "version": 1,
+                  "suite": "%s",
+                  "shard": {
+                    "index": %d,
+                    "total": %d
+                  },
+                  "inventoryFingerprint": "sha256:demo",
+                  "inventoryEntries": 2,
+                  "selectedEntries": 1,
+                  "empty": %s,
+                  "entries": [
+                    "com.example.DemoTest"
+                  ]
+                }
+                """.formatted(suite, index, total, empty);
+    }
 }

@@ -253,6 +253,8 @@ final class CompiledTestRunner {
         long startupNanos = 0L;
         long requestStarted = System.nanoTime();
         int workerRequests = 0;
+        List<String> workerIds = workerIds(workerPoolPlan);
+        writeWorkerEvidenceManifests(reportsDirectory, jvmArguments, workerIds);
         try {
             for (int waveIndex = 0; waveIndex < workerPoolPlan.waves().size(); waveIndex++) {
                 TestWorkerPoolWave wave = workerPoolPlan.waves().get(waveIndex);
@@ -299,6 +301,53 @@ final class CompiledTestRunner {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    private static List<String> workerIds(TestWorkerPoolPlan workerPoolPlan) {
+        List<String> workerIds = new ArrayList<>();
+        for (int waveIndex = 0; waveIndex < workerPoolPlan.waves().size(); waveIndex++) {
+            TestWorkerPoolWave wave = workerPoolPlan.waves().get(waveIndex);
+            for (int entryIndex = 0; entryIndex < wave.entries().size(); entryIndex++) {
+                workerIds.add("wave-" + (waveIndex + 1) + "-worker-" + (entryIndex + 1));
+            }
+        }
+        return List.copyOf(workerIds);
+    }
+
+    private static void writeWorkerEvidenceManifests(
+            Optional<Path> reportsDirectory,
+            TestJvmArguments jvmArguments,
+            List<String> workerIds) {
+        reportsDirectory.ifPresent(directory -> writeWorkerEvidenceManifest(directory.resolve("workers").resolve("zolt-workers.json"), workerIds));
+        jacocoExecFile(jvmArguments)
+                .map(Path::getParent)
+                .ifPresent(directory -> writeWorkerEvidenceManifest(directory.resolve("workers").resolve("zolt-workers.json"), workerIds));
+    }
+
+    private static void writeWorkerEvidenceManifest(Path manifest, List<String> workerIds) {
+        try {
+            Files.createDirectories(manifest.getParent());
+            Files.writeString(manifest, workerEvidenceJson(workerIds));
+        } catch (IOException exception) {
+            throw new TestRunException("Could not write test worker evidence manifest to " + manifest + ".", exception);
+        }
+    }
+
+    private static String workerEvidenceJson(List<String> workerIds) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"version\": 1,\n");
+        json.append("  \"workers\": [\n");
+        for (int index = 0; index < workerIds.size(); index++) {
+            json.append("    \"").append(workerIds.get(index)).append("\"");
+            if (index + 1 < workerIds.size()) {
+                json.append(",");
+            }
+            json.append("\n");
+        }
+        json.append("  ]\n");
+        json.append("}\n");
+        return json.toString();
     }
 
     private Callable<WorkerTaskResult> workerTask(
@@ -398,6 +447,13 @@ final class CompiledTestRunner {
                 .findFirst();
     }
 
+    private static Optional<Path> jacocoExecFile(TestJvmArguments jvmArguments) {
+        return jvmArguments.values().stream()
+                .map(CompiledTestRunner::jacocoExecFile)
+                .flatMap(Optional::stream)
+                .findFirst();
+    }
+
     private static Optional<String> rewriteJacocoDestfile(String argument, String workerId) {
         Optional<Path> execFile = jacocoWorkerExecFile(argument, workerId);
         if (execFile.isEmpty()) {
@@ -412,20 +468,11 @@ final class CompiledTestRunner {
     }
 
     private static Optional<Path> jacocoWorkerExecFile(String argument, String workerId) {
-        if (argument == null || !argument.startsWith("-javaagent:")
-                || !argument.toLowerCase(Locale.ROOT).contains("jacoco")) {
+        Optional<Path> canonicalExecFile = jacocoExecFile(argument);
+        if (canonicalExecFile.isEmpty()) {
             return Optional.empty();
         }
-        int valueStart = argument.indexOf("destfile=");
-        if (valueStart < 0) {
-            return Optional.empty();
-        }
-        valueStart += "destfile=".length();
-        int valueEnd = argument.indexOf(',', valueStart);
-        if (valueEnd < 0) {
-            valueEnd = argument.length();
-        }
-        Path execFile = Path.of(argument.substring(valueStart, valueEnd));
+        Path execFile = canonicalExecFile.orElseThrow();
         Path parent = execFile.getParent();
         if (parent == null) {
             return Optional.empty();
@@ -439,6 +486,23 @@ final class CompiledTestRunner {
             throw new TestRunException("Could not create worker coverage directory " + workerExecFile.getParent() + ".", exception);
         }
         return Optional.of(workerExecFile);
+    }
+
+    private static Optional<Path> jacocoExecFile(String argument) {
+        if (argument == null || !argument.startsWith("-javaagent:")
+                || !argument.toLowerCase(Locale.ROOT).contains("jacoco")) {
+            return Optional.empty();
+        }
+        int valueStart = argument.indexOf("destfile=");
+        if (valueStart < 0) {
+            return Optional.empty();
+        }
+        valueStart += "destfile=".length();
+        int valueEnd = argument.indexOf(',', valueStart);
+        if (valueEnd < 0) {
+            valueEnd = argument.length();
+        }
+        return Optional.of(Path.of(argument.substring(valueStart, valueEnd)));
     }
 
     static PlainJunitWorkerRunResult runPlainJunitWorker(

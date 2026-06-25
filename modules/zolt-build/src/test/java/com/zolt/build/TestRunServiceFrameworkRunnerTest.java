@@ -23,6 +23,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestSuiteSettings;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -226,6 +227,12 @@ final class TestRunServiceFrameworkRunnerTest {
         assertTrue(reportDirectories.stream()
                 .map(Optional::orElseThrow)
                 .allMatch(path -> path.toString().contains("target/test-reports/workers/wave-")));
+        String reportManifest = Files.readString(projectDir.resolve("target/test-reports/workers/zolt-workers.json"));
+        assertTrue(reportManifest.contains("\"wave-1-worker-1\""));
+        assertTrue(reportManifest.contains("\"wave-2-worker-1\""));
+        String coverageManifest = Files.readString(projectDir.resolve("target/coverage/workers/zolt-workers.json"));
+        assertTrue(coverageManifest.contains("\"wave-1-worker-1\""));
+        assertTrue(coverageManifest.contains("\"wave-2-worker-1\""));
     }
 
     @Test

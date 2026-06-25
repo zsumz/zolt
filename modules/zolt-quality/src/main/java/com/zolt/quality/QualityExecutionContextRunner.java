@@ -50,12 +50,14 @@ final class QualityExecutionContextRunner {
                 request.projectRoot(),
                 request.reportsDir(),
                 request.reportsDir(),
+                java.nio.file.Path.of(config.build().outputRoot()),
                 request.context()));
         results.addAll(executionEvidenceQualityCheck.checkCoverageReports(
                 Optional.empty(),
                 request.projectRoot(),
                 request.coverageDir(),
                 request.coverageDir(),
+                java.nio.file.Path.of(config.build().outputRoot()),
                 request.context()));
         results.addAll(publishDryRunQualityCheck.check(
                 Optional.empty(),
@@ -99,12 +101,14 @@ final class QualityExecutionContextRunner {
                     member.directory(),
                     request.reportsDir() == null ? null : request.reportsDir().resolve(member.path()),
                     request.reportsDir(),
+                    java.nio.file.Path.of(member.config().build().outputRoot()),
                     request.context()));
             results.addAll(executionEvidenceQualityCheck.checkCoverageReports(
                     memberName,
                     member.directory(),
                     request.coverageDir(),
                     request.coverageDir(),
+                    java.nio.file.Path.of(member.config().build().outputRoot()),
                     request.context()));
             results.addAll(publishDryRunQualityCheck.check(
                     memberName,
