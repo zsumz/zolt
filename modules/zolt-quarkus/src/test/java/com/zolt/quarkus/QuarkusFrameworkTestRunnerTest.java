@@ -66,7 +66,7 @@ final class QuarkusFrameworkTestRunnerTest extends QuarkusFrameworkTestRunnerTes
 
         assertTrue(result.isPresent());
         assertEquals("Worker tests successful\n", result.orElseThrow().output());
-        assertFalse(result.orElseThrow().supportsFrameworkTestAnnotations());
+        assertTrue(result.orElseThrow().supportsFrameworkTestAnnotations());
         assertEquals(1, result.orElseThrow().workerClasspathEntries());
         assertEquals(1, result.orElseThrow().discoveryScanRoots());
         assertEquals(List.of(workerJar), workerClasspaths.getFirst());

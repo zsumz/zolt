@@ -23,7 +23,8 @@ final class QuarkusTestWorkerPlanServiceTest {
         QuarkusUnsupportedTest unsupportedTest = new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),
-                "@QuarkusTest");
+                "@QuarkusTest",
+                true);
 
         QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(unsupportedTest))
                 .plan(descriptor());
@@ -39,7 +40,8 @@ final class QuarkusTestWorkerPlanServiceTest {
         QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),
-                "@QuarkusTest");
+                "@QuarkusTest",
+                true);
 
         QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(quarkusTest))
                 .plan(descriptor(
@@ -47,9 +49,48 @@ final class QuarkusTestWorkerPlanServiceTest {
                         false,
                         List.of(Path.of("/cache/junit-platform-console.jar"))));
 
-        assertEquals(QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS, plan.status());
+        assertEquals(QuarkusTestWorkerPlanStatus.QUARKUS_TEST_ANNOTATIONS_DISABLED, plan.status());
         assertFalse(plan.plainJunitReady());
         assertEquals(List.of(quarkusTest), plan.unsupportedTests());
+    }
+
+    @Test
+    void blocksUnsupportedQuarkusTestModesEvenWhenAnnotationSupportIsEnabled() {
+        QuarkusUnsupportedTest integrationTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/NativeHttpIT.class"),
+                Path.of("com/example/NativeHttpIT.class"),
+                "@QuarkusIntegrationTest",
+                false);
+
+        QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(integrationTest))
+                .plan(descriptor());
+
+        assertEquals(QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS, plan.status());
+        assertFalse(plan.plainJunitReady());
+        assertFalse(plan.quarkusTestRunnerSelected());
+        assertEquals(List.of(integrationTest), plan.blockedUnsupportedTests());
+        assertTrue(plan.annotationRunnerTests().isEmpty());
+    }
+
+    @Test
+    void mixedSupportedAndUnsupportedQuarkusAnnotationsBlockWorker() {
+        QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
+                Path.of("com/example/HttpTest.class"),
+                "@QuarkusTest",
+                true);
+        QuarkusUnsupportedTest mainTest = new QuarkusUnsupportedTest(
+                Path.of("/repo/target/test-classes/com/example/MainTest.class"),
+                Path.of("com/example/MainTest.class"),
+                "@QuarkusMainTest",
+                false);
+
+        QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(quarkusTest, mainTest))
+                .plan(descriptor());
+
+        assertEquals(QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS, plan.status());
+        assertEquals(List.of(quarkusTest), plan.annotationRunnerTests());
+        assertEquals(List.of(mainTest), plan.blockedUnsupportedTests());
     }
 
     @Test

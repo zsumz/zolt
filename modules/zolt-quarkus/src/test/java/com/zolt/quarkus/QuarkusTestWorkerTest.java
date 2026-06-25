@@ -19,12 +19,13 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
         QuarkusUnsupportedTest unsupportedTest = new QuarkusUnsupportedTest(
                 descriptor.testOutputDirectory().resolve("com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),
-                "@QuarkusTest");
+                "@QuarkusTest",
+                true);
         QuarkusTestWorker worker = worker(
                 descriptor,
                 new QuarkusTestWorkerPlan(
                         descriptor,
-                        QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS,
+                        QuarkusTestWorkerPlanStatus.QUARKUS_TEST_ANNOTATIONS_DISABLED,
                         List.of(unsupportedTest)),
                 out,
                 err);
@@ -33,11 +34,12 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
 
         assertEquals(2, exitCode);
         assertTrue(output(out).contains("Runner mode: plain-junit"));
-        assertTrue(output(out).contains("Status: blocked by unsupported Quarkus test annotations"));
-        assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
+        assertTrue(output(out).contains("Status: blocked by descriptor-disabled Quarkus test annotations"));
+        assertTrue(output(out).contains("Quarkus annotation runner tests: 1"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 0"));
         assertTrue(output(out).contains("com/example/HttpTest.class (@QuarkusTest)"));
-        assertTrue(output(err).contains("Quarkus-specific test annotations are not supported"));
-        assertTrue(output(err).contains("launcher/session listeners"));
+        assertTrue(output(err).contains("does not enable Zolt's Quarkus annotation runner"));
+        assertTrue(output(err).contains("zolt-test-bootstrap.properties"));
     }
 
     @Test
@@ -77,7 +79,8 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
                         List.of(new QuarkusUnsupportedTest(
                                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                                 Path.of("com/example/HttpTest.class"),
-                                "@QuarkusTest"))),
+                                "@QuarkusTest",
+                                true))),
                 descriptorToRun -> new QuarkusPlainJunitWorkerRunner.Result(0, "plain runner should not run\n"),
                 plan -> new QuarkusAnnotationWorkerRunner.Result(0, "Quarkus annotation tests passed\n"),
                 out,
@@ -87,10 +90,40 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
 
         assertEquals(0, exitCode);
         assertTrue(output(out).contains("Status: Quarkus annotation runner selected"));
-        assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
+        assertTrue(output(out).contains("Quarkus annotation runner tests: 1"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 0"));
         assertTrue(output(out).contains("com/example/HttpTest.class (@QuarkusTest)"));
         assertTrue(output(out).contains("Quarkus annotation tests passed"));
         assertEquals("", output(err));
+    }
+
+    @Test
+    void blocksUnsupportedQuarkusTestModes() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        QuarkusTestRunnerDescriptor descriptor = descriptor(true);
+        QuarkusTestWorker worker = worker(
+                descriptor,
+                new QuarkusTestWorkerPlan(
+                        descriptor,
+                        QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS,
+                        List.of(new QuarkusUnsupportedTest(
+                                Path.of("/repo/target/test-classes/com/example/NativeHttpIT.class"),
+                                Path.of("com/example/NativeHttpIT.class"),
+                                "@QuarkusIntegrationTest",
+                                false))),
+                out,
+                err);
+
+        int exitCode = worker.run(new String[] {descriptor.descriptorFile().toString()});
+
+        assertEquals(2, exitCode);
+        assertTrue(output(out).contains("Status: blocked by unsupported Quarkus test annotations"));
+        assertTrue(output(out).contains("Quarkus annotation runner tests: 0"));
+        assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
+        assertTrue(output(out).contains("com/example/NativeHttpIT.class (@QuarkusIntegrationTest)"));
+        assertTrue(output(err).contains("Quarkus integration or main test annotations"));
+        assertTrue(output(err).contains("supported direct `@QuarkusTest` fixture shape"));
     }
 
     @Test

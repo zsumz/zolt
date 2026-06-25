@@ -27,6 +27,22 @@ public record QuarkusTestPlan(
     }
 
     public boolean hasUnsupportedTests() {
-        return !unsupportedTests.isEmpty();
+        return unsupportedTests.stream().anyMatch(QuarkusUnsupportedTest::blocksAnnotationRunner);
+    }
+
+    public boolean hasAnnotationRunnerTests() {
+        return unsupportedTests.stream().anyMatch(QuarkusUnsupportedTest::annotationRunnerSupported);
+    }
+
+    public List<QuarkusUnsupportedTest> annotationRunnerTests() {
+        return unsupportedTests.stream()
+                .filter(QuarkusUnsupportedTest::annotationRunnerSupported)
+                .toList();
+    }
+
+    public List<QuarkusUnsupportedTest> blockedUnsupportedTests() {
+        return unsupportedTests.stream()
+                .filter(QuarkusUnsupportedTest::blocksAnnotationRunner)
+                .toList();
     }
 }

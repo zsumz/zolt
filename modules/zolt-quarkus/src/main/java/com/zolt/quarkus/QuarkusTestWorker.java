@@ -81,8 +81,12 @@ public final class QuarkusTestWorker {
         out.println("Runner mode: " + descriptor.runnerMode());
         out.println("Status: " + plan.status().displayName());
         out.println("Descriptor: " + descriptor.descriptorFile());
-        out.println("Unsupported Quarkus tests: " + plan.unsupportedTests().size());
-        for (QuarkusUnsupportedTest test : plan.unsupportedTests()) {
+        out.println("Quarkus annotation runner tests: " + plan.annotationRunnerTests().size());
+        for (QuarkusUnsupportedTest test : plan.annotationRunnerTests()) {
+            out.println("  " + test.relativePath() + " (" + test.annotationName() + ")");
+        }
+        out.println("Unsupported Quarkus tests: " + plan.blockedUnsupportedTests().size());
+        for (QuarkusUnsupportedTest test : plan.blockedUnsupportedTests()) {
             out.println("  " + test.relativePath() + " (" + test.annotationName() + ")");
         }
         if (plan.plainJunitReady()) {
@@ -102,9 +106,15 @@ public final class QuarkusTestWorker {
     private static String errorMessage(QuarkusTestWorkerPlan plan) {
         return switch (plan.status()) {
             case BLOCKED_UNSUPPORTED_QUARKUS_TESTS ->
-                    "error: Quarkus-specific test annotations are not supported by Zolt's dedicated test worker yet. "
-                            + "Remove those annotations or use plain JUnit tests until Zolt owns Quarkus JUnit discovery "
-                            + "and launcher/session listeners.";
+                    "error: This project uses Quarkus integration or main test annotations that are not supported "
+                            + "by Zolt's Quarkus test worker yet. Remove those annotations or use the supported "
+                            + "direct `@QuarkusTest` fixture shape until Zolt has dedicated evidence for broader "
+                            + "Quarkus test modes.";
+            case QUARKUS_TEST_ANNOTATIONS_DISABLED ->
+                    "error: This descriptor does not enable Zolt's Quarkus annotation runner. "
+                            + "Run `zolt test` again to refresh "
+                            + plan.descriptor().descriptorFile()
+                            + ", or use plain JUnit tests until the descriptor can be regenerated.";
             case MISSING_JUNIT_CONSOLE ->
                     "error: Quarkus test worker could not find JUnit Platform Console on the test runtime classpath. "
                             + "Run `zolt resolve`, then run `zolt test` again.";

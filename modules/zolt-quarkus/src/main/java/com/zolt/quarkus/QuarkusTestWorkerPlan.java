@@ -23,4 +23,20 @@ public record QuarkusTestWorkerPlan(
     public boolean quarkusTestRunnerSelected() {
         return status == QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED;
     }
+
+    public boolean hasBlockedUnsupportedTests() {
+        return unsupportedTests.stream().anyMatch(QuarkusUnsupportedTest::blocksAnnotationRunner);
+    }
+
+    public List<QuarkusUnsupportedTest> annotationRunnerTests() {
+        return unsupportedTests.stream()
+                .filter(QuarkusUnsupportedTest::annotationRunnerSupported)
+                .toList();
+    }
+
+    public List<QuarkusUnsupportedTest> blockedUnsupportedTests() {
+        return unsupportedTests.stream()
+                .filter(QuarkusUnsupportedTest::blocksAnnotationRunner)
+                .toList();
+    }
 }

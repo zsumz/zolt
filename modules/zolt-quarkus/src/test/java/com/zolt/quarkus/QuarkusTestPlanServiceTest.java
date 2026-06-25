@@ -57,16 +57,19 @@ final class QuarkusTestPlanServiceTest {
     }
 
     @Test
-    void usesSharedScannerForUnsupportedQuarkusTests() {
+    void usesSharedScannerForQuarkusTestAnnotations() {
         Path testOutput = projectDir.toAbsolutePath().normalize().resolve("target/test-classes");
         QuarkusTestPlan plan = new QuarkusTestPlanService(path -> List.of(new QuarkusUnsupportedTest(
                         path.resolve("com/example/HttpTest.class"),
                         Path.of("com/example/HttpTest.class"),
-                        "@QuarkusTest")))
+                        "@QuarkusTest",
+                        true)))
                 .plan(projectDir, config(true));
 
         assertEquals(testOutput, plan.testOutputDirectory());
         assertEquals(1, plan.unsupportedTests().size());
+        assertEquals(1, plan.annotationRunnerTests().size());
+        assertFalse(plan.hasUnsupportedTests());
         assertEquals(Path.of("com/example/HttpTest.class"), plan.unsupportedTests().getFirst().relativePath());
     }
 

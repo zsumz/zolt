@@ -68,4 +68,26 @@ final class QuarkusFrameworkTestRunnerFailureTest extends QuarkusFrameworkTestRu
         assertTrue(exception.getMessage().contains("dedicated Quarkus test runner"));
         assertTrue(exception.getMessage().contains("com/example/QuarkusHttpTest.class"));
     }
+
+    @Test
+    void unsupportedQuarkusTestModeFailsBeforeWorkerRunsEvenWhenDescriptorsSupportAnnotations() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/NativeHttpIT.class");
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
+        QuarkusFrameworkTestRunner runner = new QuarkusFrameworkTestRunner(
+                (projectDirectory, config) -> java.util.Optional.of(projectDirectory.resolve("target/quarkus/test-application-model.dat")),
+                request -> descriptor(request, true),
+                () -> java.util.List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, descriptor) -> {
+                    throw new AssertionError("Worker should not run for unsupported Quarkus test modes.");
+                });
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> runner.runIfEnabled(request(quarkusConfig())));
+
+        assertTrue(exception.getMessage().contains("`@QuarkusIntegrationTest` execution is not supported"));
+        assertTrue(exception.getMessage().contains("broader Quarkus test modes"));
+        assertTrue(exception.getMessage().contains("com/example/NativeHttpIT.class"));
+    }
 }

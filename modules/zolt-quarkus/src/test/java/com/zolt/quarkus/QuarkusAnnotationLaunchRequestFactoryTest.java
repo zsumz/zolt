@@ -16,11 +16,11 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
         QuarkusAnnotationLaunchRequest request = factory.create(
                 plan(List.of(
                         unsupported("com/example/BetaTest.class", "@QuarkusIntegrationTest"),
-                        unsupported("com/example/AlphaTest.class", "@QuarkusTest"),
-                        unsupported("com/example/AlphaTest.class", "@QuarkusTest"))),
+                        supported("com/example/AlphaTest.class", "@QuarkusTest"),
+                        supported("com/example/AlphaTest.class", "@QuarkusTest"))),
                 api());
 
-        assertEquals(List.of("com.example.AlphaTest", "com.example.BetaTest"), request.testClasses());
+        assertEquals(List.of("com.example.AlphaTest"), request.testClasses());
         assertEquals(List.of(
                 "-Duser.dir=/repo",
                 "-Dquarkus-internal-test.serialized-app-model.path=/repo/target/quarkus/test-application-model.dat",
@@ -28,7 +28,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                 "-Dzolt.quarkus.test-output-dir=/repo/target/test-classes",
                 "-Dzolt.quarkus.test-class-bean-diagnostic-file=/repo/target/quarkus/annotation-runner/test-class-bean-customizer.txt",
                 "-Dquarkus.builder.graph-output=/repo/target/quarkus/annotation-runner/build-chain.dot",
-                "-Dquarkus.arc.unremovable-types=com.example.AlphaTest,com.example.BetaTest",
+                "-Dquarkus.arc.unremovable-types=com.example.AlphaTest",
                 "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"),
                 request.jvmArguments());
         assertEquals(List.of(
@@ -38,8 +38,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                 request.launcherClasspath());
         assertEquals(List.of(
                 QuarkusAnnotationProgrammaticRunner.MAIN_CLASS,
-                "com.example.AlphaTest",
-                "com.example.BetaTest"),
+                "com.example.AlphaTest"),
                 request.consoleArguments());
         assertEquals(api(), request.api());
     }
@@ -50,7 +49,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
                 new QuarkusTestWorkerPlan(
                         descriptor(false),
                         QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED,
-                        List.of(unsupported("com/example/HttpTest.class", "@QuarkusTest"))),
+                        List.of(supported("com/example/HttpTest.class", "@QuarkusTest"))),
                 api());
 
         assertEquals(List.of(
@@ -83,7 +82,7 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
                 () -> factory.create(
-                        plan(List.of(unsupported("com/example/HttpTest.txt", "@QuarkusTest"))),
+                        plan(List.of(supported("com/example/HttpTest.txt", "@QuarkusTest"))),
                         api()));
 
         assertTrue(exception.getMessage().contains("expected a compiled .class file"));
@@ -98,10 +97,19 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
     }
 
     private static QuarkusUnsupportedTest unsupported(String relativePath, String annotation) {
+        return annotation(relativePath, annotation, false);
+    }
+
+    private static QuarkusUnsupportedTest supported(String relativePath, String annotation) {
+        return annotation(relativePath, annotation, true);
+    }
+
+    private static QuarkusUnsupportedTest annotation(String relativePath, String annotation, boolean supported) {
         return new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes").resolve(relativePath),
                 Path.of(relativePath),
-                annotation);
+                annotation,
+                supported);
     }
 
     private static QuarkusAnnotationApi api() {

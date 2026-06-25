@@ -33,8 +33,10 @@ final class QuarkusUnsupportedTestScannerTest {
         assertEquals(2, unsupportedTests.size());
         assertEquals(Path.of("com/example/AlphaTest.class"), unsupportedTests.get(0).relativePath());
         assertEquals("@QuarkusTest", unsupportedTests.get(0).annotationName());
+        assertTrue(unsupportedTests.get(0).annotationRunnerSupported());
         assertEquals(Path.of("com/example/BetaTest.class"), unsupportedTests.get(1).relativePath());
         assertEquals("@QuarkusIntegrationTest", unsupportedTests.get(1).annotationName());
+        assertTrue(unsupportedTests.get(1).blocksAnnotationRunner());
     }
 
     @Test

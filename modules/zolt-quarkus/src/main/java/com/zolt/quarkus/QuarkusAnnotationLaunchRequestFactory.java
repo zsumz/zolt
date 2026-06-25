@@ -35,7 +35,7 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         if (api == null) {
             throw new QuarkusAugmentationException("Quarkus annotation launch request requires probed API metadata.");
         }
-        List<String> testClasses = testClasses(plan.unsupportedTests());
+        List<String> testClasses = testClasses(plan.annotationRunnerTests());
         QuarkusTestRunnerDescriptor descriptor = plan.descriptor();
         QuarkusAnnotationLauncherClasspathPlan classpathPlan = launcherClasspathPlanner.plan(descriptor);
         return new QuarkusAnnotationLaunchRequest(

@@ -19,55 +19,58 @@ final class QuarkusTestPlanCommandTest {
     @Test
     void quarkusTestPlanReportsPlainJUnitStatus() throws IOException {
         Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-        enableQuarkus(projectDir);
-        Path testClass = projectDir.resolve("target/test-classes/com/example/PlainTest.class");
-        Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:plain-junit");
+        writeProjectConfig(projectDir, true);
+        writeCompiledTest(projectDir, "com/example/PlainTest.class", "constant-pool:plain-junit");
 
-        CommandResult result = execute(
-                "quarkus",
-                "test-plan",
-                "--directory", projectDir.toString());
+        CommandResult result = testPlan(projectDir, "--directory");
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Quarkus test plan"));
         assertTrue(result.stdout().contains("Status: plain JUnit tests can run through the current Zolt test runner"));
         assertTrue(result.stdout().contains("Compiled test output: present"));
+        assertTrue(result.stdout().contains("Quarkus annotation runner tests: 0"));
         assertTrue(result.stdout().contains("Unsupported Quarkus tests: 0"));
     }
 
     @Test
-    void quarkusTestPlanReportsUnsupportedQuarkusTests() throws IOException {
+    void quarkusTestPlanReportsSupportedQuarkusTests() throws IOException {
         Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
-        enableQuarkus(projectDir);
-        Path testClass = projectDir.resolve("target/test-classes/com/example/HttpTest.class");
-        Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
+        writeProjectConfig(projectDir, true);
+        writeCompiledTest(projectDir, "com/example/HttpTest.class", "constant-pool:Lio/quarkus/test/junit/QuarkusTest;");
 
-        CommandResult result = execute(
-                "quarkus",
-                "test-plan",
-                "--cwd", projectDir.toString());
+        CommandResult result = testPlan(projectDir, "--cwd");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Status: Quarkus annotation runner selected"));
+        assertTrue(result.stdout().contains("Quarkus annotation runner tests: 1"));
+        assertTrue(result.stdout().contains("Unsupported Quarkus tests: 0"));
+        assertTrue(result.stdout().contains("com/example/HttpTest.class (@QuarkusTest)"));
+    }
+
+    @Test
+    void quarkusTestPlanReportsUnsupportedQuarkusTestModes() throws IOException {
+        Path projectDir = tempDir.resolve("demo");
+        writeProjectConfig(projectDir, true);
+        writeCompiledTest(projectDir, "com/example/NativeHttpIT.class", "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
+
+        CommandResult result = testPlan(projectDir, "--cwd");
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Status: blocked by unsupported Quarkus test annotations"));
+        assertTrue(result.stdout().contains("Quarkus annotation runner tests: 0"));
         assertTrue(result.stdout().contains("Unsupported Quarkus tests: 1"));
-        assertTrue(result.stdout().contains("com/example/HttpTest.class (@QuarkusTest)"));
+        assertTrue(result.stdout().contains("com/example/NativeHttpIT.class (@QuarkusIntegrationTest)"));
     }
 
     @Test
     void quarkusTestPlanFailsWhenFrameworkIsNotEnabled() throws IOException {
         Path projectDir = tempDir.resolve("demo");
-        writeProjectConfig(projectDir);
+        writeProjectConfig(projectDir, false);
 
-        CommandResult result = execute(
-                "quarkus",
-                "test-plan",
-                "--cwd", projectDir.toString());
+        CommandResult result = testPlan(projectDir, "--cwd");
 
         assertEquals(1, result.exitCode());
         assertEquals("", result.stdout());
@@ -75,32 +78,25 @@ final class QuarkusTestPlanCommandTest {
         assertTrue(result.stderr().contains("[framework.quarkus] enabled = true"));
     }
 
-    private static void writeProjectConfig(Path projectDir) throws IOException {
-        Files.createDirectories(projectDir);
-        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
-                main = "com.example.Main"
-
-                [repositories]
-                test = "https://repo.maven.apache.org/maven2"
-
-                [dependencies]
-
-                [test.dependencies]
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                """);
+    private static CommandResult testPlan(Path projectDir, String directoryOption) {
+        return execute("quarkus", "test-plan", directoryOption, projectDir.toString());
     }
 
-    private static void enableQuarkus(Path projectDir) throws IOException {
-        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+    private static void writeCompiledTest(Path projectDir, String relativePath, String content) throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes").resolve(relativePath);
+        Files.createDirectories(testClass.getParent());
+        Files.writeString(testClass, content);
+    }
 
-                [framework.quarkus]
-                enabled = true
-                package = "fast-jar"
-                """);
+    private static void writeProjectConfig(Path projectDir, boolean quarkus) throws IOException {
+        Files.createDirectories(projectDir);
+        String framework = quarkus
+                ? "\n[framework.quarkus]\nenabled = true\npackage = \"fast-jar\"\n"
+                : "";
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo")
+                + "main = \"com.example.Main\"\n\n[repositories]\ntest = \"https://repo.maven.apache.org/maven2\"\n\n"
+                + "[dependencies]\n\n[test.dependencies]\n\n[build]\nsource = \"src/main/java\"\ntest = \"src/test/java\"\n"
+                + "output = \"target/classes\"\ntestOutput = \"target/test-classes\"\n"
+                + framework);
     }
 }

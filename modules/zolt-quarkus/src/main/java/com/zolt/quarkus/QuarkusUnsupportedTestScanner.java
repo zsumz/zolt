@@ -11,11 +11,14 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 public final class QuarkusUnsupportedTestScanner {
-    private static final List<UnsupportedAnnotation> UNSUPPORTED_ANNOTATIONS = List.of(
-            new UnsupportedAnnotation("@QuarkusTest", "Lio/quarkus/test/junit/QuarkusTest;"),
-            new UnsupportedAnnotation("@QuarkusIntegrationTest", "Lio/quarkus/test/junit/QuarkusIntegrationTest;"),
-            new UnsupportedAnnotation("@QuarkusMainTest", "Lio/quarkus/test/junit/QuarkusMainTest;"),
-            new UnsupportedAnnotation("@QuarkusMainIntegrationTest", "Lio/quarkus/test/junit/QuarkusMainIntegrationTest;"));
+    private static final List<QuarkusTestAnnotation> QUARKUS_TEST_ANNOTATIONS = List.of(
+            new QuarkusTestAnnotation("@QuarkusTest", "Lio/quarkus/test/junit/QuarkusTest;", true),
+            new QuarkusTestAnnotation("@QuarkusIntegrationTest", "Lio/quarkus/test/junit/QuarkusIntegrationTest;", false),
+            new QuarkusTestAnnotation("@QuarkusMainTest", "Lio/quarkus/test/junit/QuarkusMainTest;", false),
+            new QuarkusTestAnnotation(
+                    "@QuarkusMainIntegrationTest",
+                    "Lio/quarkus/test/junit/QuarkusMainIntegrationTest;",
+                    false));
 
     public List<QuarkusUnsupportedTest> scan(Path testOutputDirectory) {
         if (testOutputDirectory == null) {
@@ -50,13 +53,14 @@ public final class QuarkusUnsupportedTestScanner {
 
     private static Optional<QuarkusUnsupportedTest> unsupportedTest(Path testOutputDirectory, Path classFile) {
         String contents = classFileContents(classFile);
-        for (UnsupportedAnnotation annotation : UNSUPPORTED_ANNOTATIONS) {
+        for (QuarkusTestAnnotation annotation : QUARKUS_TEST_ANNOTATIONS) {
             if (contents.contains(annotation.descriptor())) {
                 Path normalizedClassFile = classFile.toAbsolutePath().normalize();
                 return Optional.of(new QuarkusUnsupportedTest(
                         normalizedClassFile,
                         testOutputDirectory.toAbsolutePath().normalize().relativize(normalizedClassFile),
-                        annotation.name()));
+                        annotation.name(),
+                        annotation.annotationRunnerSupported()));
             }
         }
         return Optional.empty();
@@ -70,6 +74,6 @@ public final class QuarkusUnsupportedTestScanner {
         }
     }
 
-    private record UnsupportedAnnotation(String name, String descriptor) {
+    private record QuarkusTestAnnotation(String name, String descriptor, boolean annotationRunnerSupported) {
     }
 }

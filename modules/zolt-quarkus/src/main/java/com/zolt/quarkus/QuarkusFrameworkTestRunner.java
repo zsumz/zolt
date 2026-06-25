@@ -144,13 +144,21 @@ public final class QuarkusFrameworkTestRunner implements FrameworkTestRunner {
     private void failOnUnsupportedTests(
             FrameworkTestRunRequest request,
             boolean supportsQuarkusTestAnnotations) {
-        if (supportsQuarkusTestAnnotations) {
-            return;
-        }
         try {
             QuarkusTestPlan plan = testPlanner.plan(request.projectDirectory(), request.config());
             if (plan.hasUnsupportedTests()) {
-                QuarkusUnsupportedTest firstUnsupportedTest = plan.unsupportedTests().getFirst();
+                QuarkusUnsupportedTest firstUnsupportedTest = plan.blockedUnsupportedTests().getFirst();
+                throw new TestRunException(
+                        "Quarkus-specific `" + firstUnsupportedTest.annotationName()
+                                + "` execution is not supported by Zolt's current test runner. "
+                                + "Use the supported direct `@QuarkusTest` fixture shape, or remove `"
+                                + firstUnsupportedTest.annotationName()
+                                + "` until Zolt has dedicated evidence for broader Quarkus test modes. Found "
+                                + firstUnsupportedTest.relativePath()
+                                + ".");
+            }
+            if (!supportsQuarkusTestAnnotations && plan.hasAnnotationRunnerTests()) {
+                QuarkusUnsupportedTest firstUnsupportedTest = plan.annotationRunnerTests().getFirst();
                 throw new TestRunException(
                         "Quarkus-specific `" + firstUnsupportedTest.annotationName()
                                 + "` execution is not supported by Zolt's current test runner. "
