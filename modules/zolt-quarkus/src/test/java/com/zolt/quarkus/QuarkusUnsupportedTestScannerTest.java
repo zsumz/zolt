@@ -71,6 +71,26 @@ final class QuarkusUnsupportedTestScannerTest {
     }
 
     @Test
+    void detectsUnsupportedQuarkusTestResourceAnnotationFamily() throws IOException {
+        writeClass("com/example/ResourceFamilyTest.class", """
+                constant-pool:Lio/quarkus/test/common/QuarkusTestResource$List;
+                constant-pool:Lio/quarkus/test/common/WithTestResource;
+                constant-pool:Lio/quarkus/test/common/WithTestResource$List;
+                """);
+
+        List<QuarkusUnsupportedTest> unsupportedTests =
+                new QuarkusUnsupportedTestScanner().scan(projectDir.resolve("target/test-classes"));
+
+        assertEquals(3, unsupportedTests.size());
+        assertEquals("@QuarkusTestResource.List", unsupportedTests.get(0).annotationName());
+        assertTrue(unsupportedTests.get(0).blocksAnnotationRunner());
+        assertEquals("@WithTestResource", unsupportedTests.get(1).annotationName());
+        assertTrue(unsupportedTests.get(1).blocksAnnotationRunner());
+        assertEquals("@WithTestResource.List", unsupportedTests.get(2).annotationName());
+        assertTrue(unsupportedTests.get(2).blocksAnnotationRunner());
+    }
+
+    @Test
     void rejectsMissingScanDirectoryArgument() {
         QuarkusPlanException exception = assertThrows(
                 QuarkusPlanException.class,

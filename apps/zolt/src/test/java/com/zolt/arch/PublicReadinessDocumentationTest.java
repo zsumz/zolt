@@ -155,6 +155,7 @@ final class PublicReadinessDocumentationTest {
         assertTrue(frameworkReadiness.contains("| Quarkus | Supported opt-in JVM fixture |"));
         assertTrue(frameworkReadiness.contains("run the REST Assured `@QuarkusTest` fixture through public `zolt test`"));
         assertTrue(frameworkReadiness.contains("Quarkus test resources/profiles"));
+        assertTrue(frameworkReadiness.contains("resource-family"));
         assertFalse(
                 frameworkReadiness.contains("arbitrary Quarkus `@QuarkusTest` support"),
                 "Framework readiness must keep the Quarkus annotation-test claim fixture-bounded");

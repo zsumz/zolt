@@ -19,6 +19,15 @@ public final class QuarkusUnsupportedTestScanner {
                     "Lio/quarkus/test/junit/main/QuarkusMainIntegrationTest;",
                     false),
             new QuarkusTestAnnotation("@QuarkusTestResource", "Lio/quarkus/test/common/QuarkusTestResource;", false),
+            new QuarkusTestAnnotation(
+                    "@QuarkusTestResource.List",
+                    "Lio/quarkus/test/common/QuarkusTestResource$List;",
+                    false),
+            new QuarkusTestAnnotation("@WithTestResource", "Lio/quarkus/test/common/WithTestResource;", false),
+            new QuarkusTestAnnotation(
+                    "@WithTestResource.List",
+                    "Lio/quarkus/test/common/WithTestResource$List;",
+                    false),
             new QuarkusTestAnnotation("@TestProfile", "Lio/quarkus/test/junit/TestProfile;", false));
 
     public List<QuarkusUnsupportedTest> scan(Path testOutputDirectory) {
