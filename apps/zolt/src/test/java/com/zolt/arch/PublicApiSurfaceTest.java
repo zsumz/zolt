@@ -100,6 +100,7 @@ final class PublicApiSurfaceTest {
             "com.zolt.project.ResourceTokenSettings",
             "com.zolt.project.SpringBootSettings",
             "com.zolt.project.TestRuntimeSettings",
+            "com.zolt.project.TestSuiteSettings",
             "com.zolt.project.VersionAliasRules",
             "com.zolt.project.VersionPolicy",
             "com.zolt.workspace.WorkspaceConfig",

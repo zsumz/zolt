@@ -1,6 +1,10 @@
 package com.zolt.project;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public record BuildSettings(
         String source,
@@ -17,6 +21,7 @@ public record BuildSettings(
         List<String> testResourceRoots,
         ResourceFilteringSettings resourceFiltering,
         TestRuntimeSettings testRuntime,
+        Map<String, TestSuiteSettings> testSuites,
         BuildMetadataSettings metadata,
         List<GeneratedSourceStep> generatedMainSources,
         List<GeneratedSourceStep> generatedTestSources) {
@@ -37,6 +42,7 @@ public record BuildSettings(
         testResourceRoots = copyOrDefault(testResourceRoots, DEFAULT_TEST_RESOURCE_ROOTS);
         resourceFiltering = resourceFiltering == null ? ResourceFilteringSettings.defaults() : resourceFiltering;
         testRuntime = testRuntime == null ? TestRuntimeSettings.defaults() : testRuntime;
+        testSuites = orderedTestSuites(testSuites);
         metadata = metadata == null ? BuildMetadataSettings.defaults() : metadata;
         generatedMainSources = copyOrDefault(generatedMainSources, List.of());
         generatedTestSources = copyOrDefault(generatedTestSources, List.of());
@@ -55,6 +61,7 @@ public record BuildSettings(
             BuildMetadataSettings metadata) {
         this(source, test, outputRoot, output, testOutput, testSources, groovyTestSources, null, null, null,
                 resourceRoots, testResourceRoots, ResourceFilteringSettings.defaults(), TestRuntimeSettings.defaults(),
+                Map.of(),
                 metadata, List.of(), List.of());
     }
 
@@ -77,14 +84,14 @@ public record BuildSettings(
             List<GeneratedSourceStep> generatedTestSources) {
         this(source, test, DEFAULT_OUTPUT_ROOT, output, testOutput, testSources, groovyTestSources,
                 integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
-                testResourceRoots, resourceFiltering, testRuntime, metadata, generatedMainSources,
+                testResourceRoots, resourceFiltering, testRuntime, Map.of(), metadata, generatedMainSources,
                 generatedTestSources);
     }
 
     public BuildSettings(String source, String test, String outputRoot, String output, String testOutput) {
         this(source, test, outputRoot, output, testOutput, List.of(test), List.of(), null, null, null,
                 DEFAULT_RESOURCE_ROOTS, DEFAULT_TEST_RESOURCE_ROOTS, ResourceFilteringSettings.defaults(),
-                TestRuntimeSettings.defaults(), BuildMetadataSettings.defaults(), List.of(), List.of());
+                TestRuntimeSettings.defaults(), Map.of(), BuildMetadataSettings.defaults(), List.of(), List.of());
     }
 
     public BuildSettings(
@@ -181,21 +188,28 @@ public record BuildSettings(
             List<GeneratedSourceStep> generatedTestSources) {
         return new BuildSettings(source, test, outputRoot, output, testOutput, testSources, groovyTestSources,
                 integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
-                testResourceRoots, resourceFiltering, testRuntime, metadata, generatedMainSources,
+                testResourceRoots, resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources,
                 generatedTestSources);
     }
 
     public BuildSettings withResourceFiltering(ResourceFilteringSettings resourceFiltering) {
         return new BuildSettings(source, test, outputRoot, output, testOutput, testSources, groovyTestSources,
                 integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
-                testResourceRoots, resourceFiltering, testRuntime, metadata, generatedMainSources,
+                testResourceRoots, resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources,
                 generatedTestSources);
     }
 
     public BuildSettings withTestRuntime(TestRuntimeSettings testRuntime) {
         return new BuildSettings(source, test, outputRoot, output, testOutput, testSources, groovyTestSources,
                 integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
-                testResourceRoots, resourceFiltering, testRuntime, metadata, generatedMainSources,
+                testResourceRoots, resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources,
+                generatedTestSources);
+    }
+
+    public BuildSettings withTestSuites(Map<String, TestSuiteSettings> testSuites) {
+        return new BuildSettings(source, test, outputRoot, output, testOutput, testSources, groovyTestSources,
+                integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
+                testResourceRoots, resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources,
                 generatedTestSources);
     }
 
@@ -205,7 +219,7 @@ public record BuildSettings(
             List<String> integrationTestResourceRoots) {
         return new BuildSettings(source, test, outputRoot, output, testOutput, testSources, groovyTestSources,
                 integrationTestOutput, integrationTestSources, integrationTestResourceRoots, resourceRoots,
-                testResourceRoots, resourceFiltering, testRuntime, metadata, generatedMainSources,
+                testResourceRoots, resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources,
                 generatedTestSources);
     }
 
@@ -214,10 +228,21 @@ public record BuildSettings(
                 integrationTestSources.isEmpty() ? "src/integration-test/java" : integrationTestSources.getFirst(),
                 outputRoot, output, integrationTestOutput, integrationTestSources, List.of(), integrationTestOutput,
                 integrationTestSources, integrationTestResourceRoots, resourceRoots, integrationTestResourceRoots,
-                resourceFiltering, testRuntime, metadata, generatedMainSources, generatedTestSources);
+                resourceFiltering, testRuntime, testSuites, metadata, generatedMainSources, generatedTestSources);
     }
 
     private static <T> List<T> copyOrDefault(List<T> values, List<T> defaults) {
         return values == null ? defaults : List.copyOf(values);
+    }
+
+    private static Map<String, TestSuiteSettings> orderedTestSuites(Map<String, TestSuiteSettings> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, TestSuiteSettings> ordered = new LinkedHashMap<>();
+        for (Map.Entry<String, TestSuiteSettings> entry : new TreeMap<>(values).entrySet()) {
+            ordered.put(entry.getKey(), entry.getValue() == null ? TestSuiteSettings.empty() : entry.getValue());
+        }
+        return Collections.unmodifiableMap(ordered);
     }
 }

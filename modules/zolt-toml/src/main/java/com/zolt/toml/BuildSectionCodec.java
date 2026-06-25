@@ -3,7 +3,9 @@ package com.zolt.toml;
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.TestRuntimeSettings;
+import com.zolt.project.TestSuiteSettings;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +18,8 @@ final class BuildSectionCodec {
             Set.of("source", "sources", "resources", "output");
     private static final Set<String> TEST_RUNTIME_KEYS =
             Set.of("jvmArgs", "systemProperties", "environment", "events");
+    private static final Set<String> TEST_SUITE_KEYS =
+            Set.of("includeClassname", "excludeClassname", "includeTag", "excludeTag");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
 
     private BuildSectionCodec() {
@@ -76,6 +80,7 @@ final class BuildSectionCodec {
                 build.testResourceRoots(),
                 build.resourceFiltering(),
                 build.testRuntime(),
+                build.testSuites(),
                 build.metadata(),
                 build.generatedMainSources(),
                 build.generatedTestSources());
@@ -99,6 +104,56 @@ final class BuildSectionCodec {
         } catch (IllegalArgumentException exception) {
             throw new ZoltConfigException(exception.getMessage());
         }
+    }
+
+    static BuildSettings parseTestSuites(TomlTable testTable, BuildSettings build) {
+        if (testTable == null) {
+            return build;
+        }
+        TomlTable suitesTable = optionalTable(testTable, "suites");
+        if (suitesTable == null) {
+            return build;
+        }
+        Map<String, TestSuiteSettings> suites = new LinkedHashMap<>();
+        for (String suiteName : suitesTable.keySet()) {
+            validateSuiteName(suiteName);
+            TomlTable suiteTable = optionalTable(suitesTable, suiteName);
+            if (suiteTable == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [test.suites]."
+                                + suiteName
+                                + " in zolt.toml. Use a table such as [test.suites."
+                                + suiteName
+                                + "].");
+            }
+            TomlValidation.validateKeysWithVersionRefHint("test.suites." + suiteName, suiteTable, TEST_SUITE_KEYS);
+            try {
+                suites.put(suiteName, new TestSuiteSettings(
+                        TomlScalars.stringListOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "includeClassname",
+                                List.of()),
+                        TomlScalars.stringListOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "excludeClassname",
+                                List.of()),
+                        TomlScalars.stringListOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "includeTag",
+                                List.of()),
+                        TomlScalars.stringListOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "excludeTag",
+                                List.of())));
+            } catch (IllegalArgumentException exception) {
+                throw new ZoltConfigException(exception.getMessage());
+            }
+        }
+        return build.withTestSuites(suites);
     }
 
     static BuildSettings parseResourceRoots(TomlTable table, BuildSettings build) {
@@ -185,6 +240,29 @@ final class BuildSectionCodec {
         toml.append('\n');
     }
 
+    static void writeTestSuites(StringBuilder toml, Map<String, TestSuiteSettings> suites) {
+        if (suites == null || suites.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, TestSuiteSettings> entry : suites.entrySet()) {
+            TestSuiteSettings suite = entry.getValue();
+            toml.append("[test.suites.").append(entry.getKey()).append("]\n");
+            if (!suite.includeClassname().isEmpty()) {
+                writeStringArray(toml, "includeClassname", suite.includeClassname());
+            }
+            if (!suite.excludeClassname().isEmpty()) {
+                writeStringArray(toml, "excludeClassname", suite.excludeClassname());
+            }
+            if (!suite.includeTag().isEmpty()) {
+                writeStringArray(toml, "includeTag", suite.includeTag());
+            }
+            if (!suite.excludeTag().isEmpty()) {
+                writeStringArray(toml, "excludeTag", suite.excludeTag());
+            }
+            toml.append('\n');
+        }
+    }
+
     static void writeResources(StringBuilder toml, BuildSettings build) {
         ResourceSectionCodec.writeResources(toml, build);
     }
@@ -203,6 +281,22 @@ final class BuildSectionCodec {
 
     private static TomlTable optionalTable(TomlTable table, String key) {
         return table.getTable(List.of(key));
+    }
+
+    private static void validateSuiteName(String suiteName) {
+        if (suiteName == null || suiteName.isBlank()) {
+            throw new ZoltConfigException("Invalid test suite name in zolt.toml. Use a non-empty suite name.");
+        }
+        if ("all".equals(suiteName)) {
+            throw new ZoltConfigException(
+                    "Invalid test suite name `all` in zolt.toml. `all` is reserved for Zolt's default aggregate suite.");
+        }
+        if (!suiteName.matches("[A-Za-z][A-Za-z0-9_-]*")) {
+            throw new ZoltConfigException(
+                    "Invalid test suite name `"
+                            + suiteName
+                            + "` in zolt.toml. Use letters, digits, `_`, or `-`, starting with a letter.");
+        }
     }
 
     private static void validateSupportedTestSourceLanguages(TomlTable table) {

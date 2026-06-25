@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.TestSuiteSettings;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -209,5 +210,33 @@ final class ZoltTomlParserTest {
         assertEquals(List.of("src/it/java", "src/shared-it/java"), config.build().integrationTestSources());
         assertEquals(List.of("src/it/resources"), config.build().integrationTestResourceRoots());
         assertEquals("target/it-classes", config.build().integrationTestOutput());
+    }
+
+    @Test
+    void parsesTestSuiteDefinitions() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.suites.fast]
+                includeClassname = ["*Test", "*Spec"]
+                excludeClassname = ["*ContractTest", "*IntegrationSpec"]
+                includeTag = ["fast"]
+                excludeTag = ["slow", "serial"]
+
+                [test.suites.contract]
+                includeClassname = ["*ContractTest"]
+                """);
+
+        assertEquals(List.of("contract", "fast"), config.build().testSuites().keySet().stream().toList());
+        TestSuiteSettings fast = config.build().testSuites().get("fast");
+        assertEquals(List.of("*Test", "*Spec"), fast.includeClassname());
+        assertEquals(List.of("*ContractTest", "*IntegrationSpec"), fast.excludeClassname());
+        assertEquals(List.of("fast"), fast.includeTag());
+        assertEquals(List.of("slow", "serial"), fast.excludeTag());
+        assertEquals(List.of("*ContractTest"), config.build().testSuites().get("contract").includeClassname());
     }
 }

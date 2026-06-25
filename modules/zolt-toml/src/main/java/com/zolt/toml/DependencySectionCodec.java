@@ -17,7 +17,7 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 final class DependencySectionCodec {
-    private static final Set<String> TEST_KEYS = Set.of("dependencies", "sources", "annotationProcessors", "runtime");
+    private static final Set<String> TEST_KEYS = Set.of("dependencies", "sources", "annotationProcessors", "runtime", "suites");
 
     private DependencySectionCodec() {
     }

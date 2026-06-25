@@ -39,6 +39,7 @@ public final class ZoltTomlWriter {
         DependencySectionCodec.write(toml, config);
         BuildSectionCodec.writeTestSources(toml, config.build());
         BuildSectionCodec.writeTestRuntime(toml, config.build().testRuntime());
+        BuildSectionCodec.writeTestSuites(toml, config.build().testSuites());
         BuildSectionCodec.writeBuild(toml, config.build());
         BuildSectionCodec.writeBuildMetadata(toml, config.build().metadata());
         BuildSectionCodec.writeResources(toml, config.build());
