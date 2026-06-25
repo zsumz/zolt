@@ -6,9 +6,8 @@ cd "$ROOT"
 
 CACHE_ROOT="${ZOLT_CACHE_ROOT:-.zolt/cache}"
 BOOTSTRAP_DIR="${ZOLT_BOOTSTRAP_DIR:-build/bootstrap-zolt}"
-BOOTSTRAP_CLASSES="${BOOTSTRAP_DIR}/classes"
 BOOTSTRAP_JAR="${BOOTSTRAP_DIR}/zolt-bootstrap.jar"
-SOURCE_LIST="${BOOTSTRAP_DIR}/sources.list"
+BOOTSTRAP_WORK_ROOT="${BOOTSTRAP_DIR}/work"
 LOCKFILE="${ZOLT_LOCKFILE:-zolt.lock}"
 MAVEN_CENTRAL="${ZOLT_MAVEN_CENTRAL:-https://repo.maven.apache.org/maven2}"
 java_opts=()
@@ -112,15 +111,24 @@ if [[ -z "$classpath" ]]; then
   exit 1
 fi
 
-mkdir -p "$BOOTSTRAP_CLASSES"
-mkdir -p "$BOOTSTRAP_DIR"
-case "$BOOTSTRAP_CLASSES" in
+mkdir -p "$BOOTSTRAP_WORK_ROOT"
+BOOTSTRAP_WORK_DIR="$(mktemp -d "${BOOTSTRAP_WORK_ROOT}/run.XXXXXX")"
+BOOTSTRAP_CLASSES="${BOOTSTRAP_WORK_DIR}/classes"
+BOOTSTRAP_RUN_JAR="${BOOTSTRAP_WORK_DIR}/zolt-bootstrap.jar"
+BOOTSTRAP_STABLE_JAR_TMP="${BOOTSTRAP_WORK_DIR}/zolt-bootstrap.stable.jar"
+SOURCE_LIST="${BOOTSTRAP_WORK_DIR}/sources.list"
+
+cleanup_bootstrap_work() {
+  rm -rf "$BOOTSTRAP_WORK_DIR"
+}
+trap cleanup_bootstrap_work EXIT
+
+case "$BOOTSTRAP_WORK_DIR" in
   "" | "." | "/" | "$ROOT" | "$ROOT"/src | "$ROOT"/src/*)
-    printf 'error: refusing unsafe bootstrap classes directory: %s\n' "$BOOTSTRAP_CLASSES" >&2
+    printf 'error: refusing unsafe bootstrap work directory: %s\n' "$BOOTSTRAP_WORK_DIR" >&2
     exit 1
     ;;
 esac
-rm -rf "$BOOTSTRAP_CLASSES"
 mkdir -p "$BOOTSTRAP_CLASSES"
 
 source_files=()
@@ -159,10 +167,12 @@ if [[ -d apps/zolt/src/main/resources ]]; then
   cp -R apps/zolt/src/main/resources/. "$BOOTSTRAP_CLASSES"/
 fi
 
-jar --create --file "$BOOTSTRAP_JAR" --main-class com.zolt.cli.ZoltCli -C "$BOOTSTRAP_CLASSES" .
+jar --create --file "$BOOTSTRAP_RUN_JAR" --main-class com.zolt.cli.ZoltCli -C "$BOOTSTRAP_CLASSES" .
+cp "$BOOTSTRAP_RUN_JAR" "$BOOTSTRAP_STABLE_JAR_TMP"
+mv "$BOOTSTRAP_STABLE_JAR_TMP" "$BOOTSTRAP_JAR"
 
 if [[ "${#java_opts[@]}" -gt 0 ]]; then
-  exec java "${java_opts[@]}" -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
+  java "${java_opts[@]}" -cp "${BOOTSTRAP_RUN_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
 else
-  exec java -cp "${BOOTSTRAP_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
+  java -cp "${BOOTSTRAP_RUN_JAR}:${classpath}" com.zolt.cli.ZoltCli "$@"
 fi
