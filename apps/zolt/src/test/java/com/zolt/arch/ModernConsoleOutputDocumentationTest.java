@@ -28,6 +28,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Subcommand help should also be grouped by purpose."));
         assertTrue(design.contains("Workspace Selection:"));
         assertTrue(design.contains("Resolve output should answer"));
+        assertTrue(design.contains("Downloaded 3 artifacts"));
         assertTrue(design.contains("Build output should keep compile, resources, generated sources, and skipped work visible"));
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));

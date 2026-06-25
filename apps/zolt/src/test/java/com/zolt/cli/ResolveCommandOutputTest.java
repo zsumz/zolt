@@ -133,6 +133,8 @@ final class ResolveCommandOutputTest {
             assertFalse(result.stderr().contains("\u001B[36mResolving dependencies\u001B[0m"));
             assertFalse(result.stderr().contains("\u001B[32mResolved 1 packages\u001B[0m"));
             assertTrue(result.stdout().contains("\u001B[32mResolved\u001B[0m 1 packages"));
+            assertTrue(result.stdout().contains("\u001B[32mDownloaded\u001B[0m "));
+            assertFalse(result.stdout().contains("\u001B[32mDownloaded 2 artifacts\u001B[0m"));
             assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m " + projectDir.resolve("zolt.lock")));
             assertTrue(result.stdout().contains("Next: \u001B[36mzolt build\u001B[0m"));
             assertFalse(result.stdout().contains("\u001B[32mResolved 1 packages\u001B[0m"));
