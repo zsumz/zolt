@@ -74,6 +74,33 @@ final class CliMachineReadableContractTest {
     }
 
     @Test
+    void whyJsonKeepsStableCompatibilityEnvelope() throws IOException {
+        Path projectDir = tempDir.resolve("why-contract");
+        writeProjectConfig(projectDir);
+        writeLockfile(projectDir);
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "why",
+                "--format", "json",
+                "--cwd", projectDir.toString(),
+                "com.example:app");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"command\": \"why\""));
+        assertTrue(result.stdout().contains("\"target\": \"com.example:app\""));
+        assertTrue(result.stdout().contains("\"status\": \"present\""));
+        assertTrue(result.stdout().contains("\"coordinate\": \"com.example:app:1.0.0\""));
+        assertTrue(result.stdout().contains("\"policyEffects\": []"));
+        assertFalse(result.stdout().contains("\\- com.example:app"));
+    }
+
+    @Test
     void representativeSadPathKeepsExitCodeLocationAndRemediation() throws IOException {
         Path projectDir = tempDir.resolve("missing-config");
         Files.createDirectories(projectDir);
