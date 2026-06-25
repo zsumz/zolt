@@ -37,6 +37,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                 "producer.loader=" + classLoaderName(getClass().getClassLoader()),
                 "producer.indexClass=" + (index == null ? "<null>" : index.getClass().getName()),
                 "producer.candidates=" + joined(testClasses),
+                "producer.indexSelectedClasses="
+                        + QuarkusSelectedTestIndexDiagnostic.formatProducerIndex(index, testClasses),
                 "producer.testProfiles=" + QuarkusTestProfileDiagnostic.joinedProfiles(testProfiles));
         return builder -> {
             writeDiagnostic(

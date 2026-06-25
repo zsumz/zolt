@@ -4,6 +4,7 @@ import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import java.util.List;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.Index;
 import org.jboss.jandex.IndexView;
 
 final class QuarkusSelectedTestIndexDiagnostic {
@@ -28,6 +29,20 @@ final class QuarkusSelectedTestIndexDiagnostic {
                 .collect(java.util.stream.Collectors.joining(","));
     }
 
+    static String formatProducerIndex(
+            Index index,
+            List<String> testClasses) {
+        if (index == null) {
+            return "<missing>";
+        }
+        if (testClasses.isEmpty()) {
+            return "<none>";
+        }
+        return testClasses.stream()
+                .map(testClass -> selectedClassIndexDiagnostic(index, testClass))
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
     private static String selectedClassIndexDiagnostic(
             CombinedIndexBuildItem combinedIndex,
             String testClass) {
@@ -45,6 +60,22 @@ final class QuarkusSelectedTestIndexDiagnostic {
                 + hasAnnotation(annotationClass, TEST_PROFILE)
                 + ",vetoed="
                 + hasAnnotation(annotationClass, VETOED)
+                + "]";
+    }
+
+    private static String selectedClassIndexDiagnostic(
+            Index index,
+            String testClass) {
+        ClassInfo indexClass = classByName(index, testClass);
+        return testClass
+                + "[index="
+                + (indexClass != null)
+                + ",quarkusTest="
+                + hasAnnotation(indexClass, QUARKUS_TEST)
+                + ",testProfile="
+                + hasAnnotation(indexClass, TEST_PROFILE)
+                + ",vetoed="
+                + hasAnnotation(indexClass, VETOED)
                 + "]";
     }
 
