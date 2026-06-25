@@ -72,11 +72,12 @@ final class DoctorCommandTest {
         Files.createDirectories(projectDir.resolve("src/main/java"));
         Files.createDirectories(projectDir.resolve("src/test/java"));
 
-        CommandResult result = execute("doctor", "--self-hosting", "--cwd", projectDir.toString());
+        CommandResult result = execute("--color=always", "doctor", "--self-hosting", "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("Self-hosting status: error"));
-        assertTrue(result.stdout().contains("error: JUnit Platform Console - add org.junit.platform:junit-platform-console-standalone to [test.dependencies]"));
+        assertTrue(result.stdout().contains("Self-hosting status: \u001B[31merror\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[31merror:\u001B[0m JUnit Platform Console - add org.junit.platform:junit-platform-console-standalone to [test.dependencies]"));
+        assertFalse(result.stdout().contains("\u001B[31merror: JUnit Platform Console"));
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {
