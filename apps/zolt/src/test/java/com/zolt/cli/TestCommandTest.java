@@ -28,7 +28,6 @@ final class TestCommandTest extends TestCommandTestSupport {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("reports-demo"));
         writeJUnitConsoleLockfile(projectDir);
         writeDemoTestSource(projectDir);
-
         CommandResult result = execute(
                 "--progress=always",
                 "test",
@@ -58,7 +57,6 @@ final class TestCommandTest extends TestCommandTestSupport {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("events-demo"));
         writeJUnitConsoleLockfile(projectDir);
         writeDemoTestSource(projectDir);
-
         CommandResult result = execute(
                 "test",
                 "--test-event", "failed",
@@ -81,13 +79,12 @@ final class TestCommandTest extends TestCommandTestSupport {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("color-demo"));
         writeJUnitConsoleLockfile(projectDir);
         writeDemoTestSource(projectDir);
-
         CommandResult result = execute(
                 "--color=always",
+                "--progress=always",
                 "test",
                 "--cwd", projectDir.toString(),
                 "--cache-root", cacheRoot.toString());
-
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("\u001B[36mTesting\u001B[0m color-demo"));
@@ -96,6 +93,10 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertFalse(result.stdout().contains("\u001B[32mCompiled 1 test source files"));
         assertTrue(result.stdout().contains("\u001B[32mTests\u001B[0m passed"));
         assertFalse(result.stdout().contains("\u001B[32mTests passed\u001B[0m"));
+        assertTrue(result.stderr().contains("\u001B[36mTesting\u001B[0m project..."));
+        assertTrue(result.stderr().contains("\u001B[32mTested\u001B[0m project"));
+        assertFalse(result.stderr().contains("\u001B[36mTesting project...")
+                || result.stderr().contains("\u001B[32mTested project"));
     }
 
     @Test
@@ -108,7 +109,6 @@ final class TestCommandTest extends TestCommandTestSupport {
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("directory-demo"));
         writeJUnitConsoleLockfile(projectDir);
         writeDemoTestSource(projectDir);
-
         CommandResult result = execute(
                 "test",
                 "--directory", projectDir.toString(),
