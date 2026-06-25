@@ -53,6 +53,12 @@ final class QuarkusDiagnosticFilePrinter {
             out.println("  containsZoltCustomizer=" + graph.contains("ZoltQuarkusTestClassBeanCustomizer"));
             out.println("  containsTestClassBeanBuildItem=" + graph.contains("TestClassBeanBuildItem"));
             out.println("  containsAdditionalBeanBuildItem=" + graph.contains("AdditionalBeanBuildItem"));
+            out.println("  containsTestsAsBeansProcessor=" + graph.contains("TestsAsBeansProcessor#testClassBeans"));
+            out.println("  containsProfileVetoProcessor="
+                    + graph.contains("TestsAsBeansProcessor#vetoTestClassesNotMatchingTestProfile"));
+            out.println("  containsProfileBeanVetoProcessor="
+                    + graph.contains("TestsAsBeansProcessor#vetoTestProfileBeans"));
+            out.println("  containsArcRegisterBeans=" + graph.contains("ArcProcessor#registerBeans"));
             out.println("  lines=" + graph.lines().count());
         } catch (java.io.IOException | RuntimeException exception) {
             out.println("  entries=<unavailable: " + exception.getClass().getSimpleName() + ">");

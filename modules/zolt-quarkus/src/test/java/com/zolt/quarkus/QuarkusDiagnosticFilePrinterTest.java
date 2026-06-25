@@ -71,7 +71,10 @@ final class QuarkusDiagnosticFilePrinterTest {
         Files.writeString(graphFile, """
                 ZoltQuarkusTestClassBeanCustomizer
                 TestClassBeanBuildItem
-                OtherBuildItem
+                io.quarkus.arc.deployment.TestsAsBeansProcessor#testClassBeans
+                io.quarkus.arc.deployment.TestsAsBeansProcessor#vetoTestClassesNotMatchingTestProfile
+                io.quarkus.arc.deployment.TestsAsBeansProcessor#vetoTestProfileBeans
+                io.quarkus.arc.deployment.ArcProcessor#registerBeans
                 """);
         System.setProperty(
                 QuarkusDiagnosticFilePrinter.QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY,
@@ -85,7 +88,11 @@ final class QuarkusDiagnosticFilePrinterTest {
         assertTrue(output.contains("containsZoltCustomizer=true"));
         assertTrue(output.contains("containsTestClassBeanBuildItem=true"));
         assertTrue(output.contains("containsAdditionalBeanBuildItem=false"));
-        assertTrue(output.contains("lines=3"));
+        assertTrue(output.contains("containsTestsAsBeansProcessor=true"));
+        assertTrue(output.contains("containsProfileVetoProcessor=true"));
+        assertTrue(output.contains("containsProfileBeanVetoProcessor=true"));
+        assertTrue(output.contains("containsArcRegisterBeans=true"));
+        assertTrue(output.contains("lines=6"));
     }
 
     @Test
