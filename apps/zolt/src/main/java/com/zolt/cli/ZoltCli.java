@@ -201,21 +201,4 @@ public final class ZoltCli implements Runnable {
         }
     }
 
-    public abstract static class StubCommand implements Runnable {
-        private final String name;
-
-        @Spec
-        protected CommandSpec spec;
-
-        StubCommand(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public void run() {
-            spec.commandLine().getOut().printf("zolt %s is not implemented yet.%n", name);
-            spec.commandLine().getOut().println("Next step: follow the matching followUp in followUps/.");
-        }
-    }
-
 }

@@ -1,6 +1,7 @@
 package com.zolt.arch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -44,6 +45,16 @@ final class CliOutputGuardrailTest {
                 directHumanStdoutWriteFiles(CLI_COMMAND_SOURCE_ROOT),
                 () -> "CLI commands should route human summaries through CommandHumanOutput "
                         + "or raw machine/process output through CommandOutput.");
+    }
+
+    @Test
+    void rootCliDoesNotKeepLegacyStubPlaceholderOutput() throws IOException {
+        String source = Files.readString(CLI_SOURCE_ROOT.resolve("ZoltCli.java"));
+
+        assertFalse(
+                source.contains("StubCommand") || source.contains("Next step: follow the matching followUp"),
+                () -> "Root CLI placeholders should be real commands using CommandHumanOutput, "
+                        + "not the legacy StubCommand direct stdout path.");
     }
 
     @Test
