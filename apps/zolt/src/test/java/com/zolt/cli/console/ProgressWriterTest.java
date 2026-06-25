@@ -63,9 +63,19 @@ final class ProgressWriterTest {
                 ConsoleStyle.enabled(),
                 ProgressOutputContract.HUMAN);
 
+        writer.start("Building project");
+        writer.step("Downloaded artifacts 3/17");
+        writer.heartbeat("Still running: Native Image");
         writer.result("Resolved 87 packages");
 
-        assertEquals("\u001B[32mResolved\u001B[0m 87 packages\n", stderr.toString());
+        assertEquals(
+                """
+                \u001B[36mBuilding\u001B[0m project...
+                \u001B[36mDownloaded\u001B[0m artifacts 3/17
+                \u001B[36mStill\u001B[0m running: Native Image
+                \u001B[32mResolved\u001B[0m 87 packages
+                """,
+                stderr.toString());
     }
 
     @Test
