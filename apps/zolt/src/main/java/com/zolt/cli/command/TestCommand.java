@@ -24,6 +24,7 @@ import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.test.TestPlanException;
+import com.zolt.test.TestPlanJsonFormatter;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;
 import com.zolt.test.TestShardException;
@@ -33,14 +34,18 @@ import com.zolt.test.TestSuitePlan;
 import com.zolt.test.TestSuitePlanner;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
+import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceBuildPlan;
 import com.zolt.workspace.WorkspaceBuildResult;
 import com.zolt.workspace.WorkspaceConfigException;
+import com.zolt.workspace.WorkspaceDiscoveryService;
+import com.zolt.workspace.WorkspaceMember;
 import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -336,6 +341,13 @@ public final class TestCommand implements Runnable {
     public static final class PlanCommand implements Runnable {
         private final ZoltTomlParser tomlParser;
         private final TestSuitePlanner planner;
+        private final TestPlanJsonFormatter jsonFormatter;
+        private final WorkspaceDiscoveryService workspaceDiscoveryService;
+
+        enum Format {
+            TEXT,
+            JSON
+        }
 
         @Option(names = "--suite", description = "Plan one configured test suite. Defaults to all.")
         private String suiteName = "all";
@@ -355,6 +367,12 @@ public final class TestCommand implements Runnable {
         @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
         private List<String> excludedTags = List.of();
 
+        @Option(names = "--reports-dir", description = "Include a project-relative report directory in JSON shard commands.")
+        private Path reportsDir;
+
+        @Option(names = "--format", description = "Output format: text or json.")
+        private Format format = Format.TEXT;
+
         @Mixin
         private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
@@ -362,17 +380,27 @@ public final class TestCommand implements Runnable {
         private CommandSpec spec;
 
         public PlanCommand() {
-            this(new ZoltTomlParser(), new TestSuitePlanner());
+            this(
+                    new ZoltTomlParser(),
+                    new TestSuitePlanner(),
+                    new TestPlanJsonFormatter(),
+                    new WorkspaceDiscoveryService());
         }
 
-        PlanCommand(ZoltTomlParser tomlParser, TestSuitePlanner planner) {
+        PlanCommand(
+                ZoltTomlParser tomlParser,
+                TestSuitePlanner planner,
+                TestPlanJsonFormatter jsonFormatter,
+                WorkspaceDiscoveryService workspaceDiscoveryService) {
             this.tomlParser = tomlParser;
             this.planner = planner;
+            this.jsonFormatter = jsonFormatter;
+            this.workspaceDiscoveryService = workspaceDiscoveryService;
         }
 
         @Override
         public void run() {
-            Path projectRoot = projectDirectory.path();
+            Path projectRoot = projectDirectory.path().toAbsolutePath().normalize();
             try {
                 TestSelection selection = TestSelection.fromCli(
                         testSelectors,
@@ -382,12 +410,45 @@ public final class TestCommand implements Runnable {
                 ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
                 TestSuitePlan plan = planner.plan(projectRoot, config, suiteName, selection);
                 int shardCount = TestShardSpec.parseShardCount(shardCountValue);
-                printPlan(config, plan, shardCount == 0
+                List<TestShardPlan> shards = shardCount == 0
                         ? List.of()
-                        : planner.shardPlans(projectRoot, config, suiteName, selection, shardCount),
-                        projectRoot);
-            } catch (TestPlanException | TestSelectionException | TestShardException | ZoltConfigException exception) {
+                        : planner.shardPlans(projectRoot, config, suiteName, selection, shardCount);
+                Optional<Path> projectRelativeReportsDir = TestReportSettings.reportsDirectory(reportsDir)
+                        .projectRelativeReportsDirectory(projectRoot);
+                if (format == Format.JSON) {
+                    CommandOutput.printAndFlush(spec, jsonFormatter.json(
+                            config,
+                            projectRoot,
+                            workspaceMember(projectRoot),
+                            selection,
+                            plan,
+                            shards,
+                            projectRelativeReportsDir));
+                } else {
+                    printPlan(config, plan, shards, projectRoot);
+                }
+            } catch (TestPlanException
+                    | TestSelectionException
+                    | TestShardException
+                    | TestRunException
+                    | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);
+            }
+        }
+
+        private Optional<String> workspaceMember(Path projectRoot) {
+            try {
+                Optional<Workspace> workspace = workspaceDiscoveryService.discover(projectRoot);
+                if (workspace.isEmpty()) {
+                    return Optional.empty();
+                }
+                Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
+                return workspace.orElseThrow().members().stream()
+                        .filter(member -> member.directory().equals(normalizedRoot))
+                        .map(WorkspaceMember::path)
+                        .findFirst();
+            } catch (WorkspaceConfigException exception) {
+                return Optional.empty();
             }
         }
 

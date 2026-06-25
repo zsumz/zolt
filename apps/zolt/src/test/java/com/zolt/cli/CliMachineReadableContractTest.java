@@ -47,6 +47,37 @@ final class CliMachineReadableContractTest {
     }
 
     @Test
+    void testPlanJsonKeepsStableCompatibilityEnvelope() throws IOException {
+        Path projectDir = tempDir.resolve("test-plan-contract");
+        Files.createDirectories(projectDir.resolve("target/test-classes/com/example"));
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("test-plan-contract"));
+        Files.write(projectDir.resolve("target/test-classes/com/example/DemoTest.class"), new byte[] {0});
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "test",
+                "plan",
+                "--format", "json",
+                "--shard-count", "2",
+                "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"projectRoot\": \"" + projectDir.toAbsolutePath().normalize()));
+        assertTrue(result.stdout().contains("\"project\": \"test-plan-contract\""));
+        assertTrue(result.stdout().contains("\"suite\": {\n    \"name\": \"all\""));
+        assertTrue(result.stdout().contains("\"entries\": [\"com.example.DemoTest\"]"));
+        assertTrue(result.stdout().contains("\"shards\": ["));
+        assertTrue(result.stdout().contains("\"empty\": true"));
+        assertTrue(result.stdout().contains("\"arguments\": [\"test\", \"--directory\""));
+        assertFalse(result.stdout().contains("Test plan for test-plan-contract"));
+    }
+
+    @Test
     void treeJsonKeepsStableCompatibilityEnvelope() throws IOException {
         Path projectDir = tempDir.resolve("tree-contract");
         writeProjectConfig(projectDir);

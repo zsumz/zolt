@@ -148,6 +148,50 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
         assertFalse(Files.exists(projectDir.resolve("target/test-shards")));
     }
 
+    @Test
+    void testPlanJsonReportsWorkspaceShardMatrixCommands() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-shard-plan-json");
+        Path memberDir = workspaceDir.resolve("modules/api");
+        Files.createDirectories(workspaceDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "workspace-shard-plan-json"
+                members = ["modules/api"]
+                """);
+        writeProjectConfig(memberDir, "https://repo.maven.apache.org/maven2");
+        appendSuite(memberDir, """
+
+                [test.suites.fast]
+                includeClassname = ["*Test"]
+                """);
+        writeClass(memberDir, "target/test-classes/com/example/AlphaTest.class");
+        writeClass(memberDir, "target/test-classes/com/example/BetaTest.class");
+
+        CommandResult result = execute(
+                "test",
+                "plan",
+                "--directory", memberDir.toString(),
+                "--suite", "fast",
+                "--shard-count", "2",
+                "--reports-dir", "target/test-reports",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().startsWith("{\n  \"schemaVersion\": 1,"));
+        assertTrue(result.stdout().contains("\"project\": \"demo\""));
+        assertTrue(result.stdout().contains("\"member\": \"modules/api\""));
+        assertTrue(result.stdout().contains("\"name\": \"fast\""));
+        assertTrue(result.stdout().contains("\"entryCount\": 2"));
+        assertTrue(result.stdout().contains("\"label\": \"1/2\""));
+        assertTrue(result.stdout().contains("\"manifest\": \"target/test-shards/fast/shard-1-of-2.json\""));
+        assertTrue(result.stdout().contains("""
+                      "arguments": ["test", "--workspace", "--member", "modules/api", "--suite", "fast", "--shard", "1/2", "--reports-dir", "target/test-reports"]
+                """));
+        assertFalse(result.stdout().contains("Test plan for demo"));
+        assertFalse(Files.exists(memberDir.resolve("target/test-shards")));
+    }
+
     private static void appendSuite(Path projectDir, String config) throws IOException {
         Files.writeString(projectDir.resolve("zolt.toml"), config, StandardOpenOption.APPEND);
     }

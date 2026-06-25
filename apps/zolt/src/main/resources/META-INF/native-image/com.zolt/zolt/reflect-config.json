@@ -306,6 +306,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.TestCommand$PlanCommand$Format",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.IntegrationTestCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

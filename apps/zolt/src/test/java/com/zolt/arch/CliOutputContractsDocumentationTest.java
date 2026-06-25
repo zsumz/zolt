@@ -12,6 +12,7 @@ final class CliOutputContractsDocumentationTest {
         String contracts = Files.readString(RepositoryPaths.root().resolve("docs/cli-output-contracts.md"));
 
         assertTrue(contracts.contains("`zolt plan --format json`"));
+        assertTrue(contracts.contains("`zolt test plan --format json`"));
         assertTrue(contracts.contains("`zolt tree --format json`"));
         assertTrue(contracts.contains("`zolt why --format json`"));
         assertTrue(contracts.contains("`zolt ide model --format json`"));

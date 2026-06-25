@@ -98,7 +98,10 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "--test",
                 "--tests",
                 "--include-tag",
-                "--exclude-tag");
+                "--exclude-tag",
+                "Output:",
+                "--format",
+                "--reports-dir");
     }
 
     @Test

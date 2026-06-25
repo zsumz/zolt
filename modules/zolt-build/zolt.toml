@@ -38,6 +38,7 @@ includeClassname = [
     "com.zolt.junit.JunitWorkerProcessLauncherTest",
     "com.zolt.junit.JunitWorkerProtocolTest",
     "com.zolt.test.TestInventoryBuilderTest",
+    "com.zolt.test.TestPlanJsonFormatterTest",
     "com.zolt.test.TestSelectionTest",
     "com.zolt.test.TestShardPlannerTest",
     "com.zolt.test.TestShardSpecTest",
