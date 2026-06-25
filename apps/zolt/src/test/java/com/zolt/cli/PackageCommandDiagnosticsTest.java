@@ -114,6 +114,8 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertTrue(result.stdout().contains("\u001B[32mIncluded\u001B[0m Main-Class manifest entry"));
         assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + jarPath));
         assertFalse(result.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mIncluded Main-Class manifest entry"));
+        assertFalse(result.stdout().contains("\u001B[32mWrote archive to "));
     }
 
     @Test
@@ -149,7 +151,9 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains(
                 "\u001B[32mResolved\u001B[0m dependencies because zolt.lock was missing"));
+        assertFalse(color.stdout().contains("\u001B[32mResolved dependencies because zolt.lock was missing"));
         assertTrue(color.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
+        assertFalse(color.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(quietProject.resolve("zolt.lock")));
