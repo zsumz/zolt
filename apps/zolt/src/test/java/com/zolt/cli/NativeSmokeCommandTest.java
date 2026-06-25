@@ -55,7 +55,8 @@ final class NativeSmokeCommandTest {
                 "--binary", Path.of("target/native/zolt").toString());
 
         assertEquals(0, color.exitCode(), color.stderr());
-        assertTrue(color.stdout().contains("\u001B[32mNative\u001B[0m smoke status: ok"));
+        assertTrue(color.stdout().contains("Native smoke status: \u001B[32mok\u001B[0m"));
+        assertFalse(color.stdout().contains("\u001B[32mNative\u001B[0m smoke status"));
         assertTrue(color.stdout().contains("\u001B[32mSmoked\u001B[0m binary"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());

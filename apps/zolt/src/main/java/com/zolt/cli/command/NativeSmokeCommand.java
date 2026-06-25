@@ -53,7 +53,7 @@ public final class NativeSmokeCommand implements Runnable {
                     binary,
                     effectiveWorkDirectory(config));
             CommandHumanOutput output = CommandHumanOutput.of(spec);
-            output.success("Native smoke status: ok");
+            output.status("Native smoke status", "ok");
             output.success("Smoked binary " + result.binary());
             output.success("Verified release archive " + result.archive());
             output.success("Ran generated project " + result.projectDirectory());
