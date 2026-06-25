@@ -110,6 +110,7 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
         assertTrue(color.stdout().contains("Bootstrap jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
         assertTrue(color.stdout().contains("Zolt-built jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
         assertTrue(color.stdout().contains("\u001B[32mJar\u001B[0m entries match"));
+        assertFalse(color.stdout().contains("\u001B[32mJar entries match"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
     }
