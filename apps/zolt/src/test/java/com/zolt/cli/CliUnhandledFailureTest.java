@@ -37,6 +37,7 @@ final class CliUnhandledFailureTest {
 
         assertEquals(1, exitCode);
         assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("\u001B[31merror:\u001B[0m boom detail"));
+        assertFalse(stderr.toString(StandardCharsets.UTF_8).contains("\u001B[31merror: boom detail"));
     }
 
     @Command(name = "boom")
