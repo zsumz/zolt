@@ -55,7 +55,7 @@ final class HelpOptionHighlighter {
         char next = line.charAt(index);
         if (next == '=' || next == '[') {
             int end = index + 1;
-            while (end < line.length() && !Character.isWhitespace(line.charAt(end))) {
+            while (end < line.length() && !Character.isWhitespace(line.charAt(end)) && line.charAt(end) != ',') {
                 end++;
             }
             return end;
