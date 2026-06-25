@@ -43,6 +43,26 @@ public final class TestInventoryBuilder {
         return new TestInventory(selectedEntries, summary);
     }
 
+    public TestInventory scanAll(Path testOutputDirectory) {
+        return scanAll(List.of(testOutputDirectory));
+    }
+
+    public TestInventory scanAll(List<Path> testOutputDirectories) {
+        List<Path> outputRoots = normalizeRoots(testOutputDirectories);
+        List<TestInventoryEntry> entries = discover(outputRoots);
+        return new TestInventory(
+                entries,
+                new TestInventorySummary(
+                        entries.size(),
+                        outputRoots,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of()));
+    }
+
     private static List<Path> normalizeRoots(List<Path> roots) {
         List<Path> normalized = new ArrayList<>();
         for (Path root : roots == null ? List.<Path>of() : roots) {

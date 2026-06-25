@@ -50,6 +50,7 @@ final class CliFocusedHelpSurfaceCoverageTest {
             "zolt self-check",
             "zolt self-parity",
             "zolt test",
+            "zolt test plan",
             "zolt tree",
             "zolt update",
             "zolt version",

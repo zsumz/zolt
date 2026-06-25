@@ -74,6 +74,33 @@ final class CliTestFamilyHelpSectionSurfaceTest {
     }
 
     @Test
+    void testPlanHelpGroupsProjectAndSelectionOptions() {
+        CommandResult result = execute("test", "plan", "--help");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertFalse(result.stdout().contains("\u001B["));
+        assertContainsInOrder(
+                result.stdout(),
+                "Show the selected test suite plan without executing tests.",
+                "Usage:",
+                "Options:",
+                "--color",
+                "--progress",
+                "--no-progress",
+                "--quiet",
+                "--help",
+                "--version",
+                "--directory",
+                "Test Selection:",
+                "--suite",
+                "--test",
+                "--tests",
+                "--include-tag",
+                "--exclude-tag");
+    }
+
+    @Test
     void integrationTestHelpGroupsWorkspaceSelectionRuntimeOutputAndDiagnosticsOptions() {
         CommandResult result = execute("integration-test", "--help");
 

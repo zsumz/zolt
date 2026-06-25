@@ -23,8 +23,11 @@ import com.zolt.lockfile.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
+import com.zolt.test.TestPlanException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;
+import com.zolt.test.TestSuitePlan;
+import com.zolt.test.TestSuitePlanner;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.WorkspaceBuildPlan;
@@ -34,6 +37,7 @@ import com.zolt.workspace.WorkspaceTestResult;
 import com.zolt.workspace.WorkspaceTestService;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -42,7 +46,10 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "test",
-        description = "Compile and run tests, starting with JUnit support.")
+        description = "Compile and run tests, starting with JUnit support.",
+        subcommands = {
+                TestCommand.PlanCommand.class
+        })
 public final class TestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final TestRunService testRunService;
@@ -299,5 +306,106 @@ public final class TestCommand implements Runnable {
         result.reportsDirectory().ifPresent(directory ->
                 output.detail("Wrote test reports to " + directory));
         progress.result("Tested project");
+    }
+
+    @Command(name = "plan", description = "Show the selected test suite plan without executing tests.")
+    public static final class PlanCommand implements Runnable {
+        private final ZoltTomlParser tomlParser;
+        private final TestSuitePlanner planner;
+
+        @Option(names = "--suite", description = "Plan one configured test suite. Defaults to all.")
+        private String suiteName = "all";
+
+        @Option(names = "--test", description = "Select one test class or method. May be repeated.")
+        private List<String> testSelectors = List.of();
+
+        @Option(names = "--tests", description = "Select test classes by glob-style class-name pattern. May be repeated.")
+        private List<String> testPatterns = List.of();
+
+        @Option(names = "--include-tag", description = "Include tests with a JUnit Platform tag. May be repeated.")
+        private List<String> includedTags = List.of();
+
+        @Option(names = "--exclude-tag", description = "Exclude tests with a JUnit Platform tag. May be repeated.")
+        private List<String> excludedTags = List.of();
+
+        @Mixin
+        private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
+
+        @Spec
+        private CommandSpec spec;
+
+        public PlanCommand() {
+            this(new ZoltTomlParser(), new TestSuitePlanner());
+        }
+
+        PlanCommand(ZoltTomlParser tomlParser, TestSuitePlanner planner) {
+            this.tomlParser = tomlParser;
+            this.planner = planner;
+        }
+
+        @Override
+        public void run() {
+            Path projectRoot = projectDirectory.path();
+            try {
+                TestSelection selection = TestSelection.fromCli(
+                        testSelectors,
+                        testPatterns,
+                        includedTags,
+                        excludedTags);
+                ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+                TestSuitePlan plan = planner.plan(projectRoot, config, suiteName, selection);
+                printPlan(config, plan);
+            } catch (TestPlanException | TestSelectionException | ZoltConfigException exception) {
+                throw CommandFailures.user(spec, exception);
+            }
+        }
+
+        private void printPlan(ProjectConfig config, TestSuitePlan plan) {
+            CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.line("Test plan for " + config.project().name());
+            output.line("suite: " + plan.suiteName());
+            output.line("configured suite: " + (plan.configuredSuite() ? "yes" : "no"));
+            output.line("test output: " + plan.outputDirectory());
+            output.line("matched entries: " + plan.entries().size());
+            output.line("empty: " + (plan.empty() ? "yes" : "no"));
+            printFilters(output, "class filters", plan.includeClassname(), plan.excludeClassname());
+            printFilters(output, "tag filters", plan.includeTag(), plan.excludeTag());
+            if (!plan.selectionClassname().isEmpty()
+                    || !plan.selectionIncludeTag().isEmpty()
+                    || !plan.selectionExcludeTag().isEmpty()) {
+                printFilters(output, "selection class filters", plan.selectionClassname(), List.of());
+                printFilters(output, "selection tag filters", plan.selectionIncludeTag(), plan.selectionExcludeTag());
+            }
+            printList(output, "entries", plan.entries().stream()
+                    .map(entry -> entry.className())
+                    .toList());
+            printList(output, "missing explicit selectors", plan.missingExplicitClassSelectors());
+            printOverlaps(output, plan.overlappingEntries());
+            printList(output, "unassigned entries", plan.unassignedEntries());
+        }
+
+        private static void printFilters(
+                CommandHumanOutput output,
+                String label,
+                List<String> includes,
+                List<String> excludes) {
+            String include = includes.isEmpty() ? "<none>" : String.join(", ", includes);
+            String exclude = excludes.isEmpty() ? "<none>" : String.join(", ", excludes);
+            output.line(label + ": include " + include + "; exclude " + exclude);
+        }
+
+        private static void printList(CommandHumanOutput output, String label, List<String> values) {
+            output.line(label + ": " + values.size());
+            for (String value : values) {
+                output.line("- " + value);
+            }
+        }
+
+        private static void printOverlaps(CommandHumanOutput output, Map<String, List<String>> overlaps) {
+            output.line("overlapping entries: " + overlaps.size());
+            for (Map.Entry<String, List<String>> entry : overlaps.entrySet()) {
+                output.line("- " + entry.getKey() + " also matches " + String.join(", ", entry.getValue()));
+            }
+        }
     }
 }
