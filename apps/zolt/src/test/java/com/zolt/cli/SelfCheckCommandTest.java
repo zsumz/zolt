@@ -47,6 +47,7 @@ final class SelfCheckCommandTest {
 
         assertEquals(1, color.exitCode());
         assertTrue(color.stdout().contains("Self-check status: \u001B[31merror\u001B[0m"));
+        assertFalse(color.stdout().contains("\u001B[31mSelf-check\u001B[0m status"));
         assertTrue(color.stdout().contains("\u001B[31merror:\u001B[0m config - Could not read zolt.toml"));
         assertFalse(color.stdout().contains("\u001B[31merror: config"));
         assertEquals(1, quiet.exitCode());
