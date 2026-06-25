@@ -19,6 +19,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
+                "Compile and run tests, starting with JUnit support.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

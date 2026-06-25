@@ -118,8 +118,8 @@ final class CliCommandHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Build and run the configured main class.",
+                "Usage:",
                 "Arguments:",
                 "[ARGS...]",
                 "Options:",
@@ -168,8 +168,8 @@ final class CliCommandHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Run a packaged thin jar with runtime dependencies.",
+                "Usage:",
                 "Arguments:",
                 "[ARGS...]",
                 "Options:",

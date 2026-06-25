@@ -43,6 +43,8 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains("--list"));
         assertContainsInOrder(
                 result.stdout(),
+                "The modern Java build toolkit.",
+                "Usage:",
                 "Commands:",
                 "  Basics",
                 "    init",

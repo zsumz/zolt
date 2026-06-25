@@ -1,6 +1,7 @@
 package com.zolt.cli;
 
 import com.zolt.cli.console.ConsoleStyle;
+import java.util.List;
 import java.util.function.Supplier;
 import picocli.CommandLine;
 import picocli.CommandLine.Help;
@@ -14,6 +15,25 @@ final class CliUsageConfiguration {
 
     static void apply(CommandLine commandLine, Supplier<ConsoleStyle> styles) {
         UsageMessageSpec usage = commandLine.getCommandSpec().usageMessage();
+        usage.sectionKeys(List.of(
+                UsageMessageSpec.SECTION_KEY_HEADER_HEADING,
+                UsageMessageSpec.SECTION_KEY_HEADER,
+                UsageMessageSpec.SECTION_KEY_DESCRIPTION_HEADING,
+                UsageMessageSpec.SECTION_KEY_DESCRIPTION,
+                UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
+                UsageMessageSpec.SECTION_KEY_SYNOPSIS,
+                UsageMessageSpec.SECTION_KEY_PARAMETER_LIST_HEADING,
+                UsageMessageSpec.SECTION_KEY_AT_FILE_PARAMETER,
+                UsageMessageSpec.SECTION_KEY_PARAMETER_LIST,
+                UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
+                UsageMessageSpec.SECTION_KEY_OPTION_LIST,
+                UsageMessageSpec.SECTION_KEY_END_OF_OPTIONS,
+                UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
+                UsageMessageSpec.SECTION_KEY_COMMAND_LIST,
+                UsageMessageSpec.SECTION_KEY_EXIT_CODE_LIST_HEADING,
+                UsageMessageSpec.SECTION_KEY_EXIT_CODE_LIST,
+                UsageMessageSpec.SECTION_KEY_FOOTER_HEADING,
+                UsageMessageSpec.SECTION_KEY_FOOTER));
         usage.optionListHeading("Options:%n");
         usage.commandListHeading("Commands:%n");
         usage.sectionMap().put(

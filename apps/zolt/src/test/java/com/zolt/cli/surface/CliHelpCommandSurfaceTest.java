@@ -31,8 +31,8 @@ final class CliHelpCommandSurfaceTest {
         assertFalse(result.stdout().contains(ANSI_ESCAPE));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Display help for zolt or a command.",
+                "Usage:",
                 "Arguments:",
                 "[COMMAND...]",
                 "Options:",
