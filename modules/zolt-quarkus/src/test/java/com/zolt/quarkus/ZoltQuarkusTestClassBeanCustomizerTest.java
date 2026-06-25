@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -69,6 +70,21 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
         QuarkusAdditionalBeanBuildItemBridge.markBuilderUnremovable(builder);
 
         assertFalse(builder.removable);
+    }
+
+    @Test
+    void recordsContextClassLoaderVisibilityForSelectedClasses() {
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+            String diagnostic = QuarkusContextClassLoaderDiagnostic.formatSelectedClasses(
+                    List.of("java.lang.String", "com.example.MissingQuarkusTest"));
+
+            assertTrue(diagnostic.contains("java.lang.String[loadable="), diagnostic);
+            assertTrue(diagnostic.contains("com.example.MissingQuarkusTest[loadable=false"), diagnostic);
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
     }
 
     public static final class FakeAdditionalBeanBuilder {

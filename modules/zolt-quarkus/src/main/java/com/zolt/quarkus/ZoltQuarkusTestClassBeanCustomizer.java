@@ -99,6 +99,10 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                                 "additionalBeanStep.executed=true",
                                 "additionalBeanStep.additionalBeanBuildItemLoader="
                                         + classLoaderName(buildItemClass.getClassLoader()),
+                                "additionalBeanStep.contextClassLoader="
+                                        + QuarkusContextClassLoaderDiagnostic.currentClassLoader(),
+                                "additionalBeanStep.contextLoaderSelectedClasses="
+                                        + QuarkusContextClassLoaderDiagnostic.formatSelectedClasses(testClasses),
                                 "additionalBeanStep.activeProfile=" + activeProfile,
                                 "additionalBeanStep.profileMatchesActiveProfile="
                                         + QuarkusTestProfileDiagnostic.joinedProfileMatches(

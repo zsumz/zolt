@@ -138,6 +138,7 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertTrue(result.output().contains("containsProfileBeanVetoProcessor"));
         assertTrue(result.output().contains("containsArcRegisterBeans"));
         assertTrue(result.output().contains("combinedIndexSelectedClasses"));
+        assertTrue(result.output().contains("contextLoaderSelectedClasses"));
         assertTrue(result.output().contains("Arc bean-registration handoff"));
         assertTrue(result.output().contains("@TestProfile"));
         assertTrue(result.output().contains("Profile test activated"));
