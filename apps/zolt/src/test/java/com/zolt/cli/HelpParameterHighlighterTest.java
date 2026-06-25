@@ -11,13 +11,13 @@ final class HelpParameterHighlighterTest {
         String input = String.join(
                 "\n",
                 "      [ARGS...]             Arguments passed to the application after `--`.",
-                "                            Wrapped description.");
+                "      ARCHIVE...            Release archive to verify.");
 
         assertEquals(
                 String.join(
                         "\n",
                         "      \u001B[36m[ARGS...]\u001B[0m             Arguments passed to the application after `--`.",
-                        "                            Wrapped description."),
+                        "      \u001B[36mARCHIVE...\u001B[0m            Release archive to verify."),
                 HelpParameterHighlighter.highlight(input, ConsoleStyle.enabled()));
     }
 
