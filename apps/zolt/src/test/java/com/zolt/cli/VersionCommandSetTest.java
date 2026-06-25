@@ -42,7 +42,10 @@ final class VersionCommandSetTest {
 
         assertEquals(0, added.exitCode());
         assertTrue(added.stdout().contains("\u001B[32mAdded\u001B[0m version alias guava = 33.4.8-jre to [versions]"));
-        assertTrue(added.stdout().contains("Skipped resolve"));
+        assertTrue(added.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(added.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         assertEquals("", added.stderr());
         String addedConfig = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(addedConfig.contains("[versions]\n\"guava\" = \"33.4.8-jre\""));

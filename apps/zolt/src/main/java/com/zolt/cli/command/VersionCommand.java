@@ -94,7 +94,7 @@ public final class VersionCommand implements Runnable {
                 tomlWriter.write(configPath, updated);
                 printVersionAliasSummary(normalizedAlias, normalizedVersion, previous);
                 if (noResolve) {
-                    CommandHumanOutput.of(spec).line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                    CommandHumanOutput.of(spec).detail("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
@@ -189,7 +189,7 @@ public final class VersionCommand implements Runnable {
                 CommandHumanOutput output = CommandHumanOutput.of(spec);
                 output.success("Removed version alias " + normalizedAlias + " from [versions]");
                 if (noResolve) {
-                    output.line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                    output.detail("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                     return;
                 }
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));

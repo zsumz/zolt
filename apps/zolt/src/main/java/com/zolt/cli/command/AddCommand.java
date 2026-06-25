@@ -93,7 +93,7 @@ public final class AddCommand implements Runnable {
             CommandHumanOutput output = CommandHumanOutput.of(spec);
             printAddSummary(output, config, request);
             if (noResolve) {
-                output.line("Skipped resolve; run zolt resolve to refresh zolt.lock.");
+                output.detail("Skipped resolve; run zolt resolve to refresh zolt.lock.");
                 return;
             }
             CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));

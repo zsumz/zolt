@@ -60,6 +60,10 @@ final class AddCommandNoResolveTest {
         assertEquals(0, color.exitCode());
         assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m dependency "
                 + "com.google.guava:guava:33.4.0-jre to [dependencies]"));
+        assertTrue(color.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(color.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         assertEquals(0, quiet.exitCode());
         assertEquals("", quiet.stdout());
         String quietConfig = Files.readString(quietProjectDir.resolve("zolt.toml"));

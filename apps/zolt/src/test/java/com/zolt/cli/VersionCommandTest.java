@@ -58,7 +58,10 @@ final class VersionCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[32mRemoved\u001B[0m version alias guava from [versions]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
+        assertTrue(result.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         assertEquals("", result.stderr());
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertFalse(config.contains("\"guava\""));
