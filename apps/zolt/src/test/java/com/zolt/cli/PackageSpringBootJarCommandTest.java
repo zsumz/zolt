@@ -67,6 +67,33 @@ final class PackageSpringBootJarCommandTest {
     }
 
     @Test
+    void packageSpringBootGuidanceLabelsStayPlainWhenColorIsForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-demo");
+        Path cacheRoot = tempDir.resolve("color-cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), Files.readString(projectDir.resolve("zolt.toml")) + """
+
+                [package]
+                mode = "spring-boot"
+                """);
+        writeSpringBootLockfile(projectDir, cacheRoot);
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+
+        CommandResult result = execute(
+                "--color=always",
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as spring-boot jar"));
+        assertTrue(result.stdout().contains("Run with: "));
+        assertTrue(result.stdout().contains("Run with Zolt: "));
+        assertFalse(result.stdout().contains("\u001B[32mRun with"));
+        assertFalse(result.stdout().contains("\u001B[36mRun with"));
+    }
+
+    @Test
     void packageReportsMissingSpringBootLoaderClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
