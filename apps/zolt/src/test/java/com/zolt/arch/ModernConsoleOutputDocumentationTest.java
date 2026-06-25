@@ -79,6 +79,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Values `0`, `false`, `no`, and"));
         assertTrue(design.contains("`--color=never --progress=always` emits plain progress lines."));
         assertTrue(design.contains("`NO_COLOR` affects color only."));
+        assertTrue(design.contains("`--quiet --progress=always` is allowed for debugging"));
         assertTrue(design.contains("no spinners, bars, or carriage-return rewrites"));
         assertTrue(design.contains("Core resolver, planner, and build services should"));
         assertTrue(design.contains("Native Image smoke logs do not depend on terminal animation support."));

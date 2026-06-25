@@ -103,6 +103,7 @@ final class ResolveCommandOutputTest {
             assertEquals(0, forcedProgress.exitCode());
             assertEquals("", forcedProgress.stdout());
             assertTrue(forcedProgress.stderr().contains("Resolving dependencies..."));
+            assertTrue(forcedProgress.stderr().contains("Resolved 1 packages"));
         }
     }
 
