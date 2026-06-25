@@ -101,6 +101,23 @@ final class CheckCommandTest extends CheckCommandTestSupport {
     }
 
     @Test
+    void checkLeavesNextStepLabelsPlainWhenWarningIsColored() throws IOException {
+        Path projectDir = createProject("check-next-step-color");
+        Files.writeString(projectDir.resolve("pom.xml"), "<project></project>\n");
+
+        CommandResult result = execute(
+                "--color=always", "check", "--check", "project-model", "--cwd", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\u001B[33mwarning\u001B[0m project-model [build].outputRoot"));
+        assertEquals(
+                "  next: For side-by-side migration, set [build].outputRoot = \".zolt/build\" in zolt.toml so Zolt-owned outputs stay separate.",
+                lineContaining(result.stdout(), "next: For side-by-side migration"));
+        assertFalse(result.stdout().contains("\u001B[33mwarning project-model"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkDoesNotWarnWhenMigrationOutputRootIsIsolated() throws IOException {
         Path projectDir = createProject("check-output-root-isolated");
         Files.writeString(projectDir.resolve("pom.xml"), "<project></project>\n");
@@ -167,6 +184,15 @@ final class CheckCommandTest extends CheckCommandTestSupport {
         assertTrue(result.stderr().contains("\"phase\":\"run quality checks\""));
         assertTrue(result.stderr().contains("\"checks\":\"1\""));
         assertTrue(result.stderr().contains("\"passed\":\"1\""));
+    }
+
+    private static String lineContaining(String text, String fragment) {
+        for (String line : text.split("\\R")) {
+            if (line.contains(fragment)) {
+                return line;
+            }
+        }
+        return "";
     }
 
 }
