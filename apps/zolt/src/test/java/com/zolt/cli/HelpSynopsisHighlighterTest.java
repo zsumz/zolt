@@ -10,13 +10,13 @@ final class HelpSynopsisHighlighterTest {
     void highlightsCommandPathOptionsAndMetavars() {
         String input = String.join(
                 "\n",
-                "zolt test [-hqV] [--color=<colorMode>] [COMMAND]",
+                "zolt run-package [-hqV] [--color=<colorMode>] [COMMAND]",
                 "          <memberGroups>...]]... [--test=<testSelectors>]...");
 
         assertEquals(
                 String.join(
                         "\n",
-                        "\u001B[1;36mzolt test\u001B[0m \u001B[36m[\u001B[0m\u001B[1;36m-hqV\u001B[0m\u001B[36m]\u001B[0m \u001B[36m[\u001B[0m\u001B[1;36m--color\u001B[0m\u001B[36m=<colorMode>]\u001B[0m \u001B[36m[COMMAND]\u001B[0m",
+                        "\u001B[1;36mzolt run-package\u001B[0m \u001B[36m[\u001B[0m\u001B[1;36m-hqV\u001B[0m\u001B[36m]\u001B[0m \u001B[36m[\u001B[0m\u001B[1;36m--color\u001B[0m\u001B[36m=<colorMode>]\u001B[0m \u001B[36m[COMMAND]\u001B[0m",
                         "          \u001B[36m<memberGroups>...]]...\u001B[0m \u001B[36m[\u001B[0m\u001B[1;36m--test\u001B[0m\u001B[36m=<testSelectors>]...\u001B[0m"),
                 HelpSynopsisHighlighter.highlight(input, ConsoleStyle.enabled()));
     }
