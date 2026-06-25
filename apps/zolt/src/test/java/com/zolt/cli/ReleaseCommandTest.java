@@ -69,11 +69,16 @@ final class ReleaseCommandTest {
         Path archive = projectDir.resolve("dist-color/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));
+        assertFalse(color.stdout().contains("\u001B[32mAssembled linux-x64 release archive"));
         assertTrue(color.stdout().contains("\u001B[32mIncluded\u001B[0m 2 files under demo-0.1.0-linux-x64"));
+        assertFalse(color.stdout().contains("\u001B[32mIncluded 2 files under demo-0.1.0-linux-x64"));
         assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + archive));
+        assertFalse(color.stdout().contains("\u001B[32mWrote archive to "));
         assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m checksum to " + archive + ".sha256"));
+        assertFalse(color.stdout().contains("\u001B[32mWrote checksum to "));
         assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m manifest to "
                 + projectDir.resolve("dist-color/release-manifest.json")));
+        assertFalse(color.stdout().contains("\u001B[32mWrote manifest to "));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(projectDir.resolve("dist-quiet/demo-0.1.0-linux-x64.tar.gz")));
