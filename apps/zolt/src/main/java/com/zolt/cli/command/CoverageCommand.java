@@ -20,6 +20,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;
+import com.zolt.test.TestShardException;
+import com.zolt.test.TestShardSpec;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.WorkspaceConfigException;
@@ -54,6 +56,12 @@ public final class CoverageCommand implements Runnable {
 
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
+
+    @Option(names = "--suite", description = "Run coverage for one configured test suite. Defaults to all.")
+    private String suiteName = "all";
+
+    @Option(names = "--shard", description = "Run coverage for one deterministic test shard as index/total, such as 1/4.")
+    private String shardValue;
 
     @Option(names = "--test", description = "Select one test class or method. May be repeated.")
     private List<String> testSelectors = List.of();
@@ -130,9 +138,10 @@ public final class CoverageCommand implements Runnable {
                     testPatterns,
                     includedTags,
                     excludedTags);
+            TestShardSpec shard = TestShardSpec.parse(shardValue);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             if (workspace) {
-                runWorkspaceCoverage(projectRoot, timings, testSelection, coverageReportSettings(Path.of("target")), requestedTestEvents);
+                runWorkspaceCoverage(projectRoot, timings, testSelection, coverageReportSettings(Path.of("target")), requestedTestEvents, suiteName, shard);
                 return;
             }
             ProjectConfig config = timings.measure(
@@ -147,7 +156,9 @@ public final class CoverageCommand implements Runnable {
                             cacheRoot,
                             testSelection,
                             reportSettings,
-                            requestedTestEvents),
+                            requestedTestEvents,
+                            suiteName,
+                            shard),
                     coverageResult -> Map.of(
                             CommandAttributeKeys.EXEC_FILE, coverageResult.execFile().toString(),
                             CommandAttributeKeys.XML_REPORT, coverageResult.xmlReport().map(Path::toString).orElse("disabled"),
@@ -173,6 +184,7 @@ public final class CoverageCommand implements Runnable {
                 | ResourceCopyException
                 | TestRunException
                 | TestSelectionException
+                | TestShardException
                 | SourceDiscoveryException
                 | LockfileReadException
                 | ResolveException
@@ -200,7 +212,9 @@ public final class CoverageCommand implements Runnable {
             TimingRecorder timings,
             TestSelection testSelection,
             CoverageReportSettings reportSettings,
-            List<String> requestedTestEvents) {
+            List<String> requestedTestEvents,
+            String suiteName,
+            TestShardSpec shard) {
         WorkspaceCoverageResult result = timings.measure(
                 "workspace coverage",
                 () -> workspaceCoverageService.runCoverage(
@@ -209,7 +223,9 @@ public final class CoverageCommand implements Runnable {
                         CommandWorkspaceSelections.from(all, members, memberGroups),
                         testSelection,
                         reportSettings,
-                        requestedTestEvents),
+                        requestedTestEvents,
+                        suiteName,
+                        shard),
                 coverageResult -> {
                     Map<String, String> attributes = new java.util.LinkedHashMap<>(
                             CommandTestAttributes.workspaceTest(coverageResult.testResult()));

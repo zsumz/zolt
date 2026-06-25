@@ -396,6 +396,8 @@ public final class TestRunService {
             TestShardSpec shard) {
         TestSuiteExecutionPlan executionPlan =
                 testSuitePlanner.executionPlan(projectDirectory, config, suiteName, selection, shard);
+        TestReportSettings effectiveReportSettings = (reportSettings == null ? TestReportSettings.disabled() : reportSettings)
+                .forShard(suiteName, shard);
         return compiledTestRunner.run(
                 projectDirectory,
                 config,
@@ -404,7 +406,7 @@ public final class TestRunService {
                 executionPlan.selection(),
                 executionPlan.workerPoolPlan(),
                 jvmArguments,
-                reportSettings,
+                effectiveReportSettings,
                 cliEvents);
     }
 

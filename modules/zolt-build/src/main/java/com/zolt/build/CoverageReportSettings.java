@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
+import com.zolt.test.TestShardSpec;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -58,6 +59,26 @@ public record CoverageReportSettings(
                         reportsDirectory == null ? coverageRoot.resolve("test-reports") : reportsDirectory));
     }
 
+    public CoverageReportSettings forShard(String suiteName, TestShardSpec shard) {
+        if (shard == null) {
+            return this;
+        }
+        Path shardRoot = execFile.getParent() == null
+                ? Path.of("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard))
+                : execFile.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard));
+        return new CoverageReportSettings(
+                xml,
+                html,
+                shardRoot.resolve(execFile.getFileName()),
+                xmlReport.getParent() == null
+                        ? shardRoot.resolve(xmlReport.getFileName())
+                        : xmlReport.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard)).resolve(xmlReport.getFileName()),
+                htmlDirectory.getParent() == null
+                        ? shardRoot.resolve(htmlDirectory.getFileName())
+                        : htmlDirectory.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard)).resolve(htmlDirectory.getFileName()),
+                testReports);
+    }
+
     public Optional<Path> absoluteXmlReport(Path projectDirectory) {
         return xml ? Optional.of(absolute(projectDirectory, xmlReport)) : Optional.empty();
     }
@@ -85,5 +106,13 @@ public record CoverageReportSettings(
         if (path.normalize().startsWith("..")) {
             throw new CoverageException("The " + label + " must stay inside the project. Use a path such as `" + example + "`.");
         }
+    }
+
+    private static String suiteSegment(String suiteName) {
+        return suiteName == null || suiteName.isBlank() ? "all" : suiteName;
+    }
+
+    private static String shardSegment(TestShardSpec shard) {
+        return "shard-" + shard.index() + "-of-" + shard.total();
     }
 }

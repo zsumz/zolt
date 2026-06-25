@@ -9,6 +9,7 @@ import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,7 +32,7 @@ final class CoverageServiceTest {
         List<TestReportSettings> testReportSettings = new ArrayList<>();
         List<List<String>> reportCommands = new ArrayList<>();
         CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) -> {
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) -> {
                     testJvmArguments.add(jvmArguments);
                     testReportSettings.add(reportSettings);
                     return new TestRunResult(null, "Tests passed\n", "junit-console", 3, 1, 1);
@@ -72,7 +73,7 @@ final class CoverageServiceTest {
         writeCoverageLockfile();
         List<List<String>> reportCommands = new ArrayList<>();
         CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) ->
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
                         new TestRunResult(null, "Tests passed\n"),
                 reportCommands);
 
@@ -105,7 +106,7 @@ final class CoverageServiceTest {
         Files.writeString(coverageRoot.resolve("workers/wave-1-worker-2/jacoco.exec"), "worker-two\n");
         List<List<String>> reportCommands = new ArrayList<>();
         CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) ->
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
                         new TestRunResult(null, "Tests passed\n"),
                 reportCommands);
 
@@ -130,12 +131,52 @@ final class CoverageServiceTest {
     }
 
     @Test
+    void shardCoverageUsesShardSpecificOutputPaths() throws IOException {
+        writeCoverageLockfile();
+        List<String> receivedSuites = new ArrayList<>();
+        List<TestShardSpec> receivedShards = new ArrayList<>();
+        List<TestJvmArguments> testJvmArguments = new ArrayList<>();
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) -> {
+                    receivedSuites.add(suiteName);
+                    receivedShards.add(shard);
+                    testJvmArguments.add(jvmArguments);
+                    return new TestRunResult(null, "Tests passed\n");
+                },
+                reportCommands);
+
+        CoverageResult result = service.runCoverage(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                CoverageReportSettings.defaults(),
+                List.of(),
+                "fast",
+                new TestShardSpec(2, 4));
+
+        Path shardRoot = projectDir.resolve("target/coverage/shards/fast/shard-2-of-4").toAbsolutePath().normalize();
+        assertEquals(shardRoot.resolve("jacoco.exec"), result.execFile());
+        assertEquals(Optional.of(shardRoot.resolve("jacoco.xml")), result.xmlReport());
+        assertEquals(Optional.of(shardRoot.resolve("html")), result.htmlDirectory());
+        assertEquals(List.of("fast"), receivedSuites);
+        assertEquals(List.of(new TestShardSpec(2, 4)), receivedShards);
+        assertTrue(testJvmArguments.getFirst().values().getFirst().contains("destfile=" + shardRoot.resolve("jacoco.exec")));
+        List<String> command = reportCommands.getFirst();
+        assertTrue(command.contains("report"));
+        assertTrue(command.contains(shardRoot.resolve("jacoco.exec").toString()));
+        assertEquals(shardRoot.resolve("jacoco.xml").toString(), argumentAfter(command, "--xml"));
+        assertEquals(shardRoot.resolve("html").toString(), argumentAfter(command, "--html"));
+    }
+
+    @Test
     void omittedCoverageSettingsDefaultUnderBuildOutputRoot() throws IOException {
         writeCoverageLockfile();
         List<TestReportSettings> testReportSettings = new ArrayList<>();
         List<List<String>> reportCommands = new ArrayList<>();
         CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) -> {
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) -> {
                     testReportSettings.add(reportSettings);
                     return new TestRunResult(null, "Tests passed\n");
                 },

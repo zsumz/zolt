@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
+import com.zolt.test.TestShardSpec;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -25,6 +26,16 @@ public record TestReportSettings(Optional<Path> reportsDirectory) {
         return reportsDirectory(reportsDirectory.orElseThrow().resolve(memberPath));
     }
 
+    public TestReportSettings forShard(String suiteName, TestShardSpec shard) {
+        if (reportsDirectory.isEmpty() || shard == null) {
+            return this;
+        }
+        return reportsDirectory(reportsDirectory.orElseThrow()
+                .resolve("shards")
+                .resolve(suiteSegment(suiteName))
+                .resolve(shardSegment(shard)));
+    }
+
     public Optional<Path> projectRelativeReportsDirectory(Path projectDirectory) {
         reportsDirectory.ifPresent(directory -> safeReportsDirectory(projectDirectory, directory));
         return reportsDirectory;
@@ -43,5 +54,13 @@ public record TestReportSettings(Optional<Path> reportsDirectory) {
         } catch (ProjectPathException exception) {
             throw new TestRunException(exception.getMessage(), exception);
         }
+    }
+
+    private static String suiteSegment(String suiteName) {
+        return suiteName == null || suiteName.isBlank() ? "all" : suiteName;
+    }
+
+    private static String shardSegment(TestShardSpec shard) {
+        return "shard-" + shard.index() + "-of-" + shard.total();
     }
 }

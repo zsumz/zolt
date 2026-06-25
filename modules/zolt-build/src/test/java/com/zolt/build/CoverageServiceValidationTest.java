@@ -55,7 +55,7 @@ final class CoverageServiceValidationTest {
     void missingCoverageToolingExplainsHowToRefreshLockfile() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         CoverageService service = service(
-                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents) ->
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
                         new TestRunResult(null, ""),
                 new ArrayList<>());
 

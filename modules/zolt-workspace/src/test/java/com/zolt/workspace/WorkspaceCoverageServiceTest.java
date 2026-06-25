@@ -20,6 +20,7 @@ import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.test.TestSelection;
+import com.zolt.test.TestShardSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -99,9 +100,14 @@ final class WorkspaceCoverageServiceTest {
                             TestSelection testSelection,
                             TestJvmArguments jvmArguments,
                             TestReportSettings reportSettings,
-                            List<String> cliEvents) {
+                            List<String> cliEvents,
+                            String suiteName,
+                            TestShardSpec shard) {
                         assertEquals(plan, requestedPlan);
                         assertEquals(buildResult, requestedBuildResult);
+                        assertEquals("all", suiteName);
+                        assertEquals(null, shard);
+                        assertEquals(Optional.of(Path.of("target/coverage/test-reports")), reportSettings.reportsDirectory());
                         testJvmArguments.add(jvmArguments);
                         return new WorkspaceTestResult(
                                 Optional.empty(),
@@ -178,6 +184,130 @@ final class WorkspaceCoverageServiceTest {
         assertEquals(List.of(
                 coreDir.resolve("src/main/java").toAbsolutePath().normalize(),
                 apiDir.resolve("src/main/java").toAbsolutePath().normalize()), reportSourceRoots);
+    }
+
+    @Test
+    void shardCoverageUsesShardSpecificAggregateOutputsAndMemberReports() throws IOException {
+        Path workspaceRoot = tempDir.resolve("workspace");
+        Path apiDir = workspaceRoot.resolve("apps/api");
+        Files.createDirectories(apiDir.resolve("src/main/java"));
+        ProjectConfig apiConfig = config("api");
+        Workspace workspace = new Workspace(
+                workspaceRoot,
+                workspaceRoot.resolve("zolt-workspace.toml"),
+                new WorkspaceConfig(
+                        "workspace",
+                        List.of("apps/api"),
+                        List.of("apps/api"),
+                        Map.of(),
+                        Map.of()),
+                List.of(new WorkspaceMember("apps/api", apiDir, apiConfig)),
+                List.of(),
+                List.of("apps/api"));
+        WorkspaceBuildPlan plan = new WorkspaceBuildPlan(
+                workspace,
+                new WorkspaceSelection(List.of("apps/api"), List.of("apps/api")),
+                Optional.empty(),
+                new ZoltLockfile(1, List.of(), List.of()));
+        WorkspaceBuildResult buildResult = new WorkspaceBuildResult(
+                Optional.empty(),
+                List.of(memberBuild("apps/api", apiDir)));
+        List<TestReportSettings> reportSettings = new ArrayList<>();
+        List<TestShardSpec> shards = new ArrayList<>();
+        Path agentJar = tempDir.resolve("org.jacoco.agent-0.8.14-runtime.jar");
+        Path cliJar = tempDir.resolve("org.jacoco.cli-0.8.14.jar");
+        WorkspaceCoverageService service = new WorkspaceCoverageService(
+                (startDirectory, cacheRoot) -> new ResolveResult(1, 0, 0, workspaceRoot.resolve("zolt.lock")),
+                new WorkspaceCoverageService.CoverageWorkspaceTests() {
+                    @Override
+                    public WorkspaceBuildPlan planTests(
+                            Path startDirectory,
+                            Path cacheRoot,
+                            WorkspaceSelectionRequest selectionRequest) {
+                        return plan;
+                    }
+
+                    @Override
+                    public WorkspaceBuildResult buildTestInputs(WorkspaceBuildPlan requestedPlan, Path cacheRoot) {
+                        return buildResult;
+                    }
+
+                    @Override
+                    public WorkspaceTestResult runTests(
+                            WorkspaceBuildPlan requestedPlan,
+                            WorkspaceBuildResult requestedBuildResult,
+                            Path cacheRoot,
+                            TestSelection testSelection,
+                            TestJvmArguments jvmArguments,
+                            TestReportSettings requestedReportSettings,
+                            List<String> cliEvents,
+                            String suiteName,
+                            TestShardSpec shard) {
+                        assertEquals("fast", suiteName);
+                        reportSettings.add(requestedReportSettings);
+                        shards.add(shard);
+                        return new WorkspaceTestResult(
+                                Optional.empty(),
+                                requestedBuildResult.members(),
+                                List.of(new WorkspaceTestResult.MemberTestRunResult(
+                                        "apps/api",
+                                        new TestRunResult(
+                                                testCompile(apiDir),
+                                                "api tests\n",
+                                                "junit-console",
+                                                1,
+                                                1,
+                                                1,
+                                                -1L,
+                                                -1L,
+                                                testSelection,
+                                                jvmArguments,
+                                                requestedReportSettings.reportsDirectory()))));
+                    }
+                },
+                new WorkspaceCoverageService.CoverageReporter() {
+                    @Override
+                    public CoverageTooling lockedCoverageTooling(Path lockfileDirectory, Path cacheRoot) {
+                        return new CoverageTooling(agentJar, List.of(cliJar));
+                    }
+
+                    @Override
+                    public TestJvmArguments coverageJvmArguments(Path requestedAgentJar, Path execFile, boolean append) {
+                        assertEquals(workspaceRoot.resolve("target/coverage/shards/fast/shard-2-of-4/jacoco.exec"), execFile);
+                        return new TestJvmArguments(List.of("-javaagent:" + requestedAgentJar + "=destfile=" + execFile));
+                    }
+
+                    @Override
+                    public JavaRunResult runReport(
+                            Path projectRoot,
+                            ProjectConfig config,
+                            CoverageReportSettings settings,
+                            Path execFile,
+                            List<Path> cliClasspath,
+                            List<Path> classfileRoots,
+                            List<Path> sourceRoots) {
+                        assertEquals(workspaceRoot.resolve("target/coverage/shards/fast/shard-2-of-4/jacoco.exec"), execFile);
+                        return new JavaRunResult("org.jacoco.cli.internal.Main", "aggregate report\n");
+                    }
+                });
+
+        WorkspaceCoverageResult result = service.runCoverage(
+                apiDir,
+                tempDir.resolve("cache"),
+                WorkspaceSelectionRequest.defaults(),
+                TestSelection.empty(),
+                CoverageReportSettings.defaults(),
+                List.of(),
+                "fast",
+                new TestShardSpec(2, 4));
+
+        Path shardRoot = workspaceRoot.resolve("target/coverage/shards/fast/shard-2-of-4");
+        assertEquals(shardRoot.resolve("jacoco.exec"), result.execFile());
+        assertEquals(Optional.of(shardRoot.resolve("jacoco.xml")), result.xmlReport());
+        assertEquals(Optional.of(shardRoot.resolve("html")), result.htmlDirectory());
+        assertEquals(List.of(new TestShardSpec(2, 4)), shards);
+        assertEquals(Optional.of(Path.of("target/coverage/test-reports")), reportSettings.getFirst().reportsDirectory());
+        assertEquals(Optional.of(Path.of("target/coverage/test-reports")), result.members().getFirst().result().reportsDirectory());
     }
 
     private static WorkspaceBuildResult.MemberBuildResult memberBuild(String member, Path memberDir) {

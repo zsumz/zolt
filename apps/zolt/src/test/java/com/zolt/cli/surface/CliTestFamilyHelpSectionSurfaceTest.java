@@ -35,8 +35,6 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "--member",
                 "--members",
                 "Test Selection:",
-                "--suite",
-                "--shard",
                 "--test",
                 "--tests",
                 "--include-tag",
@@ -67,8 +65,6 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <WHEN>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--suite\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--shard\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <TEST_SELECTORS>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--jvm-arg\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--reports-dir\u001B[0m"));
@@ -189,6 +185,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "--member",
                 "--members",
                 "Test Selection:",
+                "--suite",
+                "--shard",
                 "--test",
                 "--tests",
                 "--include-tag",
@@ -220,6 +218,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36mzolt coverage\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--suite\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--shard\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <TEST_SELECTORS>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--no-xml\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--xml-report\u001B[0m"));

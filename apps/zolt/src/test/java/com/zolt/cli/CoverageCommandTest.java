@@ -49,4 +49,16 @@ final class CoverageCommandTest {
         assertTrue(result.stderr().contains("Coverage requires at least one report format"));
         assertFalse(result.stderr().contains("Could not read zolt.toml"));
     }
+
+    @Test
+    void coverageRejectsInvalidShardBeforeReadingProject() {
+        CommandResult result = execute(
+                "coverage",
+                "--shard", "5/4",
+                "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Invalid --shard `5/4`"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
 }

@@ -8,6 +8,7 @@ import com.zolt.build.JavaRunResult;
 import com.zolt.build.TestJvmArguments;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.test.TestSelection;
+import com.zolt.test.TestShardSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +43,20 @@ public final class WorkspaceCoverageService {
             TestSelection testSelection,
             CoverageReportSettings reportSettings,
             List<String> cliEvents) {
+        return runCoverage(startDirectory, cacheRoot, selectionRequest, testSelection, reportSettings, cliEvents, "all", null);
+    }
+
+    public WorkspaceCoverageResult runCoverage(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            TestSelection testSelection,
+            CoverageReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard) {
         CoverageReportSettings settings = reportSettings == null ? CoverageReportSettings.defaults() : reportSettings;
+        settings = settings.forShard(suiteName, shard);
         ResolveResult resolveResult = workspaceResolver.resolveWithCoverageTooling(startDirectory, cacheRoot);
         WorkspaceBuildPlan plan = workspaceTests.planTests(startDirectory, cacheRoot, selectionRequest);
         WorkspaceBuildResult buildResult = workspaceTests.buildTestInputs(plan, cacheRoot);
@@ -59,7 +73,9 @@ public final class WorkspaceCoverageService {
                 testSelection,
                 coverageJvmArguments,
                 settings.testReports(),
-                cliEvents);
+                cliEvents,
+                suiteName,
+                shard);
         List<WorkspaceMember> reportMembers = reportMembers(workspace, buildResult);
         List<Path> classfileRoots = reportMembers.stream()
                 .map(member -> member.directory().resolve(member.config().build().output()).toAbsolutePath().normalize())
@@ -152,7 +168,9 @@ public final class WorkspaceCoverageService {
                     TestSelection testSelection,
                     TestJvmArguments jvmArguments,
                     com.zolt.build.TestReportSettings reportSettings,
-                    List<String> cliEvents) {
+                    List<String> cliEvents,
+                    String suiteName,
+                    TestShardSpec shard) {
                 return service.runTests(
                         plan,
                         buildResult,
@@ -160,7 +178,9 @@ public final class WorkspaceCoverageService {
                         testSelection,
                         jvmArguments,
                         reportSettings,
-                        cliEvents);
+                        cliEvents,
+                        suiteName,
+                        shard);
             }
         };
     }
@@ -219,7 +239,9 @@ public final class WorkspaceCoverageService {
                 TestSelection testSelection,
                 TestJvmArguments jvmArguments,
                 com.zolt.build.TestReportSettings reportSettings,
-                List<String> cliEvents);
+                List<String> cliEvents,
+                String suiteName,
+                TestShardSpec shard);
     }
 
     interface CoverageReporter {

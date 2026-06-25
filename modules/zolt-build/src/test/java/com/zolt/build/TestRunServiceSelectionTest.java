@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -233,14 +234,20 @@ final class TestRunServiceSelectionTest {
                 projectDir.resolve("cache"),
                 TestSelection.empty(),
                 TestJvmArguments.empty(),
-                TestReportSettings.disabled(),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
                 List.of(),
                 "fast",
                 new TestShardSpec(2, 2));
 
         assertEquals(List.of("com.example.BetaTest"), result.testSelection().classSelectors());
+        assertEquals(
+                Optional.of(projectDir.resolve("target/test-reports/shards/fast/shard-2-of-2").toAbsolutePath().normalize()),
+                result.reportsDirectory());
         List<String> command = commands.getFirst();
         assertEquals("com.example.BetaTest", commandArgumentAfter(command, "--select-class"));
+        assertEquals(
+                projectDir.resolve("target/test-reports/shards/fast/shard-2-of-2").toAbsolutePath().normalize().toString(),
+                commandArgumentAfter(command, "--reports-dir"));
         assertFalse(command.contains("com.example.AlphaTest"));
         assertFalse(command.contains("com.example.GammaTest"));
         String manifest = Files.readString(projectDir.resolve("target/test-shards/fast/shard-2-of-2.json"));

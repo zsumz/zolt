@@ -12,6 +12,7 @@ import com.zolt.classpath.Classpath;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.resolve.ResolveService;
+import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,9 +63,22 @@ public final class CoverageService {
             TestSelection selection,
             CoverageReportSettings reportSettings,
             List<String> cliEvents) {
+        return runCoverage(projectDirectory, config, cacheRoot, selection, reportSettings, cliEvents, "all", null);
+    }
+
+    public CoverageResult runCoverage(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            CoverageReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard) {
         CoverageReportSettings settings = reportSettings == null
                 ? CoverageReportSettings.defaultsForOutputRoot(config.build().outputRoot())
                 : reportSettings;
+        settings = settings.forShard(suiteName, shard);
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         toolingResolver.resolve(projectRoot, config, cacheRoot);
         CoverageTooling tooling = lockedCoverageTooling(projectRoot, cacheRoot);
@@ -79,7 +93,9 @@ public final class CoverageService {
                 selection,
                 coverageJvmArguments,
                 settings.testReports(),
-                cliEvents);
+                cliEvents,
+                suiteName,
+                shard);
         mergeWorkerExecFilesIfPresent(projectRoot, config, execFile, tooling.cliClasspath());
         JavaRunResult reportResult = runReport(projectRoot, config, settings, execFile, tooling.cliClasspath());
         return new CoverageResult(
@@ -317,7 +333,9 @@ public final class CoverageService {
                 TestSelection selection,
                 TestJvmArguments jvmArguments,
                 TestReportSettings reportSettings,
-                List<String> cliEvents);
+                List<String> cliEvents,
+                String suiteName,
+                TestShardSpec shard);
     }
 
     @FunctionalInterface
