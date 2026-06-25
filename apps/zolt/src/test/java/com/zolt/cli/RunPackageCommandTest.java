@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -44,6 +45,7 @@ final class RunPackageCommandTest {
         assertTrue(result.stdout().contains("packaged one two"));
         assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
         assertTrue(color.stdout().contains("packaged one two\n\u001B[32mRan\u001B[0m packaged com.example.Main"));
+        assertFalse(color.stdout().contains("\u001B[32mRan packaged com.example.Main"));
         assertEquals("packaged one two\n", quiet.stdout());
         assertTrue(Files.exists(jarPath));
     }

@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -83,6 +84,7 @@ final class RunCommandTest {
 
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("app output\n\u001B[32mRan\u001B[0m com.example.Main"));
+        assertFalse(color.stdout().contains("\u001B[32mRan com.example.Main"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("app output", quiet.stdout());
     }
