@@ -20,6 +20,7 @@ final class FrameworkFixtureMatrixDocumentationTest {
         assertTrue(matrix.contains("`scripts/smoke-spring-boot-native-expanded-native-zolt`"));
         assertTrue(matrix.contains("`scripts/smoke-quarkus-http`"));
         assertTrue(matrix.contains("`scripts/probe-quarkus-test-annotations`"));
+        assertTrue(matrix.contains("`scripts/probe-quarkus-unsupported-test-modes`"));
         assertTrue(matrix.contains("`scripts/smoke-adoption-easy-medium`"));
         assertTrue(matrix.contains("`scripts/smoke-resolver-public-beta`"));
         assertTrue(matrix.contains("`scripts/smoke-vertx-http`"));
