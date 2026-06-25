@@ -125,6 +125,26 @@ final class PackageCommandTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageUberGuidanceLabelStaysPlainWhenColorIsForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-uber");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+
+        CommandResult result = execute(
+                "--color=always",
+                "package",
+                "--mode", "uber",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("color-cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as uber jar"));
+        assertTrue(result.stdout().contains("Run as a self-contained jar: "));
+        assertFalse(result.stdout().contains("\u001B[32mRun as"));
+        assertFalse(result.stdout().contains("\u001B[36mRun as"));
+    }
+
+    @Test
     void packageModeOverrideRefreshesExistingLockfileForCurrentCommand() throws IOException {
         Path projectDir = tempDir.resolve("demo-existing-lock");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
