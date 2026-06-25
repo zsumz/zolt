@@ -54,23 +54,33 @@ final class HelpOptionHighlighter {
         }
         char next = line.charAt(index);
         if (next == '=' || next == '[') {
-            int end = index + 1;
-            while (end < line.length() && !Character.isWhitespace(line.charAt(end)) && line.charAt(end) != ',') {
-                end++;
-            }
-            return end;
+            return metaTokenEnd(line, index + 1);
         }
         if (next == ' ' && index + 1 < line.length() && isMetaStart(line.charAt(index + 1))) {
-            int end = index + 2;
-            while (end < line.length() && !Character.isWhitespace(line.charAt(end)) && line.charAt(end) != ',') {
-                end++;
-            }
-            return end;
+            return metaTokenEnd(line, index + 2);
         }
         if (next == '.' && line.startsWith("...", index)) {
             return index + 3;
         }
         return index;
+    }
+
+    private static int metaTokenEnd(String line, int start) {
+        int bracketDepth = 0;
+        int end = start;
+        while (end < line.length()) {
+            char current = line.charAt(end);
+            if (Character.isWhitespace(current) || (current == ',' && bracketDepth == 0)) {
+                break;
+            }
+            if (current == '[') {
+                bracketDepth++;
+            } else if (current == ']' && bracketDepth > 0) {
+                bracketDepth--;
+            }
+            end++;
+        }
+        return end;
     }
 
     private static boolean isMetaStart(char current) {
