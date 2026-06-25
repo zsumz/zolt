@@ -3,7 +3,7 @@ package com.zolt.quarkus;
 import io.quarkus.builder.BuildChainBuilder;
 import io.quarkus.builder.BuildStepBuilder;
 import io.quarkus.builder.item.BuildItem;
-import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.builder.item.SimpleBuildItem;
 import io.quarkus.deployment.builditem.TestProfileBuildItem;
 import io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer;
 import java.io.IOException;
@@ -66,6 +66,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     additionalBeanBuildItemClass(builder);
             Optional<Class<? extends BuildItem>> testClassBeanBuildItem =
                     testClassBeanBuildItemClass(builder);
+            Optional<Class<? extends SimpleBuildItem>> combinedIndexBuildItem =
+                    QuarkusCombinedIndexBuildItemClass.resolve(builder);
             testClassBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder testClassBeanStep = builder.addBuildStep(context -> {
                         String activeProfile = activeProfile(context);
@@ -90,7 +92,9 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             additionalBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder additionalBeanStep = builder.addBuildStep(context -> {
                         String activeProfile = activeProfile(context);
-                        CombinedIndexBuildItem combinedIndex = context.consume(CombinedIndexBuildItem.class);
+                        SimpleBuildItem combinedIndex = combinedIndexBuildItem
+                                .map(context::consume)
+                                .orElse(null);
                         writeDiagnostic(
                                 "additionalBeanStep.executed=true",
                                 "additionalBeanStep.additionalBeanBuildItemLoader="
@@ -101,11 +105,11 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                                                 testProfiles,
                                                 activeProfile),
                                 "additionalBeanStep.combinedIndexSelectedClasses="
-                                        + QuarkusSelectedTestIndexDiagnostic.format(combinedIndex, testClasses),
+                                        + QuarkusSelectedTestIndexDiagnostic.formatCombinedIndex(combinedIndex, testClasses),
                                 "additionalBeanStep.produced=" + joined(testClasses));
                         context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
                     });
-                optionalConsumes(optionalConsumesTestProfile(additionalBeanStep), CombinedIndexBuildItem.class)
+                optionalConsumesCombinedIndex(optionalConsumesTestProfile(additionalBeanStep), combinedIndexBuildItem)
                         .produces(buildItemClass)
                         .build();
             });
@@ -184,7 +188,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    private static ClassLoader buildChainClassLoader(BuildChainBuilder builder) throws ReflectiveOperationException {
+    static ClassLoader buildChainClassLoader(BuildChainBuilder builder) throws ReflectiveOperationException {
         Method getClassLoader = builder.getClass().getDeclaredMethod("getClassLoader");
         getClassLoader.setAccessible(true);
         Object classLoader = getClassLoader.invoke(builder);
@@ -257,6 +261,13 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         return optionalConsumes(step, TestProfileBuildItem.class);
     }
 
+    private static BuildStepBuilder optionalConsumesCombinedIndex(
+            BuildStepBuilder step,
+            Optional<Class<? extends SimpleBuildItem>> buildItemClass) {
+        buildItemClass.ifPresent(itemClass -> optionalConsumes(step, itemClass));
+        return step;
+    }
+
     private static BuildStepBuilder optionalConsumes(
             BuildStepBuilder step,
             Class<? extends BuildItem> buildItemClass) {
@@ -294,7 +305,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    private static void writeDiagnostic(String... lines) {
+    static void writeDiagnostic(String... lines) {
         String diagnosticFile = System.getProperty(DIAGNOSTIC_FILE_PROPERTY, "");
         if (diagnosticFile.isBlank()) {
             return;
@@ -316,7 +327,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    private static String classLoaderName(ClassLoader classLoader) {
+    static String classLoaderName(ClassLoader classLoader) {
         if (classLoader == null) {
             return "<bootstrap>";
         }

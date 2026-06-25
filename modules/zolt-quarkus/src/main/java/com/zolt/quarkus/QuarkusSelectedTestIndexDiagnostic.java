@@ -1,6 +1,6 @@
 package com.zolt.quarkus;
 
-import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import java.lang.reflect.Method;
 import java.util.List;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -15,8 +15,8 @@ final class QuarkusSelectedTestIndexDiagnostic {
     private QuarkusSelectedTestIndexDiagnostic() {
     }
 
-    static String format(
-            CombinedIndexBuildItem combinedIndex,
+    static String formatCombinedIndex(
+            Object combinedIndex,
             List<String> testClasses) {
         if (combinedIndex == null) {
             return "<missing>";
@@ -24,8 +24,10 @@ final class QuarkusSelectedTestIndexDiagnostic {
         if (testClasses.isEmpty()) {
             return "<none>";
         }
+        IndexView index = indexView(combinedIndex, "getIndex");
+        IndexView computingIndex = indexView(combinedIndex, "getComputingIndex");
         return testClasses.stream()
-                .map(testClass -> selectedClassIndexDiagnostic(combinedIndex, testClass))
+                .map(testClass -> selectedClassIndexDiagnostic(index, computingIndex, testClass))
                 .collect(java.util.stream.Collectors.joining(","));
     }
 
@@ -44,10 +46,11 @@ final class QuarkusSelectedTestIndexDiagnostic {
     }
 
     private static String selectedClassIndexDiagnostic(
-            CombinedIndexBuildItem combinedIndex,
+            IndexView index,
+            IndexView computingIndex,
             String testClass) {
-        ClassInfo indexClass = classByName(combinedIndex.getIndex(), testClass);
-        ClassInfo computingClass = classByName(combinedIndex.getComputingIndex(), testClass);
+        ClassInfo indexClass = classByName(index, testClass);
+        ClassInfo computingClass = classByName(computingIndex, testClass);
         ClassInfo annotationClass = computingClass == null ? indexClass : computingClass;
         return testClass
                 + "[index="
@@ -61,6 +64,16 @@ final class QuarkusSelectedTestIndexDiagnostic {
                 + ",vetoed="
                 + hasAnnotation(annotationClass, VETOED)
                 + "]";
+    }
+
+    private static IndexView indexView(Object combinedIndex, String methodName) {
+        try {
+            Method method = combinedIndex.getClass().getMethod(methodName);
+            Object value = method.invoke(combinedIndex);
+            return value instanceof IndexView indexView ? indexView : null;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            return null;
+        }
     }
 
     private static String selectedClassIndexDiagnostic(
