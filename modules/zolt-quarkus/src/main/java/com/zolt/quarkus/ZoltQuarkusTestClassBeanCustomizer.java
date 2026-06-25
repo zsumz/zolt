@@ -3,7 +3,6 @@ package com.zolt.quarkus;
 import io.quarkus.builder.BuildChainBuilder;
 import io.quarkus.builder.BuildStepBuilder;
 import io.quarkus.builder.item.BuildItem;
-import io.quarkus.builder.item.SimpleBuildItem;
 import io.quarkus.deployment.builditem.TestProfileBuildItem;
 import io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer;
 import java.io.IOException;
@@ -69,10 +68,6 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     additionalBeanBuildItemClass(builder);
             Optional<Class<? extends BuildItem>> testClassBeanBuildItem =
                     testClassBeanBuildItemClass(builder);
-            Optional<Class<? extends SimpleBuildItem>> combinedIndexBuildItem =
-                    QuarkusCombinedIndexBuildItemClass.resolve(builder);
-            Optional<Class<? extends SimpleBuildItem>> applicationArchivesBuildItem =
-                    QuarkusApplicationArchivesBuildItemClass.resolve(builder);
             testClassBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder testClassBeanStep = builder.addBuildStep(context -> {
                         String activeProfile = activeProfile(context);
@@ -95,59 +90,13 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                         .build();
             });
             additionalBeanBuildItem.ifPresent(buildItemClass -> {
-                BuildStepBuilder additionalBeanStep = builder.addBuildStep(context -> {
-                        String activeProfile = activeProfile(context);
-                        SimpleBuildItem combinedIndex = combinedIndexBuildItem
-                                .map(context::consume)
-                                .orElse(null);
-                        SimpleBuildItem applicationArchives = applicationArchivesBuildItem
-                                .map(context::consume)
-                                .orElse(null);
-                        List<?> testClassBeanItems = QuarkusArcBeanInputDiagnostic.consumeMulti(
-                                context,
-                                testClassBeanBuildItem.orElseThrow());
-                        BuildItem zoltAdditionalBeanItem = additionalBeanBuildItem(buildItemClass, testClasses);
-                        writeDiagnostic(
-                                "additionalBeanStep.executed=true",
-                                "additionalBeanStep.additionalBeanBuildItemLoader="
-                                        + classLoaderName(buildItemClass.getClassLoader()),
-                                "additionalBeanStep.contextClassLoader="
-                                        + QuarkusContextClassLoaderDiagnostic.currentClassLoader(),
-                                "additionalBeanStep.contextLoaderSelectedClasses="
-                                        + QuarkusContextClassLoaderDiagnostic.formatSelectedClasses(testClasses),
-                                "additionalBeanStep.activeProfile=" + activeProfile,
-                                "additionalBeanStep.profileMatchesActiveProfile="
-                                        + QuarkusTestProfileDiagnostic.joinedProfileMatches(
-                                                testProfiles,
-                                                activeProfile),
-                                "additionalBeanStep.combinedIndexSelectedClasses="
-                                        + QuarkusSelectedTestIndexDiagnostic.formatCombinedIndex(combinedIndex, testClasses),
-                                "additionalBeanStep.applicationArchives="
-                                        + QuarkusApplicationArchivesDiagnostic.formatArchives(
-                                                applicationArchives,
-                                                QuarkusAdditionalApplicationArchiveBuildItemBridge.testOutputDirectory()
-                                                        .orElse(null)),
-                                "additionalBeanStep.applicationArchiveSelectedClasses="
-                                        + QuarkusApplicationArchivesDiagnostic.formatSelectedClassArchives(
-                                                applicationArchives,
-                                                testClasses),
-                                "additionalBeanStep.testClassBeanItems="
-                                        + QuarkusArcBeanInputDiagnostic.formatTestClassBeanItems(
-                                                testClassBeanItems,
-                                                testClasses),
-                                "additionalBeanStep.zoltAdditionalBeanItems="
-                                        + QuarkusArcBeanInputDiagnostic.formatAdditionalBeanItems(
-                                                List.of(zoltAdditionalBeanItem),
-                                                testClasses),
-                                "additionalBeanStep.produced=" + joined(testClasses));
-                        context.produce(zoltAdditionalBeanItem);
-                    });
-                additionalBeanStep.consumes(testClassBeanBuildItem.orElseThrow());
-                QuarkusOptionalBuildItemConsumes.optional(
-                                QuarkusOptionalBuildItemConsumes.optional(
-                                        additionalBeanStep,
-                                        TestProfileBuildItem.class),
-                                List.of(combinedIndexBuildItem, applicationArchivesBuildItem))
+                builder.addBuildStep(context -> {
+                            BuildItem zoltAdditionalBeanItem = additionalBeanBuildItem(buildItemClass, testClasses);
+                            writeDiagnostic(
+                                    "additionalBeanProducerStep.executed=true",
+                                    "additionalBeanProducerStep.produced=" + joined(testClasses));
+                            context.produce(zoltAdditionalBeanItem);
+                        })
                         .produces(buildItemClass)
                         .build();
             });

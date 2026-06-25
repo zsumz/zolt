@@ -127,22 +127,20 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
                     at io.quarkus.test.junit.QuarkusTestExtension.createActualTestInstance(QuarkusTestExtension.java:818)
                 Zolt Quarkus test-class-bean customizer diagnostic:
                   producer.candidates=com.example.quarkus.ProfiledHelloResourceQuarkusTest
-                  additionalBeanStep.produced=com.example.quarkus.ProfiledHelloResourceQuarkusTest
+                  additionalBeanProducerStep.produced=com.example.quarkus.ProfiledHelloResourceQuarkusTest
                 """);
 
         assertEquals(1, result.exitCode());
         assertTrue(result.output().contains("activated a test profile"));
         assertTrue(result.output().contains("restarted the Quarkus application"));
+        assertTrue(result.output().contains("producer.indexSelectedClasses"));
         assertTrue(result.output().contains("profileMatchesActiveProfile"));
+        assertTrue(result.output().contains("additionalBeanProducerStep.produced"));
         assertTrue(result.output().contains("containsProfileVetoProcessor"));
         assertTrue(result.output().contains("containsProfileBeanVetoProcessor"));
         assertTrue(result.output().contains("containsArcRegisterBeans"));
-        assertTrue(result.output().contains("combinedIndexSelectedClasses"));
-        assertTrue(result.output().contains("contextLoaderSelectedClasses"));
-        assertTrue(result.output().contains("applicationArchives"));
-        assertTrue(result.output().contains("applicationArchiveSelectedClasses"));
-        assertTrue(result.output().contains("testClassBeanItems"));
-        assertTrue(result.output().contains("zoltAdditionalBeanItems"));
+        assertTrue(result.output().contains("testOutputArchiveStep.path"));
+        assertTrue(result.output().contains("application-class predicate output directories"));
         assertTrue(result.output().contains("Arc bean-registration handoff"));
         assertTrue(result.output().contains("@TestProfile"));
         assertTrue(result.output().contains("Profile test activated"));
