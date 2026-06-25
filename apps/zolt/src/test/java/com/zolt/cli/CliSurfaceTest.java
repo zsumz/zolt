@@ -29,7 +29,7 @@ final class CliSurfaceTest {
 
     @Test
     void updateUsesModernHumanOutputControls() {
-        CommandResult color = execute("--color=always", "update");
+        CommandResult color = execute("--color", "always", "update");
         CommandResult quiet = execute("--quiet", "update");
 
         assertEquals(1, color.exitCode());
@@ -62,7 +62,7 @@ final class CliSurfaceTest {
 
     @Test
     void invalidColorModeFailsBeforeCommandExecution() {
-        CommandResult result = execute("--color=rainbow", "help");
+        CommandResult result = execute("--color", "rainbow", "help");
 
         assertEquals(2, result.exitCode());
         assertTrue(result.stderr().contains("Invalid value for option '--color'"));
@@ -71,10 +71,10 @@ final class CliSurfaceTest {
 
     @Test
     void progressOptionsAreGlobalAndValidationMatchesColorMode() {
-        CommandResult forced = execute("--progress=always", "help");
+        CommandResult forced = execute("--progress", "always", "help");
         CommandResult disabled = execute("--no-progress", "help");
         CommandResult quiet = execute("--quiet", "help");
-        CommandResult invalid = execute("--progress=sparkles", "help");
+        CommandResult invalid = execute("--progress", "sparkles", "help");
 
         assertEquals(0, forced.exitCode());
         assertEquals("", forced.stderr());
