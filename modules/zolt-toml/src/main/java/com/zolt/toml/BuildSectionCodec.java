@@ -19,7 +19,14 @@ final class BuildSectionCodec {
     private static final Set<String> TEST_RUNTIME_KEYS =
             Set.of("jvmArgs", "systemProperties", "environment", "events");
     private static final Set<String> TEST_SUITE_KEYS =
-            Set.of("includeClassname", "excludeClassname", "includeTag", "excludeTag");
+            Set.of(
+                    "includeClassname",
+                    "excludeClassname",
+                    "includeTag",
+                    "excludeTag",
+                    "parallelSafe",
+                    "maxWorkers",
+                    "resourceLocks");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
 
     private BuildSectionCodec() {
@@ -148,7 +155,20 @@ final class BuildSectionCodec {
                                 suiteTable,
                                 "test.suites." + suiteName,
                                 "excludeTag",
-                                List.of())));
+                                List.of()),
+                        TomlScalars.booleanOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "parallelSafe",
+                                false),
+                        TomlScalars.integerOrDefault(
+                                suiteTable,
+                                "test.suites." + suiteName,
+                                "maxWorkers",
+                                1),
+                        TomlScalars.stringListMap(
+                                optionalTable(suiteTable, "resourceLocks"),
+                                "test.suites." + suiteName + ".resourceLocks")));
             } catch (IllegalArgumentException exception) {
                 throw new ZoltConfigException(exception.getMessage());
             }
@@ -258,6 +278,15 @@ final class BuildSectionCodec {
             }
             if (!suite.excludeTag().isEmpty()) {
                 writeStringArray(toml, "excludeTag", suite.excludeTag());
+            }
+            if (suite.parallelSafe()) {
+                writeAssignment(toml, "parallelSafe", true);
+            }
+            if (suite.maxWorkers() != 1) {
+                writeAssignment(toml, "maxWorkers", suite.maxWorkers());
+            }
+            if (!suite.resourceLocks().isEmpty()) {
+                writeInlineStringListMap(toml, "resourceLocks", suite.resourceLocks());
             }
             toml.append('\n');
         }
@@ -376,6 +405,10 @@ final class BuildSectionCodec {
         toml.append(key).append(" = ").append(value).append('\n');
     }
 
+    private static void writeAssignment(StringBuilder toml, String key, int value) {
+        toml.append(key).append(" = ").append(value).append('\n');
+    }
+
     private static void writeAssignment(StringBuilder toml, String key, String value) {
         toml.append(key).append(" = ").append(quote(value)).append('\n');
     }
@@ -399,6 +432,26 @@ final class BuildSectionCodec {
                 toml.append(", ");
             }
             toml.append(quote(entry.getKey())).append(" = ").append(quote(entry.getValue()));
+            index++;
+        }
+        toml.append(" }\n");
+    }
+
+    private static void writeInlineStringListMap(StringBuilder toml, String key, Map<String, List<String>> values) {
+        toml.append(key).append(" = { ");
+        int index = 0;
+        for (Map.Entry<String, List<String>> entry : new TreeMap<>(values).entrySet()) {
+            if (index > 0) {
+                toml.append(", ");
+            }
+            toml.append(quote(entry.getKey())).append(" = [");
+            for (int valueIndex = 0; valueIndex < entry.getValue().size(); valueIndex++) {
+                if (valueIndex > 0) {
+                    toml.append(", ");
+                }
+                toml.append(quote(entry.getValue().get(valueIndex)));
+            }
+            toml.append("]");
             index++;
         }
         toml.append(" }\n");

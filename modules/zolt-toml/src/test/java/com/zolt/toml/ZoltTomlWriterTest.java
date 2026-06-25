@@ -184,7 +184,14 @@ final class ZoltTomlWriterTest {
                                 List.of("*Test", "*Spec"),
                                 List.of("*ContractTest"),
                                 List.of("fast"),
-                                List.of("slow")))))
+                                List.of("slow"),
+                                true,
+                                4,
+                                Map.of(
+                                        "com.example.DbTest",
+                                        List.of("database"),
+                                        "com.example.KafkaSpec",
+                                        List.of("kafka", "topic"))))))
                 .build();
         config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
 
@@ -196,6 +203,9 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("excludeClassname = [\"*ContractTest\"]"));
         assertTrue(toml.contains("includeTag = [\"fast\"]"));
         assertTrue(toml.contains("excludeTag = [\"slow\"]"));
+        assertTrue(toml.contains("parallelSafe = true"));
+        assertTrue(toml.contains("maxWorkers = 4"));
+        assertTrue(toml.contains("resourceLocks = { \"com.example.DbTest\" = [\"database\"], \"com.example.KafkaSpec\" = [\"kafka\", \"topic\"] }"));
         assertEquals(config.build().testSuites(), parsed.build().testSuites());
     }
 

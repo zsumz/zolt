@@ -8,6 +8,7 @@ import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestSuiteSettings;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlParserTest {
@@ -226,6 +227,9 @@ final class ZoltTomlParserTest {
                 excludeClassname = ["*ContractTest", "*IntegrationSpec"]
                 includeTag = ["fast"]
                 excludeTag = ["slow", "serial"]
+                parallelSafe = true
+                maxWorkers = 4
+                resourceLocks = { "com.example.DbContractTest" = ["database"], "com.example.KafkaSpec" = ["kafka", "topic"] }
 
                 [test.suites.contract]
                 includeClassname = ["*ContractTest"]
@@ -237,6 +241,15 @@ final class ZoltTomlParserTest {
         assertEquals(List.of("*ContractTest", "*IntegrationSpec"), fast.excludeClassname());
         assertEquals(List.of("fast"), fast.includeTag());
         assertEquals(List.of("slow", "serial"), fast.excludeTag());
+        assertEquals(true, fast.parallelSafe());
+        assertEquals(4, fast.maxWorkers());
+        assertEquals(
+                Map.of(
+                        "com.example.DbContractTest",
+                        List.of("database"),
+                        "com.example.KafkaSpec",
+                        List.of("kafka", "topic")),
+                fast.resourceLocks());
         assertEquals(List.of("*ContractTest"), config.build().testSuites().get("contract").includeClassname());
     }
 }

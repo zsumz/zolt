@@ -1,21 +1,40 @@
 package com.zolt.project;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public record TestSuiteSettings(
         List<String> includeClassname,
         List<String> excludeClassname,
         List<String> includeTag,
-        List<String> excludeTag) {
+        List<String> excludeTag,
+        boolean parallelSafe,
+        int maxWorkers,
+        Map<String, List<String>> resourceLocks) {
     public TestSuiteSettings {
         includeClassname = copyAndValidatePatterns("test.suites.includeClassname", includeClassname);
         excludeClassname = copyAndValidatePatterns("test.suites.excludeClassname", excludeClassname);
         includeTag = copyAndValidateTags("test.suites.includeTag", includeTag);
         excludeTag = copyAndValidateTags("test.suites.excludeTag", excludeTag);
+        if (maxWorkers < 1) {
+            throw new IllegalArgumentException("test.suites.maxWorkers must be greater than zero.");
+        }
+        resourceLocks = copyAndValidateResourceLocks(resourceLocks);
+    }
+
+    public TestSuiteSettings(
+            List<String> includeClassname,
+            List<String> excludeClassname,
+            List<String> includeTag,
+            List<String> excludeTag) {
+        this(includeClassname, excludeClassname, includeTag, excludeTag, false, 1, Map.of());
     }
 
     public static TestSuiteSettings empty() {
-        return new TestSuiteSettings(List.of(), List.of(), List.of(), List.of());
+        return new TestSuiteSettings(List.of(), List.of(), List.of(), List.of(), false, 1, Map.of());
     }
 
     private static List<String> copyAndValidatePatterns(String label, List<String> values) {
@@ -46,6 +65,35 @@ public record TestSuiteSettings(
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(label + " requires a non-empty value.");
         }
+    }
+
+    private static Map<String, List<String>> copyAndValidateResourceLocks(Map<String, List<String>> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> copied = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : new TreeMap<>(values).entrySet()) {
+            String className = entry.getKey();
+            validateNonBlank("test.suites.resourceLocks class name", className);
+            if (containsControlOrWhitespace(className)) {
+                throw new IllegalArgumentException(
+                        "Invalid [test.suites.resourceLocks] class name `" + className + "`. Class names must not contain whitespace or control characters.");
+            }
+            List<String> locks = List.copyOf(entry.getValue() == null ? List.of() : entry.getValue());
+            if (locks.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "test.suites.resourceLocks." + className + " requires at least one resource lock.");
+            }
+            for (String lock : locks) {
+                validateNonBlank("test.suites.resourceLocks." + className, lock);
+                if (containsControlOrWhitespace(lock)) {
+                    throw new IllegalArgumentException(
+                            "Invalid [test.suites.resourceLocks] resource lock `" + lock + "`. Resource lock names must not contain whitespace or control characters.");
+                }
+            }
+            copied.put(className, locks);
+        }
+        return Collections.unmodifiableMap(copied);
     }
 
     private static boolean containsControlOrWhitespace(String value) {

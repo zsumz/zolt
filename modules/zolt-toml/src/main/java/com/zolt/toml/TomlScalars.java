@@ -80,6 +80,23 @@ final class TomlScalars {
         return Optional.of(value);
     }
 
+    static int integerOrDefault(TomlTable table, String section, String key, int defaultValue) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof Long value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an integer.");
+        }
+        try {
+            return Math.toIntExact(value);
+        } catch (ArithmeticException exception) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an integer within Java's int range.");
+        }
+    }
+
     static Map<String, String> stringMap(TomlTable table, String section) {
         if (table == null) {
             return Map.of();
@@ -95,6 +112,32 @@ final class TomlScalars {
             values.put(key, value);
         }
         return values;
+    }
+
+    static Map<String, List<String>> stringListMap(TomlTable table, String section) {
+        if (table == null) {
+            return Map.of();
+        }
+
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        for (String key : table.keySet()) {
+            Object rawValue = table.get(List.of(key));
+            if (!(rawValue instanceof TomlArray array)) {
+                throw new ZoltConfigException(
+                        "Invalid value for [" + section + "]." + key + " in zolt.toml. Use an array of strings.");
+            }
+            List<String> locks = new ArrayList<>();
+            for (int index = 0; index < array.size(); index++) {
+                Object element = array.get(index);
+                if (!(element instanceof String value) || value.isBlank()) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt.toml. Use a non-empty string.");
+                }
+                locks.add(value);
+            }
+            values.put(key, List.copyOf(locks));
+        }
+        return Map.copyOf(values);
     }
 
     static List<String> stringListOrDefault(

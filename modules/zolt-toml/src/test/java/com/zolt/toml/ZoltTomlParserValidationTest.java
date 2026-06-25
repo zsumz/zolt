@@ -122,6 +122,46 @@ final class ZoltTomlParserValidationTest {
     }
 
     @Test
+    void rejectsInvalidTestSuiteMaxWorkers() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [test.suites.fast]
+                        includeClassname = ["*Test"]
+                        maxWorkers = 0
+                        """));
+
+        assertEquals("test.suites.maxWorkers must be greater than zero.", exception.getMessage());
+    }
+
+    @Test
+    void rejectsMalformedTestSuiteResourceLocks() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [test.suites.fast]
+                        includeClassname = ["*Test"]
+                        resourceLocks = { "com.example.DbTest" = "database" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [test.suites.fast.resourceLocks].com.example.DbTest in zolt.toml. Use an array of strings.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsUnsupportedSourceRootLanguage() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,
