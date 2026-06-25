@@ -170,6 +170,17 @@ public final class QuarkusAnnotationWorkerRunner {
                     + result.output().stripTrailing()
                     + "\n";
             }
+            if (configProducerVerifierMismatch(result.output())) {
+                return "error: Quarkus annotation test bootstrap reached config-backed injection, then hit "
+                    + "a SmallRye Config producer verifier mismatch. Zolt can run the supported direct "
+                    + "@QuarkusTest fixture path, but config-backed injected beans still need classloader "
+                    + "ownership work before that shape is supported. Keep config-backed assertions on "
+                    + "the proven JVM run/package path for now, or run `zolt quarkus test-plan` to inspect "
+                    + "the current annotation-runner boundary."
+                    + "\n"
+                    + result.output().stripTrailing()
+                    + "\n";
+            }
             if (testConfigMappingMissing(result.output())) {
                 return "error: Quarkus annotation test bootstrap reached Quarkus JUnit execution through Zolt's "
                     + "programmatic runner and facade-loader context-classloader handoff, then hit a missing "
@@ -248,6 +259,13 @@ public final class QuarkusAnnotationWorkerRunner {
         return output.contains("HTTP/1.1 500 Internal Server Error")
                 && output.contains("java.lang.NoClassDefFoundError")
                 && output.contains("quarkusrestinvoker");
+    }
+
+    private static boolean configProducerVerifierMismatch(String output) {
+        return output.contains("java.lang.VerifyError")
+                && output.contains("ConfigProducer_ClientProxy.produceStringConfigProperty")
+                && output.contains("io/smallrye/config/inject/ConfigProducer")
+                && output.contains("Bad access to protected data");
     }
 
     private static boolean testClassBeanMissing(String output) {

@@ -152,4 +152,25 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertTrue(result.output().contains("application class visibility"));
         assertTrue(result.output().contains("NoClassDefFoundError"));
     }
+
+    @Test
+    void explainsConfigProducerVerifierMismatch() {
+        QuarkusAnnotationWorkerRunner.Result result = diagnosticResult("""
+                Caused by: java.lang.VerifyError: Bad access to protected data in invokevirtual
+                Exception Details:
+                  Location:
+                    io/smallrye/config/inject/ConfigProducer_ClientProxy.produceStringConfigProperty(Ljakarta/enterprise/inject/spi/InjectionPoint;)Ljava/lang/String; @18: invokevirtual
+                  Reason:
+                    Type 'io/smallrye/config/inject/ConfigProducer' (current frame, stack[0]) is not assignable to 'io/smallrye/config/inject/ConfigProducer_ClientProxy'
+                    at io.smallrye.config.inject.ConfigProducer_Bean.proxy(Unknown Source)
+                    at com.example.quarkus.GreetingResource_Bean.create(Unknown Source)
+                    at com.example.quarkus.GreetingResourceQuarkusTest_Bean.create(Unknown Source)
+                """);
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.output().contains("reached config-backed injection"));
+        assertTrue(result.output().contains("SmallRye Config producer verifier mismatch"));
+        assertTrue(result.output().contains("config-backed injected beans still need classloader ownership work"));
+        assertTrue(result.output().contains("ConfigProducer_ClientProxy.produceStringConfigProperty"));
+    }
 }
