@@ -172,10 +172,12 @@ final class BuildCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[36mBuilding\u001B[0m demo"));
+        assertFalse(result.stdout().contains("\u001B[36mBuilding demo"));
         assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 main source files"));
         assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m classes to "
                 + projectDir.resolve("target/classes")));
         assertFalse(result.stdout().contains("\u001B[32mCompiled 1 main source files\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mWrote classes to "));
         assertEquals(0, noOp.exitCode());
         assertTrue(noOp.stdout().contains("\u001B[32mSkipped\u001B[0m main compilation; inputs are unchanged"));
         assertFalse(noOp.stdout().contains("\u001B[32mSkipped main compilation; inputs are unchanged\u001B[0m"));
