@@ -53,16 +53,20 @@ final class QuarkusTestPlanCommandTest {
     void quarkusTestPlanReportsUnsupportedQuarkusTestModes() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, true);
-        writeCompiledTest(projectDir, "com/example/NativeHttpIT.class", "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
+        writeCompiledTest(projectDir, "com/example/ProfiledHttpTest.class", """
+                constant-pool:Lio/quarkus/test/junit/QuarkusTest;
+                constant-pool:Lio/quarkus/test/junit/TestProfile;
+                """);
 
         CommandResult result = testPlan(projectDir, "--cwd");
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Status: blocked by unsupported Quarkus test annotations"));
-        assertTrue(result.stdout().contains("Quarkus annotation runner tests: 0"));
+        assertTrue(result.stdout().contains("Quarkus annotation runner tests: 1"));
         assertTrue(result.stdout().contains("Unsupported Quarkus tests: 1"));
-        assertTrue(result.stdout().contains("com/example/NativeHttpIT.class (@QuarkusIntegrationTest)"));
+        assertTrue(result.stdout().contains("com/example/ProfiledHttpTest.class (@QuarkusTest)"));
+        assertTrue(result.stdout().contains("com/example/ProfiledHttpTest.class (@TestProfile)"));
     }
 
     @Test

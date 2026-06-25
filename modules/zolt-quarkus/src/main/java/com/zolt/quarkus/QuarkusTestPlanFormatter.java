@@ -34,7 +34,7 @@ public final class QuarkusTestPlanFormatter {
         }
         output.append("Next: ");
         if (plan.hasUnsupportedTests()) {
-            output.append("remove unsupported Quarkus integration/main test annotations or use the supported direct `@QuarkusTest` fixture shape.\n");
+            output.append("remove unsupported Quarkus test resource, profile, integration, or main annotations, or use the supported direct `@QuarkusTest` fixture shape.\n");
         } else if (plan.hasAnnotationRunnerTests()) {
             output.append("run `zolt test` to execute supported direct `@QuarkusTest` classes through Zolt's Quarkus annotation runner.\n");
         } else {

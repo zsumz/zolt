@@ -70,10 +70,13 @@ final class QuarkusFrameworkTestRunnerFailureTest extends QuarkusFrameworkTestRu
     }
 
     @Test
-    void unsupportedQuarkusTestModeFailsBeforeWorkerRunsEvenWhenDescriptorsSupportAnnotations() throws IOException {
-        Path testClass = projectDir.resolve("target/test-classes/com/example/NativeHttpIT.class");
+    void unsupportedQuarkusTestProfileFailsBeforeWorkerRunsEvenWhenDescriptorsSupportAnnotations() throws IOException {
+        Path testClass = projectDir.resolve("target/test-classes/com/example/ProfiledHttpTest.class");
         Files.createDirectories(testClass.getParent());
-        Files.writeString(testClass, "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
+        Files.writeString(testClass, """
+                constant-pool:Lio/quarkus/test/junit/QuarkusTest;
+                constant-pool:Lio/quarkus/test/junit/TestProfile;
+                """);
         QuarkusFrameworkTestRunner runner = new QuarkusFrameworkTestRunner(
                 (projectDirectory, config) -> java.util.Optional.of(projectDirectory.resolve("target/quarkus/test-application-model.dat")),
                 request -> descriptor(request, true),
@@ -86,8 +89,8 @@ final class QuarkusFrameworkTestRunnerFailureTest extends QuarkusFrameworkTestRu
                 TestRunException.class,
                 () -> runner.runIfEnabled(request(quarkusConfig())));
 
-        assertTrue(exception.getMessage().contains("`@QuarkusIntegrationTest` execution is not supported"));
+        assertTrue(exception.getMessage().contains("`@TestProfile` execution is not supported"));
         assertTrue(exception.getMessage().contains("broader Quarkus test modes"));
-        assertTrue(exception.getMessage().contains("com/example/NativeHttpIT.class"));
+        assertTrue(exception.getMessage().contains("com/example/ProfiledHttpTest.class"));
     }
 }

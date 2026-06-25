@@ -98,7 +98,7 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
     }
 
     @Test
-    void blocksUnsupportedQuarkusTestModes() {
+    void blocksUnsupportedQuarkusTestResourceModes() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         QuarkusTestRunnerDescriptor descriptor = descriptor(true);
@@ -108,9 +108,9 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
                         descriptor,
                         QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS,
                         List.of(new QuarkusUnsupportedTest(
-                                Path.of("/repo/target/test-classes/com/example/NativeHttpIT.class"),
-                                Path.of("com/example/NativeHttpIT.class"),
-                                "@QuarkusIntegrationTest",
+                                Path.of("/repo/target/test-classes/com/example/ProfiledHttpTest.class"),
+                                Path.of("com/example/ProfiledHttpTest.class"),
+                                "@TestProfile",
                                 false))),
                 out,
                 err);
@@ -121,8 +121,8 @@ final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
         assertTrue(output(out).contains("Status: blocked by unsupported Quarkus test annotations"));
         assertTrue(output(out).contains("Quarkus annotation runner tests: 0"));
         assertTrue(output(out).contains("Unsupported Quarkus tests: 1"));
-        assertTrue(output(out).contains("com/example/NativeHttpIT.class (@QuarkusIntegrationTest)"));
-        assertTrue(output(err).contains("Quarkus integration or main test annotations"));
+        assertTrue(output(out).contains("com/example/ProfiledHttpTest.class (@TestProfile)"));
+        assertTrue(output(err).contains("Quarkus test resource, profile, integration, or main annotations"));
         assertTrue(output(err).contains("supported direct `@QuarkusTest` fixture shape"));
     }
 

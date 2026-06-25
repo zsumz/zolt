@@ -106,7 +106,7 @@ public final class QuarkusTestWorker {
     private static String errorMessage(QuarkusTestWorkerPlan plan) {
         return switch (plan.status()) {
             case BLOCKED_UNSUPPORTED_QUARKUS_TESTS ->
-                    "error: This project uses Quarkus integration or main test annotations that are not supported "
+                    "error: This project uses Quarkus test resource, profile, integration, or main annotations that are not supported "
                             + "by Zolt's Quarkus test worker yet. Remove those annotations or use the supported "
                             + "direct `@QuarkusTest` fixture shape until Zolt has dedicated evidence for broader "
                             + "Quarkus test modes.";

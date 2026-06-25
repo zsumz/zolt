@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 public final class QuarkusUnsupportedTestScanner {
@@ -18,7 +17,9 @@ public final class QuarkusUnsupportedTestScanner {
             new QuarkusTestAnnotation(
                     "@QuarkusMainIntegrationTest",
                     "Lio/quarkus/test/junit/QuarkusMainIntegrationTest;",
-                    false));
+                    false),
+            new QuarkusTestAnnotation("@QuarkusTestResource", "Lio/quarkus/test/common/QuarkusTestResource;", false),
+            new QuarkusTestAnnotation("@TestProfile", "Lio/quarkus/test/junit/TestProfile;", false));
 
     public List<QuarkusUnsupportedTest> scan(Path testOutputDirectory) {
         if (testOutputDirectory == null) {
@@ -31,8 +32,9 @@ public final class QuarkusUnsupportedTestScanner {
             return files
                     .filter(path -> path.getFileName() != null)
                     .filter(path -> path.getFileName().toString().endsWith(".class"))
-                    .flatMap(path -> unsupportedTest(testOutputDirectory, path).stream())
-                    .sorted(Comparator.comparing(test -> test.relativePath().toString()))
+                    .flatMap(path -> unsupportedTests(testOutputDirectory, path).stream())
+                    .sorted(Comparator.comparing((QuarkusUnsupportedTest test) -> test.relativePath().toString())
+                            .thenComparing(QuarkusUnsupportedTest::annotationName))
                     .toList();
         } catch (UncheckedIOException exception) {
             throw scanException(testOutputDirectory, exception.getCause());
@@ -51,19 +53,18 @@ public final class QuarkusUnsupportedTestScanner {
                 exception);
     }
 
-    private static Optional<QuarkusUnsupportedTest> unsupportedTest(Path testOutputDirectory, Path classFile) {
+    private static List<QuarkusUnsupportedTest> unsupportedTests(Path testOutputDirectory, Path classFile) {
         String contents = classFileContents(classFile);
-        for (QuarkusTestAnnotation annotation : QUARKUS_TEST_ANNOTATIONS) {
-            if (contents.contains(annotation.descriptor())) {
-                Path normalizedClassFile = classFile.toAbsolutePath().normalize();
-                return Optional.of(new QuarkusUnsupportedTest(
+        Path normalizedClassFile = classFile.toAbsolutePath().normalize();
+        Path relativeClassFile = testOutputDirectory.toAbsolutePath().normalize().relativize(normalizedClassFile);
+        return QUARKUS_TEST_ANNOTATIONS.stream()
+                .filter(annotation -> contents.contains(annotation.descriptor()))
+                .map(annotation -> new QuarkusUnsupportedTest(
                         normalizedClassFile,
-                        testOutputDirectory.toAbsolutePath().normalize().relativize(normalizedClassFile),
+                        relativeClassFile,
                         annotation.name(),
-                        annotation.annotationRunnerSupported()));
-            }
-        }
-        return Optional.empty();
+                        annotation.annotationRunnerSupported()))
+                .toList();
     }
 
     private static String classFileContents(Path classFile) {

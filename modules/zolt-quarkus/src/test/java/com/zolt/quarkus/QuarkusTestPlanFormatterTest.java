@@ -82,7 +82,7 @@ final class QuarkusTestPlanFormatterTest {
                 Quarkus annotation runner tests: 0
                 Unsupported Quarkus tests: 1
                   com/example/HttpTest.class (@QuarkusIntegrationTest)
-                Next: remove unsupported Quarkus integration/main test annotations or use the supported direct `@QuarkusTest` fixture shape.
+                Next: remove unsupported Quarkus test resource, profile, integration, or main annotations, or use the supported direct `@QuarkusTest` fixture shape.
                 """, new QuarkusTestPlanFormatter().format(plan));
     }
 }
