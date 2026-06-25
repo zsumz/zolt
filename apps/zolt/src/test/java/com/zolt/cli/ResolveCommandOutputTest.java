@@ -130,6 +130,7 @@ final class ResolveCommandOutputTest {
             assertEquals(0, result.exitCode());
             assertTrue(result.stderr().contains("\u001B[36mResolving\u001B[0m dependencies..."));
             assertTrue(result.stderr().contains("\u001B[32mResolved\u001B[0m 1 packages"));
+            assertFalse(result.stderr().contains("\u001B[36mResolving dependencies..."));
             assertFalse(result.stderr().contains("\u001B[36mResolving dependencies\u001B[0m"));
             assertFalse(result.stderr().contains("\u001B[32mResolved 1 packages\u001B[0m"));
             assertTrue(result.stdout().contains("\u001B[32mResolved\u001B[0m 1 packages"));
