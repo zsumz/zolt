@@ -10,11 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.project.ProjectConfig;
+import com.zolt.project.TestSuiteSettings;
+import com.zolt.test.TestPlanException;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -137,5 +141,130 @@ final class TestRunServiceSelectionTest {
 
         assertTrue(exception.getMessage().contains("Selected tests did not match any tests"));
         assertTrue(exception.getMessage().contains("0 tests found"));
+    }
+
+    @Test
+    void suiteSelectionRunsOnlyMatchingCompiledClasses() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/FastServiceTest.java", "package com.example; public final class FastServiceTest {}\n");
+        source(projectDir, "src/test/java/com/example/SlowServiceTest.java", "package com.example; public final class SlowServiceTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                configWithSuite("fast", new TestSuiteSettings(List.of("*Fast*"), List.of(), List.of("fast"), List.of())),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
+                List.of(),
+                "fast");
+
+        assertEquals(List.of("com.example.FastServiceTest"), result.testSelection().classSelectors());
+        assertEquals(List.of("fast"), result.testSelection().includedTags());
+        List<String> command = commands.getFirst();
+        assertTrue(command.contains("--select-class"));
+        assertEquals("com.example.FastServiceTest", commandArgumentAfter(command, "--select-class"));
+        assertFalse(command.contains("com.example.SlowServiceTest"));
+        assertFalse(command.stream().anyMatch(argument -> argument.startsWith("--scan-class-path=")));
+        assertEquals("fast", commandArgumentAfter(command, "--include-tag"));
+        assertEquals(
+                projectDir.resolve("target/test-reports").toAbsolutePath().normalize().toString(),
+                commandArgumentAfter(command, "--reports-dir"));
+    }
+
+    @Test
+    void suiteSelectionCombinesWithCliPatternBeforeRunnerLaunch() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/FastApiTest.java", "package com.example; public final class FastApiTest {}\n");
+        source(projectDir, "src/test/java/com/example/FastRepositoryTest.java", "package com.example; public final class FastRepositoryTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+        TestSelection selection = TestSelection.fromCli(List.of(), List.of("*ApiTest"), List.of(), List.of("slow"));
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                configWithSuite("fast", new TestSuiteSettings(List.of("*Fast*"), List.of(), List.of(), List.of())),
+                projectDir.resolve("cache"),
+                selection,
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of(),
+                "fast");
+
+        assertEquals(List.of("com.example.FastApiTest"), result.testSelection().classSelectors());
+        assertEquals(List.of(), result.testSelection().classNamePatterns());
+        assertEquals(List.of("slow"), result.testSelection().excludedTags());
+        List<String> command = commands.getFirst();
+        assertEquals("com.example.FastApiTest", commandArgumentAfter(command, "--select-class"));
+        assertFalse(command.contains("com.example.FastRepositoryTest"));
+        assertEquals("slow", commandArgumentAfter(command, "--exclude-tag"));
+    }
+
+    @Test
+    void unknownSuiteFailsBeforeLaunchingRunner() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/FastServiceTest.java", "package com.example; public final class FastServiceTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestPlanException exception = assertThrows(
+                TestPlanException.class,
+                () -> service.runTests(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "missing"));
+
+        assertTrue(exception.getMessage().contains("Unknown test suite `missing`"));
+        assertTrue(commands.isEmpty());
+    }
+
+    @Test
+    void emptySuiteFailsBeforeLaunchingRunner() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/FastServiceTest.java", "package com.example; public final class FastServiceTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestPlanException exception = assertThrows(
+                TestPlanException.class,
+                () -> service.runTests(
+                        projectDir,
+                        configWithSuite("empty", new TestSuiteSettings(List.of("*MissingTest"), List.of(), List.of(), List.of())),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "empty"));
+
+        assertTrue(exception.getMessage().contains("Test suite `empty` did not match any compiled test classes"));
+        assertTrue(commands.isEmpty());
+    }
+
+    private static ProjectConfig configWithSuite(String name, TestSuiteSettings settings) {
+        return config().withBuildSettings(config().build().withTestSuites(Map.of(name, settings)));
     }
 }

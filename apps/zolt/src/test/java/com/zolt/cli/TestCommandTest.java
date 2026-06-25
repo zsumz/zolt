@@ -137,4 +137,22 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertTrue(result.stderr().contains("JUnit Platform Console is not present"));
     }
 
+    @Test
+    void testSuiteRejectsUnknownSuiteClearly() throws IOException {
+        Path projectDir = tempDir.resolve("unknown-suite-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeJUnitConsoleLockfile(projectDir);
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+        writeDemoTestSource(projectDir);
+
+        CommandResult result = execute(
+                "test",
+                "--suite", "missing",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Unknown test suite `missing`"));
+        assertTrue(result.stderr().contains("Add [test.suites.missing] to zolt.toml"));
+    }
 }

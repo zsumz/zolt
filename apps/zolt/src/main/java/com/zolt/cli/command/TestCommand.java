@@ -68,6 +68,9 @@ public final class TestCommand implements Runnable {
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
 
+    @Option(names = "--suite", description = "Run one configured test suite. Defaults to all.")
+    private String suiteName = "all";
+
     @Option(names = "--test", description = "Select one test class or method. May be repeated.")
     private List<String> testSelectors = List.of();
 
@@ -151,7 +154,8 @@ public final class TestCommand implements Runnable {
                         testSelection,
                         testJvmArguments,
                         reportSettings,
-                        requestedTestEvents);
+                        requestedTestEvents,
+                        suiteName);
                 return;
             }
             runSingleProjectTests(
@@ -161,7 +165,8 @@ public final class TestCommand implements Runnable {
                     testSelection,
                     testJvmArguments,
                     reportSettings,
-                    requestedTestEvents);
+                    requestedTestEvents,
+                    suiteName);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -169,6 +174,7 @@ public final class TestCommand implements Runnable {
                 | ResourceCopyException
                 | TestRunException
                 | TestSelectionException
+                | TestPlanException
                 | SourceDiscoveryException
                 | LockfileReadException
                 | ResolveException
@@ -187,7 +193,8 @@ public final class TestCommand implements Runnable {
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
-            List<String> requestedTestEvents) {
+            List<String> requestedTestEvents,
+            String suiteName) {
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -214,7 +221,8 @@ public final class TestCommand implements Runnable {
                                     testSelection,
                                     testJvmArguments,
                                     reportSettings,
-                                    requestedTestEvents),
+                                    requestedTestEvents,
+                                    suiteName),
                             CommandTestAttributes::workspaceTest);
                 },
                 CommandTestAttributes::workspaceTest);
@@ -247,7 +255,8 @@ public final class TestCommand implements Runnable {
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
-            List<String> requestedTestEvents) {
+            List<String> requestedTestEvents,
+            String suiteName) {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
@@ -293,7 +302,8 @@ public final class TestCommand implements Runnable {
                                     testSelection,
                                     testJvmArguments,
                                     reportSettings,
-                                    requestedTestEvents),
+                                    requestedTestEvents,
+                                    suiteName),
                             CommandTestAttributes::testExecution);
                 },
                 CommandTestAttributes::testRun);

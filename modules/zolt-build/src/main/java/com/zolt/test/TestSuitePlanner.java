@@ -68,6 +68,47 @@ public final class TestSuitePlanner {
                 unassignedEntries(allInventory.entries(), config.build().testSuites()));
     }
 
+    public TestSelection executionSelection(
+            Path projectDirectory,
+            ProjectConfig config,
+            String requestedSuite,
+            TestSelection selection) {
+        String suiteName = requestedSuite == null || requestedSuite.isBlank() ? "all" : requestedSuite;
+        TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
+        if ("all".equals(suiteName)) {
+            return testSelection;
+        }
+        TestSuitePlan plan = plan(projectDirectory, config, suiteName, testSelection);
+        if (plan.empty()) {
+            throw new TestPlanException(
+                    "Test suite `"
+                            + suiteName
+                            + "` did not match any compiled test classes. "
+                            + "Run `zolt test plan --suite "
+                            + suiteName
+                            + "` to inspect suite membership.");
+        }
+        LinkedHashSet<String> plannedClasses = plan.entries().stream()
+                .map(TestInventoryEntry::className)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        boolean hasExplicitClassOrMethodSelection =
+                !testSelection.classSelectors().isEmpty() || !testSelection.methodSelectors().isEmpty();
+        List<String> classSelectors = hasExplicitClassOrMethodSelection
+                ? testSelection.classSelectors().stream()
+                        .filter(plannedClasses::contains)
+                        .toList()
+                : List.copyOf(plannedClasses);
+        List<TestSelection.MethodSelector> methodSelectors = testSelection.methodSelectors().stream()
+                .filter(method -> plannedClasses.contains(method.className()))
+                .toList();
+        return TestSelection.fromFields(
+                classSelectors,
+                methodSelectors,
+                List.of(),
+                combined(plan.includeTag(), testSelection.includedTags()),
+                combined(plan.excludeTag(), testSelection.excludedTags()));
+    }
+
     private static List<TestInventoryEntry> applySuiteClassFilters(
             List<TestInventoryEntry> entries,
             TestSuiteSettings suite) {
@@ -192,5 +233,12 @@ public final class TestSuitePlanner {
                 .filter(className -> !discovered.contains(className))
                 .sorted(Comparator.naturalOrder())
                 .toList();
+    }
+
+    private static List<String> combined(List<String> first, List<String> second) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        values.addAll(first);
+        values.addAll(second);
+        return List.copyOf(values);
     }
 }

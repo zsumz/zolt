@@ -7,6 +7,7 @@ import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestSelection;
+import com.zolt.test.TestSuitePlanner;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
@@ -14,6 +15,7 @@ import java.util.function.Supplier;
 public final class TestRunService {
     private final TestCompileService testCompileService;
     private final CompiledTestRunner compiledTestRunner;
+    private final TestSuitePlanner testSuitePlanner = new TestSuitePlanner();
 
     public TestRunService() {
         this(new JdkDetector());
@@ -109,6 +111,18 @@ public final class TestRunService {
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
+        return runTests(projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, "all");
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
@@ -119,7 +133,8 @@ public final class TestRunService {
                 selection,
                 jvmArguments,
                 reportSettings,
-                cliEvents);
+                cliEvents,
+                suiteName);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -177,7 +192,20 @@ public final class TestRunService {
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents);
+        return runCompiledTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, "all");
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, suiteName);
     }
 
     public TestRunResult runTests(
@@ -227,8 +255,21 @@ public final class TestRunService {
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
+        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, cliEvents, "all");
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            BuildResult buildResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents);
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, suiteName);
     }
 
     public TestCompileResult compileTests(
@@ -282,12 +323,26 @@ public final class TestRunService {
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
+        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, "all");
+    }
+
+    private TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName) {
+        TestSelection effectiveSelection = testSuitePlanner.executionSelection(projectDirectory, config, suiteName, selection);
         return compiledTestRunner.run(
                 projectDirectory,
                 config,
                 classpaths,
                 compileResult,
-                selection,
+                effectiveSelection,
                 jvmArguments,
                 reportSettings,
                 cliEvents);
