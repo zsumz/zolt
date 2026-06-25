@@ -25,6 +25,7 @@ final class QuarkusUnsupportedTestScannerTest {
     @Test
     void detectsUnsupportedQuarkusTestAnnotationsDeterministically() throws IOException {
         writeClass("com/example/BetaTest.class", "constant-pool:Lio/quarkus/test/junit/QuarkusIntegrationTest;");
+        writeClass("com/example/GammaTest.class", "constant-pool:Lio/quarkus/test/junit/main/QuarkusMainTest;");
         writeClass("com/example/AlphaTest.class", """
                 constant-pool:Lio/quarkus/test/junit/QuarkusTest;
                 constant-pool:Lio/quarkus/test/common/QuarkusTestResource;
@@ -34,7 +35,7 @@ final class QuarkusUnsupportedTestScannerTest {
         List<QuarkusUnsupportedTest> unsupportedTests =
                 new QuarkusUnsupportedTestScanner().scan(projectDir.resolve("target/test-classes"));
 
-        assertEquals(4, unsupportedTests.size());
+        assertEquals(5, unsupportedTests.size());
         assertEquals(Path.of("com/example/AlphaTest.class"), unsupportedTests.get(0).relativePath());
         assertEquals("@QuarkusTest", unsupportedTests.get(0).annotationName());
         assertTrue(unsupportedTests.get(0).annotationRunnerSupported());
@@ -47,6 +48,9 @@ final class QuarkusUnsupportedTestScannerTest {
         assertEquals(Path.of("com/example/BetaTest.class"), unsupportedTests.get(3).relativePath());
         assertEquals("@QuarkusIntegrationTest", unsupportedTests.get(3).annotationName());
         assertTrue(unsupportedTests.get(3).blocksAnnotationRunner());
+        assertEquals(Path.of("com/example/GammaTest.class"), unsupportedTests.get(4).relativePath());
+        assertEquals("@QuarkusMainTest", unsupportedTests.get(4).annotationName());
+        assertTrue(unsupportedTests.get(4).blocksAnnotationRunner());
     }
 
     @Test

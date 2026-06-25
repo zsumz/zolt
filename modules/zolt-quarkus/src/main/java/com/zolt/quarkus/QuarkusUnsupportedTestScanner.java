@@ -13,10 +13,10 @@ public final class QuarkusUnsupportedTestScanner {
     private static final List<QuarkusTestAnnotation> QUARKUS_TEST_ANNOTATIONS = List.of(
             new QuarkusTestAnnotation("@QuarkusTest", "Lio/quarkus/test/junit/QuarkusTest;", true),
             new QuarkusTestAnnotation("@QuarkusIntegrationTest", "Lio/quarkus/test/junit/QuarkusIntegrationTest;", false),
-            new QuarkusTestAnnotation("@QuarkusMainTest", "Lio/quarkus/test/junit/QuarkusMainTest;", false),
+            new QuarkusTestAnnotation("@QuarkusMainTest", "Lio/quarkus/test/junit/main/QuarkusMainTest;", false),
             new QuarkusTestAnnotation(
                     "@QuarkusMainIntegrationTest",
-                    "Lio/quarkus/test/junit/QuarkusMainIntegrationTest;",
+                    "Lio/quarkus/test/junit/main/QuarkusMainIntegrationTest;",
                     false),
             new QuarkusTestAnnotation("@QuarkusTestResource", "Lio/quarkus/test/common/QuarkusTestResource;", false),
             new QuarkusTestAnnotation("@TestProfile", "Lio/quarkus/test/junit/TestProfile;", false));
