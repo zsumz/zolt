@@ -42,8 +42,8 @@ final class ZoltHelpCommand implements Callable<Integer> {
         for (String command : commandPath) {
             CommandLine subcommand = target.getSubcommands().get(command);
             if (subcommand == null) {
-                spec.commandLine().getErr().println(
-                        "Unknown subcommand '" + command + "' under '" + displayName(root, resolvedPath) + "'.");
+                CommandHumanOutput.errors(spec)
+                        .error("Unknown subcommand '" + command + "' under '" + displayName(root, resolvedPath) + "'.");
                 target.usage(spec.commandLine().getErr());
                 return null;
             }

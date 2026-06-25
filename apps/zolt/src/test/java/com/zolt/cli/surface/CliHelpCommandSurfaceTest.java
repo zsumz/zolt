@@ -114,7 +114,7 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(2, result.exitCode());
         assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
+        assertTrue(result.stderr().startsWith("error: Unknown subcommand 'nope' under 'zolt version'."));
         assertTrue(result.stderr().contains("Usage: zolt version"));
         assertTrue(result.stderr().contains("Commands:"));
         assertTrue(result.stderr().contains("    set"));
@@ -128,7 +128,7 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(2, result.exitCode());
         assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("Unknown subcommand 'nope' under 'zolt'."));
+        assertTrue(result.stderr().startsWith("error: Unknown subcommand 'nope' under 'zolt'."));
         assertTrue(result.stderr().contains("Usage: zolt"));
         assertTrue(result.stderr().contains("  Basics"));
         assertTrue(result.stderr().contains("    version"));
@@ -142,10 +142,11 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(2, topLevel.exitCode());
         assertEquals("", topLevel.stdout());
-        assertTrue(topLevel.stderr().contains("Unknown subcommand 'nope' under 'zolt'."));
+        assertTrue(topLevel.stderr().startsWith("\u001B[31merror:\u001B[0m Unknown subcommand 'nope' under 'zolt'."));
         assertTrue(topLevel.stderr().contains(BOLD_USAGE_HEADING + " \u001B[1;36mzolt\u001B[0m"));
         assertTrue(topLevel.stderr().contains(BOLD_COMMANDS_HEADING));
         assertTrue(topLevel.stderr().contains(BOLD_CYAN_HELP_OPTION));
+        assertFalse(topLevel.stderr().contains("\u001B[31merror: Unknown"));
         assertFalse(topLevel.stderr().contains(BOLD_GREEN_OPTION));
         assertFalse(topLevel.stderr().contains(WARNING_COLOR));
 
@@ -153,10 +154,12 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(2, nested.exitCode());
         assertEquals("", nested.stdout());
-        assertTrue(nested.stderr().contains("Unknown subcommand 'nope' under 'zolt version'."));
+        assertTrue(nested.stderr().startsWith(
+                "\u001B[31merror:\u001B[0m Unknown subcommand 'nope' under 'zolt version'."));
         assertTrue(nested.stderr().contains(BOLD_USAGE_HEADING + " \u001B[1;36mzolt version\u001B[0m"));
         assertTrue(nested.stderr().contains(BOLD_COMMANDS_HEADING));
         assertTrue(nested.stderr().contains(BOLD_CYAN_HELP_OPTION));
+        assertFalse(nested.stderr().contains("\u001B[31merror: Unknown"));
         assertFalse(nested.stderr().contains(BOLD_GREEN_OPTION));
         assertFalse(nested.stderr().contains(WARNING_COLOR));
     }
