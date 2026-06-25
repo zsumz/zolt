@@ -52,7 +52,13 @@ final class ConsoleStyleTest {
         assertEquals("resolve", style.command("resolve"));
         assertEquals("zolt test", style.helpCommand("zolt test"));
         assertEquals("[COMMAND]", style.helpMeta("[COMMAND]"));
+        assertEquals("target/classes", style.path("target/classes"));
+        assertEquals("Resolved", style.success("Resolved"));
+        assertEquals("--workspace", style.option("--workspace"));
+        assertEquals("Building", style.work("Building"));
+        assertEquals("warning:", style.warning("warning:"));
         assertEquals("error:", style.error("error:"));
+        assertEquals("12ms", style.muted("12ms"));
     }
 
     @Test
