@@ -222,6 +222,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         try {
             Method builderMethod = buildItemClass.getMethod("builder");
             Object builder = builderMethod.invoke(null);
+            QuarkusAdditionalBeanBuildItemBridge.markBuilderUnremovable(builder);
+            writeDiagnostic("additionalBeanBuildItem.unremovable=true");
             Method addBeanClass = builder.getClass().getMethod("addBeanClass", String.class);
             for (String testClass : testClasses) {
                 addBeanClass.invoke(builder, testClass);

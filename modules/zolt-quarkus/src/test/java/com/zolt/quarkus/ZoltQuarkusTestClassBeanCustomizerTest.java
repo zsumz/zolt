@@ -62,6 +62,24 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
         }
     }
 
+    @Test
+    void marksAdditionalBeanBuilderUnremovable() throws Exception {
+        FakeAdditionalBeanBuilder builder = new FakeAdditionalBeanBuilder();
+
+        QuarkusAdditionalBeanBuildItemBridge.markBuilderUnremovable(builder);
+
+        assertFalse(builder.removable);
+    }
+
+    public static final class FakeAdditionalBeanBuilder {
+        private boolean removable = true;
+
+        public FakeAdditionalBeanBuilder setUnremovable() {
+            removable = false;
+            return this;
+        }
+    }
+
     private static void restoreMainOutputDirectory(String previous) {
         if (previous == null) {
             System.clearProperty(QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY);
