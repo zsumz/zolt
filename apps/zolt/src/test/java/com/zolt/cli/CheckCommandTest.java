@@ -53,6 +53,7 @@ final class CheckCommandTest extends CheckCommandTestSupport {
         assertTrue(result.stdout().contains("\u001B[36mChecking\u001B[0m project"));
         assertTrue(result.stdout().contains("\u001B[32mok\u001B[0m command-surface check-color"));
         assertTrue(result.stdout().contains("\u001B[32mChecked\u001B[0m 1 quality checks: 1 passed, 0 warnings"));
+        assertFalse(result.stdout().contains("\u001B[36mChecking project"));
         assertFalse(result.stdout().contains("\u001B[32mok command-surface check-color\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[32mChecked 1 quality checks: 1 passed, 0 warnings"));
         assertEquals("", result.stderr());
