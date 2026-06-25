@@ -45,7 +45,10 @@ final class PublicReadinessDocumentationTest {
         assertTrue(readiness.contains("| Spring Boot JVM applications | Supported | BOM-managed WebMVC apps, PetClinic-style medium apps, and the public-safe enterprise canary"));
         assertTrue(readiness.contains("| Spring Boot AOT/native | Supported bounded fixture family, not arbitrary Spring native support |"));
         assertTrue(readiness.contains("recurring Spring Boot 3.3 Java 21 native fixture family covers WebMVC baseline, Actuator, WebMVC contract, and Spring JDBC/H2 data-access rows through native Zolt"));
-        assertTrue(readiness.contains("| Quarkus JVM applications | Experimental |"));
+        assertTrue(readiness.contains("| Quarkus JVM applications | Supported opt-in fixture |"));
+        assertTrue(readiness.contains("ZOLT_ADOPTION_INCLUDE_QUARKUS=1 scripts/smoke-adoption-easy-medium"));
+        assertTrue(readiness.contains(
+                "Dev mode, native images, test resources/profiles, integration/main tests, and Maven/Gradle plugin behavior remain unsupported"));
         assertTrue(readiness.contains("| Groovy and Spock | Planned |"));
         assertTrue(readiness.contains("Non-goal for public beta"));
         assertTrue(readiness.contains("Kotlin, Scala, Android, SNAPSHOTs, and version ranges in the public MVP"));
@@ -149,11 +152,38 @@ final class PublicReadinessDocumentationTest {
     void frameworkReadinessBoundsQuarkusAnnotationTests() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
 
+        assertTrue(frameworkReadiness.contains("| Quarkus | Supported opt-in JVM fixture |"));
         assertTrue(frameworkReadiness.contains("run the REST Assured `@QuarkusTest` fixture through public `zolt test`"));
         assertTrue(frameworkReadiness.contains("Quarkus test resources/profiles"));
         assertFalse(
                 frameworkReadiness.contains("arbitrary Quarkus `@QuarkusTest` support"),
                 "Framework readiness must keep the Quarkus annotation-test claim fixture-bounded");
+    }
+
+    @Test
+    void readmeBoundsPromotedQuarkusJvmSupport() throws IOException {
+        String readme = Files.readString(RepositoryPaths.root().resolve("README.md"));
+
+        assertTrue(readme.contains("Supported opt-in JVM fixture for the documented Quarkus 3.33 HTTP shape"));
+        assertTrue(readme.contains("REST Assured direct `@QuarkusTest`"));
+        assertTrue(readme.contains(
+                "Quarkus dev mode, native images, test resources/profiles, integration/main tests, and Maven/Gradle plugin behavior remain explicitly unsupported"));
+        assertFalse(
+                readme.contains("| Quarkus | Experimental JVM build/test/package coverage"),
+                "README should not keep the stale experimental Quarkus JVM wording after the opt-in fixture promotion");
+    }
+
+    @Test
+    void adoptionSmokeExposesQuarkusSpecificOptIn() throws IOException {
+        String smoke = Files.readString(RepositoryPaths.root().resolve("scripts/smoke-adoption-easy-medium"));
+
+        assertTrue(smoke.contains("ZOLT_ADOPTION_INCLUDE_QUARKUS"));
+        assertTrue(smoke.contains("ZOLT_ADOPTION_INCLUDE_EXPERIMENTAL"));
+        assertTrue(smoke.contains("INCLUDE_QUARKUS"));
+        assertTrue(smoke.contains("quarkus opt-in fixture skipped"));
+        assertFalse(
+                smoke.contains("quarkus-experimental"),
+                "Adoption smoke labels should use the promoted Quarkus fixture name");
     }
 
     @Test
