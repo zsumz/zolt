@@ -67,6 +67,7 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Self-hosting parity failed"));
+        assertFalse(result.stderr().contains("\u001B[31merror: Self-hosting parity failed"));
         assertTrue(result.stderr().contains("Missing from Zolt-built jar:"));
         assertTrue(result.stderr().contains("only-bootstrap.txt"));
         assertFalse(result.stderr().contains("\u001B[31mMissing"));
