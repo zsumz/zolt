@@ -45,6 +45,8 @@ final class DoctorCommandTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Java version mismatch."));
         assertTrue(result.stderr().contains("\u001B[31merror:\u001B[0m Project health check failed."));
+        assertFalse(result.stderr().contains("\u001B[31merror: Java version mismatch."));
+        assertFalse(result.stderr().contains("\u001B[31merror: Project health check failed."));
     }
 
     @Test
