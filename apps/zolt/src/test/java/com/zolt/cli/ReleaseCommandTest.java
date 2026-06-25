@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -137,7 +138,8 @@ final class ReleaseCommandTest {
 
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m release archive " + archive));
-        assertTrue(color.stdout().contains("Unpacked to "));
+        assertTrue(color.stdout().contains("\u001B[32mUnpacked\u001B[0m to "));
+        assertFalse(color.stdout().contains("\u001B[32mUnpacked to "));
         assertTrue(color.stdout().contains("\u001B[32mRan\u001B[0m smoke binary"));
         assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
