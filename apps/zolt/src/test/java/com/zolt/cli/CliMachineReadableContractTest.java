@@ -221,6 +221,32 @@ final class CliMachineReadableContractTest {
         assertFalse(result.stdout().contains("Zolt explain: Maven project"));
     }
 
+    @Test
+    void ideModelJsonIgnoresForcedColorAndProgress() throws IOException {
+        Path projectDir = tempDir.resolve("ide-model-json-contract");
+        Path cacheRoot = tempDir.resolve("ide-model-cache");
+        IdeModelCommandTestSupport.writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "ide",
+                "model",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString(),
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertNoAnsi(result.stdout());
+        assertNoProgressText(result.stdout());
+        assertTrue(result.stdout().contains("\"schemaVersion\": 1"));
+        assertTrue(result.stdout().contains("\"project\": {\n    \"name\": \"demo\""));
+        assertTrue(result.stdout().contains("\"paths\": {\n    \"root\": \""
+                + projectDir.toAbsolutePath().normalize()));
+        assertFalse(result.stdout().contains("Exported IDE model"));
+    }
+
     private static void writeProjectConfig(Path projectDir) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
@@ -253,6 +279,7 @@ final class CliMachineReadableContractTest {
         assertFalse(output.contains("Building "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Packaging "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Explaining "), "output should not contain progress text: " + output);
+        assertFalse(output.contains("Exporting "), "output should not contain progress text: " + output);
         assertFalse(output.contains("Still running:"), "output should not contain progress text: " + output);
     }
 }
