@@ -44,7 +44,7 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt publish\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--context\u001B[0m\u001B[36m <context>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--dry-run\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
@@ -85,7 +85,7 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt release-archive\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--binary\u001B[0m\u001B[36m <binary>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--output\u001B[0m\u001B[36m <outputDirectory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--target\u001B[0m\u001B[36m <target>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
@@ -128,7 +128,7 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt release-verify\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mARCHIVE...\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--work-dir\u001B[0m\u001B[36m <workDirectory>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));

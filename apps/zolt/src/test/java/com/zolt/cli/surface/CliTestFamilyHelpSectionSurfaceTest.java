@@ -62,8 +62,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt test\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <colorMode>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <WHEN>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <testSelectors>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--jvm-arg\u001B[0m"));
@@ -123,8 +123,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt integration-test\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <colorMode>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <WHEN>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <testSelectors>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--jvm-arg\u001B[0m"));
@@ -186,7 +186,7 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt coverage\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <testSelectors>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--no-xml\u001B[0m"));

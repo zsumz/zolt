@@ -78,7 +78,7 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains(BOLD_CYAN_ZOLT_COMMAND));
         assertTrue(result.stdout().contains(CYAN_COMMAND_ARGUMENT));
         assertTrue(result.stdout().contains(BOLD_CYAN_COLOR_OPTION));
-        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m \u001B[36m<colorMode>]\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m \u001B[36m<WHEN>]\u001B[0m"));
         assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
         assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
         assertTrue(result.stdout().contains("    " + BOLD_CYAN_INIT_COMMAND

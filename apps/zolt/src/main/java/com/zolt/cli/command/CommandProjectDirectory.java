@@ -7,7 +7,10 @@ final class CommandProjectDirectory {
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
 
-    @Option(names = "--directory", description = "Run as if Zolt was started in the given project directory.")
+    @Option(
+            names = "--directory",
+            paramLabel = "<DIRECTORY>",
+            description = "Run as if Zolt was started in the given project directory.")
     private Path directory;
 
     Path path() {

@@ -93,6 +93,7 @@ public final class ZoltCli implements Runnable {
     @Option(
             names = "--color",
             scope = ScopeType.INHERIT,
+            paramLabel = "<WHEN>",
             converter = ColorModeConverter.class,
             description = "Control color in human output: auto, always, or never.")
     private ColorMode colorMode = ColorMode.AUTO;
@@ -100,6 +101,7 @@ public final class ZoltCli implements Runnable {
     @Option(
             names = "--progress",
             scope = ScopeType.INHERIT,
+            paramLabel = "<WHEN>",
             converter = ProgressModeConverter.class,
             description = "Control progress in human output: auto, always, or never.")
     private ProgressMode progressMode = ProgressMode.AUTO;

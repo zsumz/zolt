@@ -50,7 +50,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt build\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--offline\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
@@ -100,7 +100,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt package\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--mode\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
@@ -152,7 +152,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt run\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36m[ARGS...]\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
@@ -203,7 +203,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt run-package\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36m[ARGS...]\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--mode\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
@@ -245,7 +245,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt native\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--native-image\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
@@ -292,7 +292,7 @@ final class CliCommandHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt resolve\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--repository-overlay\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--no-local-overlays\u001B[0m"));
