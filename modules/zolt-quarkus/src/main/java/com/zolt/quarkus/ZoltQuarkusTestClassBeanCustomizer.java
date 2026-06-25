@@ -1,8 +1,10 @@
 package com.zolt.quarkus;
 
 import io.quarkus.builder.BuildChainBuilder;
+import io.quarkus.builder.BuildStepBuilder;
 import io.quarkus.builder.item.BuildItem;
 import io.quarkus.deployment.builditem.TestClassBeanBuildItem;
+import io.quarkus.deployment.builditem.TestProfileBuildItem;
 import io.quarkus.test.junit.buildchain.TestBuildChainCustomizerProducer;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -62,28 +64,35 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     .build());
             Optional<Class<? extends BuildItem>> additionalBeanBuildItem =
                     additionalBeanBuildItemClass(builder);
-            builder.addBuildStep(context -> {
+            BuildStepBuilder testClassBeanStep = builder.addBuildStep(context -> {
                         writeDiagnostic(
                                 "buildStep.executed=true",
                                 "buildStep.testClassBeanBuildItemLoader="
                                         + classLoaderName(TestClassBeanBuildItem.class.getClassLoader()),
+                                "buildStep.activeProfile=" + activeProfile(context),
                                 "buildStep.produced=" + joined(testClasses));
                         for (String testClass : testClasses) {
                             context.produce(new TestClassBeanBuildItem(testClass));
                         }
-                    })
+                    });
+            optionalConsumesTestProfile(testClassBeanStep)
                     .produces(TestClassBeanBuildItem.class)
                     .build();
-            additionalBeanBuildItem.ifPresent(buildItemClass -> builder.addBuildStep(context -> {
+            additionalBeanBuildItem.ifPresent(buildItemClass -> {
+                BuildStepBuilder additionalBeanStep = builder.addBuildStep(context -> {
                         writeDiagnostic(
                                 "additionalBeanStep.executed=true",
                                 "additionalBeanStep.additionalBeanBuildItemLoader="
                                         + classLoaderName(buildItemClass.getClassLoader()),
+                                "additionalBeanStep.activeProfile="
+                                        + activeProfile(context),
                                 "additionalBeanStep.produced=" + joined(testClasses));
                         context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
-                    })
-                    .produces(buildItemClass)
-                    .build());
+                    });
+                optionalConsumesTestProfile(additionalBeanStep)
+                        .produces(buildItemClass)
+                        .build();
+            });
         };
     }
 
@@ -195,6 +204,41 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
 
     private static String joined(List<String> values) {
         return values.isEmpty() ? "<none>" : String.join(",", values);
+    }
+
+    private static BuildStepBuilder optionalConsumesTestProfile(BuildStepBuilder step) {
+        try {
+            ClassLoader classLoader = step.getClass().getClassLoader();
+            Class<?> consumeFlagClass = Class.forName("io.quarkus.builder.ConsumeFlag", false, classLoader);
+            Class<?> consumeFlagsClass = Class.forName("io.quarkus.builder.ConsumeFlags", false, classLoader);
+            Object optional = enumValue(consumeFlagClass, "OPTIONAL");
+            Object consumeFlags = consumeFlagsClass.getMethod("of", consumeFlagClass).invoke(null, optional);
+            step.getClass()
+                    .getMethod("consumes", Class.class, consumeFlagsClass)
+                    .invoke(step, TestProfileBuildItem.class, consumeFlags);
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            writeDiagnostic(
+                    "testProfileBuildItem.optionalConsume=false",
+                    "testProfileBuildItem.optionalConsumeReason=" + exception.getClass().getSimpleName());
+        }
+        return step;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object enumValue(Class<?> enumClass, String value) {
+        return Enum.valueOf((Class<? extends Enum>) enumClass.asSubclass(Enum.class), value);
+    }
+
+    private static String activeProfile(io.quarkus.builder.BuildContext context) {
+        try {
+            TestProfileBuildItem testProfile = context.consume(TestProfileBuildItem.class);
+            return testProfile == null ? "<none>" : testProfile.getTestProfileClassName();
+        } catch (RuntimeException exception) {
+            writeDiagnostic(
+                    "testProfileBuildItem.consume=false",
+                    "testProfileBuildItem.consumeReason=" + exception.getClass().getSimpleName());
+            return "<unavailable>";
+        }
     }
 
     private static void writeDiagnostic(String... lines) {
