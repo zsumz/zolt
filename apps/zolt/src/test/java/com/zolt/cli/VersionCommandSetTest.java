@@ -42,6 +42,8 @@ final class VersionCommandSetTest {
 
         assertEquals(0, added.exitCode());
         assertTrue(added.stdout().contains("\u001B[32mAdded\u001B[0m version alias guava = 33.4.8-jre to [versions]"));
+        assertFalse(added.stdout().contains(
+                "\u001B[32mAdded version alias guava = 33.4.8-jre to [versions]\u001B[0m"));
         assertTrue(added.stdout().contains(
                 "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
         assertFalse(added.stdout().contains(

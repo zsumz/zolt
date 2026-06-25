@@ -58,6 +58,7 @@ final class VersionCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[32mRemoved\u001B[0m version alias guava from [versions]"));
+        assertFalse(result.stdout().contains("\u001B[32mRemoved version alias guava from [versions]\u001B[0m"));
         assertTrue(result.stdout().contains(
                 "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
         assertFalse(result.stdout().contains(
