@@ -3,6 +3,7 @@ package com.zolt.cli;
 import static com.zolt.cli.CliTestSupport.execute;
 import static com.zolt.cli.CliTestSupport.memberConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.io.TempDir;
 final class PublishCommandDryRunTest {
     @TempDir
     private Path tempDir;
-
     @Test
     void publishDryRunRoutesReleaseArtifactWithoutUploading() throws IOException {
         Path projectDir = tempDir.resolve("publish-dry-run-release");
@@ -45,13 +45,12 @@ final class PublishCommandDryRunTest {
                 "package",
                 "--cwd", projectDir.toString(),
                 "--cache-root", tempDir.resolve("cache").toString());
-
         CommandResult result = execute(
+                "--color=always",
                 "--progress=always",
                 "publish",
                 "--dry-run",
                 "--directory", projectDir.toString());
-
         assertEquals(0, packageResult.exitCode());
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Zolt publish dry run"));
@@ -67,11 +66,12 @@ final class PublishCommandDryRunTest {
         assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
-        assertTrue(result.stderr().contains("Preparing publish dry run..."));
-        assertTrue(result.stderr().contains("Prepared publish dry run"));
+        assertTrue(result.stderr().contains("\u001B[36mPreparing\u001B[0m publish dry run..."));
+        assertTrue(result.stderr().contains("\u001B[32mPrepared\u001B[0m publish dry run"));
+        assertFalse(result.stderr().contains("\u001B[36mPreparing publish dry run...")
+                || result.stderr().contains("\u001B[32mPrepared publish dry run"));
         assertTrue(Files.exists(projectDir.resolve(".zolt/build/publish/demo-0.1.0.pom")));
     }
-
     private static void writeProjectConfig(Path projectDir) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("demo") + """
