@@ -60,9 +60,20 @@ final class HelpOptionHighlighter {
             }
             return end;
         }
+        if (next == ' ' && index + 1 < line.length() && isMetaStart(line.charAt(index + 1))) {
+            int end = index + 2;
+            while (end < line.length() && !Character.isWhitespace(line.charAt(end)) && line.charAt(end) != ',') {
+                end++;
+            }
+            return end;
+        }
         if (next == '.' && line.startsWith("...", index)) {
             return index + 3;
         }
         return index;
+    }
+
+    private static boolean isMetaStart(char current) {
+        return current == '<' || current == '[';
     }
 }
