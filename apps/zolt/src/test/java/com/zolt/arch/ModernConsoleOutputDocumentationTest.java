@@ -78,6 +78,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("`GITHUB_ACTIONS`, and `BUILDKITE` disable `auto` progress"));
         assertTrue(design.contains("Values `0`, `false`, `no`, and"));
         assertTrue(design.contains("`--color=never --progress=always` emits plain progress lines."));
+        assertTrue(design.contains("`NO_COLOR --progress=always` emits plain progress lines."));
         assertTrue(design.contains("`NO_COLOR` affects color only."));
         assertTrue(design.contains("`--quiet --progress=always` is allowed for debugging"));
         assertTrue(design.contains("no spinners, bars, or carriage-return rewrites"));

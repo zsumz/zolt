@@ -67,4 +67,25 @@ final class ProgressWriterTest {
 
         assertEquals("\u001B[32mResolved\u001B[0m 87 packages\n", stderr.toString());
     }
+
+    @Test
+    void writerKeepsNoColorScopedToColorWhenProgressIsForced() {
+        StringWriter stderr = new StringWriter();
+        Map<String, String> environment = Map.of("NO_COLOR", "1");
+        ProgressWriter writer = new ProgressWriter(
+                new PrintWriter(stderr),
+                ProgressPolicy.of(ProgressMode.ALWAYS, false, true, environment),
+                ConsoleStyle.of(ColorMode.AUTO, true, environment),
+                ProgressOutputContract.HUMAN);
+
+        writer.start("Resolving dependencies");
+        writer.result("Resolved 87 packages");
+
+        assertEquals(
+                """
+                Resolving dependencies...
+                Resolved 87 packages
+                """,
+                stderr.toString());
+    }
 }
