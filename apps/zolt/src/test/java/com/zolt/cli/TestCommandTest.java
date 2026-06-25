@@ -91,7 +91,9 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("\u001B[36mTesting\u001B[0m color-demo"));
+        assertFalse(result.stdout().contains("\u001B[36mTesting color-demo"));
         assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 test source files"));
+        assertFalse(result.stdout().contains("\u001B[32mCompiled 1 test source files"));
         assertTrue(result.stdout().contains("\u001B[32mTests\u001B[0m passed"));
         assertFalse(result.stdout().contains("\u001B[32mTests passed\u001B[0m"));
     }
