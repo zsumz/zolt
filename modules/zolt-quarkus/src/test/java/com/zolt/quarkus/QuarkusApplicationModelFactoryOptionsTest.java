@@ -131,11 +131,6 @@ final class QuarkusApplicationModelFactoryOptionsTest {
                                 "jar"),
                         new FakeArtifactKey(
                                 "io.smallrye.config",
-                                "smallrye-config",
-                                "",
-                                "jar"),
-                        new FakeArtifactKey(
-                                "io.smallrye.config",
                                 "smallrye-config-common",
                                 "",
                                 "jar"),

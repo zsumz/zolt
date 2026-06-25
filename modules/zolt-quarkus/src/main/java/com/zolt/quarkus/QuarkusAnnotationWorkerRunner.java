@@ -172,11 +172,11 @@ public final class QuarkusAnnotationWorkerRunner {
             }
             if (configProducerVerifierMismatch(result.output())) {
                 return "error: Quarkus annotation test bootstrap reached config-backed injection, then hit "
-                    + "a SmallRye Config producer verifier mismatch. Zolt can run the supported direct "
-                    + "@QuarkusTest fixture path, but config-backed injected beans still need classloader "
-                    + "ownership work before that shape is supported. Keep config-backed assertions on "
-                    + "the proven JVM run/package path for now, or run `zolt quarkus test-plan` to inspect "
-                    + "the current annotation-runner boundary."
+                    + "a SmallRye Config producer verifier mismatch. Zolt's supported direct "
+                    + "@QuarkusTest fixture keeps SmallRye Config provider types parent-first while leaving "
+                    + "the SmallRye CDI config producer runtime-owned; this failure means those ownership "
+                    + "hints regressed or the project is using an unproven Quarkus/SmallRye classloading "
+                    + "shape. Run `zolt quarkus test-plan` to inspect the current annotation-runner boundary."
                     + "\n"
                     + result.output().stripTrailing()
                     + "\n";

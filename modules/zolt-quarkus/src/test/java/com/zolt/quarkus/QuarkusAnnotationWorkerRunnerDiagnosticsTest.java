@@ -170,7 +170,8 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertEquals(1, result.exitCode());
         assertTrue(result.output().contains("reached config-backed injection"));
         assertTrue(result.output().contains("SmallRye Config producer verifier mismatch"));
-        assertTrue(result.output().contains("config-backed injected beans still need classloader ownership work"));
+        assertTrue(result.output().contains("SmallRye Config provider types parent-first"));
+        assertTrue(result.output().contains("SmallRye CDI config producer runtime-owned"));
         assertTrue(result.output().contains("ConfigProducer_ClientProxy.produceStringConfigProperty"));
     }
 }

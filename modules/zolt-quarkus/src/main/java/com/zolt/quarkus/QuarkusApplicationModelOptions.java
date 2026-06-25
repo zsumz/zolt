@@ -16,8 +16,6 @@ public record QuarkusApplicationModelOptions(
                     "microprofile-config-api",
                     Optional.empty(),
                     Optional.of("jar"));
-    private static final QuarkusArtifactKey SMALLRYE_CONFIG =
-            new QuarkusArtifactKey("io.smallrye.config", "smallrye-config", Optional.empty(), Optional.of("jar"));
     private static final QuarkusArtifactKey SMALLRYE_CONFIG_COMMON =
             new QuarkusArtifactKey("io.smallrye.config", "smallrye-config-common", Optional.empty(), Optional.of("jar"));
     private static final QuarkusArtifactKey SMALLRYE_CONFIG_CORE =
@@ -37,7 +35,6 @@ public record QuarkusApplicationModelOptions(
                     List.of(
                             QUARKUS_BUILDER,
                             MICROPROFILE_CONFIG_API,
-                            SMALLRYE_CONFIG,
                             SMALLRYE_CONFIG_COMMON,
                             SMALLRYE_CONFIG_CORE),
                     List.of(),
