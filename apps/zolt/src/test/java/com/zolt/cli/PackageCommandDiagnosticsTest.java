@@ -89,6 +89,27 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
     }
 
     @Test
+    void packageProgressColorsOnlyLeadFragmentsWhenForced() throws IOException {
+        Path projectDir = tempDir.resolve("color-progress-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+
+        CommandResult result = execute(
+                "--color=always",
+                "--progress=always",
+                "package",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("color-cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stderr().contains("\u001B[36mPackaging\u001B[0m project..."));
+        assertTrue(result.stderr().contains("\u001B[32mPackaged\u001B[0m " + projectDir.resolve("target/demo-0.1.0.jar")));
+        assertFalse(result.stderr().contains("\u001B[36mPackaging project..."));
+        assertFalse(result.stderr().contains("\u001B[32mPackaged " + projectDir.resolve("target/demo-0.1.0.jar")));
+    }
+
+    @Test
     void packageColorsOnlyHumanSummaryLeadFragmentsWhenForced() throws IOException {
         Path projectDir = tempDir.resolve("color-demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
