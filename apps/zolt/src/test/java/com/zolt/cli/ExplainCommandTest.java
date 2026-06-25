@@ -46,6 +46,7 @@ final class ExplainCommandTest {
         assertTrue(color.stdout().contains("Requested source: auto"));
         assertTrue(color.stdout().contains("Next: Track this work in followUps/-add-zolt-explain-command-scaffold.md "
                 + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md."));
+        assertFalse(color.stdout().contains("\u001B[36mzolt explain is not implemented yet."));
         assertFalse(color.stdout().contains("\u001B[36mNext"));
         assertEquals("", color.stderr());
         assertEquals(1, quiet.exitCode());

@@ -36,6 +36,7 @@ final class CliSurfaceTest {
         assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m update is not available yet."));
         assertTrue(color.stdout().contains("verified native archive"));
         assertTrue(color.stdout().contains("Next: Track this work in followUps/-design-zolt-update-command.md."));
+        assertFalse(color.stdout().contains("\u001B[36mzolt update is not available yet."));
         assertFalse(color.stdout().contains("\u001B[36mNext"));
         assertEquals("", color.stderr());
         assertEquals(1, quiet.exitCode());
