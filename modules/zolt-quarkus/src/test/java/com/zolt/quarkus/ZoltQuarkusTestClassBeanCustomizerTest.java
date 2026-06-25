@@ -73,6 +73,17 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
     }
 
     @Test
+    void setsAdditionalBeanBuilderDefaultScope() throws Exception {
+        FakeAdditionalBeanBuilder builder = new FakeAdditionalBeanBuilder();
+
+        QuarkusAdditionalBeanBuildItemBridge.setBuilderDefaultScope(
+                builder,
+                "jakarta.enterprise.context.Dependent");
+
+        assertTrue(builder.defaultScope.contains("jakarta.enterprise.context.Dependent"));
+    }
+
+    @Test
     void recordsContextClassLoaderVisibilityForSelectedClasses() {
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         try {
@@ -119,9 +130,15 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
 
     public static final class FakeAdditionalBeanBuilder {
         private boolean removable = true;
+        private String defaultScope = "";
 
         public FakeAdditionalBeanBuilder setUnremovable() {
             removable = false;
+            return this;
+        }
+
+        public FakeAdditionalBeanBuilder setDefaultScope(Object defaultScope) {
+            this.defaultScope = defaultScope.toString();
             return this;
         }
     }

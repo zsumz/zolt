@@ -24,6 +24,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             "io.quarkus.arc.deployment.AdditionalBeanBuildItem";
     private static final String APPLICATION_CLASS_PREDICATE_BUILD_ITEM =
             "io.quarkus.deployment.builditem.ApplicationClassPredicateBuildItem";
+    private static final String TEST_CLASS_DEFAULT_SCOPE =
+            "jakarta.enterprise.context.Dependent";
     private static final String DIAGNOSTIC_FILE_PROPERTY =
             "zolt.quarkus.test-class-bean-diagnostic-file";
 
@@ -269,7 +271,10 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             Method builderMethod = buildItemClass.getMethod("builder");
             Object builder = builderMethod.invoke(null);
             QuarkusAdditionalBeanBuildItemBridge.markBuilderUnremovable(builder);
-            writeDiagnostic("additionalBeanBuildItem.unremovable=true");
+            QuarkusAdditionalBeanBuildItemBridge.setBuilderDefaultScope(builder, TEST_CLASS_DEFAULT_SCOPE);
+            writeDiagnostic(
+                    "additionalBeanBuildItem.unremovable=true",
+                    "additionalBeanBuildItem.defaultScope=" + TEST_CLASS_DEFAULT_SCOPE);
             Method addBeanClass = builder.getClass().getMethod("addBeanClass", String.class);
             for (String testClass : testClasses) {
                 addBeanClass.invoke(builder, testClass);
