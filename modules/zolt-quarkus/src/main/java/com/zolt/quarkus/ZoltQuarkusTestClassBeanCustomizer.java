@@ -55,10 +55,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                                 "applicationClassPredicateStep.executed=true",
                                 "applicationClassPredicateStep.buildItemLoader="
                                         + classLoaderName(buildItemClass.getClassLoader()),
-                                "applicationClassPredicateStep.mainOutputDirectory="
-                                        + ZoltQuarkusApplicationClassPredicate.normalizedMainOutputDirectory()
-                                                .map(Path::toString)
-                                                .orElse("<none>"));
+                                "applicationClassPredicateStep.outputDirectories="
+                                        + joinedPaths(ZoltQuarkusApplicationClassPredicate.normalizedOutputDirectories()));
                         context.produce(applicationClassPredicateBuildItem(buildItemClass));
                     })
                     .produces(buildItemClass)
@@ -249,6 +247,12 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
 
     private static String joined(List<String> values) {
         return values.isEmpty() ? "<none>" : String.join(",", values);
+    }
+
+    private static String joinedPaths(List<Path> values) {
+        return values.isEmpty()
+                ? "<none>"
+                : values.stream().map(Path::toString).collect(java.util.stream.Collectors.joining(","));
     }
 
     private static BuildStepBuilder optionalConsumesTestProfile(BuildStepBuilder step) {

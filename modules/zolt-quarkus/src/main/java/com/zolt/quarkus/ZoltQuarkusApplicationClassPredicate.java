@@ -2,6 +2,7 @@ package com.zolt.quarkus;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 final class ZoltQuarkusApplicationClassPredicate {
@@ -12,21 +13,38 @@ final class ZoltQuarkusApplicationClassPredicate {
         if (className == null || className.isBlank()) {
             return false;
         }
-        Optional<Path> outputDirectory = normalizedMainOutputDirectory();
-        if (outputDirectory.isEmpty()) {
-            return false;
+        String classFilePath = className.replace('.', '/') + ".class";
+        for (Path outputDirectory : normalizedOutputDirectories()) {
+            Path classFile = outputDirectory.resolve(classFilePath).normalize();
+            if (classFile.startsWith(outputDirectory) && Files.isRegularFile(classFile)) {
+                return true;
+            }
         }
-        Path classFile = outputDirectory.get().resolve(className.replace('.', '/') + ".class").normalize();
-        return classFile.startsWith(outputDirectory.get()) && Files.isRegularFile(classFile);
+        return false;
     }
 
     static Optional<Path> normalizedMainOutputDirectory() {
-        String mainOutputDirectory = System.getProperty(
-                QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY,
+        return normalizedOutputDirectory(QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY);
+    }
+
+    static Optional<Path> normalizedTestOutputDirectory() {
+        return normalizedOutputDirectory(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY);
+    }
+
+    static List<Path> normalizedOutputDirectories() {
+        return java.util.stream.Stream.of(normalizedMainOutputDirectory(), normalizedTestOutputDirectory())
+                .flatMap(Optional::stream)
+                .distinct()
+                .toList();
+    }
+
+    private static Optional<Path> normalizedOutputDirectory(String property) {
+        String outputDirectory = System.getProperty(
+                property,
                 "");
-        if (mainOutputDirectory.isBlank()) {
+        if (outputDirectory.isBlank()) {
             return Optional.empty();
         }
-        return Optional.of(Path.of(mainOutputDirectory).toAbsolutePath().normalize());
+        return Optional.of(Path.of(outputDirectory).toAbsolutePath().normalize());
     }
 }

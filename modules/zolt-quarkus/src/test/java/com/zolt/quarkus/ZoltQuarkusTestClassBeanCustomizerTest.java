@@ -32,6 +32,25 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
     }
 
     @Test
+    void treatsCompiledTestOutputClassesAsApplicationClasses() throws Exception {
+        Path outputDirectory = tempDir.resolve("target/test-classes");
+        Path classFile = outputDirectory.resolve("com/example/HelloResourceQuarkusTest.class");
+        Files.createDirectories(classFile.getParent());
+        Files.write(classFile, new byte[] {0});
+        String previous = System.getProperty(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY);
+        try {
+            System.setProperty(
+                    QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY,
+                    outputDirectory.toString());
+
+            assertTrue(ZoltQuarkusApplicationClassPredicate.test("com.example.HelloResourceQuarkusTest"));
+            assertFalse(ZoltQuarkusApplicationClassPredicate.test("com.example.MissingResourceQuarkusTest"));
+        } finally {
+            restoreTestOutputDirectory(previous);
+        }
+    }
+
+    @Test
     void ignoresClassesWhenMainOutputDirectoryIsUnavailable() {
         String previous = System.getProperty(QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY);
         try {
@@ -49,5 +68,13 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
             return;
         }
         System.setProperty(QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY, previous);
+    }
+
+    private static void restoreTestOutputDirectory(String previous) {
+        if (previous == null) {
+            System.clearProperty(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY);
+            return;
+        }
+        System.setProperty(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY, previous);
     }
 }
