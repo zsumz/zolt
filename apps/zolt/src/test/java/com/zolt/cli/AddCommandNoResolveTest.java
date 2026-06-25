@@ -60,6 +60,8 @@ final class AddCommandNoResolveTest {
         assertEquals(0, color.exitCode());
         assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m dependency "
                 + "com.google.guava:guava:33.4.0-jre to [dependencies]"));
+        assertFalse(color.stdout().contains(
+                "\u001B[32mAdded dependency com.google.guava:guava:33.4.0-jre to [dependencies]\u001B[0m"));
         assertTrue(color.stdout().contains(
                 "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
         assertFalse(color.stdout().contains(

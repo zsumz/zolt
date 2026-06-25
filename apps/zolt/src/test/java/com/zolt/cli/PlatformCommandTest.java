@@ -100,6 +100,8 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
         assertEquals(0, color.exitCode());
         assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m platform "
                 + "com.example:enterprise-platform:2026.1.0 to [platforms]"));
+        assertFalse(color.stdout().contains(
+                "\u001B[32mAdded platform com.example:enterprise-platform:2026.1.0 to [platforms]\u001B[0m"));
         assertTrue(color.stdout().contains(
                 "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
         assertFalse(color.stdout().contains(
