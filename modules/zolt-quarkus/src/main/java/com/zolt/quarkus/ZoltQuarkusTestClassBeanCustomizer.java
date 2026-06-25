@@ -69,6 +69,8 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     testClassBeanBuildItemClass(builder);
             Optional<Class<? extends SimpleBuildItem>> combinedIndexBuildItem =
                     QuarkusCombinedIndexBuildItemClass.resolve(builder);
+            Optional<Class<? extends SimpleBuildItem>> applicationArchivesBuildItem =
+                    QuarkusApplicationArchivesBuildItemClass.resolve(builder);
             testClassBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder testClassBeanStep = builder.addBuildStep(context -> {
                         String activeProfile = activeProfile(context);
@@ -86,7 +88,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                             context.produce(testClassBeanBuildItem(buildItemClass, testClass));
                         }
                     });
-                optionalConsumesTestProfile(testClassBeanStep)
+                QuarkusOptionalBuildItemConsumes.optional(testClassBeanStep, TestProfileBuildItem.class)
                         .produces(buildItemClass)
                         .build();
             });
@@ -94,6 +96,9 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                 BuildStepBuilder additionalBeanStep = builder.addBuildStep(context -> {
                         String activeProfile = activeProfile(context);
                         SimpleBuildItem combinedIndex = combinedIndexBuildItem
+                                .map(context::consume)
+                                .orElse(null);
+                        SimpleBuildItem applicationArchives = applicationArchivesBuildItem
                                 .map(context::consume)
                                 .orElse(null);
                         writeDiagnostic(
@@ -111,10 +116,23 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                                                 activeProfile),
                                 "additionalBeanStep.combinedIndexSelectedClasses="
                                         + QuarkusSelectedTestIndexDiagnostic.formatCombinedIndex(combinedIndex, testClasses),
+                                "additionalBeanStep.applicationArchives="
+                                        + QuarkusApplicationArchivesDiagnostic.formatArchives(
+                                                applicationArchives,
+                                                QuarkusAdditionalApplicationArchiveBuildItemBridge.testOutputDirectory()
+                                                        .orElse(null)),
+                                "additionalBeanStep.applicationArchiveSelectedClasses="
+                                        + QuarkusApplicationArchivesDiagnostic.formatSelectedClassArchives(
+                                                applicationArchives,
+                                                testClasses),
                                 "additionalBeanStep.produced=" + joined(testClasses));
                         context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
                     });
-                optionalConsumesCombinedIndex(optionalConsumesTestProfile(additionalBeanStep), combinedIndexBuildItem)
+                QuarkusOptionalBuildItemConsumes.optional(
+                                QuarkusOptionalBuildItemConsumes.optional(
+                                        additionalBeanStep,
+                                        TestProfileBuildItem.class),
+                                List.of(combinedIndexBuildItem, applicationArchivesBuildItem))
                         .produces(buildItemClass)
                         .build();
             });
@@ -260,42 +278,6 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         return values.isEmpty()
                 ? "<none>"
                 : values.stream().map(Path::toString).collect(java.util.stream.Collectors.joining(","));
-    }
-
-    private static BuildStepBuilder optionalConsumesTestProfile(BuildStepBuilder step) {
-        return optionalConsumes(step, TestProfileBuildItem.class);
-    }
-
-    private static BuildStepBuilder optionalConsumesCombinedIndex(
-            BuildStepBuilder step,
-            Optional<Class<? extends SimpleBuildItem>> buildItemClass) {
-        buildItemClass.ifPresent(itemClass -> optionalConsumes(step, itemClass));
-        return step;
-    }
-
-    private static BuildStepBuilder optionalConsumes(
-            BuildStepBuilder step,
-            Class<? extends BuildItem> buildItemClass) {
-        try {
-            ClassLoader classLoader = step.getClass().getClassLoader();
-            Class<?> consumeFlagClass = Class.forName("io.quarkus.builder.ConsumeFlag", false, classLoader);
-            Class<?> consumeFlagsClass = Class.forName("io.quarkus.builder.ConsumeFlags", false, classLoader);
-            Object optional = enumValue(consumeFlagClass, "OPTIONAL");
-            Object consumeFlags = consumeFlagsClass.getMethod("of", consumeFlagClass).invoke(null, optional);
-            step.getClass()
-                    .getMethod("consumes", Class.class, consumeFlagsClass)
-                    .invoke(step, buildItemClass, consumeFlags);
-        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
-            writeDiagnostic(
-                    buildItemClass.getSimpleName() + ".optionalConsume=false",
-                    buildItemClass.getSimpleName() + ".optionalConsumeReason=" + exception.getClass().getSimpleName());
-        }
-        return step;
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static Object enumValue(Class<?> enumClass, String value) {
-        return Enum.valueOf((Class<? extends Enum>) enumClass.asSubclass(Enum.class), value);
     }
 
     private static String activeProfile(io.quarkus.builder.BuildContext context) {
