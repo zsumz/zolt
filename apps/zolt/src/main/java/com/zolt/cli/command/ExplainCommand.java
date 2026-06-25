@@ -197,7 +197,7 @@ public final class ExplainCommand implements Callable<Integer> {
         output.blankLine();
         output.context("Requested source", detectedSource.name().toLowerCase());
         output.context("Project root", root.toString());
-        output.line("Track this work in followUps/-add-zolt-explain-command-scaffold.md "
+        output.next("Track this work in followUps/-add-zolt-explain-command-scaffold.md "
                 + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md.");
         return 1;
     }

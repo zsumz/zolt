@@ -26,7 +26,8 @@ final class ExplainCommandTest {
         assertTrue(result.stdout().contains("This command will not execute Maven or Gradle"));
         assertTrue(result.stdout().contains("Requested source: auto"));
         assertTrue(result.stdout().contains("Project root: " + tempDir.toAbsolutePath().normalize()));
-        assertTrue(result.stdout().contains("followUps/-add-zolt-explain-command-scaffold.md"));
+        assertTrue(result.stdout().contains("Next: Track this work in followUps/-add-zolt-explain-command-scaffold.md "
+                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md."));
         assertEquals("", result.stderr());
     }
 
@@ -43,6 +44,9 @@ final class ExplainCommandTest {
         assertEquals(1, color.exitCode());
         assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m explain is not implemented yet."));
         assertTrue(color.stdout().contains("Requested source: auto"));
+        assertTrue(color.stdout().contains("Next: Track this work in followUps/-add-zolt-explain-command-scaffold.md "
+                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md."));
+        assertFalse(color.stdout().contains("\u001B[36mNext"));
         assertEquals("", color.stderr());
         assertEquals(1, quiet.exitCode());
         assertEquals("", quiet.stdout());
