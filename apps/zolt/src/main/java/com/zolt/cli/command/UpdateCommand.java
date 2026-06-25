@@ -17,7 +17,7 @@ public final class UpdateCommand implements Callable<Integer> {
         output.work("zolt update is not available yet.");
         output.line("Future behavior: check the release channel, download a verified native archive, "
                 + "replace the current zolt executable atomically, and keep a rollback copy.");
-        output.line("Track this work in followUps/-design-zolt-update-command.md.");
+        output.next("Track this work in followUps/-design-zolt-update-command.md.");
         return 1;
     }
 }
