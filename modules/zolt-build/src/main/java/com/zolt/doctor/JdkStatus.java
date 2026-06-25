@@ -25,11 +25,23 @@ public record JdkStatus(
     }
 
     public boolean versionMatches() {
+        return versionSatisfies();
+    }
+
+    public boolean versionSatisfies() {
+        if (version.isEmpty()) {
+            return false;
+        }
+        Optional<Integer> detected = javaFeatureVersion(version.orElseThrow());
+        Optional<Integer> required = javaFeatureVersion(requiredVersion);
+        if (detected.isPresent() && required.isPresent()) {
+            return detected.orElseThrow() >= required.orElseThrow();
+        }
         return version.map(value -> value.equals(requiredVersion)).orElse(false);
     }
 
     public boolean ok() {
-        return complete() && versionMatches();
+        return complete() && versionSatisfies();
     }
 
     public List<String> problems() {
@@ -46,15 +58,27 @@ public record JdkStatus(
         if (complete() && version.isEmpty()) {
             problems.add("Could not determine Java version. Check that `java -version` runs successfully.");
         }
-        if (version.isPresent() && !versionMatches()) {
+        if (version.isPresent() && !versionSatisfies()) {
             problems.add("Java version mismatch. zolt.toml requires "
                     + requiredVersion
-                    + " but detected "
+                    + " or newer but detected "
                     + version.orElseThrow()
                     + ". Install Java "
                     + requiredVersion
-                    + " or update [project].java.");
+                    + " or newer, set JAVA_HOME to a suitable JDK, or update [project].java. "
+                    + "Use [compiler].release for older bytecode targets.");
         }
         return List.copyOf(problems);
+    }
+
+    private static Optional<Integer> javaFeatureVersion(String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Integer.parseInt(value));
+        } catch (NumberFormatException exception) {
+            return Optional.empty();
+        }
     }
 }

@@ -97,7 +97,24 @@ final class JdkDetectorTest {
 
         assertFalse(status.ok());
         assertTrue(status.problems().contains(
-                "Java version mismatch. zolt.toml requires 21 but detected 17. Install Java 21 or update [project].java."));
+                "Java version mismatch. zolt.toml requires 21 or newer but detected 17. Install Java 21 or newer, set JAVA_HOME to a suitable JDK, or update [project].java. Use [compiler].release for older bytecode targets."));
+    }
+
+    @Test
+    void newerJdkSatisfiesOlderProjectJavaBaseline() throws IOException {
+        Path javaHome = tempDir.resolve("jdk");
+        tool(javaHome, "java");
+        tool(javaHome, "javac");
+        tool(javaHome, "jar");
+        JdkDetector detector = detector(
+                Map.of("JAVA_HOME", javaHome.toString()),
+                java -> Optional.of("openjdk version \"21.0.2\""));
+
+        JdkStatus status = detector.detect("8");
+
+        assertTrue(status.ok());
+        assertTrue(status.versionSatisfies());
+        assertTrue(status.problems().isEmpty());
     }
 
     @Test
@@ -118,7 +135,7 @@ final class JdkDetectorTest {
         JdkStatus second = detector.detect("17");
 
         assertTrue(first.ok());
-        assertFalse(second.ok());
+        assertTrue(second.ok());
         assertEquals(1, versionReads[0]);
         assertEquals("21", second.version().orElseThrow());
     }
