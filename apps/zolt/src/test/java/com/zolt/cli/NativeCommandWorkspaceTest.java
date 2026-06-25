@@ -45,6 +45,10 @@ final class NativeCommandWorkspaceTest {
         assertTrue(result.stdout().contains("\u001B[32mBuilt\u001B[0m native binary at "
                 + workspaceDir.resolve("apps/api/target/native/api")
                 + " in apps/api"));
+        assertTrue(result.stdout().contains("\u001B[32mPreserved\u001B[0m Native Image log at "
+                + workspaceDir.resolve("apps/api/target/native/native-image.log")
+                + " in apps/api"));
+        assertFalse(result.stdout().contains("\u001B[32mPreserved Native Image log at "));
         assertTrue(result.stdout().contains("\u001B[32mBuilt\u001B[0m native binaries for 1 workspace members"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());

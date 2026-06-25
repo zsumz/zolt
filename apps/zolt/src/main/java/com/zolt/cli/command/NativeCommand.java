@@ -108,7 +108,7 @@ public final class NativeCommand implements Runnable {
                             + member.result().nativeImageResult().outputBinary()
                             + " in "
                             + member.member());
-                    output.detail("Native Image log written to "
+                    output.detail("Preserved Native Image log at "
                             + member.result().nativeImageResult().logFile()
                             + " in "
                             + member.member());
@@ -132,7 +132,7 @@ public final class NativeCommand implements Runnable {
             }
             output.success("Built native binary at "
                     + result.nativeImageResult().outputBinary());
-            output.detail("Native Image log written to "
+            output.detail("Preserved Native Image log at "
                     + result.nativeImageResult().logFile());
             printSpringBootAotEvidence(result, "");
             progress.result("Built native binary at " + result.nativeImageResult().outputBinary());

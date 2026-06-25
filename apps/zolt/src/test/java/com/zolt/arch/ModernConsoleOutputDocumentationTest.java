@@ -34,6 +34,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Quality checks benefit from a compact status table"));
         assertTrue(design.contains("Use short blocks for failures"));
         assertTrue(design.contains("Unpacked archive to target/release-verify"));
+        assertTrue(design.contains("Preserved Native Image log at target/native/native-image.log"));
         assertTrue(design.contains("Implemented foundation:"));
         assertTrue(design.contains("Cargo-style help guardrails."));
         assertTrue(design.contains("A command-tree inventory keeps every registered command path assigned"));
