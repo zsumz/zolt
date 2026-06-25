@@ -125,6 +125,7 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
                 """);
 
         CommandResult result = execute(
+                "--color=always",
                 "platform",
                 "add",
                 "--cwd", projectDir.toString(),
@@ -135,8 +136,13 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "Added platform com.example:enterprise-platform with versionRef `enterprise` = 2026.1.0 to [platforms]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
+                "\u001B[32mAdded\u001B[0m platform com.example:enterprise-platform with versionRef `enterprise` = 2026.1.0 to [platforms]"));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mAdded platform com.example:enterprise-platform with versionRef `enterprise` = 2026.1.0 to [platforms]\u001B[0m"));
+        assertTrue(result.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(config.contains("[versions]\n\"enterprise\" = \"2026.1.0\""));
         assertTrue(config.contains("\"com.example:enterprise-platform\" = { versionRef = \"enterprise\" }"));

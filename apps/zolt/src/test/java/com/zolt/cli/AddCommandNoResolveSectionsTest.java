@@ -42,6 +42,7 @@ final class AddCommandNoResolveSectionsTest {
                 """);
 
         CommandResult result = execute(
+                "--color=always",
                 "add",
                 "--cwd", projectDir.toString(),
                 "--no-resolve",
@@ -50,8 +51,13 @@ final class AddCommandNoResolveSectionsTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "Updated dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
+                "\u001B[32mUpdated\u001B[0m dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]"));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mUpdated dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]\u001B[0m"));
+        assertTrue(result.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(config.contains("[api.dependencies]\n\"com.example:contract\" = \"2.0.0\""));
         assertFalse(config.contains("[dependencies]\n\"com.example:contract\" = \"1.0.0\""));

@@ -38,6 +38,7 @@ final class AddCommandNoResolveVersionRefTest {
                 """);
 
         CommandResult result = execute(
+                "--color=always",
                 "add",
                 "--cwd", projectDir.toString(),
                 "--no-resolve",
@@ -47,8 +48,13 @@ final class AddCommandNoResolveVersionRefTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "Added dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
+                "\u001B[32mAdded\u001B[0m dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]"));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mAdded dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]\u001B[0m"));
+        assertTrue(result.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(config.contains("[versions]\n\"guava\" = \"33.4.8-jre\""));
         assertTrue(config.contains("\"com.google.guava:guava\" = { versionRef = \"guava\" }"));

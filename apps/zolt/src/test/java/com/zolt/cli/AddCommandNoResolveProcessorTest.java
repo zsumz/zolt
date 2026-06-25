@@ -23,6 +23,7 @@ final class AddCommandNoResolveProcessorTest {
         writeProjectConfig(projectDir);
 
         CommandResult result = execute(
+                "--color=always",
                 "add",
                 "--cwd", projectDir.toString(),
                 "--no-resolve",
@@ -31,8 +32,13 @@ final class AddCommandNoResolveProcessorTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "Added dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
-        assertTrue(result.stdout().contains("Skipped resolve"));
+                "\u001B[32mAdded\u001B[0m dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mAdded dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]\u001B[0m"));
+        assertTrue(result.stdout().contains(
+                "\u001B[32mSkipped\u001B[0m resolve; run zolt resolve to refresh zolt.lock."));
+        assertFalse(result.stdout().contains(
+                "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertTrue(config.contains("[annotationProcessors]"));
         assertTrue(config.contains("\"org.mapstruct:mapstruct-processor\" = \"1.6.3\""));
