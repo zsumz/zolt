@@ -59,6 +59,7 @@ final class DoctorCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Self-hosting status: \u001B[32mok\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mSelf-hosting\u001B[0m status"));
         assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m main class - project main is com.example.Main"));
         assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m JUnit Platform Console"));
         assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m native no-fallback"));
