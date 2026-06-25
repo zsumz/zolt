@@ -49,6 +49,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             if (testClasses.isEmpty()) {
                 return;
             }
+            QuarkusAdditionalApplicationArchiveBuildItemBridge.addTestOutputArchive(builder);
             Optional<Class<? extends BuildItem>> applicationClassPredicateBuildItem =
                     applicationClassPredicateBuildItemClass(builder);
             applicationClassPredicateBuildItem.ifPresent(buildItemClass -> builder.addBuildStep(context -> {

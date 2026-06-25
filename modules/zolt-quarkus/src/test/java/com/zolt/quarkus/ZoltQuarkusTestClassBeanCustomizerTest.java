@@ -87,6 +87,36 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
         }
     }
 
+    @Test
+    void readsExistingTestOutputDirectoryForApplicationArchiveHandoff() throws Exception {
+        Path outputDirectory = tempDir.resolve("target/test-classes");
+        Files.createDirectories(outputDirectory);
+        String previous = System.getProperty(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY);
+        try {
+            System.setProperty(
+                    QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY,
+                    outputDirectory.toString());
+
+            assertTrue(QuarkusAdditionalApplicationArchiveBuildItemBridge.testOutputDirectory().isPresent());
+        } finally {
+            restoreTestOutputDirectory(previous);
+        }
+    }
+
+    @Test
+    void ignoresMissingTestOutputDirectoryForApplicationArchiveHandoff() {
+        String previous = System.getProperty(QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY);
+        try {
+            System.setProperty(
+                    QuarkusAnnotationProgrammaticRunner.TEST_OUTPUT_DIRECTORY_PROPERTY,
+                    tempDir.resolve("missing-test-classes").toString());
+
+            assertTrue(QuarkusAdditionalApplicationArchiveBuildItemBridge.testOutputDirectory().isEmpty());
+        } finally {
+            restoreTestOutputDirectory(previous);
+        }
+    }
+
     public static final class FakeAdditionalBeanBuilder {
         private boolean removable = true;
 
