@@ -141,6 +141,8 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertTrue(result.output().contains("contextLoaderSelectedClasses"));
         assertTrue(result.output().contains("applicationArchives"));
         assertTrue(result.output().contains("applicationArchiveSelectedClasses"));
+        assertTrue(result.output().contains("testClassBeanItems"));
+        assertTrue(result.output().contains("zoltAdditionalBeanItems"));
         assertTrue(result.output().contains("Arc bean-registration handoff"));
         assertTrue(result.output().contains("@TestProfile"));
         assertTrue(result.output().contains("Profile test activated"));

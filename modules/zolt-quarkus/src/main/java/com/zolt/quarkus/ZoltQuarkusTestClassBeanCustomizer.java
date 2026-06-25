@@ -101,6 +101,10 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                         SimpleBuildItem applicationArchives = applicationArchivesBuildItem
                                 .map(context::consume)
                                 .orElse(null);
+                        List<?> testClassBeanItems = QuarkusArcBeanInputDiagnostic.consumeMulti(
+                                context,
+                                testClassBeanBuildItem.orElseThrow());
+                        BuildItem zoltAdditionalBeanItem = additionalBeanBuildItem(buildItemClass, testClasses);
                         writeDiagnostic(
                                 "additionalBeanStep.executed=true",
                                 "additionalBeanStep.additionalBeanBuildItemLoader="
@@ -125,9 +129,18 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                                         + QuarkusApplicationArchivesDiagnostic.formatSelectedClassArchives(
                                                 applicationArchives,
                                                 testClasses),
+                                "additionalBeanStep.testClassBeanItems="
+                                        + QuarkusArcBeanInputDiagnostic.formatTestClassBeanItems(
+                                                testClassBeanItems,
+                                                testClasses),
+                                "additionalBeanStep.zoltAdditionalBeanItems="
+                                        + QuarkusArcBeanInputDiagnostic.formatAdditionalBeanItems(
+                                                List.of(zoltAdditionalBeanItem),
+                                                testClasses),
                                 "additionalBeanStep.produced=" + joined(testClasses));
-                        context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
+                        context.produce(zoltAdditionalBeanItem);
                     });
+                additionalBeanStep.consumes(testClassBeanBuildItem.orElseThrow());
                 QuarkusOptionalBuildItemConsumes.optional(
                                 QuarkusOptionalBuildItemConsumes.optional(
                                         additionalBeanStep,
