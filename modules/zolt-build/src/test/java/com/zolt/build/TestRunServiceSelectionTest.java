@@ -256,6 +256,31 @@ final class TestRunServiceSelectionTest {
     }
 
     @Test
+    void shardSelectionSanitizesSuiteNameInEvidencePaths() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/AlphaTest.java", "package com.example; public final class AlphaTest {}\n");
+        source(projectDir, "src/test/java/com/example/BetaTest.java", "package com.example; public final class BetaTest {}\n");
+        TestRunService service = service((command, outputConsumer) -> new JavaRunner.ProcessResult(0, "Tests successful\n"));
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                configWithSuite("fast suite!", new TestSuiteSettings(List.of("*Test"), List.of(), List.of(), List.of())),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
+                List.of(),
+                "fast suite!",
+                new TestShardSpec(1, 2));
+
+        assertEquals(
+                Optional.of(projectDir.resolve("target/test-reports/shards/fast_suite_/shard-1-of-2").toAbsolutePath().normalize()),
+                result.reportsDirectory());
+        assertTrue(Files.exists(projectDir.resolve("target/test-shards/fast_suite_/shard-1-of-2.json")));
+    }
+
+    @Test
     void emptyShardWritesManifestAndFailsBeforeLaunchingRunner() throws IOException {
         writeConsoleLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");

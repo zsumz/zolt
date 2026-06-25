@@ -171,6 +171,32 @@ final class CoverageServiceTest {
     }
 
     @Test
+    void shardCoverageSanitizesSuiteNameInOutputPaths() throws IOException {
+        writeCoverageLockfile();
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, "Tests passed\n"),
+                reportCommands);
+
+        CoverageResult result = service.runCoverage(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                CoverageReportSettings.defaults(),
+                List.of(),
+                "fast suite!",
+                new TestShardSpec(2, 4));
+
+        Path shardRoot = projectDir.resolve("target/coverage/shards/fast_suite_/shard-2-of-4").toAbsolutePath().normalize();
+        assertEquals(shardRoot.resolve("jacoco.exec"), result.execFile());
+        assertEquals(Optional.of(shardRoot.resolve("jacoco.xml")), result.xmlReport());
+        assertEquals(Optional.of(shardRoot.resolve("html")), result.htmlDirectory());
+        assertEquals(shardRoot.resolve("jacoco.xml").toString(), argumentAfter(reportCommands.getFirst(), "--xml"));
+    }
+
+    @Test
     void omittedCoverageSettingsDefaultUnderBuildOutputRoot() throws IOException {
         writeCoverageLockfile();
         List<TestReportSettings> testReportSettings = new ArrayList<>();

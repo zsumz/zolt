@@ -278,7 +278,7 @@ final class ExecutionEvidenceQualityCheck {
             Path outputRoot) throws java.io.IOException {
         List<QualityCheckResult> failures = new ArrayList<>();
         for (ShardEvidenceManifest manifest : nonEmpty(shardManifests(root, outputRoot))) {
-            Path expectedDir = reportsDir.resolve("shards").resolve(manifest.suite()).resolve(manifest.shardSegment());
+            Path expectedDir = reportsDir.resolve("shards").resolve(manifest.suiteSegment()).resolve(manifest.shardSegment());
             if (!Files.isDirectory(expectedDir) || countJUnitXmlReports(root, expectedDir) == 0) {
                 failures.add(QualityCheckResult.failed(
                         EXECUTION_CONTEXT,
@@ -328,7 +328,7 @@ final class ExecutionEvidenceQualityCheck {
             List<String> workerIds) throws java.io.IOException {
         List<QualityCheckResult> failures = new ArrayList<>();
         for (ShardEvidenceManifest manifest : nonEmpty(shardManifests)) {
-            Path expectedDir = coverageDir.resolve("shards").resolve(manifest.suite()).resolve(manifest.shardSegment());
+            Path expectedDir = coverageDir.resolve("shards").resolve(manifest.suiteSegment()).resolve(manifest.shardSegment());
             Path execFile = expectedDir.resolve("jacoco.exec");
             if (!ProjectPaths.isRegularFileInsideProject(root, "--coverage-dir", execFile)) {
                 failures.add(QualityCheckResult.failed(
@@ -394,7 +394,7 @@ final class ExecutionEvidenceQualityCheck {
         if (relative.getNameCount() != 2) {
             return Optional.empty();
         }
-        String suite = relative.getName(0).toString();
+        String suiteSegment = relative.getName(0).toString();
         String fileName = relative.getName(1).toString();
         if (!fileName.startsWith("shard-") || !fileName.endsWith(".json")) {
             return Optional.empty();
@@ -406,7 +406,8 @@ final class ExecutionEvidenceQualityCheck {
         }
         String json = Files.readString(manifestPath);
         return Optional.of(new ShardEvidenceManifest(
-                suite,
+                stringField(json, "suite").orElse(suiteSegment),
+                suiteSegment,
                 shardSegment,
                 numbers.orElseThrow().index(),
                 numbers.orElseThrow().total(),
@@ -465,7 +466,7 @@ final class ExecutionEvidenceQualityCheck {
         return "Run `zolt test"
                 + workspace
                 + " --suite "
-                + manifest.suite()
+                + shellArgument(manifest.suiteName())
                 + " --shard "
                 + manifest.index()
                 + "/"
@@ -485,7 +486,7 @@ final class ExecutionEvidenceQualityCheck {
         return "Run `zolt coverage"
                 + workspace
                 + " --suite "
-                + manifest.suite()
+                + shellArgument(manifest.suiteName())
                 + " --shard "
                 + manifest.index()
                 + "/"
@@ -498,9 +499,56 @@ final class ExecutionEvidenceQualityCheck {
     private record CoverageReportCounts(long xmlReports, long htmlReports) {
     }
 
-    private record ShardEvidenceManifest(String suite, String shardSegment, int index, int total, boolean empty) {
+    private static Optional<String> stringField(String json, String name) {
+        int fieldIndex = json.indexOf("\"" + name + "\"");
+        if (fieldIndex < 0) {
+            return Optional.empty();
+        }
+        int colon = json.indexOf(':', fieldIndex);
+        int valueStart = json.indexOf('"', colon + 1);
+        if (colon < 0 || valueStart < 0) {
+            return Optional.empty();
+        }
+        StringBuilder value = new StringBuilder();
+        boolean escaped = false;
+        for (int index = valueStart + 1; index < json.length(); index++) {
+            char character = json.charAt(index);
+            if (escaped) {
+                switch (character) {
+                    case 'n' -> value.append('\n');
+                    case 'r' -> value.append('\r');
+                    case 't' -> value.append('\t');
+                    default -> value.append(character);
+                }
+                escaped = false;
+            } else if (character == '\\') {
+                escaped = true;
+            } else if (character == '"') {
+                return Optional.of(value.toString());
+            } else {
+                value.append(character);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String shellArgument(String value) {
+        if (value != null && value.matches("[A-Za-z0-9._-]+")) {
+            return value;
+        }
+        String text = value == null ? "" : value;
+        return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    private record ShardEvidenceManifest(
+            String suiteName,
+            String suiteSegment,
+            String shardSegment,
+            int index,
+            int total,
+            boolean empty) {
         String displayName() {
-            return suite + "/" + shardSegment;
+            return suiteName + "/" + shardSegment;
         }
     }
 

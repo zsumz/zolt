@@ -83,11 +83,11 @@ final class CheckExecutionContextEvidenceCommandTest {
         Path projectDir = tempDir.resolve("check-context-ci-missing-shard-reports");
         Path reportsDir = projectDir.resolve("target/test-reports");
         Files.createDirectories(reportsDir);
-        Files.createDirectories(projectDir.resolve("target/test-shards/fast"));
+        Files.createDirectories(projectDir.resolve("target/test-shards/fast_suite_"));
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("check-context-ci-missing-shard-reports"));
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         Files.writeString(reportsDir.resolve("TEST-other.xml"), "<testsuite tests=\"1\" failures=\"0\"/>\n");
-        Files.writeString(projectDir.resolve("target/test-shards/fast/shard-1-of-2.json"), shardManifest("fast", 1, 2, false));
+        Files.writeString(projectDir.resolve("target/test-shards/fast_suite_/shard-1-of-2.json"), shardManifest("fast suite!", 1, 2, false));
 
         CommandResult result = execute(
                 "check",
@@ -97,8 +97,8 @@ final class CheckExecutionContextEvidenceCommandTest {
                 "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("error execution-context target/test-reports/shards/fast/shard-1-of-2 CI context expected JUnit XML reports for shard `fast/shard-1-of-2`, but none were found."));
-        assertTrue(result.stdout().contains("next: Run `zolt test --suite fast --shard 1/2 --reports-dir target/test-reports`"));
+        assertTrue(result.stdout().contains("error execution-context target/test-reports/shards/fast_suite_/shard-1-of-2 CI context expected JUnit XML reports for shard `fast suite!/shard-1-of-2`, but none were found."));
+        assertTrue(result.stdout().contains("next: Run `zolt test --suite \"fast suite!\" --shard 1/2 --reports-dir target/test-reports`"));
         assertEquals("", result.stderr());
     }
 

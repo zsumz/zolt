@@ -55,6 +55,16 @@ final class TestShardPlannerTest {
     }
 
     @Test
+    void sanitizesSuiteNameInManifestPath() {
+        TestSuitePlan suite = suitePlan("fast suite!", entry("com.example.AaaTest"));
+        TestShardPlan shard = new TestShardPlanner().plan(projectDir, config(), suite, new TestShardSpec(1, 2));
+
+        assertEquals(
+                "target/test-shards/fast_suite_/shard-1-of-2.json",
+                shard.projectRelativeManifestPath(projectDir).toString());
+    }
+
+    @Test
     void writesDeterministicManifest() throws IOException {
         TestSuitePlan suite = suitePlan(entry("com.example.AaaTest"), entry("com.example.BbbTest"));
         TestShardPlan shard = new TestShardPlanner().plan(projectDir, config(), suite, new TestShardSpec(1, 2));
@@ -76,8 +86,12 @@ final class TestShardPlannerTest {
     }
 
     private static TestSuitePlan suitePlan(TestInventoryEntry... entries) {
+        return suitePlan("fast", entries);
+    }
+
+    private static TestSuitePlan suitePlan(String suiteName, TestInventoryEntry... entries) {
         return new TestSuitePlan(
-                "fast",
+                suiteName,
                 true,
                 Path.of("target/test-classes"),
                 List.of(entries),

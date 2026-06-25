@@ -3,6 +3,7 @@ package com.zolt.build;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.test.TestShardSpec;
+import com.zolt.test.TestSuitePathSegments;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -63,19 +64,21 @@ public record CoverageReportSettings(
         if (shard == null) {
             return this;
         }
+        String suiteSegment = TestSuitePathSegments.suiteSegment(suiteName);
+        String shardSegment = TestSuitePathSegments.shardSegment(shard);
         Path shardRoot = execFile.getParent() == null
-                ? Path.of("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard))
-                : execFile.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard));
+                ? Path.of("shards").resolve(suiteSegment).resolve(shardSegment)
+                : execFile.getParent().resolve("shards").resolve(suiteSegment).resolve(shardSegment);
         return new CoverageReportSettings(
                 xml,
                 html,
                 shardRoot.resolve(execFile.getFileName()),
                 xmlReport.getParent() == null
                         ? shardRoot.resolve(xmlReport.getFileName())
-                        : xmlReport.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard)).resolve(xmlReport.getFileName()),
+                        : xmlReport.getParent().resolve("shards").resolve(suiteSegment).resolve(shardSegment).resolve(xmlReport.getFileName()),
                 htmlDirectory.getParent() == null
                         ? shardRoot.resolve(htmlDirectory.getFileName())
-                        : htmlDirectory.getParent().resolve("shards").resolve(suiteSegment(suiteName)).resolve(shardSegment(shard)).resolve(htmlDirectory.getFileName()),
+                        : htmlDirectory.getParent().resolve("shards").resolve(suiteSegment).resolve(shardSegment).resolve(htmlDirectory.getFileName()),
                 testReports);
     }
 
@@ -108,11 +111,4 @@ public record CoverageReportSettings(
         }
     }
 
-    private static String suiteSegment(String suiteName) {
-        return suiteName == null || suiteName.isBlank() ? "all" : suiteName;
-    }
-
-    private static String shardSegment(TestShardSpec shard) {
-        return "shard-" + shard.index() + "-of-" + shard.total();
-    }
 }

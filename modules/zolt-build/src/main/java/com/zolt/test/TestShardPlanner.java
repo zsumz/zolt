@@ -33,27 +33,8 @@ public final class TestShardPlanner {
             TestShardSpec shard) {
         return projectDirectory.resolve(config.build().outputRoot())
                 .resolve("test-shards")
-                .resolve(safeSegment(suiteName))
+                .resolve(TestSuitePathSegments.suiteSegment(suiteName))
                 .resolve("shard-" + shard.index() + "-of-" + shard.total() + ".json");
-    }
-
-    private static String safeSegment(String value) {
-        String text = value == null || value.isBlank() ? "all" : value;
-        StringBuilder safe = new StringBuilder();
-        for (int index = 0; index < text.length(); index++) {
-            char character = text.charAt(index);
-            if ((character >= 'a' && character <= 'z')
-                    || (character >= 'A' && character <= 'Z')
-                    || (character >= '0' && character <= '9')
-                    || character == '.'
-                    || character == '_'
-                    || character == '-') {
-                safe.append(character);
-            } else {
-                safe.append('_');
-            }
-        }
-        return safe.toString();
     }
 
     private static String fingerprint(List<TestInventoryEntry> entries) {
