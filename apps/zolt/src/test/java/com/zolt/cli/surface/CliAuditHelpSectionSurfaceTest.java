@@ -45,7 +45,7 @@ final class CliAuditHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt plan\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--native-image\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--target\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
@@ -85,7 +85,7 @@ final class CliAuditHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt policy\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
@@ -126,7 +126,7 @@ final class CliAuditHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt explain\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--blockers\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--scorecard\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--source\u001B[0m"));

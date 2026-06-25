@@ -41,7 +41,10 @@ final class CliUsageConfiguration {
                 help -> styles.get().helpHeading("Usage") + ": ");
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_SYNOPSIS,
-                help -> HelpSynopsisHighlighter.highlight(help.synopsis(USAGE_HEADING_WIDTH), styles.get())
+                help -> HelpSynopsisHighlighter.highlight(
+                                HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(
+                                        help.synopsis(USAGE_HEADING_WIDTH)),
+                                styles.get())
                         + System.lineSeparator());
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_DESCRIPTION,

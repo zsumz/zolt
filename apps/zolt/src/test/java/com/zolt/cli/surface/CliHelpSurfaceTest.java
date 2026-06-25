@@ -9,7 +9,6 @@ import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_CYAN_ZOLT_COMMAND
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
-import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_COLOR_METAVAR;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_COMMAND_ARGUMENT;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.HELP_COMMAND_HINT;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.PLAIN_GREEN_OPTION;
@@ -78,7 +77,7 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains(BOLD_CYAN_ZOLT_COMMAND));
         assertTrue(result.stdout().contains(CYAN_COMMAND_ARGUMENT));
         assertTrue(result.stdout().contains(BOLD_CYAN_COLOR_OPTION));
-        assertTrue(result.stdout().contains(CYAN_COLOR_METAVAR));
+        assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m \u001B[36m<colorMode>]\u001B[0m"));
         assertTrue(result.stdout().contains(BOLD_COMMANDS_HEADING));
         assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
         assertTrue(result.stdout().contains("    " + BOLD_CYAN_INIT_COMMAND

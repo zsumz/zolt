@@ -41,7 +41,7 @@ final class CliOperationalHelpSectionSurfaceTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt clean\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
         assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
@@ -81,9 +81,9 @@ final class CliOperationalHelpSectionSurfaceTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt native-smoke\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--binary\u001B[0m\u001B[36m=<binary>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m=<directory>\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--work-dir\u001B[0m\u001B[36m=<workDirectory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--binary\u001B[0m\u001B[36m <binary>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--work-dir\u001B[0m\u001B[36m <workDirectory>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
         assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));

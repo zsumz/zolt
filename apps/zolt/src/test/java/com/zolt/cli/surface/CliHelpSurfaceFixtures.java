@@ -19,7 +19,6 @@ final class CliHelpSurfaceFixtures {
     static final String BOLD_CYAN_COLOR_OPTION = "\u001B[1;36m--color";
     static final String BOLD_CYAN_HELP_OPTION = "\u001B[1;36m--help\u001B[0m";
     static final String CYAN_COMMAND_ARGUMENT = "\u001B[36m[COMMAND]\u001B[0m";
-    static final String CYAN_COLOR_METAVAR = "\u001B[36m=<colorMode>\u001B[0m";
     static final String HELP_COMMAND_HINT = "\u001B[1;36mzolt help\u001B[0m\u001B[36m <command>\u001B[0m";
     static final String BOLD_CYAN_INIT_COMMAND = "\u001B[1;36minit\u001B[0m";
     static final String BOLD_CYAN_SET_COMMAND = "\u001B[1;36mset\u001B[0m";

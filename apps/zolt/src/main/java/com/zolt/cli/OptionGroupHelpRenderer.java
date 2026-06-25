@@ -154,7 +154,9 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
         Help.ColorScheme colorScheme = new Help.ColorScheme.Builder(Ansi.OFF).build();
         Help.Layout layout = help.createDefaultLayout(options, positionals, colorScheme);
         String optionList = help.optionListExcludingGroups(options, layout, null, help.parameterLabelRenderer());
-        return HelpOptionHighlighter.highlight(optionList, styles.get());
+        return HelpOptionHighlighter.highlight(
+                HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(optionList),
+                styles.get());
     }
 
     private record OptionGroup(String heading, List<String> optionNames) {
