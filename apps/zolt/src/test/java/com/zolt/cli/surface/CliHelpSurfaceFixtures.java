@@ -24,6 +24,8 @@ final class CliHelpSurfaceFixtures {
     static final String BOLD_CYAN_SET_COMMAND = "\u001B[1;36mset\u001B[0m";
     static final String WARNING_COLOR = "\u001B[33m";
     static final String PLAIN_GREEN_OPTION = "\u001B[32m--";
+    static final String HELP_COMMAND_FOOTER =
+            "See 'zolt help <command>' for more information on a specific command.";
 
     private CliHelpSurfaceFixtures() {
     }

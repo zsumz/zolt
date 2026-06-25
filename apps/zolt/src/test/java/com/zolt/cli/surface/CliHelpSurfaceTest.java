@@ -10,6 +10,7 @@ import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_COMMANDS_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.BOLD_USAGE_HEADING;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.CYAN_COMMAND_ARGUMENT;
+import static com.zolt.cli.surface.CliHelpSurfaceFixtures.HELP_COMMAND_FOOTER;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.HELP_COMMAND_HINT;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.PLAIN_GREEN_OPTION;
 import static com.zolt.cli.surface.CliHelpSurfaceFixtures.WARNING_COLOR;
@@ -63,7 +64,7 @@ final class CliHelpSurfaceTest {
                 "    release-verify",
                 "  Self-Hosting",
                 "    self-check",
-                "Run zolt help <command> for more information on a command.");
+                HELP_COMMAND_FOOTER);
         assertTrue(result.stdout().contains("help                Display help for zolt or a command."));
         assertFalse(result.stdout().contains("%n"));
     }
@@ -82,7 +83,8 @@ final class CliHelpSurfaceTest {
         assertTrue(result.stdout().contains(BOLD_BASICS_HEADING));
         assertTrue(result.stdout().contains("    " + BOLD_CYAN_INIT_COMMAND
                 + "                Create a new Zolt project."));
-        assertTrue(result.stdout().contains("Run " + HELP_COMMAND_HINT + " for more information"));
+        assertTrue(result.stdout().contains(
+                "See '" + HELP_COMMAND_HINT + "' for more information on a specific command."));
         assertTrue(result.stdout().contains("Create a new Zolt project."));
         assertFalse(result.stdout().contains(BOLD_GREEN_OPTION));
         assertFalse(result.stdout().contains(WARNING_COLOR));
@@ -123,7 +125,7 @@ final class CliHelpSurfaceTest {
                 "    native",
                 "  Self-Hosting",
                 "    self-check",
-                "Run zolt help <command> for more information on a command.");
+                HELP_COMMAND_FOOTER);
     }
 
     @Test

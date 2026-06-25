@@ -169,10 +169,10 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
     }
 
     private static void appendHelpFooter(StringBuilder output, ConsoleStyle style) {
-        output.append("Run ")
+        output.append("See '")
                 .append(style.helpCommand("zolt help"))
                 .append(style.helpMeta(" <command>"))
-                .append(" for more information on a command.")
+                .append("' for more information on a specific command.")
                 .append(System.lineSeparator());
     }
 
