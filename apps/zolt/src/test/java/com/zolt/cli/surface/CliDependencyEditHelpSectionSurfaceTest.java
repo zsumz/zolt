@@ -19,8 +19,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Add a dependency to zolt.toml and refresh zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "DEPENDENCY...",
                 "Options:",
@@ -65,8 +65,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Remove a dependency and prune unused transitive packages.",
+                "Usage:",
                 "Arguments:",
                 "DEPENDENCY...",
                 "Options:",
@@ -105,8 +105,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Set a version alias in zolt.toml and refresh zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "ALIAS",
                 "VERSION",
@@ -149,8 +149,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Remove an unused version alias from zolt.toml and refresh zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "ALIAS",
                 "Options:",
@@ -191,8 +191,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Add a platform BOM import to zolt.toml and refresh zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "GROUP:ARTIFACT[:VERSION]",
                 "Options:",
@@ -235,8 +235,8 @@ final class CliDependencyEditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Remove a platform BOM import and refresh zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "GROUP:ARTIFACT",
                 "Options:",

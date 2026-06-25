@@ -19,8 +19,8 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Publish Zolt-produced artifacts to Maven-compatible repositories.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -59,8 +59,8 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Assemble a release archive from a native binary.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -101,8 +101,8 @@ final class CliReleaseHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Verify release archives by unpacking and smoking the binary.",
+                "Usage:",
                 "Arguments:",
                 "ARCHIVE...",
                 "Options:",

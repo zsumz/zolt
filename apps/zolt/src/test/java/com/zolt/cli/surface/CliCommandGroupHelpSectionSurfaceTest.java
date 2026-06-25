@@ -19,8 +19,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Print the Zolt version.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -58,8 +58,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Manage BOM/platform imports in zolt.toml.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -97,8 +97,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Export project models for IDE and tooling integrations.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -135,8 +135,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Inspect Quarkus build-time augmentation inputs.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

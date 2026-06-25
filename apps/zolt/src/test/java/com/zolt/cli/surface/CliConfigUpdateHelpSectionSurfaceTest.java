@@ -19,8 +19,8 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Inspect user-local Zolt config diagnostics.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -56,8 +56,8 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Show effective user global config settings.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -95,8 +95,8 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Update the Zolt executable in place.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

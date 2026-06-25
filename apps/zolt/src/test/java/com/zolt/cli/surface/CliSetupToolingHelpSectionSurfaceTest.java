@@ -19,8 +19,8 @@ final class CliSetupToolingHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Create a new Zolt project.",
+                "Usage:",
                 "Arguments:",
                 "NAME",
                 "Options:",
@@ -65,8 +65,8 @@ final class CliSetupToolingHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Export the Zolt project model.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

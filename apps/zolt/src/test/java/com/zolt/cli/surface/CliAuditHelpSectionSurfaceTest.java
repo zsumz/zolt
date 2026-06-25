@@ -19,8 +19,8 @@ final class CliAuditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Show the typed Zolt command plan without executing it.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -62,8 +62,8 @@ final class CliAuditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Show dependency baseline and policy diagnostics.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -100,8 +100,8 @@ final class CliAuditHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Audit a Maven or Gradle project for future Zolt migration.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

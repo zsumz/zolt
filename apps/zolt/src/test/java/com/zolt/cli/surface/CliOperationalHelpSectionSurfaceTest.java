@@ -19,8 +19,8 @@ final class CliOperationalHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Remove project build output.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -57,8 +57,8 @@ final class CliOperationalHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Smoke a native Zolt binary against real workflows.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

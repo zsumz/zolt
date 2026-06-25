@@ -19,8 +19,8 @@ final class CliSelfHostingHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Run the self-hosting verification path.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -66,8 +66,8 @@ final class CliSelfHostingHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Compare bootstrap and Zolt-built jar entries.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

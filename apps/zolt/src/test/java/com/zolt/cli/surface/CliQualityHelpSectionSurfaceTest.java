@@ -19,8 +19,8 @@ final class CliQualityHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Run Zolt-owned quality checks.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -81,8 +81,8 @@ final class CliQualityHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Inspect local Java/JDK/Zolt project health.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

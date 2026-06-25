@@ -19,8 +19,8 @@ final class CliInsightHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Display the resolved dependency graph.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -57,8 +57,8 @@ final class CliInsightHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Explain why a package is present.",
+                "Usage:",
                 "Arguments:",
                 "GROUP:ARTIFACT",
                 "Options:",
@@ -99,8 +99,8 @@ final class CliInsightHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Print a classpath from zolt.lock.",
+                "Usage:",
                 "Arguments:",
                 "compile|runtime|test|processor|test-processor|quarkus-deployment|audit",
                 "Options:",
@@ -141,8 +141,8 @@ final class CliInsightHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Show version conflicts and selected versions.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",

@@ -19,8 +19,8 @@ final class CliQuarkusHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Print the Quarkus augmentation input plan.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
@@ -61,8 +61,8 @@ final class CliQuarkusHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Usage:",
                 "Print the Quarkus test bootstrap plan.",
+                "Usage:",
                 "Options:",
                 "--color",
                 "--progress",
