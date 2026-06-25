@@ -254,8 +254,34 @@ public final class IdeModelJsonWriter {
         pathField(json, 3, "runnerJar", quarkus.runnerJar(), true);
         pathField(json, 3, "generatedBytecodeJar", quarkus.generatedBytecodeJar(), true);
         pathField(json, 3, "transformedBytecodeJar", quarkus.transformedBytecodeJar(), true);
+        quarkusGeneratedOutputs(json, quarkus.generatedOutputs());
+        comma(json);
         pathArrayField(json, 3, "deploymentClasspath", quarkus.deploymentClasspath(), false);
         indent(json, 2).append("}\n");
+    }
+
+    private static void quarkusGeneratedOutputs(
+            StringBuilder json,
+            List<IdeModel.QuarkusGeneratedOutput> generatedOutputs) {
+        indent(json, 3).append("\"generatedOutputs\": [");
+        if (!generatedOutputs.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < generatedOutputs.size(); index++) {
+                IdeModel.QuarkusGeneratedOutput output = generatedOutputs.get(index);
+                indent(json, 4).append("{\n");
+                stringField(json, 5, "id", output.id(), true);
+                stringField(json, 5, "kind", output.kind(), true);
+                pathField(json, 5, "path", output.path(), true);
+                field(json, 5, "exists", output.exists(), false);
+                indent(json, 4).append("}");
+                if (index < generatedOutputs.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, 3);
+        }
+        json.append("]");
     }
 
     private static void diagnostics(StringBuilder json, List<IdeModel.Diagnostic> diagnostics) {

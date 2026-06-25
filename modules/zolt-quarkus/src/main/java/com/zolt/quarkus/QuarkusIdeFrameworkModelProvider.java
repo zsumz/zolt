@@ -4,6 +4,7 @@ import com.zolt.ide.IdeFrameworkModelProvider;
 import com.zolt.ide.IdeModel;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.ProjectConfig;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -68,6 +69,7 @@ public final class QuarkusIdeFrameworkModelProvider implements IdeFrameworkModel
                     plan.outputLayout().packageDirectory().resolve("quarkus-run.jar").normalize(),
                     plan.outputLayout().packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
                     plan.outputLayout().packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
+                    generatedOutputs(plan.outputLayout()),
                     absolutePaths(plan.deploymentClasspath()));
         } catch (LockfileReadException | QuarkusPlanException exception) {
             diagnostics.add(new IdeModel.Diagnostic(
@@ -98,7 +100,23 @@ public final class QuarkusIdeFrameworkModelProvider implements IdeFrameworkModel
                 outputLayout.packageDirectory().resolve("quarkus-run.jar").normalize(),
                 outputLayout.packageDirectory().resolve("quarkus/generated-bytecode.jar").normalize(),
                 outputLayout.packageDirectory().resolve("quarkus/transformed-bytecode.jar").normalize(),
+                generatedOutputs(outputLayout),
                 List.of());
+    }
+
+    private static List<IdeModel.QuarkusGeneratedOutput> generatedOutputs(QuarkusOutputLayout outputLayout) {
+        Path packageDirectory = outputLayout.packageDirectory();
+        Path runnerJar = packageDirectory.resolve("quarkus-run.jar").normalize();
+        Path generatedBytecodeJar = packageDirectory.resolve("quarkus/generated-bytecode.jar").normalize();
+        Path transformedBytecodeJar = packageDirectory.resolve("quarkus/transformed-bytecode.jar").normalize();
+        return List.of(
+                generatedOutput("runner-jar", "runner-jar", runnerJar),
+                generatedOutput("generated-bytecode", "generated-bytecode-jar", generatedBytecodeJar),
+                generatedOutput("transformed-bytecode", "transformed-bytecode-jar", transformedBytecodeJar));
+    }
+
+    private static IdeModel.QuarkusGeneratedOutput generatedOutput(String id, String kind, Path path) {
+        return new IdeModel.QuarkusGeneratedOutput(id, kind, path, Files.exists(path));
     }
 
     private static void quarkusDiagnostics(

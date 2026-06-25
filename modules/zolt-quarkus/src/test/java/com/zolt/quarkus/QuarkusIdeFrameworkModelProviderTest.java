@@ -44,6 +44,25 @@ final class QuarkusIdeFrameworkModelProviderTest {
         assertEquals(root.resolve("target/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
         assertEquals(root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"), quarkus.generatedBytecodeJar());
         assertEquals(root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"), quarkus.transformedBytecodeJar());
+        assertEquals(3, quarkus.generatedOutputs().size());
+        assertGeneratedOutput(
+                quarkus.generatedOutputs().get(0),
+                "runner-jar",
+                "runner-jar",
+                root.resolve("target/quarkus-app/quarkus-run.jar"),
+                false);
+        assertGeneratedOutput(
+                quarkus.generatedOutputs().get(1),
+                "generated-bytecode",
+                "generated-bytecode-jar",
+                root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"),
+                false);
+        assertGeneratedOutput(
+                quarkus.generatedOutputs().get(2),
+                "transformed-bytecode",
+                "transformed-bytecode-jar",
+                root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"),
+                false);
         assertEquals(List.of(), quarkus.deploymentClasspath());
         assertEquals("QUARKUS_AUGMENTATION_MISSING", diagnostics.getFirst().code());
 
@@ -52,6 +71,9 @@ final class QuarkusIdeFrameworkModelProviderTest {
         assertTrue(json.contains("\"quarkus\": {"));
         assertTrue(json.contains("\"augmentationStatus\": \"missing\""));
         assertTrue(json.contains("\"generatedBytecodeJar\": \""));
+        assertTrue(json.contains("\"generatedOutputs\": ["));
+        assertTrue(json.contains("\"kind\": \"generated-bytecode-jar\""));
+        assertTrue(json.contains("\"exists\": false"));
         assertTrue(json.contains("\"deploymentClasspath\": []"));
     }
 
@@ -65,6 +87,9 @@ final class QuarkusIdeFrameworkModelProviderTest {
         new QuarkusAugmentationMetadataWriter().write(
                 root,
                 missingFrameworks.quarkus().inputFingerprint());
+        writeGeneratedOutput(root.resolve("target/quarkus-app/quarkus-run.jar"));
+        writeGeneratedOutput(root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"));
+        writeGeneratedOutput(root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"));
         List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
 
         IdeModel.FrameworkInfo frameworks = builder.build(root, tempDir.resolve("cache"), config, diagnostics);
@@ -73,6 +98,7 @@ final class QuarkusIdeFrameworkModelProviderTest {
         assertEquals(
                 frameworks.quarkus().inputFingerprint(),
                 frameworks.quarkus().recordedInputFingerprint());
+        assertTrue(frameworks.quarkus().generatedOutputs().stream().allMatch(IdeModel.QuarkusGeneratedOutput::exists));
         assertEquals(List.of(), diagnostics);
     }
 
@@ -96,7 +122,30 @@ final class QuarkusIdeFrameworkModelProviderTest {
         assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
         assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus/generated-bytecode.jar"), quarkus.generatedBytecodeJar());
         assertEquals(root.resolve(".zolt/build/quarkus-app/quarkus/transformed-bytecode.jar"), quarkus.transformedBytecodeJar());
+        assertGeneratedOutput(
+                quarkus.generatedOutputs().get(1),
+                "generated-bytecode",
+                "generated-bytecode-jar",
+                root.resolve(".zolt/build/quarkus-app/quarkus/generated-bytecode.jar"),
+                false);
         assertEquals("QUARKUS_AUGMENTATION_MISSING", diagnostics.getFirst().code());
+    }
+
+    private static void assertGeneratedOutput(
+            IdeModel.QuarkusGeneratedOutput output,
+            String id,
+            String kind,
+            Path path,
+            boolean exists) {
+        assertEquals(id, output.id());
+        assertEquals(kind, output.kind());
+        assertEquals(path, output.path());
+        assertEquals(exists, output.exists());
+    }
+
+    private static void writeGeneratedOutput(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, "generated\n");
     }
 
     private ProjectConfig quarkusProject(Path projectDir) throws IOException {

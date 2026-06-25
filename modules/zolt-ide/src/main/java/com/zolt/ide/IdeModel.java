@@ -295,10 +295,48 @@ public record IdeModel(
             Path runnerJar,
             Path generatedBytecodeJar,
             Path transformedBytecodeJar,
+            List<QuarkusGeneratedOutput> generatedOutputs,
             List<Path> deploymentClasspath) {
+        public QuarkusInfo(
+                boolean enabled,
+                String packageMode,
+                String augmentationStatus,
+                String inputFingerprint,
+                String recordedInputFingerprint,
+                Path augmentationMetadata,
+                Path augmentationDirectory,
+                Path packageDirectory,
+                Path runnerJar,
+                Path generatedBytecodeJar,
+                Path transformedBytecodeJar,
+                List<Path> deploymentClasspath) {
+            this(
+                    enabled,
+                    packageMode,
+                    augmentationStatus,
+                    inputFingerprint,
+                    recordedInputFingerprint,
+                    augmentationMetadata,
+                    augmentationDirectory,
+                    packageDirectory,
+                    runnerJar,
+                    generatedBytecodeJar,
+                    transformedBytecodeJar,
+                    List.of(),
+                    deploymentClasspath);
+        }
+
         public QuarkusInfo {
+            generatedOutputs = List.copyOf(generatedOutputs);
             deploymentClasspath = List.copyOf(deploymentClasspath);
         }
+    }
+
+    public record QuarkusGeneratedOutput(
+            String id,
+            String kind,
+            Path path,
+            boolean exists) {
     }
 
     public record Diagnostic(
