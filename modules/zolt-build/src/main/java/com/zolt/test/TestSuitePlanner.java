@@ -14,6 +14,8 @@ import java.util.regex.Pattern;
 
 public final class TestSuitePlanner {
     private final TestInventoryBuilder inventoryBuilder;
+    private final TestShardPlanner shardPlanner = new TestShardPlanner();
+    private final TestShardManifestWriter shardManifestWriter = new TestShardManifestWriter();
 
     public TestSuitePlanner() {
         this(new TestInventoryBuilder());
@@ -73,12 +75,36 @@ public final class TestSuitePlanner {
             ProjectConfig config,
             String requestedSuite,
             TestSelection selection) {
+        return executionSelection(projectDirectory, config, requestedSuite, selection, null);
+    }
+
+    public TestSelection executionSelection(
+            Path projectDirectory,
+            ProjectConfig config,
+            String requestedSuite,
+            TestSelection selection,
+            TestShardSpec shard) {
         String suiteName = requestedSuite == null || requestedSuite.isBlank() ? "all" : requestedSuite;
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
-        if ("all".equals(suiteName)) {
+        if ("all".equals(suiteName) && shard == null) {
             return testSelection;
         }
         TestSuitePlan plan = plan(projectDirectory, config, suiteName, testSelection);
+        if (shard != null) {
+            TestShardPlan shardPlan = shardPlanner.plan(projectDirectory, config, plan, shard);
+            shardManifestWriter.write(shardPlan);
+            if (shardPlan.empty()) {
+                throw new TestPlanException(
+                        "Test shard `"
+                                + shard.label()
+                                + "` for suite `"
+                                + suiteName
+                                + "` did not match any compiled test classes. Wrote shard manifest to "
+                                + shardPlan.projectRelativeManifestPath(projectDirectory)
+                                + ".");
+            }
+            return executionSelection(plan, shardPlan.entries(), testSelection);
+        }
         if (plan.empty()) {
             throw new TestPlanException(
                     "Test suite `"
@@ -88,7 +114,31 @@ public final class TestSuitePlanner {
                             + suiteName
                             + "` to inspect suite membership.");
         }
-        LinkedHashSet<String> plannedClasses = plan.entries().stream()
+        return executionSelection(plan, plan.entries(), testSelection);
+    }
+
+    public List<TestShardPlan> shardPlans(
+            Path projectDirectory,
+            ProjectConfig config,
+            String requestedSuite,
+            TestSelection selection,
+            int shardCount) {
+        if (shardCount < 1) {
+            throw new TestShardException("Invalid --shard-count `" + shardCount + "`. Use a positive integer.");
+        }
+        TestSuitePlan plan = plan(projectDirectory, config, requestedSuite, selection);
+        List<TestShardPlan> plans = new ArrayList<>();
+        for (int index = 1; index <= shardCount; index++) {
+            plans.add(shardPlanner.plan(projectDirectory, config, plan, new TestShardSpec(index, shardCount)));
+        }
+        return List.copyOf(plans);
+    }
+
+    private static TestSelection executionSelection(
+            TestSuitePlan plan,
+            List<TestInventoryEntry> entries,
+            TestSelection testSelection) {
+        LinkedHashSet<String> plannedClasses = entries.stream()
                 .map(TestInventoryEntry::className)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         boolean hasExplicitClassOrMethodSelection =

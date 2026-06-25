@@ -11,6 +11,7 @@ import com.zolt.cli.CliTestSupport.CommandResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -154,5 +155,48 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Unknown test suite `missing`"));
         assertTrue(result.stderr().contains("Add [test.suites.missing] to zolt.toml"));
+    }
+
+    @Test
+    void testShardWritesManifestAndRunsSelectedShard() throws IOException {
+        Path projectDir = tempDir.resolve("shard-demo");
+        Path cacheRoot = tempDir.resolve("cache-shard");
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+
+                [test.suites.fast]
+                includeClassname = ["*Test"]
+                """, StandardOpenOption.APPEND);
+        writeJUnitConsoleLockfile(projectDir);
+        writeMainSource(projectDir, "package com.example; public final class Main {}\n");
+        writeTestSource(projectDir, "AlphaTest");
+        writeTestSource(projectDir, "BetaTest");
+        writeTestSource(projectDir, "GammaTest");
+
+        CommandResult result = execute(
+                "test",
+                "--suite", "fast",
+                "--shard", "2/2",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Tests passed"));
+        String manifest = Files.readString(projectDir.resolve("target/test-shards/fast/shard-2-of-2.json"));
+        assertTrue(manifest.contains("\"suite\": \"fast\""));
+        assertTrue(manifest.contains("\"index\": 2"));
+        assertTrue(manifest.contains("\"total\": 2"));
+        assertTrue(manifest.contains("\"selectedEntries\": 1"));
+        assertTrue(manifest.contains("\"com.example.BetaTest\""));
+        assertFalse(manifest.contains("\"com.example.AlphaTest\""));
+        assertFalse(manifest.contains("\"com.example.GammaTest\""));
+    }
+
+    private static void writeTestSource(Path projectDir, String name) throws IOException {
+        Path testSource = projectDir.resolve("src/test/java/com/example/" + name + ".java");
+        Files.createDirectories(testSource.getParent());
+        Files.writeString(testSource, "package com.example; public final class " + name + " {}\n");
     }
 }

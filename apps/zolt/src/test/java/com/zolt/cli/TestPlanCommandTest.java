@@ -120,6 +120,34 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
         assertTrue(result.stderr().contains("Add [test.suites.missing] to zolt.toml"));
     }
 
+    @Test
+    void testPlanShowsShardPlanWithoutWritingManifests() throws IOException {
+        Path projectDir = tempDir.resolve("shard-plan-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        appendSuite(projectDir, """
+
+                [test.suites.fast]
+                includeClassname = ["*Test"]
+                """);
+        writeClass(projectDir, "target/test-classes/com/example/AlphaTest.class");
+        writeClass(projectDir, "target/test-classes/com/example/BetaTest.class");
+        writeClass(projectDir, "target/test-classes/com/example/GammaTest.class");
+
+        CommandResult result = execute(
+                "test",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--suite", "fast",
+                "--shard-count", "2");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("shards: 2"));
+        assertTrue(result.stdout().contains("- shard 1/2: 2 entries, empty: no, manifest: target/test-shards/fast/shard-1-of-2.json"));
+        assertTrue(result.stdout().contains("- shard 2/2: 1 entries, empty: no, manifest: target/test-shards/fast/shard-2-of-2.json"));
+        assertFalse(Files.exists(projectDir.resolve("target/test-shards")));
+    }
+
     private static void appendSuite(Path projectDir, String config) throws IOException {
         Files.writeString(projectDir.resolve("zolt.toml"), config, StandardOpenOption.APPEND);
     }

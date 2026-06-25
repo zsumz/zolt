@@ -32,6 +32,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--members")),
             new OptionGroup("Test Selection", List.of(
                     "--suite",
+                    "--shard",
+                    "--shard-count",
                     "--test",
                     "--tests",
                     "--include-tag",

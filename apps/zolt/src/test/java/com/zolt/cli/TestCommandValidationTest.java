@@ -42,4 +42,14 @@ final class TestCommandValidationTest {
         assertTrue(result.stderr().contains("passed, skipped, failed"));
         assertFalse(result.stderr().contains("Could not read zolt.toml"));
     }
+
+    @Test
+    void testRejectsInvalidShardBeforeReadingProjectConfig() {
+        CommandResult result = execute("test", "--cwd", tempDir.toString(), "--shard", "5/4");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Invalid --shard `5/4`"));
+        assertTrue(result.stderr().contains("index must be less than or equal to the total"));
+        assertFalse(result.stderr().contains("Could not read zolt.toml"));
+    }
 }

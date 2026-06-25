@@ -26,6 +26,9 @@ import com.zolt.resolve.ResolveException;
 import com.zolt.test.TestPlanException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;
+import com.zolt.test.TestShardException;
+import com.zolt.test.TestShardPlan;
+import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSuitePlan;
 import com.zolt.test.TestSuitePlanner;
 import com.zolt.toml.ZoltConfigException;
@@ -70,6 +73,9 @@ public final class TestCommand implements Runnable {
 
     @Option(names = "--suite", description = "Run one configured test suite. Defaults to all.")
     private String suiteName = "all";
+
+    @Option(names = "--shard", description = "Run one deterministic test shard as index/total, such as 1/4.")
+    private String shardValue;
 
     @Option(names = "--test", description = "Select one test class or method. May be repeated.")
     private List<String> testSelectors = List.of();
@@ -143,6 +149,7 @@ public final class TestCommand implements Runnable {
                     testPatterns,
                     includedTags,
                     excludedTags);
+            TestShardSpec shard = TestShardSpec.parse(shardValue);
             TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
@@ -155,7 +162,8 @@ public final class TestCommand implements Runnable {
                         testJvmArguments,
                         reportSettings,
                         requestedTestEvents,
-                        suiteName);
+                        suiteName,
+                        shard);
                 return;
             }
             runSingleProjectTests(
@@ -166,7 +174,8 @@ public final class TestCommand implements Runnable {
                     testJvmArguments,
                     reportSettings,
                     requestedTestEvents,
-                    suiteName);
+                    suiteName,
+                    shard);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -174,6 +183,7 @@ public final class TestCommand implements Runnable {
                 | ResourceCopyException
                 | TestRunException
                 | TestSelectionException
+                | TestShardException
                 | TestPlanException
                 | SourceDiscoveryException
                 | LockfileReadException
@@ -194,7 +204,8 @@ public final class TestCommand implements Runnable {
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents,
-            String suiteName) {
+            String suiteName,
+            TestShardSpec shard) {
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -222,7 +233,8 @@ public final class TestCommand implements Runnable {
                                     testJvmArguments,
                                     reportSettings,
                                     requestedTestEvents,
-                                    suiteName),
+                                    suiteName,
+                                    shard),
                             CommandTestAttributes::workspaceTest);
                 },
                 CommandTestAttributes::workspaceTest);
@@ -256,7 +268,8 @@ public final class TestCommand implements Runnable {
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents,
-            String suiteName) {
+            String suiteName,
+            TestShardSpec shard) {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
@@ -303,7 +316,8 @@ public final class TestCommand implements Runnable {
                                     testJvmArguments,
                                     reportSettings,
                                     requestedTestEvents,
-                                    suiteName),
+                                    suiteName,
+                                    shard),
                             CommandTestAttributes::testExecution);
                 },
                 CommandTestAttributes::testRun);
@@ -325,6 +339,9 @@ public final class TestCommand implements Runnable {
 
         @Option(names = "--suite", description = "Plan one configured test suite. Defaults to all.")
         private String suiteName = "all";
+
+        @Option(names = "--shard-count", description = "Plan deterministic suite shards without executing tests.")
+        private String shardCountValue;
 
         @Option(names = "--test", description = "Select one test class or method. May be repeated.")
         private List<String> testSelectors = List.of();
@@ -364,13 +381,17 @@ public final class TestCommand implements Runnable {
                         excludedTags);
                 ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
                 TestSuitePlan plan = planner.plan(projectRoot, config, suiteName, selection);
-                printPlan(config, plan);
-            } catch (TestPlanException | TestSelectionException | ZoltConfigException exception) {
+                int shardCount = TestShardSpec.parseShardCount(shardCountValue);
+                printPlan(config, plan, shardCount == 0
+                        ? List.of()
+                        : planner.shardPlans(projectRoot, config, suiteName, selection, shardCount),
+                        projectRoot);
+            } catch (TestPlanException | TestSelectionException | TestShardException | ZoltConfigException exception) {
                 throw CommandFailures.user(spec, exception);
             }
         }
 
-        private void printPlan(ProjectConfig config, TestSuitePlan plan) {
+        private void printPlan(ProjectConfig config, TestSuitePlan plan, List<TestShardPlan> shards, Path projectRoot) {
             CommandHumanOutput output = CommandHumanOutput.of(spec);
             output.line("Test plan for " + config.project().name());
             output.line("suite: " + plan.suiteName());
@@ -392,6 +413,7 @@ public final class TestCommand implements Runnable {
             printList(output, "missing explicit selectors", plan.missingExplicitClassSelectors());
             printOverlaps(output, plan.overlappingEntries());
             printList(output, "unassigned entries", plan.unassignedEntries());
+            printShards(output, shards, projectRoot);
         }
 
         private static void printFilters(
@@ -415,6 +437,23 @@ public final class TestCommand implements Runnable {
             output.line("overlapping entries: " + overlaps.size());
             for (Map.Entry<String, List<String>> entry : overlaps.entrySet()) {
                 output.line("- " + entry.getKey() + " also matches " + String.join(", ", entry.getValue()));
+            }
+        }
+
+        private static void printShards(CommandHumanOutput output, List<TestShardPlan> shards, Path projectRoot) {
+            if (shards.isEmpty()) {
+                return;
+            }
+            output.line("shards: " + shards.size());
+            for (TestShardPlan shard : shards) {
+                output.line("- shard "
+                        + shard.shard().label()
+                        + ": "
+                        + shard.entries().size()
+                        + " entries, empty: "
+                        + (shard.empty() ? "yes" : "no")
+                        + ", manifest: "
+                        + shard.projectRelativeManifestPath(projectRoot));
             }
         }
     }

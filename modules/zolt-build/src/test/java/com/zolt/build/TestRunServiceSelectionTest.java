@@ -13,8 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestSuiteSettings;
 import com.zolt.test.TestPlanException;
+import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -210,6 +212,72 @@ final class TestRunServiceSelectionTest {
         assertEquals("com.example.FastApiTest", commandArgumentAfter(command, "--select-class"));
         assertFalse(command.contains("com.example.FastRepositoryTest"));
         assertEquals("slow", commandArgumentAfter(command, "--exclude-tag"));
+    }
+
+    @Test
+    void shardSelectionRunsOnlyShardClassesAndWritesManifest() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/AlphaTest.java", "package com.example; public final class AlphaTest {}\n");
+        source(projectDir, "src/test/java/com/example/BetaTest.java", "package com.example; public final class BetaTest {}\n");
+        source(projectDir, "src/test/java/com/example/GammaTest.java", "package com.example; public final class GammaTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                configWithSuite("fast", new TestSuiteSettings(List.of("*Test"), List.of(), List.of(), List.of())),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of(),
+                "fast",
+                new TestShardSpec(2, 2));
+
+        assertEquals(List.of("com.example.BetaTest"), result.testSelection().classSelectors());
+        List<String> command = commands.getFirst();
+        assertEquals("com.example.BetaTest", commandArgumentAfter(command, "--select-class"));
+        assertFalse(command.contains("com.example.AlphaTest"));
+        assertFalse(command.contains("com.example.GammaTest"));
+        String manifest = Files.readString(projectDir.resolve("target/test-shards/fast/shard-2-of-2.json"));
+        assertTrue(manifest.contains("\"selectedEntries\": 1"));
+        assertTrue(manifest.contains("\"com.example.BetaTest\""));
+    }
+
+    @Test
+    void emptyShardWritesManifestAndFailsBeforeLaunchingRunner() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/AlphaTest.java", "package com.example; public final class AlphaTest {}\n");
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service((command, outputConsumer) -> {
+            commands.add(command);
+            return new JavaRunner.ProcessResult(0, "Tests successful\n");
+        });
+
+        TestPlanException exception = assertThrows(
+                TestPlanException.class,
+                () -> service.runTests(
+                        projectDir,
+                        configWithSuite("fast", new TestSuiteSettings(List.of("*Test"), List.of(), List.of(), List.of())),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "fast",
+                        new TestShardSpec(2, 2)));
+
+        assertTrue(exception.getMessage().contains("Test shard `2/2` for suite `fast` did not match any compiled test classes"));
+        assertTrue(exception.getMessage().contains("target/test-shards/fast/shard-2-of-2.json"));
+        assertTrue(commands.isEmpty());
+        String manifest = Files.readString(projectDir.resolve("target/test-shards/fast/shard-2-of-2.json"));
+        assertTrue(manifest.contains("\"selectedEntries\": 0"));
+        assertTrue(manifest.contains("\"empty\": true"));
     }
 
     @Test

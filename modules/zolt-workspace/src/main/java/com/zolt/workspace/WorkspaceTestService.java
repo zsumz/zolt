@@ -7,6 +7,7 @@ import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.resolve.ResolveService;
+import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -145,6 +146,19 @@ public final class WorkspaceTestService {
             TestReportSettings reportSettings,
             List<String> cliEvents,
             String suiteName) {
+        return runTests(plan, buildResult, cacheRoot, testSelection, jvmArguments, reportSettings, cliEvents, suiteName, null);
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard) {
         TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Workspace workspace = plan.workspace();
@@ -166,7 +180,8 @@ public final class WorkspaceTestService {
                             testJvmArguments,
                             testReportSettings.forWorkspaceMember(member.path()),
                             cliEvents,
-                            suiteName)));
+                            suiteName,
+                            shard)));
         }
         return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
     }
