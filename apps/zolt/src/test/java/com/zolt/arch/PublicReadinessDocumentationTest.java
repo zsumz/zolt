@@ -146,14 +146,14 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
-    void frameworkReadinessDoesNotPublishQuarkusAnnotationTests() throws IOException {
+    void frameworkReadinessBoundsQuarkusAnnotationTests() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
 
-        assertTrue(frameworkReadiness.contains("exercise descriptor-enabled `@QuarkusTest` probes only to explicit Zolt-shaped blocker diagnostics without public enablement"));
-        assertTrue(frameworkReadiness.contains("public Quarkus `@QuarkusTest` enablement"));
+        assertTrue(frameworkReadiness.contains("run the REST Assured `@QuarkusTest` fixture through public `zolt test`"));
+        assertTrue(frameworkReadiness.contains("Quarkus test resources/profiles"));
         assertFalse(
-                frameworkReadiness.contains("pass the descriptor-enabled `@QuarkusTest` REST Assured probe"),
-                "Framework readiness must not imply public Quarkus annotation-test support is complete");
+                frameworkReadiness.contains("arbitrary Quarkus `@QuarkusTest` support"),
+                "Framework readiness must keep the Quarkus annotation-test claim fixture-bounded");
     }
 
     @Test

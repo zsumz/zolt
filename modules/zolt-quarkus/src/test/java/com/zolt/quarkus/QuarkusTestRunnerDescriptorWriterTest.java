@@ -1,7 +1,6 @@
 package com.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.TestJvmArguments;
@@ -43,12 +42,12 @@ final class QuarkusTestRunnerDescriptorWriterTest {
         assertEquals(root.resolve(".zolt/build/quarkus/zolt-test-bootstrap.properties"), descriptor.descriptorFile());
         assertEquals(root.resolve(".zolt/build/quarkus/test-runtime-classpath.txt"), descriptor.testRuntimeClasspathFile());
         assertEquals(QuarkusTestRunnerRequest.RUNNER_MODE, descriptor.runnerMode());
-        assertFalse(descriptor.supportsQuarkusTestAnnotations());
+        assertTrue(descriptor.supportsQuarkusTestAnnotations());
         assertTrue(descriptor.jbossLogManagerPresent());
         assertEquals("""
                 version=1
                 runnerMode=plain-junit
-                supportsQuarkusTestAnnotations=false
+                supportsQuarkusTestAnnotations=true
                 jbossLogManagerPresent=true
                 projectDirectory=%s
                 mainOutputDirectory=%s

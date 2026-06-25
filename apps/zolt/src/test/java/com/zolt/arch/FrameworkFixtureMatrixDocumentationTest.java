@@ -28,7 +28,8 @@ final class FrameworkFixtureMatrixDocumentationTest {
 
         assertTrue(matrix.contains("Full server startup and HTTP probing remain future work"));
         assertTrue(matrix.contains("not a general protoc plugin execution surface"));
-        assertTrue(matrix.contains("supportsQuarkusTestAnnotations=false"));
+        assertTrue(matrix.contains("supportsQuarkusTestAnnotations=true"));
+        assertTrue(matrix.contains("test resources, profiles, dev mode, and native tests remain unsupported"));
         assertTrue(matrix.contains("Spring Boot 3.3 on Java 21"));
         assertTrue(matrix.contains("JVM framework gates and Native Image gates are separate evidence"));
         assertTrue(matrix.contains("does not imply broad Maven, Gradle, plugin, framework, or native-image parity"));

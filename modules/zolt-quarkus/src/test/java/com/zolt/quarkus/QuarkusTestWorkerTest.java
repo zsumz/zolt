@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Test;
 final class QuarkusTestWorkerTest extends QuarkusTestWorkerTestSupport {
 
     @Test
-    void validatesDescriptorThenFailsHonestlyUntilDedicatedRunnerExists() {
+    void legacyDescriptorWithoutAnnotationSupportFailsHonestly() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
-        QuarkusTestRunnerDescriptor descriptor = descriptor();
+        QuarkusTestRunnerDescriptor descriptor = descriptor(false);
         QuarkusUnsupportedTest unsupportedTest = new QuarkusUnsupportedTest(
                 descriptor.testOutputDirectory().resolve("com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),

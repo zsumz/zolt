@@ -48,6 +48,39 @@ final class PomDependencyManagerClassifierTest {
     }
 
     @Test
+    void fixedClassifierDependencyMissingVersionInheritsManagedVersion() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.google.inject</groupId>
+                        <artifactId>guice</artifactId>
+                        <version>5.1.0</version>
+                        <classifier>classes</classifier>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.google.inject</groupId>
+                      <artifactId>guice</artifactId>
+                      <classifier>classes</classifier>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals("5.1.0", dependency.version().orElseThrow());
+        assertEquals("classes", dependency.classifier().orElseThrow());
+    }
+
+    @Test
     void classifierDependenciesFailWithActionableDiagnostic() {
         EffectiveRawPom pom = effective(parser, """
                 <project>

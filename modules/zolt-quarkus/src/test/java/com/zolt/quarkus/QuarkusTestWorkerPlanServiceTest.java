@@ -19,7 +19,7 @@ final class QuarkusTestWorkerPlanServiceTest {
     }
 
     @Test
-    void blocksWhenUnsupportedQuarkusTestsExist() {
+    void selectsQuarkusAnnotationRunnerWhenQuarkusTestsExist() {
         QuarkusUnsupportedTest unsupportedTest = new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),
@@ -28,13 +28,14 @@ final class QuarkusTestWorkerPlanServiceTest {
         QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(unsupportedTest))
                 .plan(descriptor());
 
-        assertEquals(QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS, plan.status());
+        assertEquals(QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED, plan.status());
         assertFalse(plan.plainJunitReady());
+        assertTrue(plan.quarkusTestRunnerSelected());
         assertEquals(List.of(unsupportedTest), plan.unsupportedTests());
     }
 
     @Test
-    void selectsQuarkusAnnotationRunnerWhenDescriptorSupportsQuarkusTests() {
+    void legacyDescriptorsStillBlockWhenAnnotationSupportIsDisabled() {
         QuarkusUnsupportedTest quarkusTest = new QuarkusUnsupportedTest(
                 Path.of("/repo/target/test-classes/com/example/HttpTest.class"),
                 Path.of("com/example/HttpTest.class"),
@@ -43,12 +44,11 @@ final class QuarkusTestWorkerPlanServiceTest {
         QuarkusTestWorkerPlan plan = new QuarkusTestWorkerPlanService(path -> List.of(quarkusTest))
                 .plan(descriptor(
                         QuarkusTestRunnerRequest.RUNNER_MODE,
-                        true,
+                        false,
                         List.of(Path.of("/cache/junit-platform-console.jar"))));
 
-        assertEquals(QuarkusTestWorkerPlanStatus.QUARKUS_TEST_RUNNER_SELECTED, plan.status());
+        assertEquals(QuarkusTestWorkerPlanStatus.BLOCKED_UNSUPPORTED_QUARKUS_TESTS, plan.status());
         assertFalse(plan.plainJunitReady());
-        assertTrue(plan.quarkusTestRunnerSelected());
         assertEquals(List.of(quarkusTest), plan.unsupportedTests());
     }
 

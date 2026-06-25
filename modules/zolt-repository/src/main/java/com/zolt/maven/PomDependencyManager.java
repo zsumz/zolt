@@ -65,10 +65,15 @@ public final class PomDependencyManager {
     private Map<ManagedDependencyKey, RawPomDependency> managedDependencies(EffectiveRawPom pom) {
         Map<ManagedDependencyKey, RawPomDependency> dependencies = new LinkedHashMap<>();
         for (RawPomDependency dependency : pom.dependencyManagement()) {
-            if (dependency.classifier().isPresent()) {
-                continue;
+            RawPomDependency interpolated;
+            try {
+                interpolated = interpolator.interpolateDependency(dependency, pom);
+            } catch (PomInterpolationException exception) {
+                if (dependency.classifier().isPresent()) {
+                    continue;
+                }
+                throw exception;
             }
-            RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
             dependencies.put(key(interpolated), interpolated);
         }
         return dependencies;

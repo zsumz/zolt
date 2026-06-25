@@ -21,7 +21,7 @@ public record QuarkusTestRunnerRequest(
         TestJvmArguments jvmArguments,
         Map<String, String> environment) {
     public static final String RUNNER_MODE = "plain-junit";
-    public static final boolean SUPPORTS_QUARKUS_TEST_ANNOTATIONS = false;
+    public static final boolean SUPPORTS_QUARKUS_TEST_ANNOTATIONS = true;
 
     public QuarkusTestRunnerRequest(
             Path projectDirectory,
