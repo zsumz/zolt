@@ -26,6 +26,7 @@ final class DoctorCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("JDK status: \u001B[32mok\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mJDK\u001B[0m status"));
         assertTrue(result.stdout().contains("java: "));
         assertTrue(result.stdout().contains("javac: "));
         assertTrue(result.stdout().contains("jar: "));
