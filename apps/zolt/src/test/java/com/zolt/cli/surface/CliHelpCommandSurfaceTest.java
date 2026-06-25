@@ -50,7 +50,7 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m\n      \u001B[36m[COMMAND...]\u001B[0m          Command path to show help for.\n\n\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt help\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36m[COMMAND...]\u001B[0m"));

@@ -54,7 +54,7 @@ final class CliUsageConfiguration {
                 help -> parameterListHeading(help, styles));
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_PARAMETER_LIST,
-                help -> HelpParameterHighlighter.highlight(help.parameterList(), styles.get()));
+                help -> parameterListSection(help, styles));
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
                 help -> styles.get().helpHeading("Options:") + System.lineSeparator());
@@ -84,6 +84,14 @@ final class CliUsageConfiguration {
             return description + System.lineSeparator();
         }
         return description + System.lineSeparator() + System.lineSeparator();
+    }
+
+    private static String parameterListSection(Help help, Supplier<ConsoleStyle> styles) {
+        String parameters = HelpParameterHighlighter.highlight(help.parameterList(), styles.get());
+        if (parameters.isBlank()) {
+            return "";
+        }
+        return parameters + System.lineSeparator();
     }
 
     private static String parameterListHeading(Help help, Supplier<ConsoleStyle> styles) {
