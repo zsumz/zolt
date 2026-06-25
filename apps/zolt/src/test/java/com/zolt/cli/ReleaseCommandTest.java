@@ -24,13 +24,11 @@ final class ReleaseCommandTest {
         Path binary = projectDir.resolve("target/native/demo");
         Files.createDirectories(binary.getParent());
         Files.writeString(binary, "native");
-
         CommandResult result = execute(
                 "--progress=always",
                 "release-archive",
                 "--directory", projectDir.toString(),
                 "--target", "linux-x64");
-
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Assembled linux-x64 release archive"));
@@ -52,9 +50,9 @@ final class ReleaseCommandTest {
         Path binary = projectDir.resolve("target/native/demo");
         Files.createDirectories(binary.getParent());
         Files.writeString(binary, "native");
-
         CommandResult color = execute(
                 "--color=always",
+                "--progress=always",
                 "release-archive",
                 "--directory", projectDir.toString(),
                 "--target", "linux-x64",
@@ -65,7 +63,6 @@ final class ReleaseCommandTest {
                 "--directory", projectDir.toString(),
                 "--target", "linux-x64",
                 "--output", "dist-quiet");
-
         Path archive = projectDir.resolve("dist-color/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));
@@ -79,6 +76,10 @@ final class ReleaseCommandTest {
         assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m manifest to "
                 + projectDir.resolve("dist-color/release-manifest.json")));
         assertFalse(color.stdout().contains("\u001B[32mWrote manifest to "));
+        assertTrue(color.stderr().contains("\u001B[36mAssembling\u001B[0m release archive..."));
+        assertTrue(color.stderr().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));
+        assertFalse(color.stderr().contains("\u001B[36mAssembling release archive...")
+                || color.stderr().contains("\u001B[32mAssembled linux-x64 release archive"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(projectDir.resolve("dist-quiet/demo-0.1.0-linux-x64.tar.gz")));
@@ -127,7 +128,6 @@ final class ReleaseCommandTest {
                 "--binary", "target/native/zolt");
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, archiveResult.exitCode(), archiveResult.stderr());
-
         CommandResult color = execute(
                 "--color=always",
                 "release-verify",
