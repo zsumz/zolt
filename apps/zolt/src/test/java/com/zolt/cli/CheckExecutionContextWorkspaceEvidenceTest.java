@@ -46,6 +46,43 @@ final class CheckExecutionContextWorkspaceEvidenceTest {
     }
 
     @Test
+    void checkContextCiRequiresWorkspaceJUnitReportsOnlyForSelectedMembers() throws IOException {
+        Path workspaceDir = tempDir.resolve("check-context-ci-workspace-selected-reports-ok");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path reportsDir = apiDir.resolve("target/test-reports/apps/api");
+        Files.createDirectories(coreDir);
+        Files.createDirectories(reportsDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+                [workspace]
+                name = "check-context-ci-workspace-selected-reports-ok"
+                members = ["modules/core", "apps/api"]
+                """);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+        Files.writeString(reportsDir.resolve("TEST-api.xml"), "<testsuite tests=\"1\" failures=\"0\"/>\n");
+
+        CommandResult result = execute(
+                "check",
+                "--workspace",
+                "--member", "apps/api",
+                "--context", "ci",
+                "--check", "execution-context",
+                "--reports-dir", "target/test-reports",
+                "--cwd", workspaceDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("ok execution-context apps/api test-reports CI test report preflight found 1 JUnit XML report."));
+        assertTrue(result.stdout().contains("Checked 2 quality checks: 2 passed, 0 warnings, 0 failed, 0 skipped"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void checkContextCiAcceptsWorkspaceCoverageReportsWhenConfigured() throws IOException {
         Path workspaceDir = tempDir.resolve("check-context-ci-workspace-coverage-ok");
         Path apiDir = workspaceDir.resolve("apps/api");

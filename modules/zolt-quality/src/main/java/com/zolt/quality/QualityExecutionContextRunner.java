@@ -96,6 +96,15 @@ final class QualityExecutionContextRunner {
                     memberName,
                     member.config(),
                     request.context()));
+            results.addAll(publishDryRunQualityCheck.check(
+                    memberName,
+                    member.directory(),
+                    request.context(),
+                    request.requirePublishDryRun()));
+        }
+        for (String memberPath : selection.selectedMembers()) {
+            WorkspaceMember member = members.get(memberPath);
+            Optional<String> memberName = Optional.of(member.path());
             results.addAll(executionEvidenceQualityCheck.checkTestReports(
                     memberName,
                     member.directory(),
@@ -110,11 +119,6 @@ final class QualityExecutionContextRunner {
                     request.coverageDir(),
                     java.nio.file.Path.of(member.config().build().outputRoot()),
                     request.context()));
-            results.addAll(publishDryRunQualityCheck.check(
-                    memberName,
-                    member.directory(),
-                    request.context(),
-                    request.requirePublishDryRun()));
         }
         return List.copyOf(results);
     }
