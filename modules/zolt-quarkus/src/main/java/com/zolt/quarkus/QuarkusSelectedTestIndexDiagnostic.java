@@ -1,0 +1,58 @@
+package com.zolt.quarkus;
+
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import java.util.List;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+
+final class QuarkusSelectedTestIndexDiagnostic {
+    private static final DotName QUARKUS_TEST = DotName.createSimple("io.quarkus.test.junit.QuarkusTest");
+    private static final DotName TEST_PROFILE = DotName.createSimple("io.quarkus.test.junit.TestProfile");
+    private static final DotName VETOED = DotName.createSimple("jakarta.enterprise.inject.Vetoed");
+
+    private QuarkusSelectedTestIndexDiagnostic() {
+    }
+
+    static String format(
+            CombinedIndexBuildItem combinedIndex,
+            List<String> testClasses) {
+        if (combinedIndex == null) {
+            return "<missing>";
+        }
+        if (testClasses.isEmpty()) {
+            return "<none>";
+        }
+        return testClasses.stream()
+                .map(testClass -> selectedClassIndexDiagnostic(combinedIndex, testClass))
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    private static String selectedClassIndexDiagnostic(
+            CombinedIndexBuildItem combinedIndex,
+            String testClass) {
+        ClassInfo indexClass = classByName(combinedIndex.getIndex(), testClass);
+        ClassInfo computingClass = classByName(combinedIndex.getComputingIndex(), testClass);
+        ClassInfo annotationClass = computingClass == null ? indexClass : computingClass;
+        return testClass
+                + "[index="
+                + (indexClass != null)
+                + ",computing="
+                + (computingClass != null)
+                + ",quarkusTest="
+                + hasAnnotation(annotationClass, QUARKUS_TEST)
+                + ",testProfile="
+                + hasAnnotation(annotationClass, TEST_PROFILE)
+                + ",vetoed="
+                + hasAnnotation(annotationClass, VETOED)
+                + "]";
+    }
+
+    private static ClassInfo classByName(IndexView index, String className) {
+        return index == null ? null : index.getClassByName(DotName.createSimple(className));
+    }
+
+    private static boolean hasAnnotation(ClassInfo classInfo, DotName annotationName) {
+        return classInfo != null && classInfo.hasAnnotation(annotationName);
+    }
+}

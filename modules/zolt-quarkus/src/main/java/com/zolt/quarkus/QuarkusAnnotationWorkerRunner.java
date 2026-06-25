@@ -199,9 +199,10 @@ public final class QuarkusAnnotationWorkerRunner {
                     + "as a CDI bean. Zolt can instantiate the public QuarkusTestProfile and can produce "
                     + "test-class bean customizer output for the selected class. Check the printed "
                     + "`profileMatchesActiveProfile`, `containsProfileVetoProcessor`, "
-                    + "`containsProfileBeanVetoProcessor`, and `containsArcRegisterBeans` entries to "
-                    + "separate profile-veto mismatches from the remaining Arc bean-registration handoff "
-                    + "before @TestProfile can be enabled. "
+                    + "`containsProfileBeanVetoProcessor`, `containsArcRegisterBeans`, and "
+                    + "`combinedIndexSelectedClasses` entries to separate profile-veto mismatches, missing "
+                    + "index visibility, and the remaining Arc bean-registration handoff before "
+                    + "@TestProfile can be enabled. "
                     + "Keep profiles unsupported for now, or run `zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()
