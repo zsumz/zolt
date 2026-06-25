@@ -16,18 +16,21 @@ final class QuarkusAnnotationFailureDiagnostics {
     private final QuarkusBuildChainDiagnostic buildChainDiagnostic;
     private final QuarkusDiagnosticFilePrinter diagnosticFilePrinter;
     private final QuarkusResourceElementDiagnostic resourceElementDiagnostic;
+    private final QuarkusGeneratedArcBytecodeDiagnostic generatedArcBytecodeDiagnostic;
 
     QuarkusAnnotationFailureDiagnostics(PrintStream out) {
         this.out = out;
         this.buildChainDiagnostic = new QuarkusBuildChainDiagnostic(out);
         this.diagnosticFilePrinter = new QuarkusDiagnosticFilePrinter(out);
         this.resourceElementDiagnostic = new QuarkusResourceElementDiagnostic(out);
+        this.generatedArcBytecodeDiagnostic = new QuarkusGeneratedArcBytecodeDiagnostic(out);
     }
 
     void writeFailure(List<String> testClasses, ClassLoader quarkusRuntimeClassLoader, Throwable failure) {
         writeClassLoaderDiagnostic(testClasses, quarkusRuntimeClassLoader, failure);
         buildChainDiagnostic.write(quarkusRuntimeClassLoader);
         diagnosticFilePrinter.writeTestClassBeanCustomizerDiagnostic();
+        generatedArcBytecodeDiagnostic.write(testClasses);
         diagnosticFilePrinter.writeBuildGraphDiagnostic();
     }
 

@@ -139,9 +139,10 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertTrue(result.output().contains("containsProfileVetoProcessor"));
         assertTrue(result.output().contains("containsProfileBeanVetoProcessor"));
         assertTrue(result.output().contains("containsArcRegisterBeans"));
-        assertTrue(result.output().contains("testOutputArchiveStep.path"));
+        assertTrue(result.output().contains("generatedArcBeanClasses"));
         assertTrue(result.output().contains("application-class predicate output directories"));
-        assertTrue(result.output().contains("Arc bean-registration handoff"));
+        assertTrue(result.output().contains("generated Arc bytecode jar"));
+        assertTrue(result.output().contains("Arc bean-generation handoff"));
         assertTrue(result.output().contains("@TestProfile"));
         assertTrue(result.output().contains("Profile test activated"));
     }

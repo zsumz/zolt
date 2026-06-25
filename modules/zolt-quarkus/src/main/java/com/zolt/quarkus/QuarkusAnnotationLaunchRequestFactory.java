@@ -97,6 +97,10 @@ public final class QuarkusAnnotationLaunchRequestFactory {
                 + QUARKUS_BUILDER_GRAPH_OUTPUT_PROPERTY
                 + "="
                 + buildGraphOutputFile(descriptor));
+        arguments.add("-D"
+                + QuarkusGeneratedArcBytecodeDiagnostic.GENERATED_BYTECODE_JAR_PROPERTY
+                + "="
+                + generatedBytecodeJar(descriptor));
         arguments.add("-Dquarkus.arc.unremovable-types=" + String.join(",", testClasses));
         if (descriptor.jbossLogManagerPresent()) {
             arguments.add(JBOSS_LOG_MANAGER_PROPERTY);
@@ -116,6 +120,21 @@ public final class QuarkusAnnotationLaunchRequestFactory {
         return descriptor.descriptorFile()
                 .getParent()
                 .resolve("annotation-runner/build-chain.dot")
+                .toAbsolutePath()
+                .normalize();
+    }
+
+    private static Path generatedBytecodeJar(QuarkusTestRunnerDescriptor descriptor) {
+        if (java.nio.file.Files.isRegularFile(descriptor.bootstrapDescriptorFile())) {
+            return new QuarkusBootstrapDescriptorReader()
+                    .read(descriptor.bootstrapDescriptorFile())
+                    .packageDirectory()
+                    .resolve("quarkus/generated-bytecode.jar")
+                    .toAbsolutePath()
+                    .normalize();
+        }
+        return descriptor.projectDirectory()
+                .resolve("target/quarkus-app/quarkus/generated-bytecode.jar")
                 .toAbsolutePath()
                 .normalize();
     }
