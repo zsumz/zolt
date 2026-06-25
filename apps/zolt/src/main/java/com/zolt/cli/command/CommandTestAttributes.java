@@ -34,7 +34,8 @@ final class CommandTestAttributes {
         attributes.put(CommandAttributeKeys.TEST_JVM_ARGS, Integer.toString(result.testJvmArguments().values().size()));
         addMainFingerprintAttributes(attributes, result.compileResult().buildResult());
         addTestFingerprintAttributes(attributes, result.compileResult());
-        addPlainJunitWorkerTimingAttributes(attributes, result);
+        addTestRunnerTimingAttributes(attributes, result);
+        addSlowTestEvidenceAttributes(attributes);
         attributes.put(CommandAttributeKeys.OUTPUT_BYTES, Integer.toString(result.output().length()));
         return attributes;
     }
@@ -65,7 +66,8 @@ final class CommandTestAttributes {
         attributes.put(CommandAttributeKeys.TEST_DISCOVERY_SCAN_ROOTS, Integer.toString(result.testDiscoveryScanRoots()));
         addTestSelectionAttributes(attributes, result.testSelection());
         attributes.put(CommandAttributeKeys.TEST_JVM_ARGS, Integer.toString(result.testJvmArguments().values().size()));
-        addPlainJunitWorkerTimingAttributes(attributes, result);
+        addTestRunnerTimingAttributes(attributes, result);
+        addSlowTestEvidenceAttributes(attributes);
         attributes.put(CommandAttributeKeys.OUTPUT_BYTES, Integer.toString(result.output().length()));
         return attributes;
     }
@@ -98,11 +100,12 @@ final class CommandTestAttributes {
         attributes.put(CommandAttributeKeys.TEST_PATTERNS, Integer.toString(result.testPatternCount()));
         attributes.put(CommandAttributeKeys.TEST_INCLUDED_TAGS, Integer.toString(result.testIncludedTagCount()));
         attributes.put(CommandAttributeKeys.TEST_EXCLUDED_TAGS, Integer.toString(result.testExcludedTagCount()));
+        addSlowTestEvidenceAttributes(attributes);
         attributes.put(CommandAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
         return attributes;
     }
 
-    private static void addPlainJunitWorkerTimingAttributes(Map<String, String> attributes, TestRunResult result) {
+    private static void addTestRunnerTimingAttributes(Map<String, String> attributes, TestRunResult result) {
         if (result.testRunnerStartupNanos() >= 0L) {
             attributes.put(CommandAttributeKeys.TEST_RUNNER_STARTUP_MILLIS, Long.toString(result.testRunnerStartupNanos() / 1_000_000L));
             attributes.put(CommandAttributeKeys.TEST_RUNNER_STARTUP_NANOS, Long.toString(result.testRunnerStartupNanos()));
@@ -111,6 +114,11 @@ final class CommandTestAttributes {
             attributes.put(CommandAttributeKeys.TEST_RUNNER_REQUEST_MILLIS, Long.toString(result.testRunnerRequestNanos() / 1_000_000L));
             attributes.put(CommandAttributeKeys.TEST_RUNNER_REQUEST_NANOS, Long.toString(result.testRunnerRequestNanos()));
         }
+    }
+
+    private static void addSlowTestEvidenceAttributes(Map<String, String> attributes) {
+        attributes.put(CommandAttributeKeys.TEST_SLOW_ENTRIES, "0");
+        attributes.put(CommandAttributeKeys.TEST_SLOW_EVIDENCE, "unavailable");
     }
 
     private static void addMainCompileDiagnostics(Map<String, String> attributes, CompileDiagnostics diagnostics) {

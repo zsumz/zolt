@@ -117,6 +117,8 @@ public final class CommandAttributeKeys {
     public static final String TEST_RUNNER_STARTUP_MILLIS = "testRunnerStartupMillis";
     public static final String TEST_RUNNER_STARTUP_NANOS = "testRunnerStartupNanos";
     public static final String TEST_RUNTIME_CLASSPATH_ENTRIES = "testRuntimeClasspathEntries";
+    public static final String TEST_SLOW_EVIDENCE = "testSlowEvidence";
+    public static final String TEST_SLOW_ENTRIES = "testSlowEntries";
     public static final String TEST_SOURCE_FILES = "testSourceFiles";
     public static final String VERSION_SELECTION_MILLIS = "versionSelectionMillis";
     public static final String VERSION_SELECTION_NANOS = "versionSelectionNanos";

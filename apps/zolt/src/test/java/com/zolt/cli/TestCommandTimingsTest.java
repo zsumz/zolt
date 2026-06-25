@@ -85,6 +85,9 @@ final class TestCommandTimingsTest extends TestCommandTestSupport {
         assertTrue(lines[4].contains("\"testPatterns\":\"1\""));
         assertTrue(lines[4].contains("\"testIncludedTags\":\"1\""));
         assertTrue(lines[4].contains("\"testExcludedTags\":\"1\""));
+        assertTrue(lines[4].contains("\"testRunnerRequestNanos\""));
+        assertTrue(lines[4].contains("\"testSlowEntries\":\"0\""));
+        assertTrue(lines[4].contains("\"testSlowEvidence\":\"unavailable\""));
         assertTrue(lines[4].contains("\"outputBytes\""));
         assertTrue(lines[5].contains("\"phase\":\"run tests\""));
         assertTrue(lines[5].contains("\"depth\":0"));
@@ -96,5 +99,8 @@ final class TestCommandTimingsTest extends TestCommandTestSupport {
         assertTrue(lines[5].contains("\"testPatterns\":\"1\""));
         assertTrue(lines[5].contains("\"testIncludedTags\":\"1\""));
         assertTrue(lines[5].contains("\"testExcludedTags\":\"1\""));
+        assertTrue(lines[5].contains("\"testRunnerRequestNanos\""));
+        assertTrue(lines[5].contains("\"testSlowEntries\":\"0\""));
+        assertTrue(lines[5].contains("\"testSlowEvidence\":\"unavailable\""));
     }
 }

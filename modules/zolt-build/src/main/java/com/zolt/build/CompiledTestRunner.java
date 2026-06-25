@@ -96,6 +96,7 @@ final class CompiledTestRunner {
                             throw new TestRunException(message);
                         });
             }
+            long requestStarted = System.nanoTime();
             FrameworkTestRunResult frameworkResult = frameworkTestRunner.runIfEnabled(new FrameworkTestRunRequest(
                             projectDirectory,
                             config,
@@ -108,6 +109,7 @@ final class CompiledTestRunner {
                             testRuntime.environment()))
                     .orElseThrow(() -> new TestRunException(
                             "Framework test runner was not configured for the enabled framework."));
+            long requestNanos = System.nanoTime() - requestStarted;
             String output = frameworkResult.output();
             return new TestRunResult(
                     compileResult,
@@ -117,7 +119,7 @@ final class CompiledTestRunner {
                     frameworkResult.workerClasspathEntries(),
                     frameworkResult.discoveryScanRoots(),
                     -1L,
-                    -1L,
+                    requestNanos,
                     testSelection,
                     testJvmArguments,
                     reportsDirectory);
@@ -156,6 +158,7 @@ final class CompiledTestRunner {
                     reportsDirectory);
         }
         JavaRunResult result;
+        long requestStarted = System.nanoTime();
         try {
             result = javaRunner.run(
                     jdkStatus.java().orElseThrow(),
@@ -173,6 +176,7 @@ final class CompiledTestRunner {
             consoleFailureHandler.throwForFailedRun(exception, testSelection, reportsDirectory);
             throw exception;
         }
+        long requestNanos = System.nanoTime() - requestStarted;
         consoleFailureHandler.throwIfSelectedTestsDidNotMatch(result.output(), testSelection);
         return new TestRunResult(
                 compileResult,
@@ -182,7 +186,7 @@ final class CompiledTestRunner {
                 launcherClasspath.size(),
                 1,
                 -1L,
-                -1L,
+                requestNanos,
                 testSelection,
                 testJvmArguments,
                 reportsDirectory);

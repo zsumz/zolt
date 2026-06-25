@@ -65,12 +65,13 @@ final class TestRunServiceSelectionTest {
                 List.of(),
                 List.of());
 
-        service.runTests(projectDir, config(), projectDir.resolve("cache"), selection);
+        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"), selection);
 
         List<String> command = commands.getFirst();
         assertTrue(command.contains("--select-method"));
         assertEquals("com.example.MainTest#runs", commandArgumentAfter(command, "--select-method"));
         assertFalse(command.stream().anyMatch(argument -> argument.startsWith("--scan-class-path=")));
+        assertTrue(result.testRunnerRequestNanos() >= 0L);
     }
 
     @Test
@@ -89,7 +90,7 @@ final class TestRunServiceSelectionTest {
                 List.of("fast"),
                 List.of("slow"));
 
-        service.runTests(projectDir, config(), projectDir.resolve("cache"), selection);
+        TestRunResult result = service.runTests(projectDir, config(), projectDir.resolve("cache"), selection);
 
         List<String> command = commands.getFirst();
         assertTrue(command.stream().anyMatch(argument -> argument.equals("--scan-class-path="
@@ -101,6 +102,7 @@ final class TestRunServiceSelectionTest {
         assertEquals("fast", commandArgumentAfter(command, "--include-tag"));
         assertEquals("slow", commandArgumentAfter(command, "--exclude-tag"));
         assertFalse(command.contains("--select-method"));
+        assertTrue(result.testRunnerRequestNanos() >= 0L);
     }
 
     @Test

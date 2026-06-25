@@ -160,6 +160,7 @@ final class TestRunServiceFrameworkRunnerTest {
         assertEquals(4, result.testRuntimeClasspathEntries());
         assertEquals(1, result.testLauncherClasspathEntries());
         assertEquals(1, result.testDiscoveryScanRoots());
+        assertTrue(result.testRunnerRequestNanos() >= 0L);
         assertTrue(javaCommands.isEmpty());
         FrameworkTestRunRequest request = frameworkRequests.getFirst();
         assertEquals(projectDir, request.projectDirectory());
