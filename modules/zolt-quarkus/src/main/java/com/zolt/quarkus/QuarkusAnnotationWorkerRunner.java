@@ -196,10 +196,10 @@ public final class QuarkusAnnotationWorkerRunner {
                 return "error: Quarkus annotation test bootstrap activated a test profile, restarted the "
                     + "Quarkus application, then Arc could not instantiate the profiled @QuarkusTest class "
                     + "as a CDI bean. Zolt can instantiate the public QuarkusTestProfile and can produce "
-                    + "test-class bean customizer output for the selected class, but profile reload still "
-                    + "needs a separate Arc additional-bean registration handoff before @TestProfile can be "
-                    + "enabled. Keep profiles unsupported for now, or run `zolt quarkus test-plan` to inspect "
-                    + "blocked tests."
+                    + "test-class bean customizer output for the selected class. Check the printed "
+                    + "`profileMatchesActiveProfile` entry to separate profile-veto mismatches from the "
+                    + "remaining Arc bean-registration handoff before @TestProfile can be enabled. "
+                    + "Keep profiles unsupported for now, or run `zolt quarkus test-plan` to inspect blocked tests."
                     + "\n"
                     + result.output().stripTrailing()
                     + "\n";

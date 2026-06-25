@@ -133,8 +133,8 @@ final class QuarkusAnnotationWorkerRunnerDiagnosticsTest extends QuarkusAnnotati
         assertEquals(1, result.exitCode());
         assertTrue(result.output().contains("activated a test profile"));
         assertTrue(result.output().contains("restarted the Quarkus application"));
-        assertTrue(result.output().contains("profile reload"));
-        assertTrue(result.output().contains("Arc additional-bean registration handoff"));
+        assertTrue(result.output().contains("profileMatchesActiveProfile"));
+        assertTrue(result.output().contains("Arc bean-registration handoff"));
         assertTrue(result.output().contains("@TestProfile"));
         assertTrue(result.output().contains("Profile test activated"));
     }

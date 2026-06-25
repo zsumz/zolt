@@ -10,19 +10,13 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationTarget;
-import org.jboss.jandex.DotName;
 import org.jboss.jandex.Index;
 
 public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainCustomizerProducer {
-    private static final DotName QUARKUS_TEST = DotName.createSimple("io.quarkus.test.junit.QuarkusTest");
     private static final String TEST_CLASS_BEAN_BUILD_ITEM =
             "io.quarkus.deployment.builditem.TestClassBeanBuildItem";
     private static final String ADDITIONAL_BEAN_BUILD_ITEM =
@@ -34,17 +28,21 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
 
     @Override
     public Consumer<BuildChainBuilder> produce(Index index) {
-        List<String> testClasses = quarkusTestClasses(index);
+        List<String> testClasses = QuarkusTestProfileDiagnostic.testClasses(index);
+        List<QuarkusTestProfileDiagnostic.TestClassProfile> testProfiles =
+                QuarkusTestProfileDiagnostic.testClassProfiles(index);
         writeDiagnostic(
                 "producer.invoked=true",
                 "producer.loader=" + classLoaderName(getClass().getClassLoader()),
                 "producer.indexClass=" + (index == null ? "<null>" : index.getClass().getName()),
-                "producer.candidates=" + joined(testClasses));
+                "producer.candidates=" + joined(testClasses),
+                "producer.testProfiles=" + QuarkusTestProfileDiagnostic.joinedProfiles(testProfiles));
         return builder -> {
             writeDiagnostic(
                     "consumer.accepted=true",
                     "consumer.builderClass=" + builder.getClass().getName(),
-                    "consumer.candidates=" + joined(testClasses));
+                    "consumer.candidates=" + joined(testClasses),
+                    "consumer.testProfiles=" + QuarkusTestProfileDiagnostic.joinedProfiles(testProfiles));
             if (testClasses.isEmpty()) {
                 return;
             }
@@ -67,11 +65,16 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     testClassBeanBuildItemClass(builder);
             testClassBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder testClassBeanStep = builder.addBuildStep(context -> {
+                        String activeProfile = activeProfile(context);
                         writeDiagnostic(
                                 "buildStep.executed=true",
                                 "buildStep.testClassBeanBuildItemLoader="
                                         + classLoaderName(buildItemClass.getClassLoader()),
-                                "buildStep.activeProfile=" + activeProfile(context),
+                                "buildStep.activeProfile=" + activeProfile,
+                                "buildStep.profileMatchesActiveProfile="
+                                        + QuarkusTestProfileDiagnostic.joinedProfileMatches(
+                                                testProfiles,
+                                                activeProfile),
                                 "buildStep.produced=" + joined(testClasses));
                         for (String testClass : testClasses) {
                             context.produce(testClassBeanBuildItem(buildItemClass, testClass));
@@ -83,12 +86,16 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
             });
             additionalBeanBuildItem.ifPresent(buildItemClass -> {
                 BuildStepBuilder additionalBeanStep = builder.addBuildStep(context -> {
+                        String activeProfile = activeProfile(context);
                         writeDiagnostic(
                                 "additionalBeanStep.executed=true",
                                 "additionalBeanStep.additionalBeanBuildItemLoader="
                                         + classLoaderName(buildItemClass.getClassLoader()),
-                                "additionalBeanStep.activeProfile="
-                                        + activeProfile(context),
+                                "additionalBeanStep.activeProfile=" + activeProfile,
+                                "additionalBeanStep.profileMatchesActiveProfile="
+                                        + QuarkusTestProfileDiagnostic.joinedProfileMatches(
+                                                testProfiles,
+                                                activeProfile),
                                 "additionalBeanStep.produced=" + joined(testClasses));
                         context.produce(additionalBeanBuildItem(buildItemClass, testClasses));
                     });
@@ -226,23 +233,6 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
                     "Could not produce Quarkus additional bean build item for Zolt test classes.",
                     exception);
         }
-    }
-
-    private static List<String> quarkusTestClasses(Index index) {
-        if (index == null) {
-            return List.of();
-        }
-        List<String> testClasses = new ArrayList<>();
-        for (AnnotationInstance annotation : index.getAnnotations(QUARKUS_TEST)) {
-            AnnotationTarget target = annotation.target();
-            if (target.kind() == AnnotationTarget.Kind.CLASS && !target.asClass().isAnnotation()) {
-                testClasses.add(target.asClass().name().toString());
-            }
-        }
-        return testClasses.stream()
-                .distinct()
-                .sorted(Comparator.naturalOrder())
-                .toList();
     }
 
     private static String joined(List<String> values) {
