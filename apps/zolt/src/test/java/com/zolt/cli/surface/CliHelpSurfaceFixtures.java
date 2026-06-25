@@ -12,8 +12,8 @@ import picocli.CommandLine;
 final class CliHelpSurfaceFixtures {
     static final String ANSI_ESCAPE = "\u001B[";
     static final String BOLD_GREEN_OPTION = "\u001B[1;32m--";
-    static final String BOLD_USAGE_HEADING = "\u001B[1;32mUsage\u001B[0m:";
-    static final String BOLD_COMMANDS_HEADING = "\u001B[1;32mCommands\u001B[0m:";
+    static final String BOLD_USAGE_HEADING = "\u001B[1;32mUsage:\u001B[0m";
+    static final String BOLD_COMMANDS_HEADING = "\u001B[1;32mCommands:\u001B[0m";
     static final String BOLD_BASICS_HEADING = "\u001B[1;32mBasics\u001B[0m";
     static final String BOLD_CYAN_ZOLT_COMMAND = "\u001B[1;36mzolt\u001B[0m";
     static final String BOLD_CYAN_COLOR_OPTION = "\u001B[1;36m--color";

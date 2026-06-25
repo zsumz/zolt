@@ -40,8 +40,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt version\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mset\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mremove\u001B[0m"));
@@ -79,8 +79,8 @@ final class CliCommandGroupHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt platform\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36madd\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mremove\u001B[0m"));
@@ -117,11 +117,11 @@ final class CliCommandGroupHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt ide\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mmodel\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
@@ -156,12 +156,12 @@ final class CliCommandGroupHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt quarkus\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mplan\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mtest-plan\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

@@ -39,8 +39,8 @@ final class CliInsightHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt tree\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--format\u001B[0m"));
@@ -79,9 +79,9 @@ final class CliInsightHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt why\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mGROUP:ARTIFACT\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -121,9 +121,9 @@ final class CliInsightHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt classpath\u001B[0m"));
         assertTrue(result.stdout().contains("compile|runtime|test|processor|test-processor|quarkus-deployment|audit"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -161,11 +161,11 @@ final class CliInsightHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt conflicts\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertFalse(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

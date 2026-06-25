@@ -94,8 +94,7 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
             if (!firstGroup) {
                 output.append(System.lineSeparator());
             }
-            output.append(styles.get().helpHeading(entry.getKey().heading()))
-                    .append(':')
+            output.append(styles.get().helpHeading(entry.getKey().heading() + ":"))
                     .append(System.lineSeparator());
             output.append(renderOptions(help, options));
             firstGroup = false;

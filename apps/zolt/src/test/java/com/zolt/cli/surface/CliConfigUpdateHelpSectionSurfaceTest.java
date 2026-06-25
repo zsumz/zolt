@@ -38,8 +38,8 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt config\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--help\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mshow\u001B[0m"));
@@ -77,11 +77,11 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt config show\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--config\u001B[0m\u001B[36m <configPath>\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
-        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
@@ -114,11 +114,11 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt update\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--help\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mCommands\u001B[0m:"));
-        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mCommands:\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

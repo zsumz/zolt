@@ -43,9 +43,9 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt add\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mDEPENDENCY...\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -86,12 +86,12 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt remove\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mDEPENDENCY...\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
@@ -128,9 +128,9 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt version set\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mALIAS\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mVERSION\u001B[0m"));
@@ -171,9 +171,9 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt version remove\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mALIAS\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -214,9 +214,9 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt platform add\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mGROUP:ARTIFACT[:VERSION]\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -256,12 +256,12 @@ final class CliDependencyEditHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt platform remove\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36mGROUP:ARTIFACT\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

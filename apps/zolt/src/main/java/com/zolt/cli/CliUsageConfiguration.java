@@ -38,7 +38,7 @@ final class CliUsageConfiguration {
         usage.commandListHeading("Commands:%n");
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_SYNOPSIS_HEADING,
-                help -> styles.get().helpHeading("Usage") + ": ");
+                help -> styles.get().helpHeading("Usage:") + " ");
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_SYNOPSIS,
                 help -> HelpSynopsisHighlighter.highlight(
@@ -57,7 +57,7 @@ final class CliUsageConfiguration {
                 help -> HelpParameterHighlighter.highlight(help.parameterList(), styles.get()));
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_OPTION_LIST_HEADING,
-                help -> styles.get().helpHeading("Options") + ":" + System.lineSeparator());
+                help -> styles.get().helpHeading("Options:") + System.lineSeparator());
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_COMMAND_LIST_HEADING,
                 help -> commandListHeading(help, styles));
@@ -72,7 +72,7 @@ final class CliUsageConfiguration {
         if (!hasVisibleSubcommands) {
             return "";
         }
-        return System.lineSeparator() + styles.get().helpHeading("Commands") + ":" + System.lineSeparator();
+        return System.lineSeparator() + styles.get().helpHeading("Commands:") + System.lineSeparator();
     }
 
     private static String descriptionSection(Help help) {
@@ -90,6 +90,6 @@ final class CliUsageConfiguration {
         if (help.commandSpec().positionalParameters().isEmpty()) {
             return "";
         }
-        return styles.get().helpHeading("Arguments") + ":" + System.lineSeparator();
+        return styles.get().helpHeading("Arguments:") + System.lineSeparator();
     }
 }

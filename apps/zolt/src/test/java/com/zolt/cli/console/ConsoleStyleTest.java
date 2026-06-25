@@ -48,7 +48,7 @@ final class ConsoleStyleTest {
         ConsoleStyle style = ConsoleStyle.disabled();
 
         assertEquals("Basics", style.heading("Basics"));
-        assertEquals("Usage", style.helpHeading("Usage"));
+        assertEquals("Usage:", style.helpHeading("Usage:"));
         assertEquals("resolve", style.command("resolve"));
         assertEquals("zolt test", style.helpCommand("zolt test"));
         assertEquals("[COMMAND]", style.helpMeta("[COMMAND]"));
@@ -66,7 +66,7 @@ final class ConsoleStyleTest {
         ConsoleStyle style = ConsoleStyle.enabled();
 
         assertEquals("\u001B[1mBasics\u001B[0m", style.heading("Basics"));
-        assertEquals("\u001B[1;32mUsage\u001B[0m", style.helpHeading("Usage"));
+        assertEquals("\u001B[1;32mUsage:\u001B[0m", style.helpHeading("Usage:"));
         assertEquals("\u001B[36mresolve\u001B[0m", style.command("resolve"));
         assertEquals("\u001B[1;36mzolt test\u001B[0m", style.helpCommand("zolt test"));
         assertEquals("\u001B[36m[COMMAND]\u001B[0m", style.helpMeta("[COMMAND]"));

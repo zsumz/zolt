@@ -55,12 +55,12 @@ final class CliTestFamilyHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mTest Runtime\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Runtime:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt test\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <colorMode>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -116,12 +116,12 @@ final class CliTestFamilyHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mTest Runtime\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Runtime:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt integration-test\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--color\u001B[0m\u001B[36m <colorMode>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
@@ -180,11 +180,11 @@ final class CliTestFamilyHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mOutput\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mWorkspace Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mTest Selection:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOutput:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt coverage\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));

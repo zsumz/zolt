@@ -162,7 +162,7 @@ public final class ZoltCli implements Runnable {
     @Override
     public void run() {
         if (listCommands) {
-            spec.commandLine().getOut().println(consoleStyle().helpHeading("Commands") + ":");
+            spec.commandLine().getOut().println(consoleStyle().helpHeading("Commands:"));
             spec.commandLine().getOut().print(RootCommandListRenderer.render(spec.commandLine(), consoleStyle()));
             spec.commandLine().getOut().flush();
             return;

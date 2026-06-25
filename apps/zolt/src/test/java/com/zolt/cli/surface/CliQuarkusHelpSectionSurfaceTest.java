@@ -42,8 +42,8 @@ final class CliQuarkusHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
-        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt quarkus plan\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings\u001B[0m"));
@@ -81,11 +81,11 @@ final class CliQuarkusHelpSectionSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mOptions\u001B[0m:"));
+        assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt quarkus test-plan\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <directory>\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics\u001B[0m:"));
-        assertFalse(result.stdout().contains("\u001B[1;32mResolution\u001B[0m:"));
+        assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
