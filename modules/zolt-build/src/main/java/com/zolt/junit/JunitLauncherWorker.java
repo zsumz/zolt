@@ -130,9 +130,7 @@ public final class JunitLauncherWorker {
                 testExecutionListeners.add(reportListener(reportsDirectory.orElseThrow()));
             }
             Object request = discoveryRequest(testOutputDirectory.toAbsolutePath().normalize(), testSelection);
-            Object session = Class.forName("org.junit.platform.launcher.core.LauncherFactory")
-                    .getMethod("openSession")
-                    .invoke(null);
+            Object session = openSession();
             Class<?> sessionInterface = Class.forName("org.junit.platform.launcher.LauncherSession");
             try {
                 Object launcher = sessionInterface.getMethod("getLauncher").invoke(session);
@@ -152,6 +150,34 @@ public final class JunitLauncherWorker {
                 sessionInterface.getMethod("close").invoke(session);
             }
             return summarize(listenerClass, listener);
+        }
+
+        private Object openSession() throws ReflectiveOperationException {
+            Class<?> launcherFactoryClass = Class.forName("org.junit.platform.launcher.core.LauncherFactory");
+            try {
+                Class<?> launcherConfigClass = Class.forName("org.junit.platform.launcher.core.LauncherConfig");
+                Object builder = launcherConfigClass.getMethod("builder").invoke(null);
+                // Keep plain JUnit worker runs isolated from framework launcher listeners on Zolt's own classpath.
+                disableAutoRegistration(builder, "enableLauncherSessionListenerAutoRegistration");
+                disableAutoRegistration(builder, "enableLauncherDiscoveryListenerAutoRegistration");
+                disableAutoRegistration(builder, "enableTestExecutionListenerAutoRegistration");
+                disableAutoRegistration(builder, "enablePostDiscoveryFilterAutoRegistration");
+                Method build = builder.getClass().getMethod("build");
+                build.setAccessible(true);
+                Object launcherConfig = build.invoke(builder);
+                return launcherFactoryClass
+                        .getMethod("openSession", launcherConfigClass)
+                        .invoke(null, launcherConfig);
+            } catch (ClassNotFoundException | NoSuchMethodException exception) {
+                return launcherFactoryClass.getMethod("openSession").invoke(null);
+            }
+        }
+
+        private static void disableAutoRegistration(Object builder, String methodName)
+                throws ReflectiveOperationException {
+            Method method = builder.getClass().getMethod(methodName, boolean.class);
+            method.setAccessible(true);
+            method.invoke(builder, false);
         }
 
         private Object reportListener(Path reportsDirectory) throws ReflectiveOperationException, IOException {

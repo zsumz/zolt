@@ -8,6 +8,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
+import com.zolt.test.TestSuiteExecutionPlan;
 import com.zolt.test.TestSuitePlanner;
 import java.nio.file.Path;
 import java.util.List;
@@ -393,13 +394,15 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
-        TestSelection effectiveSelection = testSuitePlanner.executionSelection(projectDirectory, config, suiteName, selection, shard);
+        TestSuiteExecutionPlan executionPlan =
+                testSuitePlanner.executionPlan(projectDirectory, config, suiteName, selection, shard);
         return compiledTestRunner.run(
                 projectDirectory,
                 config,
                 classpaths,
                 compileResult,
-                effectiveSelection,
+                executionPlan.selection(),
+                executionPlan.workerPoolPlan(),
                 jvmArguments,
                 reportSettings,
                 cliEvents);

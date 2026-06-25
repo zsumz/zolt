@@ -12,12 +12,21 @@ import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;
 import com.zolt.junit.JunitWorkerProcessLauncher;
 import com.zolt.project.ProjectConfig;
+import com.zolt.test.TestInventoryEntry;
 import com.zolt.test.TestSelection;
+import com.zolt.test.TestWorkerPoolPlan;
+import com.zolt.test.TestWorkerPoolWave;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 final class CompiledTestRunner {
@@ -60,10 +69,14 @@ final class CompiledTestRunner {
             ClasspathSet classpaths,
             TestCompileResult compileResult,
             TestSelection selection,
+            TestWorkerPoolPlan workerPoolPlan,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
+        TestWorkerPoolPlan testWorkerPoolPlan = workerPoolPlan == null
+                ? new TestWorkerPoolPlan(false, 1, List.of())
+                : workerPoolPlan;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Optional<Path> reportsDirectory = testReportSettings.absoluteReportsDirectory(projectDirectory);
         TestRuntimeInputs testRuntime = testRuntimeInputBuilder.build(
@@ -126,6 +139,33 @@ final class CompiledTestRunner {
         }
         if (plainJunitWorkerEnabled) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
+            if (testWorkerPoolPlan.enabled() && !testWorkerPoolPlan.empty()) {
+                WorkerPoolRunResult poolResult = runPlainJunitWorkerPool(
+                        jdkStatus.java().orElseThrow(),
+                        workerClasspath,
+                        projectDirectory,
+                        config,
+                        runnerClasspath,
+                        compileResult.outputDirectory().toAbsolutePath().normalize(),
+                        testSelection,
+                        testWorkerPoolPlan,
+                        testJvmArguments,
+                        testRuntime.environment(),
+                        reportsDirectory,
+                        testRuntime.events());
+                return new TestRunResult(
+                        compileResult,
+                        poolResult.output(),
+                        PLAIN_JUNIT_WORKER_RUNNER,
+                        runnerClasspath.size(),
+                        workerClasspath.size() + runnerClasspath.size(),
+                        poolResult.workerRequests(),
+                        poolResult.startupNanos(),
+                        poolResult.requestNanos(),
+                        testSelection,
+                        testJvmArguments,
+                        reportsDirectory);
+            }
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
                     workerClasspath,
@@ -192,6 +232,152 @@ final class CompiledTestRunner {
                 reportsDirectory);
     }
 
+    private WorkerPoolRunResult runPlainJunitWorkerPool(
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            Path projectDirectory,
+            ProjectConfig config,
+            List<Path> testRuntimeClasspath,
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            TestWorkerPoolPlan workerPoolPlan,
+            TestJvmArguments jvmArguments,
+            Map<String, String> environment,
+            Optional<Path> reportsDirectory,
+            List<String> events) {
+        ExecutorService executor = Executors.newFixedThreadPool(workerPoolPlan.maxWorkers());
+        StringBuilder output = new StringBuilder();
+        long startupNanos = 0L;
+        long requestStarted = System.nanoTime();
+        int workerRequests = 0;
+        try {
+            for (int waveIndex = 0; waveIndex < workerPoolPlan.waves().size(); waveIndex++) {
+                TestWorkerPoolWave wave = workerPoolPlan.waves().get(waveIndex);
+                List<Future<WorkerTaskResult>> futures = new ArrayList<>();
+                for (int entryIndex = 0; entryIndex < wave.entries().size(); entryIndex++) {
+                    TestInventoryEntry entry = wave.entries().get(entryIndex);
+                    String workerId = "wave-" + (waveIndex + 1) + "-worker-" + (entryIndex + 1);
+                    futures.add(executor.submit(workerTask(
+                            javaExecutable,
+                            workerClasspath,
+                            projectDirectory,
+                            config,
+                            testRuntimeClasspath,
+                            testOutputDirectory,
+                            testSelection,
+                            entry,
+                            jvmArguments,
+                            environment,
+                            reportsDirectory,
+                            events,
+                            workerId)));
+                }
+                for (Future<WorkerTaskResult> future : futures) {
+                    WorkerTaskResult taskResult = getWorkerTask(future);
+                    workerRequests++;
+                    startupNanos += taskResult.result().startupNanos();
+                    output.append(taskResult.result().workerResult().output());
+                    if (taskResult.result().workerResult().exitCode() != 0) {
+                        throw new TestRunException(
+                                "JUnit worker tests failed with exit code "
+                                        + taskResult.result().workerResult().exitCode()
+                                        + " in "
+                                        + taskResult.className()
+                                        + ". Fix failing tests, then run `zolt test` again.\n"
+                                        + taskResult.result().workerResult().output().stripTrailing());
+                    }
+                }
+            }
+            return new WorkerPoolRunResult(
+                    output.toString(),
+                    workerRequests,
+                    startupNanos,
+                    System.nanoTime() - requestStarted);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private Callable<WorkerTaskResult> workerTask(
+            Path javaExecutable,
+            List<Path> workerClasspath,
+            Path projectDirectory,
+            ProjectConfig config,
+            List<Path> testRuntimeClasspath,
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            TestInventoryEntry entry,
+            TestJvmArguments jvmArguments,
+            Map<String, String> environment,
+            Optional<Path> reportsDirectory,
+            List<String> events,
+            String workerId) {
+        return () -> {
+            PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
+                    javaExecutable,
+                    workerClasspath,
+                    projectDirectory,
+                    testRuntimeClasspath,
+                    testOutputDirectory,
+                    workerSelection(testSelection, entry),
+                    jvmArguments,
+                    workerEnvironment(projectDirectory, config, environment, workerId),
+                    workerReportsDirectory(reportsDirectory, workerId),
+                    events);
+            return new WorkerTaskResult(entry.className(), result);
+        };
+    }
+
+    private WorkerTaskResult getWorkerTask(Future<WorkerTaskResult> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new TestRunException("JUnit worker pool was interrupted while waiting for test results.", exception);
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof TestRunException testRunException) {
+                throw testRunException;
+            }
+            throw new TestRunException("JUnit worker pool failed while running tests.", cause);
+        }
+    }
+
+    private static TestSelection workerSelection(TestSelection selection, TestInventoryEntry entry) {
+        List<TestSelection.MethodSelector> methodSelectors = selection.methodSelectors().stream()
+                .filter(method -> method.className().equals(entry.className()))
+                .toList();
+        List<String> classSelectors = methodSelectors.isEmpty()
+                ? List.of(entry.className())
+                : List.of();
+        return TestSelection.fromFields(
+                classSelectors,
+                methodSelectors,
+                List.of(),
+                selection.includedTags(),
+                selection.excludedTags());
+    }
+
+    private static Map<String, String> workerEnvironment(
+            Path projectDirectory,
+            ProjectConfig config,
+            Map<String, String> environment,
+            String workerId) {
+        Map<String, String> values = new LinkedHashMap<>(environment);
+        Path outputDirectory = projectDirectory.resolve(config.build().outputRoot())
+                .resolve("test-workers")
+                .resolve(workerId)
+                .toAbsolutePath()
+                .normalize();
+        values.put("ZOLT_TEST_WORKER_ID", workerId);
+        values.put("ZOLT_TEST_WORKER_OUTPUT_DIR", outputDirectory.toString());
+        return Map.copyOf(values);
+    }
+
+    private static Optional<Path> workerReportsDirectory(Optional<Path> reportsDirectory, String workerId) {
+        return reportsDirectory.map(directory -> directory.resolve("workers").resolve(workerId));
+    }
+
     static PlainJunitWorkerRunResult runPlainJunitWorker(
             Path javaExecutable,
             List<Path> workerClasspath,
@@ -224,5 +410,17 @@ final class CompiledTestRunner {
         return classpath.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .toList();
+    }
+
+    private record WorkerPoolRunResult(
+            String output,
+            int workerRequests,
+            long startupNanos,
+            long requestNanos) {
+    }
+
+    private record WorkerTaskResult(
+            String className,
+            PlainJunitWorkerRunResult result) {
     }
 }

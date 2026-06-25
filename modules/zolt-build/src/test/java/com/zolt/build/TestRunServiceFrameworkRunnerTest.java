@@ -9,6 +9,7 @@ import static com.zolt.build.TestRunServiceTestSupport.source;
 import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleAndJbossLogManagerLockfile;
 import static com.zolt.build.TestRunServiceLockfileTestSupport.writeConsoleLockfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,13 +18,22 @@ import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.junit.JunitWorkerClient;
+import com.zolt.project.BuildSettings;
+import com.zolt.project.ProjectConfig;
+import com.zolt.project.TestSuiteSettings;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -133,6 +143,180 @@ final class TestRunServiceFrameworkRunnerTest {
     }
 
     @Test
+    void parallelSafeSuiteRunsThroughBoundedWorkerPool() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/DbOneTest.java", "package com.example; public final class DbOneTest {}\n");
+        source(projectDir, "src/test/java/com/example/DbTwoTest.java", "package com.example; public final class DbTwoTest {}\n");
+        source(projectDir, "src/test/java/com/example/KafkaTest.java", "package com.example; public final class KafkaTest {}\n");
+        source(projectDir, "src/test/java/com/example/NoLockTest.java", "package com.example; public final class NoLockTest {}\n");
+        List<TestSelection> selections = Collections.synchronizedList(new ArrayList<>());
+        List<Map<String, String>> environments = Collections.synchronizedList(new ArrayList<>());
+        List<Optional<Path>> reportDirectories = Collections.synchronizedList(new ArrayList<>());
+        AtomicInteger activeDatabaseWorkers = new AtomicInteger();
+        AtomicBoolean lockViolation = new AtomicBoolean();
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
+                new JdkDetector(),
+                FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                    selections.add(testSelection);
+                    environments.add(environment);
+                    reportDirectories.add(reportsDirectory);
+                    String className = testSelection.classSelectors().getFirst();
+                    if (className.startsWith("com.example.Db")) {
+                        if (activeDatabaseWorkers.incrementAndGet() > 1) {
+                            lockViolation.set(true);
+                        }
+                        try {
+                            Thread.sleep(25L);
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                        } finally {
+                            activeDatabaseWorkers.decrementAndGet();
+                        }
+                    }
+                    return new PlainJunitWorkerRunResult(
+                            new JunitWorkerClient.WorkerRunResult("passed " + className + "\n", 0),
+                            10L,
+                            20L);
+                },
+                true);
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                parallelFastConfig(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
+                List.of(),
+                "fast");
+
+        assertEquals("zolt-junit-worker", result.testRunner());
+        assertEquals(4, result.testDiscoveryScanRoots());
+        assertTrue(result.output().contains("passed com.example.DbOneTest"));
+        assertTrue(result.output().contains("passed com.example.DbTwoTest"));
+        assertEquals(
+                List.of(
+                        "com.example.DbOneTest",
+                        "com.example.DbTwoTest",
+                        "com.example.KafkaTest",
+                        "com.example.NoLockTest"),
+                selections.stream()
+                        .flatMap(selection -> selection.classSelectors().stream())
+                        .sorted()
+                        .toList());
+        assertFalse(lockViolation.get());
+        assertEquals(4, environments.size());
+        assertTrue(environments.stream().allMatch(environment -> environment.containsKey("ZOLT_TEST_WORKER_ID")));
+        assertTrue(environments.stream().allMatch(environment -> environment.containsKey("ZOLT_TEST_WORKER_OUTPUT_DIR")));
+        assertTrue(reportDirectories.stream().allMatch(Optional::isPresent));
+        assertTrue(reportDirectories.stream()
+                .map(Optional::orElseThrow)
+                .allMatch(path -> path.toString().contains("target/test-reports/workers/wave-")));
+    }
+
+    @Test
+    void workerPoolFailurePreservesWorkerOutput() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/FailingTest.java", "package com.example; public final class FailingTest {}\n");
+        source(projectDir, "src/test/java/com/example/PassingTest.java", "package com.example; public final class PassingTest {}\n");
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
+                new JdkDetector(),
+                FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                    String className = testSelection.classSelectors().getFirst();
+                    if (className.equals("com.example.FailingTest")) {
+                        return new PlainJunitWorkerRunResult(
+                                new JunitWorkerClient.WorkerRunResult("java.lang.AssertionError: nope\n\tat com.example.FailingTest\n", 1),
+                                10L,
+                                20L);
+                    }
+                    return new PlainJunitWorkerRunResult(
+                            new JunitWorkerClient.WorkerRunResult("passed " + className + "\n", 0),
+                            10L,
+                            20L);
+                },
+                true);
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> service.runTests(
+                        projectDir,
+                        parallelFastConfig(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "fast"));
+
+        assertTrue(exception.getMessage().contains("JUnit worker tests failed with exit code 1"));
+        assertTrue(exception.getMessage().contains("com.example.FailingTest"));
+        assertTrue(exception.getMessage().contains("java.lang.AssertionError: nope"));
+    }
+
+    @Test
+    void workerPoolCancellationInterruptsWorkers() throws Exception {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/SlowOneTest.java", "package com.example; public final class SlowOneTest {}\n");
+        source(projectDir, "src/test/java/com/example/SlowTwoTest.java", "package com.example; public final class SlowTwoTest {}\n");
+        CountDownLatch workerStarted = new CountDownLatch(1);
+        AtomicBoolean workerInterrupted = new AtomicBoolean();
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
+                new JdkDetector(),
+                FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                    workerStarted.countDown();
+                    try {
+                        Thread.sleep(5_000L);
+                    } catch (InterruptedException exception) {
+                        workerInterrupted.set(true);
+                        Thread.currentThread().interrupt();
+                    }
+                    return new PlainJunitWorkerRunResult(
+                            new JunitWorkerClient.WorkerRunResult("cancelled\n", 0),
+                            10L,
+                            20L);
+                },
+                true);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        Thread runnerThread = new Thread(() -> {
+            try {
+                service.runTests(
+                        projectDir,
+                        parallelFastConfig(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "fast");
+            } catch (Throwable throwable) {
+                thrown.set(throwable);
+            }
+        });
+
+        runnerThread.start();
+        assertTrue(workerStarted.await(5, TimeUnit.SECONDS));
+        runnerThread.interrupt();
+        runnerThread.join(5_000L);
+
+        assertFalse(runnerThread.isAlive());
+        assertTrue(thrown.get() instanceof TestRunException);
+        assertTrue(thrown.get().getMessage().contains("JUnit worker pool was interrupted"));
+        assertTrue(workerInterrupted.get());
+    }
+
+    @Test
     void quarkusPlainJUnitRunsThroughQuarkusTestWorker() throws IOException {
         writeConsoleAndJbossLogManagerLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
@@ -215,6 +399,23 @@ final class TestRunServiceFrameworkRunnerTest {
                         TestReportSettings.reportsDirectory(Path.of("target/test-reports"))));
 
         assertTrue(exception.getMessage().contains("framework reports are not supported yet"));
+    }
+
+    private static ProjectConfig parallelFastConfig() {
+        return config().withBuildSettings(BuildSettings.defaults().withTestSuites(Map.of(
+                "fast",
+                new TestSuiteSettings(
+                        List.of("*Test"),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        true,
+                        3,
+                        Map.of(
+                                "com.example.DbOneTest",
+                                List.of("database"),
+                                "com.example.DbTwoTest",
+                                List.of("database"))))));
     }
 
 }

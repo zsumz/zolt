@@ -16,6 +16,7 @@ public final class TestSuitePlanner {
     private final TestInventoryBuilder inventoryBuilder;
     private final TestShardPlanner shardPlanner = new TestShardPlanner();
     private final TestShardManifestWriter shardManifestWriter = new TestShardManifestWriter();
+    private final TestWorkerPoolScheduler workerPoolScheduler = new TestWorkerPoolScheduler();
 
     public TestSuitePlanner() {
         this(new TestInventoryBuilder());
@@ -84,12 +85,26 @@ public final class TestSuitePlanner {
             String requestedSuite,
             TestSelection selection,
             TestShardSpec shard) {
+        return executionPlan(projectDirectory, config, requestedSuite, selection, shard).selection();
+    }
+
+    public TestSuiteExecutionPlan executionPlan(
+            Path projectDirectory,
+            ProjectConfig config,
+            String requestedSuite,
+            TestSelection selection,
+            TestShardSpec shard) {
         String suiteName = requestedSuite == null || requestedSuite.isBlank() ? "all" : requestedSuite;
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
         if ("all".equals(suiteName) && shard == null) {
-            return testSelection;
+            return new TestSuiteExecutionPlan(
+                    testSelection,
+                    workerPoolScheduler.plan(List.of(), TestSuiteSettings.empty()));
         }
         TestSuitePlan plan = plan(projectDirectory, config, suiteName, testSelection);
+        TestSuiteSettings suiteSettings = "all".equals(suiteName)
+                ? TestSuiteSettings.empty()
+                : config.build().testSuites().get(suiteName);
         if (shard != null) {
             TestShardPlan shardPlan = shardPlanner.plan(projectDirectory, config, plan, shard);
             shardManifestWriter.write(shardPlan);
@@ -103,7 +118,9 @@ public final class TestSuitePlanner {
                                 + shardPlan.projectRelativeManifestPath(projectDirectory)
                                 + ".");
             }
-            return executionSelection(plan, shardPlan.entries(), testSelection);
+            return new TestSuiteExecutionPlan(
+                    executionSelection(plan, shardPlan.entries(), testSelection),
+                    workerPoolScheduler.plan(shardPlan.entries(), suiteSettings));
         }
         if (plan.empty()) {
             throw new TestPlanException(
@@ -114,7 +131,9 @@ public final class TestSuitePlanner {
                             + suiteName
                             + "` to inspect suite membership.");
         }
-        return executionSelection(plan, plan.entries(), testSelection);
+        return new TestSuiteExecutionPlan(
+                executionSelection(plan, plan.entries(), testSelection),
+                workerPoolScheduler.plan(plan.entries(), suiteSettings));
     }
 
     public List<TestShardPlan> shardPlans(
