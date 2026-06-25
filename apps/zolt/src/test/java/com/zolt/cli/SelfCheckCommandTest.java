@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -46,7 +47,8 @@ final class SelfCheckCommandTest {
 
         assertEquals(1, color.exitCode());
         assertTrue(color.stdout().contains("Self-check status: \u001B[31merror\u001B[0m"));
-        assertTrue(color.stdout().contains("error: config - Could not read zolt.toml"));
+        assertTrue(color.stdout().contains("\u001B[31merror:\u001B[0m config - Could not read zolt.toml"));
+        assertFalse(color.stdout().contains("\u001B[31merror: config"));
         assertEquals(1, quiet.exitCode());
         assertEquals("", quiet.stdout());
         assertTrue(quiet.stderr().contains("Self-check failed."));

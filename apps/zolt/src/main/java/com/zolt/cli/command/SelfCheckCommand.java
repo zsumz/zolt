@@ -86,7 +86,7 @@ public final class SelfCheckCommand implements Runnable {
         output.status("Self-check status", result.ok() ? "ok" : "error");
         for (SelfCheckResult.SelfCheckStep step : result.steps()) {
             String marker = step.ok() ? "ok" : "error";
-            output.line(marker + ": " + step.name() + " - " + step.message());
+            output.statusDetail(marker, step.name() + " - " + step.message());
         }
     }
 }

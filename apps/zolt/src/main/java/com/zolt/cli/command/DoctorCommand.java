@@ -84,7 +84,7 @@ public final class DoctorCommand implements Runnable {
         output.status("Self-hosting status", result.ok() ? "ok" : "error");
         for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
             String marker = check.ok() ? "ok" : "error";
-            output.line(marker + ": " + check.name() + " - " + check.message());
+            output.statusDetail(marker, check.name() + " - " + check.message());
         }
     }
 }

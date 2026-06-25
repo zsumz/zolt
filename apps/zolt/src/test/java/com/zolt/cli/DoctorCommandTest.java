@@ -2,6 +2,7 @@ package com.zolt.cli;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
@@ -57,9 +58,10 @@ final class DoctorCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Self-hosting status: \u001B[32mok\u001B[0m"));
-        assertTrue(result.stdout().contains("ok: main class - project main is com.example.Main"));
-        assertTrue(result.stdout().contains("ok: JUnit Platform Console"));
-        assertTrue(result.stdout().contains("ok: native no-fallback"));
+        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m main class - project main is com.example.Main"));
+        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m JUnit Platform Console"));
+        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m native no-fallback"));
+        assertFalse(result.stdout().contains("\u001B[32mok: main class"));
     }
 
     @Test

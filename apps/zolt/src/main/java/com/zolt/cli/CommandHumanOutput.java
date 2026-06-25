@@ -84,6 +84,13 @@ public final class CommandHumanOutput {
         out.println(label + ": " + styleStatus(marker));
     }
 
+    public void statusDetail(String marker, String message) {
+        if (quiet) {
+            return;
+        }
+        out.println(styleStatusLabel(marker) + " " + message);
+    }
+
     public void next(String message) {
         if (quiet) {
             return;
@@ -132,6 +139,16 @@ public final class CommandHumanOutput {
             case "error" -> style.error(marker);
             case "skip" -> style.muted(marker);
             default -> marker;
+        };
+    }
+
+    private String styleStatusLabel(String marker) {
+        return switch (marker) {
+            case "ok" -> style.success("ok:");
+            case "warning" -> style.warning("warning:");
+            case "error" -> style.error("error:");
+            case "skip" -> style.muted("skip:");
+            default -> marker + ":";
         };
     }
 
