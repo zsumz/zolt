@@ -17,6 +17,33 @@ central = "https://repo.maven.apache.org/maven2"
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
+[test.suites.test-execution]
+includeClassname = [
+    "com.zolt.build.CoverageServiceTest",
+    "com.zolt.build.CoverageServiceValidationTest",
+    "com.zolt.build.CurrentWorkerClasspathTest",
+    "com.zolt.build.FrameworkTestSelectionMapperTest",
+    "com.zolt.build.JunitConsoleArgumentsTest",
+    "com.zolt.build.JunitLauncherClasspathTest",
+    "com.zolt.build.TestConsoleFailureHandlerTest",
+    "com.zolt.build.TestJvmArgumentsTest",
+    "com.zolt.build.TestRuntimeInputBuilderTest",
+    "com.zolt.build.TestRunServiceFailureTest",
+    "com.zolt.build.TestRunServiceFrameworkRunnerTest",
+    "com.zolt.build.TestRunServiceRuntimeOptionsTest",
+    "com.zolt.build.TestRunServiceSelectionTest",
+    "com.zolt.build.TestRunServiceTest",
+    "com.zolt.junit.JunitLauncherWorkerTest",
+    "com.zolt.junit.JunitWorkerClientTest",
+    "com.zolt.junit.JunitWorkerProcessLauncherTest",
+    "com.zolt.junit.JunitWorkerProtocolTest",
+    "com.zolt.test.TestInventoryBuilderTest",
+    "com.zolt.test.TestSelectionTest",
+    "com.zolt.test.TestShardPlannerTest",
+    "com.zolt.test.TestShardSpecTest",
+    "com.zolt.test.TestWorkerPoolSchedulerTest",
+]
+
 [build]
 source = "src/main/java"
 test = "src/test/java"
