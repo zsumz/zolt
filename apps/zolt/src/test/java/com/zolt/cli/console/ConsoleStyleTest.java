@@ -78,4 +78,22 @@ final class ConsoleStyleTest {
         assertEquals("\u001B[31merror:\u001B[0m", style.error("error:"));
         assertEquals("\u001B[2m12ms\u001B[0m", style.muted("12ms"));
     }
+
+    @Test
+    void enabledStyleLeavesEmptyFragmentsPlain() {
+        ConsoleStyle style = ConsoleStyle.enabled();
+
+        assertEquals("", style.heading(""));
+        assertEquals("", style.helpHeading(""));
+        assertEquals("", style.command(""));
+        assertEquals("", style.helpCommand(""));
+        assertEquals("", style.helpMeta(""));
+        assertEquals("", style.path(""));
+        assertEquals("", style.success(""));
+        assertEquals("", style.option(""));
+        assertEquals("", style.work(""));
+        assertEquals("", style.warning(""));
+        assertEquals("", style.error(""));
+        assertEquals("", style.muted(""));
+    }
 }
