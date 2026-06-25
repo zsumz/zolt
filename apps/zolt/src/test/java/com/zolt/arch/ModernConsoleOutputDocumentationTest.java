@@ -54,6 +54,9 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(consoleOutput.contains("`modern-console-output.md` defines the human output design"));
         assertTrue(consoleOutput.contains("Zolt supports:"));
         assertTrue(consoleOutput.contains("Default mode is `auto` for human-facing commands."));
+        assertTrue(consoleOutput.contains("parseable output stay ANSI-free even when color is explicitly"));
+        assertTrue(consoleOutput.contains("`package --plan --format json`"));
+        assertTrue(consoleOutput.contains("parseable commands remain stable even when color is forced"));
         assertTrue(consoleOutput.contains("Focused help-surface tests also guard Cargo-style whitespace"));
         assertTrue(consoleOutput.contains("`progress-output.md` defines"));
         assertTrue(modernConsoleOutput.contains("`progress-output.md` defines"));
