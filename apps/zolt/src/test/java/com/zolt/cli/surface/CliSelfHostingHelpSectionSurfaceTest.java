@@ -50,9 +50,9 @@ final class CliSelfHostingHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36mzolt self-check\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--native\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--native-image\u001B[0m\u001B[36m <nativeImageExecutable>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--native-image\u001B[0m\u001B[36m <NATIVE_IMAGE_EXECUTABLE>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--offline\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m\u001B[36m <format>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m\u001B[36m <FORMAT>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }
@@ -89,7 +89,7 @@ final class CliSelfHostingHelpSectionSurfaceTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt self-parity\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--bootstrap-jar\u001B[0m\u001B[36m <bootstrapJar>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--bootstrap-jar\u001B[0m\u001B[36m <BOOTSTRAP_JAR>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));

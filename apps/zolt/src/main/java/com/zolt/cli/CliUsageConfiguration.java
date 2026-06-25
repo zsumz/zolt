@@ -42,8 +42,8 @@ final class CliUsageConfiguration {
         usage.sectionMap().put(
                 UsageMessageSpec.SECTION_KEY_SYNOPSIS,
                 help -> HelpSynopsisHighlighter.highlight(
-                                HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(
-                                        help.synopsis(USAGE_HEADING_WIDTH)),
+                                normalizeHelpMetavars(HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(
+                                        help.synopsis(USAGE_HEADING_WIDTH))),
                                 styles.get())
                         + System.lineSeparator());
         usage.sectionMap().put(
@@ -86,8 +86,12 @@ final class CliUsageConfiguration {
         return description + System.lineSeparator() + System.lineSeparator();
     }
 
+    private static String normalizeHelpMetavars(String text) {
+        return HelpMetavarLabelNormalizer.normalize(text);
+    }
+
     private static String parameterListSection(Help help, Supplier<ConsoleStyle> styles) {
-        String parameters = HelpParameterHighlighter.highlight(help.parameterList(), styles.get());
+        String parameters = HelpParameterHighlighter.highlight(normalizeHelpMetavars(help.parameterList()), styles.get());
         if (parameters.isBlank()) {
             return "";
         }

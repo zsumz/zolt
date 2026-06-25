@@ -47,7 +47,7 @@ final class CliQuarkusHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36mzolt quarkus plan\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings\u001B[0m"));
-        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m\u001B[36m <format>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m\u001B[36m <FORMAT>\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
     }

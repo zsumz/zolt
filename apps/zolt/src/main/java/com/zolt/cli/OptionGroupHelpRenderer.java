@@ -154,7 +154,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
         Help.Layout layout = help.createDefaultLayout(options, positionals, colorScheme);
         String optionList = help.optionListExcludingGroups(options, layout, null, help.parameterLabelRenderer());
         return HelpOptionHighlighter.highlight(
-                HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(optionList),
+                HelpMetavarLabelNormalizer.normalize(
+                        HelpOptionValueSeparator.useSpaceForRequiredLongOptionValues(optionList)),
                 styles.get());
     }
 
