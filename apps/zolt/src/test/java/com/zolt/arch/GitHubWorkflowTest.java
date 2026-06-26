@@ -26,6 +26,12 @@ final class GitHubWorkflowTest {
         assertTrue(workflow.contains("actions/download-artifact@v4"));
         assertTrue(workflow.contains("scripts/run-test-plan-shard target/test-shard-matrices/test-execution.json \"${{ matrix.selector }}\""));
         assertTrue(workflow.contains("name: sharded-test-execution-evidence-${{ matrix.index }}"));
+        assertTrue(workflow.contains("sharded_test_evidence:"));
+        assertTrue(workflow.contains("needs: sharded_test_execution"));
+        assertTrue(workflow.contains("pattern: sharded-test-execution-evidence-*"));
+        assertTrue(workflow.contains("merge-multiple: true"));
+        assertTrue(workflow.contains("scripts/bootstrap-zolt-jvm check"));
+        assertTrue(workflow.contains("--check execution-context"));
         assertFalse(workflow.contains("run: scripts/self-host-test-execution-shards"));
     }
 }
