@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.profile;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

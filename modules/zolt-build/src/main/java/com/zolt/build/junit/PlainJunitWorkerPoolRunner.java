@@ -1,8 +1,8 @@
 package com.zolt.build.junit;
 
 import com.zolt.build.TestJvmArguments;
-import com.zolt.build.TestProfileMerger;
 import com.zolt.build.TestRunException;
+import com.zolt.build.profile.TestProfileMerger;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestInventoryEntry;
 import com.zolt.test.TestSelection;

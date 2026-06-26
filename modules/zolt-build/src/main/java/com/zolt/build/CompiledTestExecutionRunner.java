@@ -1,6 +1,7 @@
 package com.zolt.build;
 
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestShardSpec;

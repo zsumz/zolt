@@ -6,6 +6,7 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.build.junit.PlainJunitWorkerProcessRunner;
 import com.zolt.build.junit.PlainJunitWorkerRunner;
+import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestShardSpec;

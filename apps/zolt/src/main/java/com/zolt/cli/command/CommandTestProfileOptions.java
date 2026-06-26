@@ -1,6 +1,6 @@
 package com.zolt.cli.command;
 
-import com.zolt.build.TestProfileSettings;
+import com.zolt.build.profile.TestProfileSettings;
 import java.nio.file.Path;
 import picocli.CommandLine.Option;
 

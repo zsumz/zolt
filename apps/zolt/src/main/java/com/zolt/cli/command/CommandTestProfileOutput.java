@@ -1,8 +1,8 @@
 package com.zolt.cli.command;
 
-import com.zolt.build.TestProfileSettings;
-import com.zolt.build.TestProfileSummaryFormatter;
 import com.zolt.build.TestRunResult;
+import com.zolt.build.profile.TestProfileSettings;
+import com.zolt.build.profile.TestProfileSummaryFormatter;
 import com.zolt.cli.CommandHumanOutput;
 import java.nio.file.Path;
 

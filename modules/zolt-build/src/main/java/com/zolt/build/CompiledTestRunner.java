@@ -11,6 +11,8 @@ import com.zolt.build.junit.PlainJunitWorkerPoolRunResult;
 import com.zolt.build.junit.PlainJunitWorkerPoolRunner;
 import com.zolt.build.junit.PlainJunitWorkerRunResult;
 import com.zolt.build.junit.PlainJunitWorkerRunner;
+import com.zolt.build.profile.TestProfileSettings;
+import com.zolt.build.profile.TestProfileSummaryFormatter;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestWorkerPoolPlan;
@@ -137,12 +139,13 @@ final class CompiledTestRunner {
             return new TestRunResult(
                     compileResult,
                     output,
-                    frameworkTestRunner.testRunnerName(),
-                    runnerClasspath.size(),
-                    frameworkResult.workerClasspathEntries(),
-                    frameworkResult.discoveryScanRoots(),
-                    -1L,
-                    requestNanos,
+                    TestRunResult.metrics(
+                            frameworkTestRunner.testRunnerName(),
+                            runnerClasspath.size(),
+                            frameworkResult.workerClasspathEntries(),
+                            frameworkResult.discoveryScanRoots(),
+                            -1L,
+                            requestNanos),
                     testSelection,
                     testJvmArguments,
                     reportsDirectory,
@@ -168,12 +171,13 @@ final class CompiledTestRunner {
                 return new TestRunResult(
                         compileResult,
                         poolResult.output(),
-                        PLAIN_JUNIT_WORKER_RUNNER,
-                        runnerClasspath.size(),
-                        workerClasspath.size() + runnerClasspath.size(),
-                        poolResult.workerRequests(),
-                        poolResult.startupNanos(),
-                        poolResult.requestNanos(),
+                        TestRunResult.metrics(
+                                PLAIN_JUNIT_WORKER_RUNNER,
+                                runnerClasspath.size(),
+                                workerClasspath.size() + runnerClasspath.size(),
+                                poolResult.workerRequests(),
+                                poolResult.startupNanos(),
+                                poolResult.requestNanos()),
                         testSelection,
                         testJvmArguments,
                         reportsDirectory,
@@ -206,12 +210,13 @@ final class CompiledTestRunner {
             return new TestRunResult(
                     compileResult,
                     result.workerResult().output(),
-                    PLAIN_JUNIT_WORKER_RUNNER,
-                    runnerClasspath.size(),
-                    workerClasspath.size() + runnerClasspath.size(),
-                    1,
-                    result.startupNanos(),
-                    result.requestNanos(),
+                    TestRunResult.metrics(
+                            PLAIN_JUNIT_WORKER_RUNNER,
+                            runnerClasspath.size(),
+                            workerClasspath.size() + runnerClasspath.size(),
+                            1,
+                            result.startupNanos(),
+                            result.requestNanos()),
                     testSelection,
                     testJvmArguments,
                     reportsDirectory,
@@ -245,12 +250,13 @@ final class CompiledTestRunner {
         return new TestRunResult(
                 compileResult,
                 result.output(),
-                JUNIT_CONSOLE_RUNNER,
-                runnerClasspath.size(),
-                launcherClasspath.size(),
-                1,
-                -1L,
-                requestNanos,
+                TestRunResult.metrics(
+                        JUNIT_CONSOLE_RUNNER,
+                        runnerClasspath.size(),
+                        launcherClasspath.size(),
+                        1,
+                        -1L,
+                        requestNanos),
                 testSelection,
                 testJvmArguments,
                 reportsDirectory,

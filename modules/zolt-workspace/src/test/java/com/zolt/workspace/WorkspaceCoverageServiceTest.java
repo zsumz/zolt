@@ -117,12 +117,7 @@ final class WorkspaceCoverageServiceTest {
                                         new TestRunResult(
                                                 testCompile(apiDir),
                                                 "api tests\n",
-                                                "junit-console",
-                                                1,
-                                                1,
-                                                1,
-                                                -1L,
-                                                -1L,
+                                                TestRunResult.metrics("junit-console", 1, 1, 1, -1L, -1L),
                                                 testSelection,
                                                 jvmArguments,
                                                 Optional.of(apiDir.resolve("target/coverage/test-reports/apps/api"))))));
@@ -254,12 +249,7 @@ final class WorkspaceCoverageServiceTest {
                                         new TestRunResult(
                                                 testCompile(apiDir),
                                                 "api tests\n",
-                                                "junit-console",
-                                                1,
-                                                1,
-                                                1,
-                                                -1L,
-                                                -1L,
+                                                TestRunResult.metrics("junit-console", 1, 1, 1, -1L, -1L),
                                                 testSelection,
                                                 jvmArguments,
                                                 requestedReportSettings.reportsDirectory()))));

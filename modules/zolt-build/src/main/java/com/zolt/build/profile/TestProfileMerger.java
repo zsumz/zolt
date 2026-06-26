@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.profile;
 
+import com.zolt.build.TestRunException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

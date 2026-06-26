@@ -1,9 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.profile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestRunException;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

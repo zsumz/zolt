@@ -1,10 +1,10 @@
 package com.zolt.workspace;
 
 import com.zolt.build.TestJvmArguments;
-import com.zolt.build.TestProfileMerger;
-import com.zolt.build.TestProfileSettings;
 import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunService;
+import com.zolt.build.profile.TestProfileMerger;
+import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;

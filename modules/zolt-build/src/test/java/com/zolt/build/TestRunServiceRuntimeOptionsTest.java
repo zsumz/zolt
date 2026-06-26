@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
