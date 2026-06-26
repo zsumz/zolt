@@ -33,6 +33,9 @@ public final class TestProfileSummaryFormatter {
     }
 
     static Optional<String> format(String profileJson, TestProfileSettings settings) {
+        if (!validProfile(profileJson)) {
+            return Optional.empty();
+        }
         List<ProfileEntry> tests = entries(profileJson, "tests").stream()
                 .filter(ProfileEntry::hasTestLabel)
                 .toList();
@@ -48,6 +51,12 @@ public final class TestProfileSummaryFormatter {
             return Optional.empty();
         }
         return Optional.of(String.join(System.lineSeparator() + System.lineSeparator(), sections));
+    }
+
+    private static boolean validProfile(String profileJson) {
+        return number(profileJson, "schemaVersion") == 1L
+                && arrayBody(profileJson, "tests").isPresent()
+                && arrayBody(profileJson, "containers").isPresent();
     }
 
     private static Optional<String> rankedSection(

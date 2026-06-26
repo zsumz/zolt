@@ -63,6 +63,43 @@ final class TestProfileSummaryFormatterTest {
         assertTrue(min.getMessage().contains("Invalid --profile-min `250`"));
     }
 
+    @Test
+    void suppressesSummaryForUnsupportedProfileSchema() {
+        String profileJson = profileJson().replace("\"schemaVersion\": 1", "\"schemaVersion\": 2");
+
+        Optional<String> summary = TestProfileSummaryFormatter.format(profileJson, TestProfileSettings.fromCli(
+                true,
+                Path.of("target/test-profile"),
+                10,
+                null));
+
+        assertTrue(summary.isEmpty());
+    }
+
+    @Test
+    void suppressesSummaryForMalformedProfileShape() {
+        String profileJson = """
+                {
+                  "schemaVersion": 1,
+                  "containers": [
+                    {
+                      "className": "com.example.SlowTest",
+                      "durationMillis": 1200,
+                      "testCount": 1
+                    }
+                  ]
+                }
+                """;
+
+        Optional<String> summary = TestProfileSummaryFormatter.format(profileJson, TestProfileSettings.fromCli(
+                true,
+                Path.of("target/test-profile"),
+                10,
+                null));
+
+        assertTrue(summary.isEmpty());
+    }
+
     private static String profileJson() {
         return """
                 {
