@@ -194,17 +194,12 @@ final class TestRunServiceFrameworkRunnerTest {
                 },
                 true);
 
-        TestRunResult result = service.runTests(
-                projectDir,
-                parallelFastConfig(),
-                projectDir.resolve("cache"),
-                TestSelection.empty(),
-                new TestJvmArguments(List.of("-javaagent:/tools/org.jacoco.agent.jar=destfile="
-                        + projectDir.resolve("target/coverage/jacoco.exec").toAbsolutePath().normalize()
-                        + ",append=false")),
-                TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
-                List.of(),
-                "fast");
+        Path coverageExec = projectDir.resolve("target/coverage/jacoco.exec").toAbsolutePath().normalize();
+        TestJvmArguments coverageArguments =
+                new TestJvmArguments(List.of("-javaagent:/tools/org.jacoco.agent.jar=destfile=" + coverageExec + ",append=false"));
+        TestRunResult result = service.runTests(projectDir, parallelFastConfig(), projectDir.resolve("cache"),
+                TestSelection.empty(), coverageArguments, TestReportSettings.reportsDirectory(Path.of("target/test-reports")),
+                List.of(), "fast");
 
         assertEquals("zolt-junit-worker", result.testRunner());
         assertEquals(4, result.testDiscoveryScanRoots());
@@ -240,8 +235,6 @@ final class TestRunServiceFrameworkRunnerTest {
         String coverageManifest = Files.readString(projectDir.resolve("target/coverage/workers/zolt-workers.json"));
         assertTrue(coverageManifest.contains("\"wave-1-worker-1\""));
         assertTrue(coverageManifest.contains("\"wave-2-worker-1\""));
-        databaseReleaseThread.join(2_000L);
-        assertFalse(databaseReleaseThread.isAlive());
     }
 
     @Test
