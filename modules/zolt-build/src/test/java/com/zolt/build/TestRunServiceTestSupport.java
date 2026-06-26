@@ -60,7 +60,7 @@ final class TestRunServiceTestSupport {
                 new JavaRunner(":", processRunner),
                 frameworkTestRunner,
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     throw new AssertionError("Plain JUnit worker should not run for this test.");
                 },
                 false,

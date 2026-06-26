@@ -65,13 +65,18 @@ final class CompiledTestRunner {
             TestWorkerPoolPlan workerPoolPlan,
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
-            List<String> cliEvents) {
+            List<String> cliEvents,
+            TestProfileSettings profileSettings) {
         TestSelection testSelection = selection == null ? TestSelection.empty() : selection;
         TestWorkerPoolPlan testWorkerPoolPlan = workerPoolPlan == null
                 ? new TestWorkerPoolPlan(false, 1, List.of())
                 : workerPoolPlan;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
         Optional<Path> reportsDirectory = testReportSettings.absoluteReportsDirectory(projectDirectory);
+        TestProfileSettings testProfileSettings = profileSettings == null
+                ? TestProfileSettings.disabled()
+                : profileSettings;
+        Optional<Path> profileDirectory = testProfileSettings.absoluteProfileDirectory(projectDirectory);
         TestRuntimeInputs testRuntime = testRuntimeInputBuilder.build(
                 projectDirectory,
                 config.build().testRuntime(),
@@ -96,6 +101,11 @@ final class CompiledTestRunner {
         }
         List<Path> launcherClasspath = junitLauncherClasspath.launcherClasspath(runnerClasspath);
         if (frameworkTestRunner.isEnabled(config)) {
+            if (testProfileSettings.enabled()) {
+                throw new TestRunException("Test profiling is not supported by the "
+                        + frameworkTestRunner.testRunnerName()
+                        + " runner yet. Run plain JUnit tests through Zolt's JUnit worker or omit --profile-tests.");
+            }
             if (reportsDirectory.isPresent()) {
                 frameworkTestRunner.unsupportedReportsMessage()
                         .ifPresent(message -> {
@@ -128,11 +138,17 @@ final class CompiledTestRunner {
                     requestNanos,
                     testSelection,
                     testJvmArguments,
-                    reportsDirectory);
+                    reportsDirectory,
+                    Optional.empty());
         }
-        if (plainJunitWorkerEnabled) {
+        if (plainJunitWorkerEnabled || testProfileSettings.enabled()) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
             if (testWorkerPoolPlan.enabled() && !testWorkerPoolPlan.empty()) {
+                if (testProfileSettings.enabled()) {
+                    throw new TestRunException(
+                            "Test profiling for worker-pool runs is not supported yet. "
+                                    + "Run a serial suite or omit --profile-tests.");
+                }
                 PlainJunitWorkerPoolRunResult poolResult = plainJunitWorkerPoolRunner.run(
                         jdkStatus.java().orElseThrow(),
                         workerClasspath,
@@ -157,7 +173,8 @@ final class CompiledTestRunner {
                         poolResult.requestNanos(),
                         testSelection,
                         testJvmArguments,
-                        reportsDirectory);
+                        reportsDirectory,
+                        Optional.empty());
             }
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),
@@ -169,7 +186,8 @@ final class CompiledTestRunner {
                     testJvmArguments,
                     testRuntime.environment(),
                     reportsDirectory,
-                    testRuntime.events());
+                    testRuntime.events(),
+                    profileDirectory);
             if (result.workerResult().exitCode() != 0) {
                 throw new TestRunException(
                         "JUnit worker tests failed with exit code "
@@ -188,7 +206,12 @@ final class CompiledTestRunner {
                     result.requestNanos(),
                     testSelection,
                     testJvmArguments,
-                    reportsDirectory);
+                    reportsDirectory,
+                    profileDirectory);
+        }
+        if (testProfileSettings.enabled()) {
+            throw new TestRunException(
+                    "Test profiling requires Zolt's JUnit worker. Run with --profile-tests on a plain JUnit project or omit --profile-tests.");
         }
         JavaRunResult result;
         long requestStarted = System.nanoTime();
@@ -222,7 +245,8 @@ final class CompiledTestRunner {
                 requestNanos,
                 testSelection,
                 testJvmArguments,
-                reportsDirectory);
+                reportsDirectory,
+                Optional.empty());
     }
 
     private static List<Path> absolutePaths(List<Path> classpath) {

@@ -45,6 +45,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "--reports-dir",
                 "--test-event",
                 "Diagnostics:",
+                "--profile-tests",
+                "--profile-dir",
                 "--timings",
                 "--timings-format");
     }
@@ -68,6 +70,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36m--test\u001B[0m\u001B[36m <TEST_SELECTORS>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--jvm-arg\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--reports-dir\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--profile-tests\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--profile-dir\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));

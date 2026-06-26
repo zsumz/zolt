@@ -65,7 +65,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 new JdkDetector(),
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     workerClasspaths.add(workerClasspath);
                     testRuntimeClasspaths.add(testRuntimeClasspath);
                     testOutputDirectories.add(testOutputDirectory);
@@ -128,7 +128,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 new JdkDetector(),
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents) ->
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) ->
                         new PlainJunitWorkerRunResult(
                                 new JunitWorkerClient.WorkerRunResult("assertion failed\n", 1),
                                 12_000_000L,
@@ -170,7 +170,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 new JdkDetector(),
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     selections.add(testSelection);
                     workerJvmArguments.add(testJvmArguments);
                     environments.add(environment);
@@ -248,7 +248,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 new JdkDetector(),
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     String className = testSelection.classSelectors().getFirst();
                     if (className.equals("com.example.FailingTest")) {
                         return new PlainJunitWorkerRunResult(
@@ -293,7 +293,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 new JdkDetector(),
                 FrameworkTestRunner.none(),
                 () -> List.of(Path.of("/zolt/zolt.jar")),
-                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     workerStarted.countDown();
                     try {
                         new CountDownLatch(1).await();

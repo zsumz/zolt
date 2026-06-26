@@ -27,6 +27,16 @@ public final class JunitWorkerProtocol {
             TestSelection testSelection,
             Optional<Path> reportsDirectory,
             List<String> events) {
+        return runRequest(requestId, testOutputDirectory, testSelection, reportsDirectory, events, Optional.empty());
+    }
+
+    public static String runRequest(
+            String requestId,
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            Optional<Path> reportsDirectory,
+            List<String> events,
+            Optional<Path> profileDirectory) {
         if (testOutputDirectory == null) {
             throw new IllegalArgumentException("JUnit worker test output directory is required.");
         }
@@ -35,11 +45,12 @@ public final class JunitWorkerProtocol {
         validateField("JUnit worker test output directory", path);
         String prefix = "RUN\t" + validateRequestId(requestId) + "\t" + path;
         Optional<Path> reportPath = reportsDirectory == null ? Optional.empty() : reportsDirectory;
+        Optional<Path> profilePath = profileDirectory == null ? Optional.empty() : profileDirectory;
         List<String> requestedEvents = events == null ? List.of() : List.copyOf(events);
-        if (selection.emptySelection() && reportPath.isEmpty() && requestedEvents.isEmpty()) {
+        if (selection.emptySelection() && reportPath.isEmpty() && requestedEvents.isEmpty() && profilePath.isEmpty()) {
             return prefix;
         }
-        if (reportPath.isEmpty() && requestedEvents.isEmpty()) {
+        if (reportPath.isEmpty() && requestedEvents.isEmpty() && profilePath.isEmpty()) {
             return prefix
                     + "\t"
                     + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
@@ -52,11 +63,17 @@ public final class JunitWorkerProtocol {
                     + "\t"
                     + selectionField("JUnit worker excluded tags", TestSelectionCodec.encodeStrings(selection.excludedTags()));
         }
-        return prefix
+        String extendedPrefix = prefix
                 + "\t"
                 + optionalPathField("JUnit worker reports directory", reportPath)
                 + "\t"
-                + selectionField("JUnit worker events", TestSelectionCodec.encodeStrings(requestedEvents))
+                + selectionField("JUnit worker events", TestSelectionCodec.encodeStrings(requestedEvents));
+        if (profilePath.isPresent()) {
+            extendedPrefix = extendedPrefix
+                    + "\t"
+                    + optionalPathField("JUnit worker profile directory", profilePath);
+        }
+        return extendedPrefix
                 + "\t"
                 + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
                 + "\t"
@@ -85,15 +102,22 @@ public final class JunitWorkerProtocol {
             if (parts.length != 2) {
                 throw new IllegalArgumentException("Malformed JUnit worker quit request. Expected QUIT<TAB>requestId.");
             }
-            return new WorkerRequest(WorkerCommand.QUIT, requestId, "", Optional.empty(), List.of(), TestSelection.empty());
+            return new WorkerRequest(
+                    WorkerCommand.QUIT,
+                    requestId,
+                    "",
+                    Optional.empty(),
+                    Optional.empty(),
+                    List.of(),
+                    TestSelection.empty());
         }
         if (!"RUN".equals(command)) {
             throw new IllegalArgumentException("Unknown JUnit worker request command `" + command + "`.");
         }
-        if ((parts.length != 3 && parts.length != 8 && parts.length != 10) || parts[2].isBlank()) {
+        if ((parts.length != 3 && parts.length != 8 && parts.length != 10 && parts.length != 11) || parts[2].isBlank()) {
             throw new IllegalArgumentException(
                     "Malformed JUnit worker run request. Expected RUN<TAB>requestId<TAB>testOutputDirectory"
-                            + "<TAB>reportsDirectory<TAB>events"
+                            + "<TAB>reportsDirectory<TAB>events<TAB>profileDirectory"
                             + "<TAB>classSelectors<TAB>methodSelectors<TAB>classNamePatterns<TAB>includedTags<TAB>excludedTags.");
         }
         return new WorkerRequest(
@@ -101,6 +125,7 @@ public final class JunitWorkerProtocol {
                 requestId,
                 validateField("JUnit worker test output directory", parts[2]),
                 reportsDirectory(parts),
+                profileDirectory(parts),
                 events(parts),
                 testSelection(parts));
     }
@@ -150,7 +175,7 @@ public final class JunitWorkerProtocol {
 
     private static TestSelection parseSelection(String[] parts) {
         try {
-            int offset = parts.length == 10 ? 5 : 3;
+            int offset = parts.length == 11 ? 6 : parts.length == 10 ? 5 : 3;
             List<String> classSelectors = TestSelectionCodec.decodeStrings("JUnit worker class selectors", parts[offset]);
             List<TestSelection.MethodSelector> methodSelectors =
                     TestSelectionCodec.decodeMethods("JUnit worker method selectors", parts[offset + 1]);
@@ -166,14 +191,21 @@ public final class JunitWorkerProtocol {
     }
 
     private static Optional<String> reportsDirectory(String[] parts) {
-        if (parts.length != 10 || parts[3].isBlank()) {
+        if ((parts.length != 10 && parts.length != 11) || parts[3].isBlank()) {
             return Optional.empty();
         }
         return Optional.of(validateField("JUnit worker reports directory", parts[3]));
     }
 
+    private static Optional<String> profileDirectory(String[] parts) {
+        if (parts.length != 11 || parts[5].isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(validateField("JUnit worker profile directory", parts[5]));
+    }
+
     private static List<String> events(String[] parts) {
-        if (parts.length != 10) {
+        if (parts.length != 10 && parts.length != 11) {
             return List.of();
         }
         return TestSelectionCodec.decodeStrings("JUnit worker events", parts[4]);
@@ -200,10 +232,12 @@ public final class JunitWorkerProtocol {
             String requestId,
             String testOutputDirectory,
             Optional<String> reportsDirectory,
+            Optional<String> profileDirectory,
             List<String> events,
             TestSelection testSelection) {
         public WorkerRequest {
             reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
+            profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
             events = events == null ? List.of() : List.copyOf(events);
         }
     }

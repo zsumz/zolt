@@ -27,11 +27,15 @@ final class CompiledTestExecutionRunner {
             TestReportSettings reportSettings,
             List<String> cliEvents,
             String suiteName,
-            TestShardSpec shard) {
+            TestShardSpec shard,
+            TestProfileSettings profileSettings) {
         TestSuiteExecutionPlan executionPlan =
                 testSuitePlanner.executionPlan(projectDirectory, config, suiteName, selection, shard);
         TestReportSettings effectiveReportSettings = (reportSettings == null ? TestReportSettings.disabled() : reportSettings)
                 .forShard(suiteName, shard);
+        TestProfileSettings effectiveProfileSettings = profileSettings == null
+                ? TestProfileSettings.disabled()
+                : profileSettings;
         return compiledTestRunner.run(
                 projectDirectory,
                 config,
@@ -41,6 +45,7 @@ final class CompiledTestExecutionRunner {
                 executionPlan.workerPoolPlan(),
                 jvmArguments,
                 effectiveReportSettings,
-                cliEvents);
+                cliEvents,
+                effectiveProfileSettings);
     }
 }

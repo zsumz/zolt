@@ -36,10 +36,19 @@ public final class JunitWorkerProcess implements AutoCloseable {
             TestSelection testSelection,
             Optional<Path> reportsDirectory,
             List<String> events) {
+        return run(testOutputDirectory, testSelection, reportsDirectory, events, Optional.empty());
+    }
+
+    public JunitWorkerClient.WorkerRunResult run(
+            Path testOutputDirectory,
+            TestSelection testSelection,
+            Optional<Path> reportsDirectory,
+            List<String> events,
+            Optional<Path> profileDirectory) {
         if (closed) {
             throw new JunitWorkerClientException("JUnit worker process is already closed.");
         }
-        return client.run(testOutputDirectory, testSelection, reportsDirectory, events);
+        return client.run(testOutputDirectory, testSelection, reportsDirectory, events, profileDirectory);
     }
 
     @Override

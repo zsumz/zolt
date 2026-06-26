@@ -94,4 +94,82 @@ final class JunitLauncherWorkerTest {
             assertTrue(reportFiles.anyMatch(path -> path.getFileName().toString().endsWith(".xml")));
         }
     }
+
+    @Test
+    void serverModeWritesTestProfileJson() throws Exception {
+        Path profile = tempDir.resolve("profile");
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.zolt.junit.JunitWorkerProtocolTest"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of(),
+                Optional.of(profile));
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
+        String json = Files.readString(profile.resolve("profile.json"));
+        assertTrue(json.contains("\"schemaVersion\": 1"), json);
+        assertTrue(json.contains("\"runner\": \"zolt-junit-worker\""), json);
+        assertTrue(json.contains("\"className\": \"com.zolt.junit.JunitWorkerProtocolTest\""), json);
+        assertTrue(json.contains("\"status\": \"passed\""), json);
+        assertTrue(json.contains("\"durationMillis\""), json);
+        assertTrue(json.contains("\"tests\""), json);
+        assertTrue(json.contains("\"containers\""), json);
+    }
+
+    @Test
+    void serverModeWritesTestProfileJsonForFailingTests() throws Exception {
+        Path profile = tempDir.resolve("failed-profile");
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.zolt.junit.ProfileFailureFixture"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of(),
+                Optional.of(profile));
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t1"), workerOutput);
+        String json = Files.readString(profile.resolve("profile.json"));
+        assertTrue(json.contains("\"className\": \"com.zolt.junit.ProfileFailureFixture\""), json);
+        assertTrue(json.contains("\"methodName\": \"failsForProfileEvidence\""), json);
+        assertTrue(json.contains("\"status\": \"failed\""), json);
+        assertTrue(json.contains("\"testsFailed\": 1"), json);
+    }
+}
+
+final class ProfileFailureFixture {
+    @Test
+    void failsForProfileEvidence() {
+        org.junit.jupiter.api.Assertions.fail("profile failure");
+    }
 }

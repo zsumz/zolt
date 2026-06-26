@@ -63,6 +63,7 @@ public final class JunitLauncherWorker {
                         request.testOutputDirectory(),
                         request.testSelection(),
                         request.reportsDirectory(),
+                        request.profileDirectory(),
                         request.events(),
                         err);
                 out.println(JunitWorkerProtocol.result(request.requestId(), exitCode));
@@ -85,6 +86,7 @@ public final class JunitLauncherWorker {
                 testOutputDirectory,
                 TestSelection.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 List.of(),
                 err);
     }
@@ -94,6 +96,7 @@ public final class JunitLauncherWorker {
             String testOutputDirectory,
             TestSelection testSelection,
             Optional<String> reportsDirectory,
+            Optional<String> profileDirectory,
             List<String> events,
             PrintStream err) {
         try {
@@ -101,6 +104,7 @@ public final class JunitLauncherWorker {
                     Path.of(testOutputDirectory),
                     testSelection,
                     reportsDirectory.map(Path::of),
+                    profileDirectory.map(Path::of),
                     events);
         } catch (ReflectiveOperationException | IOException | LinkageError exception) {
             err.println("error: Could not run tests through Zolt's JUnit launcher worker. "
@@ -121,22 +125,29 @@ public final class JunitLauncherWorker {
                 Path testOutputDirectory,
                 TestSelection testSelection,
                 Optional<Path> reportsDirectory,
+                Optional<Path> profileDirectory,
                 List<String> events) throws ReflectiveOperationException, IOException {
             Class<?> listenerClass = Class.forName("org.junit.platform.launcher.listeners.SummaryGeneratingListener");
             Object listener = listenerClass.getDeclaredConstructor().newInstance();
-            List<Object> testExecutionListeners = new ArrayList<>();
-            testExecutionListeners.add(listener);
-            if (reportsDirectory != null && reportsDirectory.isPresent()) {
-                testExecutionListeners.add(reportListener(reportsDirectory.orElseThrow()));
-            }
             Object request = discoveryRequest(testOutputDirectory.toAbsolutePath().normalize(), testSelection);
             Object session = openSession();
             Class<?> sessionInterface = Class.forName("org.junit.platform.launcher.LauncherSession");
+            JunitTestProfileCollector profileCollector = profileDirectory == null || profileDirectory.isEmpty()
+                    ? null
+                    : new JunitTestProfileCollector(profileDirectory.orElseThrow());
             try {
                 Object launcher = sessionInterface.getMethod("getLauncher").invoke(session);
                 Class<?> launcherInterface = Class.forName("org.junit.platform.launcher.Launcher");
                 Class<?> requestInterface = Class.forName("org.junit.platform.launcher.LauncherDiscoveryRequest");
                 Class<?> listenerInterface = Class.forName("org.junit.platform.launcher.TestExecutionListener");
+                List<Object> testExecutionListeners = new ArrayList<>();
+                testExecutionListeners.add(listener);
+                if (reportsDirectory != null && reportsDirectory.isPresent()) {
+                    testExecutionListeners.add(reportListener(reportsDirectory.orElseThrow()));
+                }
+                if (profileCollector != null) {
+                    testExecutionListeners.add(profileCollector.listener(listenerInterface));
+                }
                 Method execute = launcherInterface.getMethod(
                         "execute",
                         requestInterface,
@@ -147,7 +158,13 @@ public final class JunitLauncherWorker {
                 }
                 execute.invoke(launcher, request, listeners);
             } finally {
-                sessionInterface.getMethod("close").invoke(session);
+                try {
+                    sessionInterface.getMethod("close").invoke(session);
+                } finally {
+                    if (profileCollector != null) {
+                        profileCollector.write();
+                    }
+                }
             }
             return summarize(listenerClass, listener);
         }
@@ -300,4 +317,5 @@ public final class JunitLauncherWorker {
             return failed == 0 && aborted == 0 ? 0 : 1;
         }
     }
+
 }

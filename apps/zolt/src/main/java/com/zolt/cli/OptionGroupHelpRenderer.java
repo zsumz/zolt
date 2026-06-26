@@ -57,6 +57,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--no-local-overlays",
                     "--no-resolve")),
             new OptionGroup("Diagnostics", List.of(
+                    "--profile-tests",
+                    "--profile-dir",
                     "--timings",
                     "--timings-format")));
 

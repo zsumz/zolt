@@ -26,7 +26,8 @@ public final class PlainJunitWorkerProcessRunner {
             TestJvmArguments jvmArguments,
             Map<String, String> environment,
             Optional<Path> reportsDirectory,
-            List<String> events) {
+            List<String> events,
+            Optional<Path> profileDirectory) {
         long startupStarted = System.nanoTime();
         try (JunitWorkerProcess process = new JunitWorkerProcessLauncher(javaExecutable, workerClasspath)
                 .start(projectDirectory, testRuntimeClasspath, jvmArguments.values(), environment)) {
@@ -36,7 +37,8 @@ public final class PlainJunitWorkerProcessRunner {
                     testOutputDirectory,
                     testSelection,
                     reportsDirectory,
-                    events);
+                    events,
+                    profileDirectory);
             long requestNanos = System.nanoTime() - requestStarted;
             return new PlainJunitWorkerRunResult(result, startupNanos, requestNanos);
         } catch (JunitWorkerClientException exception) {

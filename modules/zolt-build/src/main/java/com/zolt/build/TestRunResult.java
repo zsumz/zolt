@@ -15,11 +15,13 @@ public record TestRunResult(
         long testRunnerRequestNanos,
         TestSelection testSelection,
         TestJvmArguments testJvmArguments,
-        Optional<Path> reportsDirectory) {
+        Optional<Path> reportsDirectory,
+        Optional<Path> profileDirectory) {
     public TestRunResult {
         testSelection = testSelection == null ? TestSelection.empty() : testSelection;
         testJvmArguments = testJvmArguments == null ? TestJvmArguments.empty() : testJvmArguments;
         reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
+        profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
     }
 
     public TestRunResult(
@@ -42,6 +44,7 @@ public record TestRunResult(
                 testRunnerRequestNanos,
                 TestSelection.empty(),
                 TestJvmArguments.empty(),
+                Optional.empty(),
                 Optional.empty());
     }
 
@@ -66,6 +69,7 @@ public record TestRunResult(
                 testRunnerRequestNanos,
                 testSelection,
                 TestJvmArguments.empty(),
+                Optional.empty(),
                 Optional.empty());
     }
 

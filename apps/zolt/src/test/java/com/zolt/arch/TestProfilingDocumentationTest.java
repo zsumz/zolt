@@ -15,7 +15,7 @@ final class TestProfilingDocumentationTest {
         assertTrue(commands.contains("--profile-top <count>"));
         assertTrue(commands.contains("--profile-min <duration>"));
         assertTrue(commands.contains("--profile-dir <path>"));
-        assertTrue(commands.contains("is separate from command-level `--timings`"));
+        assertTrue(commands.contains("separate from command-level `--timings`"));
         assertTrue(commands.contains("\"schemaVersion\": 1"));
         assertTrue(commands.contains("\"durationMillis\""));
         assertTrue(commands.contains("\"workerId\""));

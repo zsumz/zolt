@@ -67,7 +67,35 @@ final class JunitWorkerProtocolTest {
                 "RUN\trequest-1\ttarget/test-classes\ttarget/test-reports\tfailed,skipped\tcom.example.MainTest\t\t\tfast\t",
                 frame);
         assertEquals(Optional.of("target/test-reports"), request.reportsDirectory());
+        assertTrue(request.profileDirectory().isEmpty());
         assertEquals(List.of("failed", "skipped"), request.events());
+        assertEquals(selection, request.testSelection());
+    }
+
+    @Test
+    void formatsAndParsesRunRequestsWithProfileDirectory() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.example.MainTest"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+
+        String frame = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of(),
+                Optional.of(Path.of("target/test-profile")));
+
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(frame);
+
+        assertEquals(
+                "RUN\trequest-1\ttarget/test-classes\t\t\ttarget/test-profile\tcom.example.MainTest\t\t\t\t",
+                frame);
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertEquals(Optional.of("target/test-profile"), request.profileDirectory());
         assertEquals(selection, request.testSelection());
     }
 
@@ -82,6 +110,7 @@ final class JunitWorkerProtocolTest {
         assertEquals("quit-1", request.requestId());
         assertEquals("", request.testOutputDirectory());
         assertTrue(request.reportsDirectory().isEmpty());
+        assertTrue(request.profileDirectory().isEmpty());
         assertEquals(List.of(), request.events());
         assertTrue(request.testSelection().emptySelection());
     }

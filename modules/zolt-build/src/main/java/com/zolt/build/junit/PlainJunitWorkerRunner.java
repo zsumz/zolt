@@ -19,5 +19,6 @@ public interface PlainJunitWorkerRunner {
             TestJvmArguments jvmArguments,
             Map<String, String> environment,
             Optional<Path> reportsDirectory,
-            List<String> events);
+            List<String> events,
+            Optional<Path> profileDirectory);
 }

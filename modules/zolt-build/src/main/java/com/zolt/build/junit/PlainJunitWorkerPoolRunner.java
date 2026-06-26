@@ -122,7 +122,8 @@ public final class PlainJunitWorkerPoolRunner {
                     workerJvmArguments(jvmArguments, workerId),
                     workerEnvironment(projectDirectory, config, environment, jvmArguments, workerId),
                     workerReportsDirectory(reportsDirectory, workerId),
-                    events);
+                    events,
+                    Optional.empty());
             return new WorkerTaskResult(entry.className(), result);
         };
     }

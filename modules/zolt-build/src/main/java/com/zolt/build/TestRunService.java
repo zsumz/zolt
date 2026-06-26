@@ -137,6 +137,30 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
+        return runTests(
+                projectDirectory,
+                config,
+                cacheRoot,
+                selection,
+                jvmArguments,
+                reportSettings,
+                cliEvents,
+                suiteName,
+                shard,
+                TestProfileSettings.disabled());
+    }
+
+    public TestRunResult runTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard,
+            TestProfileSettings profileSettings) {
         TestCompileResultWithClasspaths compileResult =
                 compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
@@ -149,7 +173,8 @@ public final class TestRunService {
                 reportSettings,
                 cliEvents,
                 suiteName,
-                shard);
+                shard,
+                profileSettings);
     }
 
     public TestCompileResultWithClasspaths compileTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -234,6 +259,32 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
+        return runCompiledTests(
+                projectDirectory,
+                config,
+                classpaths,
+                compileResult,
+                selection,
+                jvmArguments,
+                reportSettings,
+                cliEvents,
+                suiteName,
+                shard,
+                TestProfileSettings.disabled());
+    }
+
+    public TestRunResult runCompiledTests(
+            Path projectDirectory,
+            ProjectConfig config,
+            ClasspathSet classpaths,
+            TestCompileResult compileResult,
+            TestSelection selection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard,
+            TestProfileSettings profileSettings) {
         return compiledTestExecutionRunner.run(
                 projectDirectory,
                 config,
@@ -244,45 +295,8 @@ public final class TestRunService {
                 reportSettings,
                 cliEvents,
                 suiteName,
-                shard);
-    }
-
-    public TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult) {
-        return runTests(projectDirectory, config, classpaths, buildResult, TestSelection.empty());
-    }
-
-    public TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult,
-            TestSelection selection) {
-        return runTests(projectDirectory, config, classpaths, buildResult, selection, TestJvmArguments.empty());
-    }
-
-    public TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments) {
-        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, TestReportSettings.disabled());
-    }
-
-    public TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings) {
-        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, List.of());
+                shard,
+                profileSettings);
     }
 
     public TestRunResult runTests(
@@ -294,20 +308,7 @@ public final class TestRunService {
             TestJvmArguments jvmArguments,
             TestReportSettings reportSettings,
             List<String> cliEvents) {
-        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, cliEvents, "all");
-    }
-
-    public TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings,
-            List<String> cliEvents,
-            String suiteName) {
-        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, cliEvents, suiteName, null);
+        return runTests(projectDirectory, config, classpaths, buildResult, selection, jvmArguments, reportSettings, cliEvents, "all", null);
     }
 
     public TestRunResult runTests(
@@ -321,12 +322,11 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
-        TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return compiledTestExecutionRunner.run(
+        return runCompiledTests(
                 projectDirectory,
                 config,
                 classpaths,
-                compileResult,
+                compileTests(projectDirectory, config, classpaths, buildResult),
                 selection,
                 jvmArguments,
                 reportSettings,
@@ -340,11 +340,7 @@ public final class TestRunService {
             ProjectConfig config,
             ClasspathSet classpaths,
             BuildResult buildResult) {
-        return testCompileService.compileTests(
-                projectDirectory,
-                config,
-                classpaths,
-                buildResult);
+        return testCompileService.compileTests(projectDirectory, config, classpaths, buildResult);
     }
 
 }

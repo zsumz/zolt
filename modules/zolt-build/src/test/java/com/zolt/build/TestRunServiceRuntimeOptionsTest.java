@@ -211,4 +211,47 @@ final class TestRunServiceRuntimeOptionsTest {
         assertEquals("tree", commandArgumentAfter(command, "--details"));
         assertEquals("ascii", commandArgumentAfter(command, "--details-theme"));
     }
+
+    @Test
+    void profileSettingsRoutePlainJUnitThroughWorkerWithProfileDirectory() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<Optional<Path>> profileDirectories = new ArrayList<>();
+        List<List<String>> commands = new ArrayList<>();
+        TestRunService service = service(
+                (command, outputConsumer) -> {
+                    commands.add(command);
+                    return new JavaRunner.ProcessResult(0, "Console should not run\n");
+                },
+                new TestRunServiceTestSupport.CachingJdkChecker(),
+                com.zolt.framework.FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
+                    profileDirectories.add(profileDirectory);
+                    return new com.zolt.build.junit.PlainJunitWorkerRunResult(
+                            new com.zolt.junit.JunitWorkerClient.WorkerRunResult("Tests found: 1\nTests succeeded: 1\n", 0),
+                            10L,
+                            20L);
+                },
+                false);
+
+        TestRunResult result = service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of(),
+                "all",
+                null,
+                TestProfileSettings.fromCli(true, Path.of("target/test-profile")));
+
+        Path profileDirectory = projectDir.resolve("target/test-profile").toAbsolutePath().normalize();
+        assertEquals("zolt-junit-worker", result.testRunner());
+        assertEquals(Optional.of(profileDirectory), result.profileDirectory());
+        assertEquals(List.of(Optional.of(profileDirectory)), profileDirectories);
+        assertTrue(commands.isEmpty());
+    }
 }

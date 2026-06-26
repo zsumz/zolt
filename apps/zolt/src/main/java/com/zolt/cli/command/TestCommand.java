@@ -10,6 +10,7 @@ import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.TestCompileResult;
 import com.zolt.build.TestCompileResultWithClasspaths;
 import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestProfileSettings;
 import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunException;
 import com.zolt.build.TestRunResult;
@@ -94,6 +95,12 @@ public final class TestCommand implements Runnable {
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
     private Path reportsDir;
 
+    @Option(names = "--profile-tests", description = "Write opt-in test profile JSON for supported JUnit worker runs.")
+    private boolean profileTests;
+
+    @Option(names = "--profile-dir", description = "Write test profile evidence to a project-relative directory.")
+    private Path profileDir;
+
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
@@ -149,6 +156,7 @@ public final class TestCommand implements Runnable {
             TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
+            TestProfileSettings profileSettings = TestProfileSettings.fromCli(profileTests, profileDir);
             if (workspace) {
                 runWorkspaceTests(
                         projectRoot,
@@ -157,6 +165,7 @@ public final class TestCommand implements Runnable {
                         testSelection,
                         testJvmArguments,
                         reportSettings,
+                        profileSettings,
                         requestedTestEvents,
                         suiteName,
                         shard);
@@ -169,6 +178,7 @@ public final class TestCommand implements Runnable {
                     testSelection,
                     testJvmArguments,
                     reportSettings,
+                    profileSettings,
                     requestedTestEvents,
                     suiteName,
                     shard);
@@ -199,9 +209,14 @@ public final class TestCommand implements Runnable {
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
+            TestProfileSettings profileSettings,
             List<String> requestedTestEvents,
             String suiteName,
             TestShardSpec shard) {
+        if (profileSettings.enabled()) {
+            throw new TestRunException(
+                    "Test profiling for workspace runs is not supported yet. Run a single project or omit --profile-tests.");
+        }
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -263,6 +278,7 @@ public final class TestCommand implements Runnable {
             TestSelection testSelection,
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
+            TestProfileSettings profileSettings,
             List<String> requestedTestEvents,
             String suiteName,
             TestShardSpec shard) {
@@ -313,7 +329,8 @@ public final class TestCommand implements Runnable {
                                     reportSettings,
                                     requestedTestEvents,
                                     suiteName,
-                                    shard),
+                                    shard,
+                                    profileSettings),
                             CommandTestAttributes::testExecution);
                 },
                 CommandTestAttributes::testRun);
@@ -325,6 +342,8 @@ public final class TestCommand implements Runnable {
         output.success("Tests passed");
         result.reportsDirectory().ifPresent(directory ->
                 output.detail("Wrote test reports to " + directory));
+        result.profileDirectory().ifPresent(directory ->
+                output.detail("Wrote test profile to " + directory.resolve("profile.json")));
         progress.result("Tested project");
     }
 }
