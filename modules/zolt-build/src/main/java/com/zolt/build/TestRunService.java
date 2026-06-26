@@ -49,7 +49,7 @@ public final class TestRunService {
                 new JavaRunner(),
                 frameworkTestRunner,
                 new CurrentWorkerClasspath()::discover,
-                CompiledTestRunner::runPlainJunitWorker,
+                PlainJunitWorkerProcessRunner::run,
                 Boolean.getBoolean("zolt.junit.worker"),
                 java.io.File.pathSeparator);
     }
