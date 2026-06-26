@@ -16,8 +16,12 @@ final class GitHubWorkflowTest {
         String workflow = Files.readString(CI_WORKFLOW);
 
         assertTrue(workflow.contains("sharded_test_plan:"));
+        assertTrue(workflow.contains("actions/cache/restore@v4"));
+        assertTrue(workflow.contains("path: target/test-profile-history/test-execution/profile.json"));
+        assertTrue(workflow.contains("restore-keys:"));
         assertTrue(workflow.contains("scripts/plan-test-shard-matrix"));
         assertTrue(workflow.contains("--output target/test-shard-matrices/test-execution.json"));
+        assertTrue(workflow.contains("--balance-from target/test-profile-history/test-execution/profile.json"));
         assertTrue(workflow.contains("id: github_matrix"));
         assertTrue(workflow.contains("scripts/test-plan-github-matrix target/test-shard-matrices/test-execution.json"));
         assertTrue(workflow.contains("name: sharded-test-execution-plan"));
@@ -36,9 +40,11 @@ final class GitHubWorkflowTest {
         assertTrue(workflow.contains("scripts/bootstrap-zolt-jvm check"));
         assertTrue(workflow.contains("--check execution-context"));
         assertTrue(workflow.contains("scripts/merge-test-profiles"));
-        assertTrue(workflow.contains("--output target/test-profile/test-execution/profile.json"));
+        assertTrue(workflow.contains("--output target/test-profile-history/test-execution/profile.json"));
         assertTrue(workflow.contains("target/test-profile/shards/test-execution"));
         assertTrue(workflow.contains("name: sharded-test-profile-history"));
+        assertTrue(workflow.contains("actions/cache/save@v4"));
+        assertTrue(workflow.contains("key: sharded-test-profile-history-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}"));
         assertFalse(workflow.contains("run: scripts/self-host-test-execution-shards"));
     }
 }
