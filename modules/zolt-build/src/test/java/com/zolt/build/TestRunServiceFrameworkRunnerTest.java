@@ -145,7 +145,7 @@ final class TestRunServiceFrameworkRunnerTest {
     }
 
     @Test
-    void parallelSafeSuiteRunsThroughBoundedWorkerPool() throws IOException {
+    void parallelSafeSuiteRunsThroughBoundedWorkerPool() throws Exception {
         writeConsoleLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source(projectDir, "src/test/java/com/example/DbOneTest.java", "package com.example; public final class DbOneTest {}\n");
@@ -158,6 +158,13 @@ final class TestRunServiceFrameworkRunnerTest {
         List<Optional<Path>> reportDirectories = Collections.synchronizedList(new ArrayList<>());
         AtomicInteger activeDatabaseWorkers = new AtomicInteger();
         AtomicBoolean lockViolation = new AtomicBoolean();
+        CountDownLatch databaseWorkerStarted = new CountDownLatch(1);
+        CountDownLatch releaseDatabaseWorker = new CountDownLatch(1);
+        Thread databaseReleaseThread = new Thread(() -> {
+            awaitLatch(databaseWorkerStarted);
+            releaseDatabaseWorker.countDown();
+        });
+        databaseReleaseThread.start();
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 new JdkDetector(),
@@ -173,10 +180,9 @@ final class TestRunServiceFrameworkRunnerTest {
                         if (activeDatabaseWorkers.incrementAndGet() > 1) {
                             lockViolation.set(true);
                         }
+                        databaseWorkerStarted.countDown();
                         try {
-                            Thread.sleep(25L);
-                        } catch (InterruptedException exception) {
-                            Thread.currentThread().interrupt();
+                            awaitLatch(releaseDatabaseWorker);
                         } finally {
                             activeDatabaseWorkers.decrementAndGet();
                         }
@@ -234,6 +240,8 @@ final class TestRunServiceFrameworkRunnerTest {
         String coverageManifest = Files.readString(projectDir.resolve("target/coverage/workers/zolt-workers.json"));
         assertTrue(coverageManifest.contains("\"wave-1-worker-1\""));
         assertTrue(coverageManifest.contains("\"wave-2-worker-1\""));
+        databaseReleaseThread.join(2_000L);
+        assertFalse(databaseReleaseThread.isAlive());
     }
 
     @Test
@@ -295,7 +303,7 @@ final class TestRunServiceFrameworkRunnerTest {
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, testJvmArguments, environment, reportsDirectory, testEvents) -> {
                     workerStarted.countDown();
                     try {
-                        Thread.sleep(5_000L);
+                        new CountDownLatch(1).await();
                     } catch (InterruptedException exception) {
                         workerInterrupted.set(true);
                         Thread.currentThread().interrupt();
@@ -434,6 +442,15 @@ final class TestRunServiceFrameworkRunnerTest {
                                 List.of("database"),
                                 "com.example.DbTwoTest",
                                 List.of("database"))))));
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(2, TimeUnit.SECONDS));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for test latch.", exception);
+        }
     }
 
 }

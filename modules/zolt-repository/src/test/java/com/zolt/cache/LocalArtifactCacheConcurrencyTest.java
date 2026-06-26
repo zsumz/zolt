@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.maven.RepositoryArtifact;
@@ -29,7 +30,10 @@ final class LocalArtifactCacheConcurrencyTest {
 
     @Test
     void concurrentDuplicatePomFetchDownloadsOnce() throws Exception {
-        LocalArtifactCache cache = new LocalArtifactCache(tempDir, new DownloadCoordinator(4));
+        CountDownLatch duplicateJoined = new CountDownLatch(1);
+        LocalArtifactCache cache = new LocalArtifactCache(
+                tempDir,
+                new DownloadCoordinator(4, RepositoryExecutionLane.DEFAULT, duplicateJoined::countDown));
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
         AtomicInteger fetchCount = new AtomicInteger();
         CountDownLatch firstStarted = new CountDownLatch(1);
@@ -43,16 +47,14 @@ final class LocalArtifactCacheConcurrencyTest {
                 return artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<project/>");
             }));
             assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
-            executor.submit(() -> {
-                sleepBriefly();
-                release.countDown();
-            });
-            CachedArtifact second = cache.getOrFetchPom(coordinate, requested -> {
+            Future<CachedArtifact> second = executor.submit(() -> cache.getOrFetchPom(coordinate, requested -> {
                 fetchCount.incrementAndGet();
                 return artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<duplicate/>");
-            });
+            }));
+            assertTrue(duplicateJoined.await(2, TimeUnit.SECONDS));
+            release.countDown();
 
-            assertArrayEquals(first.get().bytes(), second.bytes());
+            assertArrayEquals(first.get().bytes(), second.get().bytes());
             assertEquals(1, fetchCount.get());
             assertEquals("<project/>", Files.readString(cache.pomPath(coordinate)));
         }
@@ -109,12 +111,4 @@ final class LocalArtifactCacheConcurrencyTest {
         }
     }
 
-    private static void sleepBriefly() {
-        try {
-            Thread.sleep(50L);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while sleeping in test.", exception);
-        }
-    }
 }

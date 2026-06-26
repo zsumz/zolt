@@ -1,6 +1,1 @@
 # path|followUp|owner|gate|reason
-modules/zolt-repository/src/test/java/com/zolt/cache/DownloadCoordinatorTest.java||repository cache concurrency|PR|brief duplicate-request coordination until DownloadCoordinator exposes a deterministic in-flight hook
-modules/zolt-repository/src/test/java/com/zolt/cache/LocalArtifactCacheConcurrencyTest.java||repository cache concurrency|PR|brief duplicate-request coordination until LocalArtifactCache exposes a deterministic in-flight hook
-modules/zolt-build/src/test/java/com/zolt/resolve/ResolveServiceRepositoryTestSupport.java||resolver fake repository|PR|configured fake HTTP response delay for timeout/retry fixture tests
-modules/zolt-quarkus/src/test/java/com/zolt/resolve/ResolveServiceRepositoryTestSupport.java||quarkus resolver fake repository|PR|configured fake HTTP response delay for timeout/retry fixture tests
-modules/zolt-resolve/src/test/java/com/zolt/resolve/ResolveServiceRepositoryTestSupport.java||resolver fake repository|PR|configured fake HTTP response delay for timeout/retry fixture tests

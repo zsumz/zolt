@@ -100,7 +100,7 @@ final class ResolveServiceParallelismTest extends ResolveServiceTestSupport {
     }
 
     @Test
-    void randomizedRepositoryResponseTimingKeepsLockfileStable() throws IOException {
+    void differentDependencyInputOrderKeepsLockfileStable() throws IOException {
         Map<String, String> dependencies = new java.util.LinkedHashMap<>();
         dependencies.put("com.example:alpha", "1.0.0");
         dependencies.put("com.example:beta", "1.0.0");
@@ -111,30 +111,26 @@ final class ResolveServiceParallelismTest extends ResolveServiceTestSupport {
             String artifactId = coordinate.substring(coordinate.indexOf(':') + 1);
             addArtifact("com.example", artifactId, "1.0.0", simplePom("com.example", artifactId, "1.0.0"));
         });
-        setResponseDelays(Map.of(
-                "alpha", 120L,
-                "beta", 10L,
-                "gamma", 70L,
-                "delta", 30L,
-                "epsilon", 90L));
-        Path projectDir = tempDir.resolve("project-randomized");
-        Path cacheRoot = tempDir.resolve("cache-randomized");
+        Path projectDir = tempDir.resolve("project-input-order");
+        Path cacheRoot = tempDir.resolve("cache-input-order");
         createDirectory(projectDir);
         ProjectConfig config = configWithDependencies(dependencies);
 
         ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
 
-        responseDelayMillis.clear();
-        setResponseDelays(Map.of(
-                "alpha", 5L,
-                "beta", 130L,
-                "gamma", 25L,
-                "delta", 100L,
-                "epsilon", 45L));
-        Path secondProjectDir = tempDir.resolve("project-randomized-second");
-        Path secondCacheRoot = tempDir.resolve("cache-randomized-second");
+        Map<String, String> reorderedDependencies = new java.util.LinkedHashMap<>();
+        reorderedDependencies.put("com.example:epsilon", "1.0.0");
+        reorderedDependencies.put("com.example:delta", "1.0.0");
+        reorderedDependencies.put("com.example:gamma", "1.0.0");
+        reorderedDependencies.put("com.example:beta", "1.0.0");
+        reorderedDependencies.put("com.example:alpha", "1.0.0");
+        Path secondProjectDir = tempDir.resolve("project-input-order-second");
+        Path secondCacheRoot = tempDir.resolve("cache-input-order-second");
         createDirectory(secondProjectDir);
-        ResolveResult second = resolveService.resolve(secondProjectDir, config, secondCacheRoot);
+        ResolveResult second = resolveService.resolve(
+                secondProjectDir,
+                configWithDependencies(reorderedDependencies),
+                secondCacheRoot);
 
         assertEquals(Files.readString(result.lockfilePath()), Files.readString(second.lockfilePath()));
     }

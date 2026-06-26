@@ -24,13 +24,14 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
     final Map<String, byte[]> responses = new HashMap<>();
     final Set<String> slowPomPaths = ConcurrentHashMap.newKeySet();
     final Set<String> slowArtifactPaths = ConcurrentHashMap.newKeySet();
-    final Map<String, Long> responseDelayMillis = new ConcurrentHashMap<>();
     final Map<String, AtomicInteger> requestCounts = new ConcurrentHashMap<>();
     final AtomicInteger totalRequests = new AtomicInteger();
     final AtomicInteger activePomRequests = new AtomicInteger();
     final AtomicInteger maxPomRequests = new AtomicInteger();
     final AtomicInteger activeArtifactRequests = new AtomicInteger();
     final AtomicInteger maxArtifactRequests = new AtomicInteger();
+    private final Object slowPomMonitor = new Object();
+    private final Object slowArtifactMonitor = new Object();
 
     @TempDir
     Path tempDir;
@@ -139,13 +140,6 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
         addPom(responses, groupId, artifactId, version, pom);
     }
 
-    void setResponseDelays(Map<String, Long> artifactDelaysMillis) {
-        artifactDelaysMillis.forEach((artifactId, delayMillis) -> {
-            responseDelayMillis.put(pomRepositoryPath("com.example", artifactId, "1.0.0"), delayMillis);
-            responseDelayMillis.put(jarRepositoryPath("com.example", artifactId, "1.0.0"), delayMillis);
-        });
-    }
-
     void resetRequestCounts() {
         requestCounts.clear();
         totalRequests.set(0);
@@ -163,33 +157,20 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
             int active = activePomRequests.incrementAndGet();
             maxPomRequests.accumulateAndGet(active, Math::max);
             try {
-                sleepServing(150L);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while serving slow test POM.", exception);
+                awaitConcurrentPeer(activePomRequests, slowPomPaths.size(), slowPomMonitor);
             } finally {
                 activePomRequests.decrementAndGet();
+                notifyPeers(slowPomMonitor);
             }
         }
         if (slowArtifactPaths.contains(path)) {
             int active = activeArtifactRequests.incrementAndGet();
             maxArtifactRequests.accumulateAndGet(active, Math::max);
             try {
-                sleepServing(150L);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while serving slow test artifact.", exception);
+                awaitConcurrentPeer(activeArtifactRequests, slowArtifactPaths.size(), slowArtifactMonitor);
             } finally {
                 activeArtifactRequests.decrementAndGet();
-            }
-        }
-        Long delayMillis = responseDelayMillis.get(path);
-        if (delayMillis != null && delayMillis > 0) {
-            try {
-                sleepServing(delayMillis);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while serving delayed test response.", exception);
+                notifyPeers(slowArtifactMonitor);
             }
         }
         byte[] body = responses.get(path);
@@ -200,8 +181,36 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
         respond(exchange, 200, body);
     }
 
-    private static void sleepServing(long millis) throws InterruptedException {
-        Thread.sleep(millis);
+    private static void awaitConcurrentPeer(
+            AtomicInteger activeRequests,
+            int expectedSlowPaths,
+            Object monitor) throws IOException {
+        int target = Math.min(2, expectedSlowPaths);
+        if (target < 2) {
+            return;
+        }
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+        synchronized (monitor) {
+            monitor.notifyAll();
+            while (activeRequests.get() < target) {
+                long remainingNanos = deadline - System.nanoTime();
+                if (remainingNanos <= 0) {
+                    throw new IOException("Timed out waiting for concurrent fake repository requests.");
+                }
+                try {
+                    monitor.wait(Math.max(1L, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(remainingNanos)));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for concurrent fake repository requests.", exception);
+                }
+            }
+        }
+    }
+
+    private static void notifyPeers(Object monitor) {
+        synchronized (monitor) {
+            monitor.notifyAll();
+        }
     }
 
     private static void respond(HttpExchange exchange, int statusCode, byte[] body) throws IOException {

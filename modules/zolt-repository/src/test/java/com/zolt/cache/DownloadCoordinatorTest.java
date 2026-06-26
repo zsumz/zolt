@@ -20,7 +20,11 @@ import org.junit.jupiter.api.Test;
 final class DownloadCoordinatorTest {
     @Test
     void duplicateInFlightRequestsRunOnce() throws Exception {
-        DownloadCoordinator coordinator = new DownloadCoordinator(4);
+        CountDownLatch duplicateJoined = new CountDownLatch(1);
+        DownloadCoordinator coordinator = new DownloadCoordinator(
+                4,
+                RepositoryExecutionLane.DEFAULT,
+                duplicateJoined::countDown);
         AtomicInteger runs = new AtomicInteger();
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -34,18 +38,16 @@ final class DownloadCoordinatorTest {
             }));
             assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
 
-            executor.submit(() -> {
-                sleepBriefly();
-                release.countDown();
-            });
-            String second = coordinator.run("repo/path.pom", () -> {
+            Future<String> second = executor.submit(() -> coordinator.run("repo/path.pom", () -> {
                 runs.incrementAndGet();
                 return "duplicate";
-            });
+            }));
+            assertTrue(duplicateJoined.await(2, TimeUnit.SECONDS));
+            release.countDown();
 
             assertEquals(1, runs.get());
             assertEquals("downloaded", first.get());
-            assertEquals("downloaded", second);
+            assertEquals("downloaded", second.get());
             assertEquals(1, runs.get());
         }
     }
@@ -155,12 +157,4 @@ final class DownloadCoordinatorTest {
         }
     }
 
-    private static void sleepBriefly() {
-        try {
-            Thread.sleep(50L);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while sleeping in test.", exception);
-        }
-    }
 }

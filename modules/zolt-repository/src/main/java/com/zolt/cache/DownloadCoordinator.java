@@ -22,6 +22,7 @@ public final class DownloadCoordinator {
     private final RepositoryExecutionLane executionLane;
     private final Semaphore permits;
     private final ConcurrentHashMap<String, CompletableFuture<Object>> inFlight = new ConcurrentHashMap<>();
+    private final Runnable duplicateInFlightObserver;
 
     public DownloadCoordinator() {
         this(concurrencyFromEnvironment(System.getenv()), RepositoryExecutionLane.fromEnvironment(System.getenv()));
@@ -32,11 +33,16 @@ public final class DownloadCoordinator {
     }
 
     public DownloadCoordinator(int concurrency, RepositoryExecutionLane executionLane) {
+        this(concurrency, executionLane, () -> {});
+    }
+
+    DownloadCoordinator(int concurrency, RepositoryExecutionLane executionLane, Runnable duplicateInFlightObserver) {
         if (concurrency < 1) {
             throw new IllegalArgumentException("Download concurrency must be at least 1.");
         }
         this.concurrency = concurrency;
         this.executionLane = Objects.requireNonNull(executionLane, "executionLane");
+        this.duplicateInFlightObserver = Objects.requireNonNull(duplicateInFlightObserver, "duplicateInFlightObserver");
         this.permits = new Semaphore(concurrency);
     }
 
@@ -67,6 +73,7 @@ public final class DownloadCoordinator {
         CompletableFuture<Object> pending = new CompletableFuture<>();
         CompletableFuture<Object> existing = inFlight.putIfAbsent(repositoryPath, pending);
         if (existing != null) {
+            duplicateInFlightObserver.run();
             return await(repositoryPath, existing);
         }
 
