@@ -300,6 +300,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.CommandTestProfileOptions",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.TestPlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

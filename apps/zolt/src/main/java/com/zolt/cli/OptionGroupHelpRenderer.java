@@ -59,6 +59,8 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
             new OptionGroup("Diagnostics", List.of(
                     "--profile-tests",
                     "--profile-dir",
+                    "--profile-top",
+                    "--profile-min",
                     "--timings",
                     "--timings-format")));
 

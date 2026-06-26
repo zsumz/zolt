@@ -254,4 +254,78 @@ final class TestRunServiceRuntimeOptionsTest {
         assertEquals(List.of(Optional.of(profileDirectory)), profileDirectories);
         assertTrue(commands.isEmpty());
     }
+
+    @Test
+    void failedProfiledWorkerRunIncludesSlowSummaryWhenProfileExists() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "Console should not run\n"),
+                new TestRunServiceTestSupport.CachingJdkChecker(),
+                com.zolt.framework.FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
+                    Path profile = profileDirectory.orElseThrow();
+                    writeProfile(profile, """
+                            {
+                              "tests": [
+                                {
+                                  "uniqueId": "slow",
+                                  "className": "com.example.SlowTest",
+                                  "methodName": "failsSlowly",
+                                  "displayName": "failsSlowly()",
+                                  "durationMillis": 600,
+                                  "workerId": ""
+                                }
+                              ],
+                              "containers": [
+                                {
+                                  "uniqueId": "slow-class",
+                                  "className": "com.example.SlowTest",
+                                  "methodName": "",
+                                  "displayName": "SlowTest",
+                                  "durationMillis": 700,
+                                  "workerId": "",
+                                  "testCount": 1
+                                }
+                              ]
+                            }
+                            """);
+                    return new com.zolt.build.junit.PlainJunitWorkerRunResult(
+                            new com.zolt.junit.JunitWorkerClient.WorkerRunResult("Tests failed: 1\n", 1),
+                            10L,
+                            20L);
+                },
+                false);
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> service.runTests(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        TestJvmArguments.empty(),
+                        TestReportSettings.disabled(),
+                        List.of(),
+                        "all",
+                        null,
+                        TestProfileSettings.fromCli(true, Path.of("target/test-profile"), 5, "100ms")));
+
+        assertTrue(exception.getMessage().contains("Tests failed: 1"));
+        assertTrue(exception.getMessage().contains("Slowest tests:"));
+        assertTrue(exception.getMessage().contains("600 ms com.example.SlowTest#failsSlowly"));
+        assertTrue(exception.getMessage().contains("Slowest classes:"));
+        assertTrue(exception.getMessage().contains("700 ms com.example.SlowTest (1 test)"));
+    }
+
+    private static void writeProfile(Path profileDirectory, String profileJson) {
+        try {
+            Files.createDirectories(profileDirectory);
+            Files.writeString(profileDirectory.resolve("profile.json"), profileJson);
+        } catch (IOException exception) {
+            throw new AssertionError("could not write test profile fixture", exception);
+        }
+    }
 }

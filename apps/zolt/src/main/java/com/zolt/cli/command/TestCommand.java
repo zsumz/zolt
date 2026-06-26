@@ -95,11 +95,8 @@ public final class TestCommand implements Runnable {
     @Option(names = "--reports-dir", description = "Write JUnit XML reports to a project-relative directory.")
     private Path reportsDir;
 
-    @Option(names = "--profile-tests", description = "Write opt-in test profile JSON for supported JUnit worker runs.")
-    private boolean profileTests;
-
-    @Option(names = "--profile-dir", description = "Write test profile evidence to a project-relative directory.")
-    private Path profileDir;
+    @Mixin
+    private CommandTestProfileOptions profileOptions = new CommandTestProfileOptions();
 
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
@@ -156,7 +153,7 @@ public final class TestCommand implements Runnable {
             TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
             TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
-            TestProfileSettings profileSettings = TestProfileSettings.fromCli(profileTests, profileDir);
+            TestProfileSettings profileSettings = profileOptions.settings();
             if (workspace) {
                 runWorkspaceTests(
                         projectRoot,
@@ -342,8 +339,7 @@ public final class TestCommand implements Runnable {
         output.success("Tests passed");
         result.reportsDirectory().ifPresent(directory ->
                 output.detail("Wrote test reports to " + directory));
-        result.profileDirectory().ifPresent(directory ->
-                output.detail("Wrote test profile to " + directory.resolve("profile.json")));
+        CommandTestProfileOutput.print(output, result, profileSettings);
         progress.result("Tested project");
     }
 }

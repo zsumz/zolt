@@ -189,11 +189,16 @@ final class CompiledTestRunner {
                     testRuntime.events(),
                     profileDirectory);
             if (result.workerResult().exitCode() != 0) {
+                String summary = profileDirectory
+                        .flatMap(directory -> TestProfileSummaryFormatter.format(directory.resolve("profile.json"), testProfileSettings))
+                        .map(value -> "\n\n" + value)
+                        .orElse("");
                 throw new TestRunException(
                         "JUnit worker tests failed with exit code "
                                 + result.workerResult().exitCode()
                                 + ". Fix failing tests, then run `zolt test` again.\n"
-                                + result.workerResult().output().stripTrailing());
+                                + result.workerResult().output().stripTrailing()
+                                + summary);
             }
             return new TestRunResult(
                     compileResult,

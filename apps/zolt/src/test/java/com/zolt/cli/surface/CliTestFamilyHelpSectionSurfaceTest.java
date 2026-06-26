@@ -47,6 +47,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "Diagnostics:",
                 "--profile-tests",
                 "--profile-dir",
+                "--profile-top",
+                "--profile-min",
                 "--timings",
                 "--timings-format");
     }
@@ -72,6 +74,8 @@ final class CliTestFamilyHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36m--reports-dir\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--profile-tests\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--profile-dir\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--profile-top\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--profile-min\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--timings-format\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
         assertFalse(result.stdout().contains("\u001B[33m"));
