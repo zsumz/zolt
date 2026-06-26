@@ -19,6 +19,8 @@ final class TestProfileHistoryTest {
         Files.createDirectories(profile.getParent());
         Files.writeString(profile, """
                 {
+                  "schemaVersion": 1,
+                  "tests": [],
                   "containers": [
                     {
                       "className": "com.example.FastTest",
@@ -53,6 +55,53 @@ final class TestProfileHistoryTest {
 
         assertTrue(history.classDurations().isEmpty());
         assertTrue(history.diagnostics().getFirst().contains("does not exist"));
+        assertTrue(history.diagnostics().getFirst().contains("round-robin"));
+    }
+
+    @Test
+    void unsupportedSchemaFallsBackWithDiagnostic() throws IOException {
+        Path profile = projectDir.resolve("target/profile.json");
+        Files.createDirectories(profile.getParent());
+        Files.writeString(profile, """
+                {
+                  "schemaVersion": 2,
+                  "tests": [],
+                  "containers": [
+                    {
+                      "className": "com.example.SlowTest",
+                      "durationMillis": 1200
+                    }
+                  ]
+                }
+                """);
+
+        TestProfileHistory history = TestProfileHistory.read(projectDir, Path.of("target/profile.json"));
+
+        assertTrue(history.classDurations().isEmpty());
+        assertTrue(history.diagnostics().getFirst().contains("unsupported schemaVersion"));
+        assertTrue(history.diagnostics().getFirst().contains("round-robin"));
+    }
+
+    @Test
+    void malformedProfileFallsBackWithDiagnostic() throws IOException {
+        Path profile = projectDir.resolve("target/profile.json");
+        Files.createDirectories(profile.getParent());
+        Files.writeString(profile, """
+                {
+                  "schemaVersion": 1,
+                  "containers": [
+                    {
+                      "className": "com.example.SlowTest",
+                      "durationMillis": 1200
+                    }
+                  ]
+                }
+                """);
+
+        TestProfileHistory history = TestProfileHistory.read(projectDir, Path.of("target/profile.json"));
+
+        assertTrue(history.classDurations().isEmpty());
+        assertTrue(history.diagnostics().getFirst().contains("missing tests or containers arrays"));
         assertTrue(history.diagnostics().getFirst().contains("round-robin"));
     }
 }

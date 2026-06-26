@@ -256,6 +256,8 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
         Files.createDirectories(path.getParent());
         Files.writeString(path, """
                 {
+                  "schemaVersion": 1,
+                  "tests": [],
                   "containers": [
                     {
                       "className": "com.example.AlphaTest",

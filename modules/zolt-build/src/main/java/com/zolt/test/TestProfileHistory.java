@@ -42,7 +42,12 @@ public record TestProfileHistory(
                     List.of("Profile history `" + source + "` does not exist; using deterministic round-robin sharding."));
         }
         try {
-            Map<String, Long> durations = classDurations(Files.readString(source));
+            String json = Files.readString(source);
+            Optional<String> validationDiagnostic = validationDiagnostic(source, json);
+            if (validationDiagnostic.isPresent()) {
+                return new TestProfileHistory(Optional.of(source), Map.of(), List.of(validationDiagnostic.orElseThrow()));
+            }
+            Map<String, Long> durations = classDurations(json);
             List<String> diagnostics = durations.isEmpty()
                     ? List.of("Profile history `" + source + "` does not contain class-level durations; using deterministic round-robin sharding.")
                     : List.of();
@@ -53,6 +58,16 @@ public record TestProfileHistory(
                     Map.of(),
                     List.of("Profile history `" + source + "` could not be read; using deterministic round-robin sharding."));
         }
+    }
+
+    private static Optional<String> validationDiagnostic(Path source, String json) {
+        if (number(json, "schemaVersion") != 1L) {
+            return Optional.of("Profile history `" + source + "` has unsupported schemaVersion; using deterministic round-robin sharding.");
+        }
+        if (arrayBody(json, "tests").isEmpty() || arrayBody(json, "containers").isEmpty()) {
+            return Optional.of("Profile history `" + source + "` is missing tests or containers arrays; using deterministic round-robin sharding.");
+        }
+        return Optional.empty();
     }
 
     public boolean requested() {
