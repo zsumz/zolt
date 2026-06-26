@@ -142,15 +142,21 @@ public final class TestSuitePlanner {
             String requestedSuite,
             TestSelection selection,
             int shardCount) {
+        return shardPlans(projectDirectory, config, requestedSuite, selection, shardCount, TestProfileHistory.none());
+    }
+
+    public List<TestShardPlan> shardPlans(
+            Path projectDirectory,
+            ProjectConfig config,
+            String requestedSuite,
+            TestSelection selection,
+            int shardCount,
+            TestProfileHistory profileHistory) {
         if (shardCount < 1) {
             throw new TestShardException("Invalid --shard-count `" + shardCount + "`. Use a positive integer.");
         }
         TestSuitePlan plan = plan(projectDirectory, config, requestedSuite, selection);
-        List<TestShardPlan> plans = new ArrayList<>();
-        for (int index = 1; index <= shardCount; index++) {
-            plans.add(shardPlanner.plan(projectDirectory, config, plan, new TestShardSpec(index, shardCount)));
-        }
-        return List.copyOf(plans);
+        return shardPlanner.plans(projectDirectory, config, plan, shardCount, profileHistory);
     }
 
     private static TestSelection executionSelection(

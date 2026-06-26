@@ -34,6 +34,7 @@ final class OptionGroupHelpRenderer implements IHelpSectionRenderer {
                     "--suite",
                     "--shard",
                     "--shard-count",
+                    "--balance-from",
                     "--test",
                     "--tests",
                     "--include-tag",

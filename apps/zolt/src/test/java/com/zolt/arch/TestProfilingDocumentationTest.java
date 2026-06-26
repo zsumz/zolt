@@ -32,6 +32,7 @@ final class TestProfilingDocumentationTest {
         assertTrue(architecture.contains("TestExecutionListener"));
         assertTrue(architecture.contains("Framework-specific\nrunners should report an actionable unsupported-runner diagnostic"));
         assertTrue(architecture.contains("Parallel workers write worker-local profile files before merge"));
-        assertTrue(architecture.contains("Future shard balancing should consume class-level duration history"));
+        assertTrue(architecture.contains("Profile-aware shard planning consumes class-level duration history"));
+        assertTrue(architecture.contains("--balance-from\n<profile.json>"));
     }
 }

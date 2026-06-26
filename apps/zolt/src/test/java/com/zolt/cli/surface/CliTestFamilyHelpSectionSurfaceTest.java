@@ -103,6 +103,7 @@ final class CliTestFamilyHelpSectionSurfaceTest {
                 "Test Selection:",
                 "--suite",
                 "--shard-count",
+                "--balance-from",
                 "--test",
                 "--tests",
                 "--include-tag",

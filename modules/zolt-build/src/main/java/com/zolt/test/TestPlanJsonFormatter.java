@@ -36,6 +36,7 @@ public final class TestPlanJsonFormatter {
         overlaps(json, plan.overlappingEntries());
         json.append(",\n");
         stringArrayField(json, 1, "unassignedEntries", plan.unassignedEntries(), true);
+        balancing(json, shards);
         shards(json, root, member, selection == null ? TestSelection.empty() : selection, plan.suiteName(), shards, reports);
         json.append("\n}\n");
         return json.toString();
@@ -110,6 +111,7 @@ public final class TestPlanJsonFormatter {
                 intField(json, 3, "total", shard.shard().total(), true);
                 stringField(json, 3, "label", shard.shard().label(), true);
                 intField(json, 3, "entryCount", shard.entries().size(), true);
+                shard.balancing().ifPresent(value -> longField(json, 3, "estimatedCostMillis", shard.estimatedCostMillis(), true));
                 booleanField(json, 3, "empty", shard.empty(), true);
                 stringField(json, 3, "manifest", shard.projectRelativeManifestPath(projectRoot).toString(), true);
                 stringArrayField(json, 3, "entries", shard.entries().stream()
@@ -126,6 +128,23 @@ public final class TestPlanJsonFormatter {
             indent(json, 1);
         }
         json.append("]");
+    }
+
+    private static void balancing(StringBuilder json, List<TestShardPlan> shards) {
+        Optional<TestShardBalancing> balancing = shards.stream()
+                .flatMap(shard -> shard.balancing().stream())
+                .findFirst();
+        if (balancing.isEmpty()) {
+            return;
+        }
+        TestShardBalancing value = balancing.orElseThrow();
+        indent(json, 1).append("\"balancing\": {\n");
+        stringField(json, 2, "mode", value.mode(), true);
+        optionalStringField(json, 2, "profileSource", value.profileSource().map(Path::toString), true);
+        stringArrayField(json, 2, "missingHistoryEntries", value.missingHistoryEntries(), true);
+        stringArrayField(json, 2, "unmatchedHistoryEntries", value.unmatchedHistoryEntries(), true);
+        stringArrayField(json, 2, "diagnostics", value.diagnostics(), false);
+        indent(json, 1).append("},\n");
     }
 
     private static void commandArguments(
@@ -199,6 +218,13 @@ public final class TestPlanJsonFormatter {
     }
 
     private static void intField(StringBuilder json, int level, String name, int value, boolean trailingComma) {
+        indent(json, level);
+        string(json, name);
+        json.append(": ").append(value);
+        comma(json, trailingComma);
+    }
+
+    private static void longField(StringBuilder json, int level, String name, long value, boolean trailingComma) {
         indent(json, level);
         string(json, name);
         json.append(": ").append(value);

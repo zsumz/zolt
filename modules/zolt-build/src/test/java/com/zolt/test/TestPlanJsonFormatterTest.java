@@ -86,6 +86,58 @@ final class TestPlanJsonFormatterTest {
                 """));
     }
 
+    @Test
+    void emitsBalancingMetadataForProfileHistoryPlans() {
+        TestInventoryEntry alpha = entry("com.example.AlphaTest");
+        TestShardBalancing balancing = new TestShardBalancing(
+                TestShardBalancing.PROFILE_HISTORY,
+                Optional.of(projectDir.resolve("profile.json")),
+                List.of("com.example.MissingTest"),
+                List.of("com.example.UnusedTest"),
+                List.of("Profile history is missing 1 selected classes."));
+        TestSuitePlan plan = new TestSuitePlan(
+                "fast",
+                true,
+                projectDir.resolve("target/test-classes"),
+                List.of(alpha),
+                List.of("*Test"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Map.of(),
+                List.of());
+        List<TestShardPlan> shards = List.of(new TestShardPlan(
+                "fast",
+                new TestShardSpec(1, 1),
+                projectDir.resolve("target/test-shards/fast/shard-1-of-1.json"),
+                "sha256:abc123",
+                List.of(alpha),
+                List.of(alpha),
+                125L,
+                Optional.of(balancing)));
+
+        String json = new TestPlanJsonFormatter().json(
+                config(),
+                projectDir,
+                Optional.empty(),
+                TestSelection.empty(),
+                plan,
+                shards,
+                Optional.empty());
+
+        assertTrue(json.contains("\"balancing\": {"));
+        assertTrue(json.contains("\"mode\": \"profile-history\""));
+        assertTrue(json.contains("\"profileSource\": \"" + projectDir.resolve("profile.json").toString()));
+        assertTrue(json.contains("\"missingHistoryEntries\": [\"com.example.MissingTest\"]"));
+        assertTrue(json.contains("\"unmatchedHistoryEntries\": [\"com.example.UnusedTest\"]"));
+        assertTrue(json.contains("\"diagnostics\": [\"Profile history is missing 1 selected classes.\"]"));
+        assertTrue(json.contains("\"estimatedCostMillis\": 125"));
+    }
+
     private static TestInventoryEntry entry(String className) {
         return new TestInventoryEntry(
                 className,

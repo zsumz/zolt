@@ -45,6 +45,53 @@ final class TestShardPlannerTest {
     }
 
     @Test
+    void balancesKnownDurationsAndFallsBackForMissingHistory() {
+        TestSuitePlan suite = suitePlan(
+                entry("com.example.DddTest"),
+                entry("com.example.AaaTest"),
+                entry("com.example.BbbTest"),
+                entry("com.example.CccTest"));
+        TestProfileHistory history = new TestProfileHistory(
+                Optional.of(projectDir.resolve("profile.json")),
+                Map.of(
+                        "com.example.AaaTest", 100L,
+                        "com.example.BbbTest", 60L,
+                        "com.example.CccTest", 50L,
+                        "com.example.UnusedTest", 900L),
+                List.of());
+
+        List<TestShardPlan> shards = new TestShardPlanner().plans(projectDir, config(), suite, 2, history);
+
+        assertEquals(List.of("com.example.AaaTest", "com.example.DddTest"), classNames(shards.get(0).entries()));
+        assertEquals(List.of("com.example.BbbTest", "com.example.CccTest"), classNames(shards.get(1).entries()));
+        assertEquals(100L, shards.get(0).estimatedCostMillis());
+        assertEquals(110L, shards.get(1).estimatedCostMillis());
+        TestShardBalancing balancing = shards.getFirst().balancing().orElseThrow();
+        assertEquals(TestShardBalancing.PROFILE_HISTORY, balancing.mode());
+        assertEquals(List.of("com.example.DddTest"), balancing.missingHistoryEntries());
+        assertEquals(List.of("com.example.UnusedTest"), balancing.unmatchedHistoryEntries());
+        assertTrue(balancing.diagnostics().stream().anyMatch(value -> value.contains("missing 1 selected classes")));
+    }
+
+    @Test
+    void fallsBackToRoundRobinWhenProfileHasNoMatchingClasses() {
+        TestSuitePlan suite = suitePlan(
+                entry("com.example.AaaTest"),
+                entry("com.example.BbbTest"),
+                entry("com.example.CccTest"));
+        TestProfileHistory history = new TestProfileHistory(
+                Optional.of(projectDir.resolve("profile.json")),
+                Map.of("com.example.OtherTest", 100L),
+                List.of());
+
+        List<TestShardPlan> shards = new TestShardPlanner().plans(projectDir, config(), suite, 2, history);
+
+        assertEquals(List.of("com.example.AaaTest", "com.example.CccTest"), classNames(shards.get(0).entries()));
+        assertEquals(List.of("com.example.BbbTest"), classNames(shards.get(1).entries()));
+        assertEquals(TestShardBalancing.ROUND_ROBIN, shards.getFirst().balancing().orElseThrow().mode());
+    }
+
+    @Test
     void exposesEmptyShardWhenShardCountExceedsInventory() {
         TestSuitePlan suite = suitePlan(entry("com.example.AaaTest"));
         TestShardPlan empty = new TestShardPlanner().plan(projectDir, config(), suite, new TestShardSpec(3, 3));

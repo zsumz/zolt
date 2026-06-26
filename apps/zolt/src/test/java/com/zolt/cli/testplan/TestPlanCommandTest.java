@@ -150,6 +150,55 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
     }
 
     @Test
+    void testPlanBalancesShardsFromProfileHistory() throws IOException {
+        Path projectDir = tempDir.resolve("balanced-shard-plan-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        appendSuite(projectDir, """
+
+                [test.suites.fast]
+                includeClassname = ["*Test"]
+                """);
+        writeClass(projectDir, "target/test-classes/com/example/AlphaTest.class");
+        writeClass(projectDir, "target/test-classes/com/example/BetaTest.class");
+        writeClass(projectDir, "target/test-classes/com/example/GammaTest.class");
+        writeProfile(projectDir.resolve("target/profile.json"));
+
+        CommandResult result = execute(
+                "test",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--suite", "fast",
+                "--shard-count", "2",
+                "--balance-from", "target/profile.json");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("balancing: profile-history"));
+        assertTrue(result.stdout().contains("balance profile: " + projectDir.resolve("target/profile.json").toAbsolutePath().normalize()));
+        assertTrue(result.stdout().contains("missing profile history: 1"));
+        assertTrue(result.stdout().contains("- com.example.GammaTest"));
+        assertTrue(result.stdout().contains("unmatched profile history: 1"));
+        assertTrue(result.stdout().contains("- com.example.UnusedTest"));
+        assertTrue(result.stdout().contains("- shard 1/2: 2 entries, empty: no, estimated: 120 ms"));
+        assertTrue(result.stdout().contains("- shard 2/2: 1 entries, empty: no, estimated: 80 ms"));
+    }
+
+    @Test
+    void testPlanBalanceFromRequiresShardCount() throws IOException {
+        Path projectDir = tempDir.resolve("balance-without-shards");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+
+        CommandResult result = execute(
+                "test",
+                "plan",
+                "--cwd", projectDir.toString(),
+                "--balance-from", "target/profile.json");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("--balance-from requires --shard-count"));
+    }
+
+    @Test
     void testPlanJsonReportsWorkspaceShardMatrixCommands() throws IOException {
         Path workspaceDir = tempDir.resolve("workspace-shard-plan-json");
         Path memberDir = workspaceDir.resolve("modules/api");
@@ -201,5 +250,27 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
         Path classFile = projectDir.resolve(relativePath);
         Files.createDirectories(classFile.getParent());
         Files.write(classFile, new byte[] {0});
+    }
+
+    private static void writeProfile(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, """
+                {
+                  "containers": [
+                    {
+                      "className": "com.example.AlphaTest",
+                      "durationMillis": 120
+                    },
+                    {
+                      "className": "com.example.BetaTest",
+                      "durationMillis": 80
+                    },
+                    {
+                      "className": "com.example.UnusedTest",
+                      "durationMillis": 900
+                    }
+                  ]
+                }
+                """);
     }
 }

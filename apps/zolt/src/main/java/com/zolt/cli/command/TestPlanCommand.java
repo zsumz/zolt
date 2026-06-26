@@ -6,8 +6,10 @@ import com.zolt.cli.CommandHumanOutput;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestPlanException;
 import com.zolt.test.TestPlanJsonFormatter;
+import com.zolt.test.TestProfileHistory;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;
+import com.zolt.test.TestShardBalancing;
 import com.zolt.test.TestShardException;
 import com.zolt.test.TestShardPlan;
 import com.zolt.test.TestShardSpec;
@@ -46,6 +48,9 @@ public final class TestPlanCommand implements Runnable {
 
     @Option(names = "--shard-count", description = "Plan deterministic suite shards without executing tests.")
     private String shardCountValue;
+
+    @Option(names = "--balance-from", description = "Balance planned shards from a Zolt test profile JSON file.")
+    private Path balanceFrom;
 
     @Option(names = "--test", description = "Select one test class or method. May be repeated.")
     private List<String> testSelectors = List.of();
@@ -102,9 +107,13 @@ public final class TestPlanCommand implements Runnable {
             ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             TestSuitePlan plan = planner.plan(projectRoot, config, suiteName, selection);
             int shardCount = TestShardSpec.parseShardCount(shardCountValue);
+            if (balanceFrom != null && shardCount == 0) {
+                throw new TestPlanException("--balance-from requires --shard-count.");
+            }
+            TestProfileHistory profileHistory = TestProfileHistory.read(projectRoot, balanceFrom);
             List<TestShardPlan> shards = shardCount == 0
                     ? List.of()
-                    : planner.shardPlans(projectRoot, config, suiteName, selection, shardCount);
+                    : planner.shardPlans(projectRoot, config, suiteName, selection, shardCount, profileHistory);
             Optional<Path> projectRelativeReportsDir = TestReportSettings.reportsDirectory(reportsDir)
                     .projectRelativeReportsDirectory(projectRoot);
             if (format == Format.JSON) {
@@ -166,6 +175,7 @@ public final class TestPlanCommand implements Runnable {
         printList(output, "missing explicit selectors", plan.missingExplicitClassSelectors());
         printOverlaps(output, plan.overlappingEntries());
         printList(output, "unassigned entries", plan.unassignedEntries());
+        printBalancing(output, shards);
         printShards(output, shards, projectRoot);
     }
 
@@ -197,6 +207,7 @@ public final class TestPlanCommand implements Runnable {
         if (shards.isEmpty()) {
             return;
         }
+        boolean balanced = shards.stream().anyMatch(shard -> shard.balancing().isPresent());
         output.line("shards: " + shards.size());
         for (TestShardPlan shard : shards) {
             output.line("- shard "
@@ -205,8 +216,24 @@ public final class TestPlanCommand implements Runnable {
                     + shard.entries().size()
                     + " entries, empty: "
                     + (shard.empty() ? "yes" : "no")
+                    + (balanced ? ", estimated: " + shard.estimatedCostMillis() + " ms" : "")
                     + ", manifest: "
                     + shard.projectRelativeManifestPath(projectRoot));
         }
+    }
+
+    private static void printBalancing(CommandHumanOutput output, List<TestShardPlan> shards) {
+        Optional<TestShardBalancing> balancing = shards.stream()
+                .flatMap(shard -> shard.balancing().stream())
+                .findFirst();
+        if (balancing.isEmpty()) {
+            return;
+        }
+        TestShardBalancing value = balancing.orElseThrow();
+        output.line("balancing: " + value.mode());
+        value.profileSource().ifPresent(path -> output.line("balance profile: " + path));
+        printList(output, "missing profile history", value.missingHistoryEntries());
+        printList(output, "unmatched profile history", value.unmatchedHistoryEntries());
+        printList(output, "balance diagnostics", value.diagnostics());
     }
 }
