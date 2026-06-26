@@ -1,4 +1,4 @@
-package com.zolt.cli;
+package com.zolt.cli.quarkus;
 
 import static com.zolt.cli.CliTestSupport.memberConfig;
 

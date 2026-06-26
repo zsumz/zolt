@@ -1,6 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.junit;
 
-record PlainJunitWorkerPoolRunResult(
+public record PlainJunitWorkerPoolRunResult(
         String output,
         int workerRequests,
         long startupNanos,

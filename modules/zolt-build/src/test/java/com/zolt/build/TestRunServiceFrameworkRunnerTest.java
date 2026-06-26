@@ -17,6 +17,7 @@ import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.build.junit.PlainJunitWorkerRunResult;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;

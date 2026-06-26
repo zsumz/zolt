@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.junit;
 
+import com.zolt.build.TestJvmArguments;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
@@ -7,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @FunctionalInterface
-interface PlainJunitWorkerRunner {
+public interface PlainJunitWorkerRunner {
     PlainJunitWorkerRunResult run(
             Path javaExecutable,
             List<Path> workerClasspath,

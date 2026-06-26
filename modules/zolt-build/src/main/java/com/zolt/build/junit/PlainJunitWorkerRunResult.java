@@ -1,8 +1,8 @@
-package com.zolt.build;
+package com.zolt.build.junit;
 
 import com.zolt.junit.JunitWorkerClient;
 
-record PlainJunitWorkerRunResult(
+public record PlainJunitWorkerRunResult(
         JunitWorkerClient.WorkerRunResult workerResult,
         long startupNanos,
         long requestNanos) {

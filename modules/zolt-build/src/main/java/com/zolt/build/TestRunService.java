@@ -4,6 +4,8 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.build.junit.PlainJunitWorkerProcessRunner;
+import com.zolt.build.junit.PlainJunitWorkerRunner;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestShardSpec;

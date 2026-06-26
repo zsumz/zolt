@@ -1,5 +1,7 @@
-package com.zolt.build;
+package com.zolt.build.junit;
 
+import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestRunException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestInventoryEntry;
 import com.zolt.test.TestSelection;
@@ -20,14 +22,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-final class PlainJunitWorkerPoolRunner {
+public final class PlainJunitWorkerPoolRunner {
     private final PlainJunitWorkerRunner plainJunitWorkerRunner;
 
-    PlainJunitWorkerPoolRunner(PlainJunitWorkerRunner plainJunitWorkerRunner) {
+    public PlainJunitWorkerPoolRunner(PlainJunitWorkerRunner plainJunitWorkerRunner) {
         this.plainJunitWorkerRunner = plainJunitWorkerRunner;
     }
 
-    PlainJunitWorkerPoolRunResult run(
+    public PlainJunitWorkerPoolRunResult run(
             Path javaExecutable,
             List<Path> workerClasspath,
             Path projectDirectory,

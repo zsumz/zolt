@@ -1,9 +1,9 @@
-package com.zolt.cli;
+package com.zolt.cli.quarkus;
 
 import static com.zolt.cli.CliTestSupport.execute;
-import static com.zolt.cli.QuarkusPlanCommandTestSupport.createJarWithTextEntry;
-import static com.zolt.cli.QuarkusPlanCommandTestSupport.enableQuarkus;
-import static com.zolt.cli.QuarkusPlanCommandTestSupport.writeProjectConfig;
+import static com.zolt.cli.quarkus.QuarkusPlanCommandTestSupport.createJarWithTextEntry;
+import static com.zolt.cli.quarkus.QuarkusPlanCommandTestSupport.enableQuarkus;
+import static com.zolt.cli.quarkus.QuarkusPlanCommandTestSupport.writeProjectConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

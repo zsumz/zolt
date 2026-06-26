@@ -1,5 +1,7 @@
-package com.zolt.build;
+package com.zolt.build.junit;
 
+import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestRunException;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;
@@ -10,11 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-final class PlainJunitWorkerProcessRunner {
+public final class PlainJunitWorkerProcessRunner {
     private PlainJunitWorkerProcessRunner() {
     }
 
-    static PlainJunitWorkerRunResult run(
+    public static PlainJunitWorkerRunResult run(
             Path javaExecutable,
             List<Path> workerClasspath,
             Path projectDirectory,

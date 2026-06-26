@@ -32,7 +32,7 @@ public final class CliTestSupport {
         return ZoltCli.newCommandLine();
     }
 
-    static String memberConfig(String name) {
+    public static String memberConfig(String name) {
         return """
                 [project]
                 name = "%s"

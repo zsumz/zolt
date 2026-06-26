@@ -8,6 +8,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
+import com.zolt.build.junit.PlainJunitWorkerRunner;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;

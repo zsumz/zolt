@@ -1,4 +1,4 @@
-package com.zolt.cli;
+package com.zolt.cli.testplan;
 
 import static com.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
+import com.zolt.cli.TestCommandTestSupport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

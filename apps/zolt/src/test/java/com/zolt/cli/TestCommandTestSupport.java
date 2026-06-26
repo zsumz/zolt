@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-abstract class TestCommandTestSupport {
+public abstract class TestCommandTestSupport {
     protected static void writeJUnitConsoleLockfile(Path projectDir) throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), """
                 version = 1
