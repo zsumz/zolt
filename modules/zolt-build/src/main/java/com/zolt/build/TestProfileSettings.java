@@ -2,6 +2,8 @@ package com.zolt.build;
 
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
+import com.zolt.test.TestShardSpec;
+import com.zolt.test.TestSuitePathSegments;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -54,6 +56,33 @@ public record TestProfileSettings(
             return Optional.empty();
         }
         return Optional.of(safeProfileDirectory(projectDirectory, profileDirectory.orElse(DEFAULT_PROFILE_DIRECTORY)));
+    }
+
+    public TestProfileSettings forShard(String suiteName, TestShardSpec shard) {
+        if (!enabled || shard == null) {
+            return this;
+        }
+        Path root = profileDirectory.orElse(DEFAULT_PROFILE_DIRECTORY);
+        return new TestProfileSettings(
+                true,
+                Optional.of(root
+                        .resolve("shards")
+                        .resolve(TestSuitePathSegments.suiteSegment(suiteName))
+                        .resolve(TestSuitePathSegments.shardSegment(shard))),
+                summaryLimit,
+                minimumDurationMillis);
+    }
+
+    public TestProfileSettings forWorkspaceMember(String memberPath) {
+        if (!enabled) {
+            return disabled();
+        }
+        Path root = profileDirectory.orElse(DEFAULT_PROFILE_DIRECTORY);
+        return new TestProfileSettings(
+                true,
+                Optional.of(root.resolve(memberPath)),
+                summaryLimit,
+                minimumDurationMillis);
     }
 
     private static Path safeProfileDirectory(Path projectDirectory, Path profileDirectory) {

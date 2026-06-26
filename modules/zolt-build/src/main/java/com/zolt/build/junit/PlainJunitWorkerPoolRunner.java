@@ -1,6 +1,7 @@
 package com.zolt.build.junit;
 
 import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestProfileMerger;
 import com.zolt.build.TestRunException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.test.TestInventoryEntry;
@@ -41,7 +42,8 @@ public final class PlainJunitWorkerPoolRunner {
             TestJvmArguments jvmArguments,
             Map<String, String> environment,
             Optional<Path> reportsDirectory,
-            List<String> events) {
+            List<String> events,
+            Optional<Path> profileDirectory) {
         ExecutorService executor = Executors.newFixedThreadPool(workerPoolPlan.maxWorkers());
         StringBuilder output = new StringBuilder();
         long startupNanos = 0L;
@@ -69,6 +71,7 @@ public final class PlainJunitWorkerPoolRunner {
                             environment,
                             reportsDirectory,
                             events,
+                            profileDirectory,
                             workerId)));
                 }
                 for (Future<WorkerTaskResult> future : futures) {
@@ -87,6 +90,7 @@ public final class PlainJunitWorkerPoolRunner {
                     }
                 }
             }
+            profileDirectory.ifPresent(directory -> TestProfileMerger.mergeWorkerProfiles(directory, workerIds));
             return new PlainJunitWorkerPoolRunResult(
                     output.toString(),
                     workerRequests,
@@ -110,6 +114,7 @@ public final class PlainJunitWorkerPoolRunner {
             Map<String, String> environment,
             Optional<Path> reportsDirectory,
             List<String> events,
+            Optional<Path> profileDirectory,
             String workerId) {
         return () -> {
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
@@ -123,7 +128,7 @@ public final class PlainJunitWorkerPoolRunner {
                     workerEnvironment(projectDirectory, config, environment, jvmArguments, workerId),
                     workerReportsDirectory(reportsDirectory, workerId),
                     events,
-                    Optional.empty());
+                    workerProfileDirectory(profileDirectory, workerId));
             return new WorkerTaskResult(entry.className(), result);
         };
     }
@@ -179,6 +184,10 @@ public final class PlainJunitWorkerPoolRunner {
 
     private static Optional<Path> workerReportsDirectory(Optional<Path> reportsDirectory, String workerId) {
         return reportsDirectory.map(directory -> directory.resolve("workers").resolve(workerId));
+    }
+
+    private static Optional<Path> workerProfileDirectory(Optional<Path> profileDirectory, String workerId) {
+        return profileDirectory.map(directory -> directory.resolve("workers").resolve(workerId));
     }
 
     private static TestJvmArguments workerJvmArguments(TestJvmArguments jvmArguments, String workerId) {

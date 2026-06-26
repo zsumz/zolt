@@ -256,6 +256,42 @@ final class TestRunServiceRuntimeOptionsTest {
     }
 
     @Test
+    void profileSettingsUseShardSpecificProfileDirectory() throws IOException {
+        writeConsoleLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
+        List<Optional<Path>> profileDirectories = new ArrayList<>();
+        TestRunService service = service(
+                (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "Console should not run\n"),
+                new TestRunServiceTestSupport.CachingJdkChecker(),
+                com.zolt.framework.FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
+                    profileDirectories.add(profileDirectory);
+                    return new com.zolt.build.junit.PlainJunitWorkerRunResult(
+                            new com.zolt.junit.JunitWorkerClient.WorkerRunResult("Tests found: 1\nTests succeeded: 1\n", 0),
+                            10L,
+                            20L);
+                },
+                false);
+        TestRunResult result = service.runTests(
+                projectDir,
+                config(),
+                projectDir.resolve("cache"),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of(),
+                "all",
+                new com.zolt.test.TestShardSpec(1, 2),
+                TestProfileSettings.fromCli(true, Path.of("target/test-profile")));
+
+        Path profileDirectory = projectDir.resolve("target/test-profile/shards/all/shard-1-of-2").toAbsolutePath().normalize();
+        assertEquals(Optional.of(profileDirectory), result.profileDirectory());
+        assertEquals(List.of(Optional.of(profileDirectory)), profileDirectories);
+    }
+
+    @Test
     void failedProfiledWorkerRunIncludesSlowSummaryWhenProfileExists() throws IOException {
         writeConsoleLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");

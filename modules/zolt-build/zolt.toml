@@ -33,6 +33,7 @@ includeClassname = [
     "com.zolt.build.TestRunServiceRuntimeOptionsTest",
     "com.zolt.build.TestRunServiceSelectionTest",
     "com.zolt.build.TestRunServiceTest",
+    "com.zolt.build.junit.PlainJunitWorkerPoolRunnerTest",
     "com.zolt.junit.JunitLauncherWorkerTest",
     "com.zolt.junit.JunitWorkerClientTest",
     "com.zolt.junit.JunitWorkerProcessLauncherTest",

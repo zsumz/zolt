@@ -144,11 +144,6 @@ final class CompiledTestRunner {
         if (plainJunitWorkerEnabled || testProfileSettings.enabled()) {
             List<Path> workerClasspath = plainJunitWorkerClasspath.get();
             if (testWorkerPoolPlan.enabled() && !testWorkerPoolPlan.empty()) {
-                if (testProfileSettings.enabled()) {
-                    throw new TestRunException(
-                            "Test profiling for worker-pool runs is not supported yet. "
-                                    + "Run a serial suite or omit --profile-tests.");
-                }
                 PlainJunitWorkerPoolRunResult poolResult = plainJunitWorkerPoolRunner.run(
                         jdkStatus.java().orElseThrow(),
                         workerClasspath,
@@ -161,7 +156,8 @@ final class CompiledTestRunner {
                         testJvmArguments,
                         testRuntime.environment(),
                         reportsDirectory,
-                        testRuntime.events());
+                        testRuntime.events(),
+                        profileDirectory);
                 return new TestRunResult(
                         compileResult,
                         poolResult.output(),
@@ -174,7 +170,7 @@ final class CompiledTestRunner {
                         testSelection,
                         testJvmArguments,
                         reportsDirectory,
-                        Optional.empty());
+                        profileDirectory);
             }
             PlainJunitWorkerRunResult result = plainJunitWorkerRunner.run(
                     jdkStatus.java().orElseThrow(),

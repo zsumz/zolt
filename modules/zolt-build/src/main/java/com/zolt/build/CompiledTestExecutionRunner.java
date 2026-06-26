@@ -35,7 +35,7 @@ final class CompiledTestExecutionRunner {
                 .forShard(suiteName, shard);
         TestProfileSettings effectiveProfileSettings = profileSettings == null
                 ? TestProfileSettings.disabled()
-                : profileSettings;
+                : profileSettings.forShard(suiteName, shard);
         return compiledTestRunner.run(
                 projectDirectory,
                 config,

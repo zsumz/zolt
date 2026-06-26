@@ -31,7 +31,7 @@ final class TestProfilingDocumentationTest {
         assertTrue(architecture.contains("Zolt's plain JUnit worker"));
         assertTrue(architecture.contains("TestExecutionListener"));
         assertTrue(architecture.contains("Framework-specific\nrunners should report an actionable unsupported-runner diagnostic"));
-        assertTrue(architecture.contains("Parallel workers must write worker-local profile files before merge"));
+        assertTrue(architecture.contains("Parallel workers write worker-local profile files before merge"));
         assertTrue(architecture.contains("Future shard balancing should consume class-level duration history"));
     }
 }
