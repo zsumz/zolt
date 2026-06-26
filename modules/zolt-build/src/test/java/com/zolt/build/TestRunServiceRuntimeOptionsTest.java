@@ -218,6 +218,7 @@ final class TestRunServiceRuntimeOptionsTest {
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<Optional<Path>> profileDirectories = new ArrayList<>();
+        List<Map<String, String>> environments = new ArrayList<>();
         List<List<String>> commands = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> {
@@ -229,6 +230,7 @@ final class TestRunServiceRuntimeOptionsTest {
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     profileDirectories.add(profileDirectory);
+                    environments.add(environment);
                     return new com.zolt.build.junit.PlainJunitWorkerRunResult(
                             new com.zolt.junit.JunitWorkerClient.WorkerRunResult("Tests found: 1\nTests succeeded: 1\n", 0),
                             10L,
@@ -252,6 +254,12 @@ final class TestRunServiceRuntimeOptionsTest {
         assertEquals("zolt-junit-worker", result.testRunner());
         assertEquals(Optional.of(profileDirectory), result.profileDirectory());
         assertEquals(List.of(Optional.of(profileDirectory)), profileDirectories);
+        Map<String, String> environment = environments.getFirst();
+        assertEquals(projectDir.toAbsolutePath().normalize().toString(), environment.get("ZOLT_TEST_PROFILE_PROJECT_ROOT"));
+        assertEquals("demo", environment.get("ZOLT_TEST_PROFILE_PROJECT"));
+        assertEquals("all", environment.get("ZOLT_TEST_PROFILE_SUITE"));
+        assertEquals("", environment.get("ZOLT_TEST_PROFILE_SHARD"));
+        assertEquals("", environment.get("ZOLT_TEST_PROFILE_MEMBER"));
         assertTrue(commands.isEmpty());
     }
 
@@ -261,6 +269,7 @@ final class TestRunServiceRuntimeOptionsTest {
         source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
         source(projectDir, "src/test/java/com/example/MainTest.java", "package com.example; public final class MainTest {}\n");
         List<Optional<Path>> profileDirectories = new ArrayList<>();
+        List<Map<String, String>> environments = new ArrayList<>();
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "Console should not run\n"),
                 new TestRunServiceTestSupport.CachingJdkChecker(),
@@ -268,6 +277,7 @@ final class TestRunServiceRuntimeOptionsTest {
                 () -> List.of(Path.of("/zolt/zolt.jar")),
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     profileDirectories.add(profileDirectory);
+                    environments.add(environment);
                     return new com.zolt.build.junit.PlainJunitWorkerRunResult(
                             new com.zolt.junit.JunitWorkerClient.WorkerRunResult("Tests found: 1\nTests succeeded: 1\n", 0),
                             10L,
@@ -289,6 +299,11 @@ final class TestRunServiceRuntimeOptionsTest {
         Path profileDirectory = projectDir.resolve("target/test-profile/shards/all/shard-1-of-2").toAbsolutePath().normalize();
         assertEquals(Optional.of(profileDirectory), result.profileDirectory());
         assertEquals(List.of(Optional.of(profileDirectory)), profileDirectories);
+        Map<String, String> environment = environments.getFirst();
+        assertEquals("demo", environment.get("ZOLT_TEST_PROFILE_PROJECT"));
+        assertEquals("all", environment.get("ZOLT_TEST_PROFILE_SUITE"));
+        assertEquals("1/2", environment.get("ZOLT_TEST_PROFILE_SHARD"));
+        assertEquals("", environment.get("ZOLT_TEST_PROFILE_MEMBER"));
     }
 
     @Test

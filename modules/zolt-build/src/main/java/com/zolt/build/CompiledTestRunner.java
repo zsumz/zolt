@@ -16,7 +16,9 @@ import com.zolt.test.TestSelection;
 import com.zolt.test.TestWorkerPoolPlan;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -83,6 +85,11 @@ final class CompiledTestRunner {
                 jvmArguments,
                 cliEvents);
         TestJvmArguments testJvmArguments = testRuntime.jvmArguments();
+        Map<String, String> testEnvironment = profileEnvironment(
+                testRuntime.environment(),
+                testProfileSettings,
+                projectDirectory,
+                config);
         List<Path> runnerClasspath = new ArrayList<>();
         runnerClasspath.add(compileResult.outputDirectory());
         runnerClasspath.add(compileResult.buildResult().outputDirectory());
@@ -122,7 +129,7 @@ final class CompiledTestRunner {
                             jdkStatus.java().orElseThrow(),
                             frameworkTestSelectionMapper.map(testSelection),
                             testJvmArguments.values(),
-                            testRuntime.environment()))
+                            testEnvironment))
                     .orElseThrow(() -> new TestRunException(
                             "Framework test runner was not configured for the enabled framework."));
             long requestNanos = System.nanoTime() - requestStarted;
@@ -154,7 +161,7 @@ final class CompiledTestRunner {
                         testSelection,
                         testWorkerPoolPlan,
                         testJvmArguments,
-                        testRuntime.environment(),
+                        testEnvironment,
                         reportsDirectory,
                         testRuntime.events(),
                         profileDirectory);
@@ -180,7 +187,7 @@ final class CompiledTestRunner {
                     compileResult.outputDirectory().toAbsolutePath().normalize(),
                     testSelection,
                     testJvmArguments,
-                    testRuntime.environment(),
+                    testEnvironment,
                     reportsDirectory,
                     testRuntime.events(),
                     profileDirectory);
@@ -228,7 +235,7 @@ final class CompiledTestRunner {
                             testSelection,
                             reportsDirectory,
                             testRuntime.events()),
-                    testRuntime.environment());
+                    testEnvironment);
         } catch (JavaRunException exception) {
             consoleFailureHandler.throwForFailedRun(exception, testSelection, reportsDirectory);
             throw exception;
@@ -254,5 +261,22 @@ final class CompiledTestRunner {
         return classpath.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .toList();
+    }
+
+    private static Map<String, String> profileEnvironment(
+            Map<String, String> environment,
+            TestProfileSettings settings,
+            Path projectDirectory,
+            ProjectConfig config) {
+        Map<String, String> values = new LinkedHashMap<>(environment);
+        if (settings == null || !settings.enabled()) {
+            return Map.copyOf(values);
+        }
+        values.put("ZOLT_TEST_PROFILE_PROJECT_ROOT", projectDirectory.toAbsolutePath().normalize().toString());
+        values.put("ZOLT_TEST_PROFILE_PROJECT", config.project().name());
+        values.put("ZOLT_TEST_PROFILE_SUITE", settings.suiteName().orElse("all"));
+        values.put("ZOLT_TEST_PROFILE_SHARD", settings.shard().orElse(""));
+        values.put("ZOLT_TEST_PROFILE_MEMBER", settings.workspaceMember().orElse(""));
+        return Map.copyOf(values);
     }
 }

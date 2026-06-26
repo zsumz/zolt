@@ -11,12 +11,18 @@ public record TestProfileSettings(
         boolean enabled,
         Optional<Path> profileDirectory,
         int summaryLimit,
-        long minimumDurationMillis) {
+        long minimumDurationMillis,
+        Optional<String> suiteName,
+        Optional<String> shard,
+        Optional<String> workspaceMember) {
     private static final Path DEFAULT_PROFILE_DIRECTORY = Path.of("target/test-profile");
     private static final int DEFAULT_SUMMARY_LIMIT = 10;
 
     public TestProfileSettings {
         profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
+        suiteName = clean(suiteName);
+        shard = clean(shard);
+        workspaceMember = clean(workspaceMember);
         if (summaryLimit < 1) {
             throw new TestRunException("--profile-top requires a positive integer.");
         }
@@ -26,7 +32,7 @@ public record TestProfileSettings(
     }
 
     public static TestProfileSettings disabled() {
-        return new TestProfileSettings(false, Optional.empty(), DEFAULT_SUMMARY_LIMIT, 0L);
+        return new TestProfileSettings(false, Optional.empty(), DEFAULT_SUMMARY_LIMIT, 0L, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     public static TestProfileSettings fromCli(boolean enabled, Path profileDirectory) {
@@ -40,7 +46,14 @@ public record TestProfileSettings(
             String minimumDuration) {
         if (!enabled && profileDirectory == null) {
             if (summaryLimit != null || minimumDuration != null) {
-                return new TestProfileSettings(true, Optional.empty(), validatedSummaryLimit(summaryLimit), parseDuration(minimumDuration));
+                return new TestProfileSettings(
+                        true,
+                        Optional.empty(),
+                        validatedSummaryLimit(summaryLimit),
+                        parseDuration(minimumDuration),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty());
             }
             return disabled();
         }
@@ -48,7 +61,10 @@ public record TestProfileSettings(
                 enabled || profileDirectory != null || summaryLimit != null || minimumDuration != null,
                 Optional.ofNullable(profileDirectory),
                 validatedSummaryLimit(summaryLimit),
-                parseDuration(minimumDuration));
+                parseDuration(minimumDuration),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
     }
 
     public Optional<Path> absoluteProfileDirectory(Path projectDirectory) {
@@ -70,7 +86,10 @@ public record TestProfileSettings(
                         .resolve(TestSuitePathSegments.suiteSegment(suiteName))
                         .resolve(TestSuitePathSegments.shardSegment(shard))),
                 summaryLimit,
-                minimumDurationMillis);
+                minimumDurationMillis,
+                Optional.ofNullable(suiteName == null || suiteName.isBlank() ? "all" : suiteName),
+                Optional.of(shard.label()),
+                workspaceMember);
     }
 
     public TestProfileSettings forWorkspaceMember(String memberPath) {
@@ -82,7 +101,24 @@ public record TestProfileSettings(
                 true,
                 Optional.of(root.resolve(memberPath)),
                 summaryLimit,
-                minimumDurationMillis);
+                minimumDurationMillis,
+                suiteName,
+                shard,
+                Optional.ofNullable(memberPath));
+    }
+
+    public TestProfileSettings forSuite(String suiteName) {
+        if (!enabled) {
+            return this;
+        }
+        return new TestProfileSettings(
+                true,
+                profileDirectory,
+                summaryLimit,
+                minimumDurationMillis,
+                Optional.ofNullable(suiteName == null || suiteName.isBlank() ? "all" : suiteName),
+                shard,
+                workspaceMember);
     }
 
     private static Path safeProfileDirectory(Path projectDirectory, Path profileDirectory) {
@@ -139,5 +175,12 @@ public record TestProfileSettings(
     private static TestRunException invalidDuration(String value) {
         return new TestRunException(
                 "Invalid --profile-min `" + value + "`. Use a duration such as 250ms, 3s, or 1m.");
+    }
+
+    private static Optional<String> clean(Optional<String> value) {
+        if (value == null || value.isEmpty() || value.orElseThrow().isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(value.orElseThrow());
     }
 }

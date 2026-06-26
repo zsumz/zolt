@@ -125,6 +125,11 @@ final class JunitLauncherWorkerTest {
         String json = Files.readString(profile.resolve("profile.json"));
         assertTrue(json.contains("\"schemaVersion\": 1"), json);
         assertTrue(json.contains("\"runner\": \"zolt-junit-worker\""), json);
+        assertTrue(json.contains("\"projectRoot\": \"\""), json);
+        assertTrue(json.contains("\"project\": \"\""), json);
+        assertTrue(json.contains("\"member\": \"\""), json);
+        assertTrue(json.contains("\"suite\": \"\""), json);
+        assertTrue(json.contains("\"shard\": \"\""), json);
         assertTrue(json.contains("\"className\": \"com.zolt.junit.JunitWorkerProtocolTest\""), json);
         assertTrue(json.contains("\"status\": \"passed\""), json);
         assertTrue(json.contains("\"durationMillis\""), json);

@@ -75,6 +75,10 @@ final class PlainJunitWorkerPoolRunnerTest {
         assertTrue(merged.contains("\"className\": \"com.example.BetaTest\""));
         assertTrue(merged.contains("\"workerId\": \"wave-1-worker-1\""));
         assertTrue(merged.contains("\"workerId\": \"wave-1-worker-2\""));
+        assertTrue(merged.contains("\"project\": \"demo\""));
+        assertTrue(merged.contains("\"member\": \"apps/demo\""));
+        assertTrue(merged.contains("\"suite\": \"fast\""));
+        assertTrue(merged.contains("\"shard\": \"1/2\""));
         assertTrue(result.output().contains("ok wave-1-worker-1"));
         assertTrue(result.output().contains("ok wave-1-worker-2"));
     }
@@ -124,6 +128,11 @@ final class PlainJunitWorkerPoolRunnerTest {
                   "schemaVersion": 1,
                   "runner": "zolt-junit-worker",
                   "workerId": "%s",
+                  "projectRoot": "/workspace",
+                  "project": "demo",
+                  "member": "apps/demo",
+                  "suite": "fast",
+                  "shard": "1/2",
                   "summary": {
                     "testsFound": 1,
                     "testsSucceeded": 1,
@@ -141,7 +150,12 @@ final class PlainJunitWorkerPoolRunnerTest {
                       "displayName": "runs()",
                       "status": "passed",
                       "durationMillis": 100,
-                      "workerId": "%s"
+                      "workerId": "%s",
+                      "projectRoot": "/workspace",
+                      "project": "demo",
+                      "member": "apps/demo",
+                      "suite": "fast",
+                      "shard": "1/2"
                     }
                   ],
                   "containers": [
@@ -154,6 +168,11 @@ final class PlainJunitWorkerPoolRunnerTest {
                       "status": "passed",
                       "durationMillis": 100,
                       "workerId": "%s",
+                      "projectRoot": "/workspace",
+                      "project": "demo",
+                      "member": "apps/demo",
+                      "suite": "fast",
+                      "shard": "1/2",
                       "testCount": 1
                     }
                   ]

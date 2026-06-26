@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 final class JunitTestProfileCollector {
     private final Path profileDirectory;
     private final String workerId = Optional.ofNullable(System.getenv("ZOLT_TEST_WORKER_ID")).orElse("");
+    private final ProfileMetadata metadata = ProfileMetadata.fromEnvironment();
     private final long runStartedNanos = System.nanoTime();
     private final Map<String, StartedEntry> started = new ConcurrentHashMap<>();
     private final List<ProfileEntry> tests = java.util.Collections.synchronizedList(new ArrayList<>());
@@ -91,6 +92,11 @@ final class JunitTestProfileCollector {
         field(json, 1, "schemaVersion", "1", true);
         field(json, 1, "runner", quote("zolt-junit-worker"), true);
         field(json, 1, "workerId", quote(workerId), true);
+        field(json, 1, "projectRoot", quote(metadata.projectRoot()), true);
+        field(json, 1, "project", quote(metadata.project()), true);
+        field(json, 1, "member", quote(metadata.member()), true);
+        field(json, 1, "suite", quote(metadata.suite()), true);
+        field(json, 1, "shard", quote(metadata.shard()), true);
         summary(json, sortedTests);
         entries(json, "tests", sortedTests, true);
         entries(json, "containers", withTestCounts(sortedContainers, sortedTests), false);
@@ -146,7 +152,7 @@ final class JunitTestProfileCollector {
         indent(json, 1).append("},\n");
     }
 
-    private static void entries(
+    private void entries(
             StringBuilder json,
             String fieldName,
             List<ProfileEntry> entries,
@@ -167,7 +173,7 @@ final class JunitTestProfileCollector {
         json.append("\n");
     }
 
-    private static void entry(StringBuilder json, ProfileEntry entry, boolean comma) {
+    private void entry(StringBuilder json, ProfileEntry entry, boolean comma) {
         indent(json, 2).append("{\n");
         TestIdentity identity = entry.identity();
         field(json, 3, "uniqueId", quote(identity.uniqueId()), true);
@@ -177,7 +183,12 @@ final class JunitTestProfileCollector {
         field(json, 3, "displayName", quote(identity.displayName()), true);
         field(json, 3, "status", quote(entry.status()), true);
         field(json, 3, "durationMillis", Long.toString(entry.durationMillis()), true);
-        field(json, 3, "workerId", quote(entry.workerId()), entry.testCount() >= 0);
+        field(json, 3, "workerId", quote(entry.workerId()), true);
+        field(json, 3, "projectRoot", quote(metadata.projectRoot()), true);
+        field(json, 3, "project", quote(metadata.project()), true);
+        field(json, 3, "member", quote(metadata.member()), true);
+        field(json, 3, "suite", quote(metadata.suite()), true);
+        field(json, 3, "shard", quote(metadata.shard()), entry.testCount() >= 0);
         if (entry.testCount() >= 0) {
             field(json, 3, "testCount", Integer.toString(entry.testCount()), false);
         }
@@ -236,6 +247,26 @@ final class JunitTestProfileCollector {
     }
 
     private record StartedEntry(TestIdentity identity, long startedNanos) {
+    }
+
+    private record ProfileMetadata(
+            String projectRoot,
+            String project,
+            String member,
+            String suite,
+            String shard) {
+        private static ProfileMetadata fromEnvironment() {
+            return new ProfileMetadata(
+                    env("ZOLT_TEST_PROFILE_PROJECT_ROOT"),
+                    env("ZOLT_TEST_PROFILE_PROJECT"),
+                    env("ZOLT_TEST_PROFILE_MEMBER"),
+                    env("ZOLT_TEST_PROFILE_SUITE"),
+                    env("ZOLT_TEST_PROFILE_SHARD"));
+        }
+
+        private static String env(String name) {
+            return Optional.ofNullable(System.getenv(name)).orElse("");
+        }
     }
 
     private record ProfileEntry(
