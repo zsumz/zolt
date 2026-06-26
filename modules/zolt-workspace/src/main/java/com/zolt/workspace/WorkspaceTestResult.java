@@ -2,6 +2,7 @@ package com.zolt.workspace;
 
 import com.zolt.build.TestRunResult;
 import com.zolt.resolve.ResolveResult;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -10,11 +11,20 @@ import java.util.Set;
 public record WorkspaceTestResult(
         Optional<ResolveResult> resolveResult,
         List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
-        List<MemberTestRunResult> members) {
+        List<MemberTestRunResult> members,
+        Optional<Path> profileDirectory) {
     public WorkspaceTestResult {
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
         builtMembers = List.copyOf(builtMembers);
         members = List.copyOf(members);
+        profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
+    }
+
+    public WorkspaceTestResult(
+            Optional<ResolveResult> resolveResult,
+            List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
+            List<MemberTestRunResult> members) {
+        this(resolveResult, builtMembers, members, Optional.empty());
     }
 
     public boolean resolvedLockfile() {

@@ -1,6 +1,8 @@
 package com.zolt.workspace;
 
 import com.zolt.build.TestJvmArguments;
+import com.zolt.build.TestProfileMerger;
+import com.zolt.build.TestProfileSettings;
 import com.zolt.build.TestReportSettings;
 import com.zolt.build.TestRunService;
 import com.zolt.doctor.JdkChecker;
@@ -15,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class WorkspaceTestService {
     private final WorkspaceBuildService workspaceBuildService;
@@ -159,8 +162,36 @@ public final class WorkspaceTestService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
+        return runTests(
+                plan,
+                buildResult,
+                cacheRoot,
+                testSelection,
+                jvmArguments,
+                reportSettings,
+                cliEvents,
+                suiteName,
+                shard,
+                TestProfileSettings.disabled());
+    }
+
+    public WorkspaceTestResult runTests(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Path cacheRoot,
+            TestSelection testSelection,
+            TestJvmArguments jvmArguments,
+            TestReportSettings reportSettings,
+            List<String> cliEvents,
+            String suiteName,
+            TestShardSpec shard,
+            TestProfileSettings profileSettings) {
         TestJvmArguments testJvmArguments = jvmArguments == null ? TestJvmArguments.empty() : jvmArguments;
         TestReportSettings testReportSettings = reportSettings == null ? TestReportSettings.disabled() : reportSettings;
+        TestProfileSettings testProfileSettings = profileSettings == null ? TestProfileSettings.disabled() : profileSettings;
+        Optional<Path> workspaceProfileDirectory = testProfileSettings
+                .forShard(suiteName, shard)
+                .absoluteProfileDirectory(plan.workspace().root());
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
@@ -171,19 +202,31 @@ public final class WorkspaceTestService {
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
             results.add(new WorkspaceTestResult.MemberTestRunResult(
                     member.path(),
-                    testRunService.runTests(
+                    testRunService.runCompiledTests(
                             member.directory(),
                             member.config(),
                             memberBuild.classpaths(),
-                            memberBuild.result(),
+                            testRunService.compileTests(
+                                    member.directory(),
+                                    member.config(),
+                                    memberBuild.classpaths(),
+                                    memberBuild.result()),
                             testSelection,
                             testJvmArguments,
                             testReportSettings.forWorkspaceMember(member.path()),
                             cliEvents,
                             suiteName,
-                            shard)));
+                            shard,
+                            testProfileSettings.forWorkspaceMember(member.path()))));
         }
-        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
+        workspaceProfileDirectory.ifPresent(directory -> TestProfileMerger.mergeProfiles(
+                directory,
+                results.stream()
+                        .map(WorkspaceTestResult.MemberTestRunResult::result)
+                        .map(result -> result.profileDirectory().map(path -> path.resolve("profile.json")))
+                        .flatMap(Optional::stream)
+                        .toList()));
+        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results, workspaceProfileDirectory);
     }
 
     public WorkspaceTestResult runIntegrationTests(

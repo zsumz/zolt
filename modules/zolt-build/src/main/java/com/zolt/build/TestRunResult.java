@@ -57,6 +57,33 @@ public record TestRunResult(
             int testDiscoveryScanRoots,
             long testRunnerStartupNanos,
             long testRunnerRequestNanos,
+            TestSelection testSelection,
+            TestJvmArguments testJvmArguments,
+            Optional<Path> reportsDirectory) {
+        this(
+                compileResult,
+                output,
+                testRunner,
+                testRuntimeClasspathEntries,
+                testLauncherClasspathEntries,
+                testDiscoveryScanRoots,
+                testRunnerStartupNanos,
+                testRunnerRequestNanos,
+                testSelection,
+                testJvmArguments,
+                reportsDirectory,
+                Optional.empty());
+    }
+
+    public TestRunResult(
+            TestCompileResult compileResult,
+            String output,
+            String testRunner,
+            int testRuntimeClasspathEntries,
+            int testLauncherClasspathEntries,
+            int testDiscoveryScanRoots,
+            long testRunnerStartupNanos,
+            long testRunnerRequestNanos,
             TestSelection testSelection) {
         this(
                 compileResult,

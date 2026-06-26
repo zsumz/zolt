@@ -210,10 +210,6 @@ public final class TestCommand implements Runnable {
             List<String> requestedTestEvents,
             String suiteName,
             TestShardSpec shard) {
-        if (profileSettings.enabled()) {
-            throw new TestRunException(
-                    "Test profiling for workspace runs is not supported yet. Run a single project or omit --profile-tests.");
-        }
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -242,7 +238,8 @@ public final class TestCommand implements Runnable {
                                     reportSettings,
                                     requestedTestEvents,
                                     suiteName,
-                                    shard),
+                                    shard,
+                                    profileSettings),
                             CommandTestAttributes::workspaceTest);
                 },
                 CommandTestAttributes::workspaceTest);
@@ -261,6 +258,8 @@ public final class TestCommand implements Runnable {
                             + " to "
                             + directory));
         }
+        result.profileDirectory().ifPresent(directory ->
+                CommandTestProfileOutput.print(output, directory, profileSettings));
         output.success(
                 "Tests passed for "
                         + result.members().size()

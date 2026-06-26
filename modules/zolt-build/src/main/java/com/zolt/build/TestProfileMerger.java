@@ -20,21 +20,32 @@ public final class TestProfileMerger {
             return;
         }
         Path profileRoot = profileDirectory.toAbsolutePath().normalize();
+        mergeProfiles(
+                profileRoot,
+                workerIds.stream()
+                        .map(workerId -> profileRoot.resolve("workers").resolve(workerId).resolve("profile.json"))
+                        .toList());
+    }
+
+    public static void mergeProfiles(Path profileDirectory, List<Path> profileJsonFiles) {
+        if (profileDirectory == null || profileJsonFiles == null || profileJsonFiles.isEmpty()) {
+            return;
+        }
+        Path profileRoot = profileDirectory.toAbsolutePath().normalize();
         List<String> tests = new ArrayList<>();
         List<String> containers = new ArrayList<>();
         Summary summary = Summary.empty();
-        for (String workerId : workerIds) {
-            Path workerProfile = profileRoot.resolve("workers").resolve(workerId).resolve("profile.json");
-            if (!Files.exists(workerProfile)) {
+        for (Path profileJson : profileJsonFiles) {
+            if (profileJson == null || !Files.exists(profileJson)) {
                 continue;
             }
             try {
-                String json = Files.readString(workerProfile);
+                String json = Files.readString(profileJson);
                 tests.addAll(entries(json, "tests"));
                 containers.addAll(entries(json, "containers"));
                 summary = summary.plus(summary(json));
             } catch (IOException exception) {
-                throw new TestRunException("Could not read test profile " + workerProfile + ".", exception);
+                throw new TestRunException("Could not read test profile " + profileJson + ".", exception);
             }
         }
         if (tests.isEmpty() && containers.isEmpty()) {

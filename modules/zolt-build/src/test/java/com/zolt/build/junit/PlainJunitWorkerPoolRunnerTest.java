@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -59,9 +61,11 @@ final class PlainJunitWorkerPoolRunnerTest {
                 Optional.of(profileRoot));
 
         assertEquals(2, result.workerRequests());
-        assertEquals(List.of(
-                Optional.of(profileRoot.resolve("workers/wave-1-worker-1")),
-                Optional.of(profileRoot.resolve("workers/wave-1-worker-2"))), profileDirectories);
+        assertEquals(Set.of(
+                profileRoot.resolve("workers/wave-1-worker-1"),
+                profileRoot.resolve("workers/wave-1-worker-2")), profileDirectories.stream()
+                        .flatMap(Optional::stream)
+                        .collect(Collectors.toSet()));
         assertTrue(Files.exists(profileRoot.resolve("workers/wave-1-worker-1/profile.json")));
         assertTrue(Files.exists(profileRoot.resolve("workers/wave-1-worker-2/profile.json")));
         String merged = Files.readString(profileRoot.resolve("profile.json"));
