@@ -35,6 +35,10 @@ final class GitHubWorkflowTest {
         assertTrue(workflow.contains("merge-multiple: true"));
         assertTrue(workflow.contains("scripts/bootstrap-zolt-jvm check"));
         assertTrue(workflow.contains("--check execution-context"));
+        assertTrue(workflow.contains("scripts/merge-test-profiles"));
+        assertTrue(workflow.contains("--output target/test-profile/test-execution/profile.json"));
+        assertTrue(workflow.contains("target/test-profile/shards/test-execution"));
+        assertTrue(workflow.contains("name: sharded-test-profile-history"));
         assertFalse(workflow.contains("run: scripts/self-host-test-execution-shards"));
     }
 }
