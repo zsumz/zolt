@@ -35,6 +35,7 @@ final class GitHubWorkflowTest {
         assertTrue(workflow.contains("modules/zolt-build/target/test-profile/modules/zolt-build/shards/test-execution/**"));
         assertTrue(workflow.contains("sharded_test_evidence:"));
         assertTrue(workflow.contains("needs: sharded_test_execution"));
+        assertTrue(workflow.contains("if: always() && needs.sharded_test_execution.result != 'skipped'"));
         assertTrue(workflow.contains("pattern: sharded-test-execution-evidence-*"));
         assertTrue(workflow.contains("merge-multiple: true"));
         assertTrue(workflow.contains("scripts/bootstrap-zolt-jvm check"));
