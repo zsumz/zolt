@@ -34,5 +34,7 @@ final class TestProfilingDocumentationTest {
         assertTrue(architecture.contains("Parallel workers write worker-local profile files before merge"));
         assertTrue(architecture.contains("Profile-aware shard planning consumes class-level duration history"));
         assertTrue(architecture.contains("--balance-from\n<profile.json>"));
+        assertTrue(architecture.contains("unusable, wrong-schema, or\n   malformed"));
+        assertTrue(architecture.contains("publishes the planner's deterministic round-robin fallback matrix"));
     }
 }
