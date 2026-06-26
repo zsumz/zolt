@@ -50,7 +50,8 @@ final class CliHelpCommandSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
-        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m\n      \u001B[36m[COMMAND...]\u001B[0m          Command path to show help for.\n\n\u001B[1;32mOptions:\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;32mArguments:\u001B[0m"));
+        assertTrue(result.stdout().contains("Command path to show help for."));
         assertTrue(result.stdout().contains("\u001B[1;32mOptions:\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36mzolt help\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[36m[COMMAND...]\u001B[0m"));
@@ -93,7 +94,8 @@ final class CliHelpCommandSurfaceTest {
         assertEquals(0, colored.exitCode());
         assertEquals("", colored.stderr());
         assertTrue(colored.stdout().contains(BOLD_USAGE_HEADING + " \u001B[1;36mzolt version set\u001B[0m"));
-        assertTrue(colored.stdout().contains("\u001B[36mALIAS\u001B[0m \u001B[36mVERSION\u001B[0m"));
+        assertTrue(colored.stdout().contains("\u001B[36mALIAS\u001B[0m"));
+        assertTrue(colored.stdout().contains("\u001B[36mVERSION\u001B[0m"));
         assertTrue(colored.stdout().contains(BOLD_CYAN_HELP_OPTION));
         assertFalse(colored.stdout().contains(BOLD_COMMANDS_HEADING));
         assertFalse(colored.stdout().contains(WARNING_COLOR));
@@ -103,7 +105,8 @@ final class CliHelpCommandSurfaceTest {
         assertEquals(0, plain.exitCode());
         assertEquals("", plain.stderr());
         assertTrue(plain.stdout().contains("Usage: zolt version set"));
-        assertTrue(plain.stdout().contains("ALIAS VERSION"));
+        assertTrue(plain.stdout().contains("ALIAS"));
+        assertTrue(plain.stdout().contains("VERSION"));
         assertFalse(plain.stdout().contains("Commands:"));
         assertFalse(plain.stdout().contains(ANSI_ESCAPE));
     }

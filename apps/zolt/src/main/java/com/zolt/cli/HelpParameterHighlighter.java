@@ -4,8 +4,16 @@ import com.zolt.cli.console.ConsoleStyle;
 import java.util.regex.Pattern;
 
 final class HelpParameterHighlighter {
+    private static final String PARAMETER_WORD = "[A-Z][A-Z0-9_-]*(\\.\\.\\.)?";
     private static final Pattern PARAMETER_LABEL =
-            Pattern.compile("(\\[[^\\s]+\\]|<[^\\s]+>|[A-Z][A-Z0-9_-]*(\\.\\.\\.)?)");
+            Pattern.compile("(\\[[^\\s]+\\]|<[^\\s]+>|"
+                    + PARAMETER_WORD
+                    + "((:"
+                    + PARAMETER_WORD
+                    + ")|(\\[:"
+                    + PARAMETER_WORD
+                    + "\\]))*"
+                    + ")");
 
     private HelpParameterHighlighter() {
     }
