@@ -8,16 +8,13 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.test.TestShardSpec;
 import com.zolt.test.TestSelection;
-import com.zolt.test.TestSuiteExecutionPlan;
-import com.zolt.test.TestSuitePlanner;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
 
 public final class TestRunService {
     private final TestCompileService testCompileService;
-    private final CompiledTestRunner compiledTestRunner;
-    private final TestSuitePlanner testSuitePlanner = new TestSuitePlanner();
+    private final CompiledTestExecutionRunner compiledTestExecutionRunner;
 
     public TestRunService() {
         this(new JdkDetector());
@@ -64,14 +61,14 @@ public final class TestRunService {
             boolean plainJunitWorkerEnabled,
             String pathSeparator) {
         this.testCompileService = testCompileService;
-        this.compiledTestRunner = new CompiledTestRunner(
+        this.compiledTestExecutionRunner = new CompiledTestExecutionRunner(new CompiledTestRunner(
                 jdkDetector,
                 javaRunner,
                 frameworkTestRunner,
                 plainJunitWorkerClasspath,
                 plainJunitWorkerRunner,
                 plainJunitWorkerEnabled,
-                pathSeparator);
+                pathSeparator));
     }
 
     public TestRunResult runTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
@@ -235,7 +232,17 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard);
+        return compiledTestExecutionRunner.run(
+                projectDirectory,
+                config,
+                classpaths,
+                compileResult,
+                selection,
+                jvmArguments,
+                reportSettings,
+                cliEvents,
+                suiteName,
+                shard);
     }
 
     public TestRunResult runTests(
@@ -313,7 +320,17 @@ public final class TestRunService {
             String suiteName,
             TestShardSpec shard) {
         TestCompileResult compileResult = compileTests(projectDirectory, config, classpaths, buildResult);
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard);
+        return compiledTestExecutionRunner.run(
+                projectDirectory,
+                config,
+                classpaths,
+                compileResult,
+                selection,
+                jvmArguments,
+                reportSettings,
+                cliEvents,
+                suiteName,
+                shard);
     }
 
     public TestCompileResult compileTests(
@@ -326,88 +343,6 @@ public final class TestRunService {
                 config,
                 classpaths,
                 buildResult);
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, TestJvmArguments.empty());
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, TestReportSettings.disabled());
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, List.of());
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings,
-            List<String> cliEvents) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, "all");
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings,
-            List<String> cliEvents,
-            String suiteName) {
-        return runTests(projectDirectory, config, classpaths, compileResult, selection, jvmArguments, reportSettings, cliEvents, suiteName, null);
-    }
-
-    private TestRunResult runTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            TestCompileResult compileResult,
-            TestSelection selection,
-            TestJvmArguments jvmArguments,
-            TestReportSettings reportSettings,
-            List<String> cliEvents,
-            String suiteName,
-            TestShardSpec shard) {
-        TestSuiteExecutionPlan executionPlan =
-                testSuitePlanner.executionPlan(projectDirectory, config, suiteName, selection, shard);
-        TestReportSettings effectiveReportSettings = (reportSettings == null ? TestReportSettings.disabled() : reportSettings)
-                .forShard(suiteName, shard);
-        return compiledTestRunner.run(
-                projectDirectory,
-                config,
-                classpaths,
-                compileResult,
-                executionPlan.selection(),
-                executionPlan.workerPoolPlan(),
-                jvmArguments,
-                effectiveReportSettings,
-                cliEvents);
     }
 
 }
