@@ -1,7 +1,10 @@
 package com.zolt.build.profile;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.TestRunException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +39,44 @@ final class TestProfileMergerTest {
         assertTrue(merged.contains("\"suite\": \"fast\""));
         assertTrue(merged.contains("\"shard\": \"1/2\""));
         assertTrue(merged.contains("\"shard\": \"2/2\""));
+    }
+
+    @Test
+    void rejectsUnsupportedProfileSchemaVersion() throws IOException {
+        Path profile = tempDir.resolve("profile-input/profile.json");
+        writeProfile(profile, "com.example.UnsupportedSchemaTest", "", "api", "apps/api", "fast", "");
+        Files.writeString(profile, Files.readString(profile).replace("\"schemaVersion\": 1", "\"schemaVersion\": 2"));
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> TestProfileMerger.mergeProfiles(tempDir.resolve("merged"), List.of(profile)));
+
+        assertTrue(exception.getMessage().contains("has unsupported schemaVersion; expected 1"));
+        assertFalse(Files.exists(tempDir.resolve("merged/profile.json")));
+    }
+
+    @Test
+    void rejectsMalformedProfileInMixedInputSet() throws IOException {
+        Path valid = tempDir.resolve("valid/profile.json");
+        Path malformed = tempDir.resolve("malformed/profile.json");
+        writeProfile(valid, "com.example.ValidTest", "", "api", "apps/api", "fast", "");
+        Files.createDirectories(malformed.getParent());
+        Files.writeString(malformed, """
+                {
+                  "schemaVersion": 1,
+                  "runner": "zolt-junit-worker",
+                  "summary": {
+                    "testsFound": 1
+                  }
+                }
+                """);
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> TestProfileMerger.mergeProfiles(tempDir.resolve("merged"), List.of(valid, malformed)));
+
+        assertTrue(exception.getMessage().contains("is missing tests or containers arrays"));
+        assertFalse(Files.exists(tempDir.resolve("merged/profile.json")));
     }
 
     private static void writeProfile(

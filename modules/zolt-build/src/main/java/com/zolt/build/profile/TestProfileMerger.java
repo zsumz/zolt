@@ -44,6 +44,7 @@ public final class TestProfileMerger {
             }
             try {
                 String json = Files.readString(profileJson);
+                validateProfile(profileJson, json);
                 tests.addAll(entries(json, "tests"));
                 containers.addAll(entries(json, "containers"));
                 summary = summary.plus(summary(json));
@@ -60,6 +61,15 @@ public final class TestProfileMerger {
             Files.writeString(profileRoot.resolve("profile.json"), mergedJson(summary, metadata, tests, containers));
         } catch (IOException exception) {
             throw new TestRunException("Could not write merged test profile to " + profileRoot.resolve("profile.json") + ".", exception);
+        }
+    }
+
+    private static void validateProfile(Path profileJson, String json) {
+        if (number(json, "schemaVersion") != 1L) {
+            throw new TestRunException("Test profile " + profileJson + " has unsupported schemaVersion; expected 1.");
+        }
+        if (arrayBody(json, "tests").isEmpty() || arrayBody(json, "containers").isEmpty()) {
+            throw new TestRunException("Test profile " + profileJson + " is missing tests or containers arrays.");
         }
     }
 
