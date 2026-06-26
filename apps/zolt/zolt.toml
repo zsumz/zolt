@@ -33,6 +33,15 @@ central = "https://repo.maven.apache.org/maven2"
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
+[test.suites.cli-help-highlighting]
+includeClassname = [
+    "com.zolt.cli.HelpOptionHighlighterTest",
+    "com.zolt.cli.HelpParameterHighlighterTest",
+    "com.zolt.cli.HelpSynopsisHighlighterTest",
+]
+parallelSafe = true
+maxWorkers = 2
+
 [build]
 source = "src/main/java"
 test = "src/test/java"
