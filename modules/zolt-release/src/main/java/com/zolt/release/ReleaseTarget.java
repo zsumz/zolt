@@ -47,8 +47,12 @@ public enum ReleaseTarget {
     }
 
     public static ReleaseTarget current() {
-        String os = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-        String arch = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
+        return fromOsArch(System.getProperty("os.name"), System.getProperty("os.arch"));
+    }
+
+    public static ReleaseTarget fromOsArch(String osName, String osArch) {
+        String os = osName.toLowerCase(Locale.ROOT);
+        String arch = osArch.toLowerCase(Locale.ROOT);
         if ((os.contains("mac") || os.contains("darwin")) && (arch.equals("aarch64") || arch.equals("arm64"))) {
             return MACOS_ARM64;
         }
@@ -66,10 +70,12 @@ public enum ReleaseTarget {
         }
         throw new ReleaseArchiveException(
                 "Could not infer release target from os.name="
-                        + System.getProperty("os.name")
+                        + osName
                         + " and os.arch="
-                        + System.getProperty("os.arch")
-                        + ". Pass --target explicitly.");
+                        + osArch
+                        + ". Supported release targets: "
+                        + supportedTargets()
+                        + ".");
     }
 
     public static String supportedTargets() {

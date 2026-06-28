@@ -22,6 +22,25 @@ final class ReleaseTargetTest {
     }
 
     @Test
+    void targetSelectionMapsInstallerOsAndArchitecturePairs() {
+        assertEquals(ReleaseTarget.LINUX_X64, ReleaseTarget.fromOsArch("Linux", "x86_64"));
+        assertEquals(ReleaseTarget.LINUX_ARM64, ReleaseTarget.fromOsArch("Linux", "aarch64"));
+        assertEquals(ReleaseTarget.MACOS_X64, ReleaseTarget.fromOsArch("Mac OS X", "amd64"));
+        assertEquals(ReleaseTarget.MACOS_ARM64, ReleaseTarget.fromOsArch("Darwin", "arm64"));
+        assertEquals(ReleaseTarget.WINDOWS_X64, ReleaseTarget.fromOsArch("Windows 11", "amd64"));
+    }
+
+    @Test
+    void targetSelectionExplainsUnsupportedInstallerPlatform() {
+        ReleaseArchiveException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                ReleaseArchiveException.class,
+                () -> ReleaseTarget.fromOsArch("FreeBSD", "riscv64"));
+
+        assertTrue(exception.getMessage().contains("Could not infer release target from os.name=FreeBSD and os.arch=riscv64"));
+        assertTrue(exception.getMessage().contains("Supported release targets: macos-arm64, macos-x64, linux-arm64, linux-x64, windows-x64"));
+    }
+
+    @Test
     void unknownTargetListsSupportedTargets() {
         ReleaseArchiveException exception = org.junit.jupiter.api.Assertions.assertThrows(
                 ReleaseArchiveException.class,
