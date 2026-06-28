@@ -102,6 +102,60 @@ final class UpdateCommandTest {
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
+    @Test
+    void successfulCommandPrintsUpdateAvailableNoticeWhenForced() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
+
+        CommandResult result = execute(
+                "--update-check", "always",
+                "--update-check-install-root", installed.installRoot().toString(),
+                "--update-check-current-executable", installed.binLink().toString(),
+                "--update-check-channel-url", channel.toUri().toString(),
+                "--update-check-target", "linux-x64",
+                "--update-check-state-dir", tempDir.resolve("notice-state").toString(),
+                "version");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
+        assertTrue(result.stderr().contains("A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Run `zolt update`."));
+    }
+
+    @Test
+    void updateAvailableNoticeIsQuietByDefaultInNonInteractiveOutput() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
+
+        CommandResult result = execute(
+                "--update-check-install-root", installed.installRoot().toString(),
+                "--update-check-current-executable", installed.binLink().toString(),
+                "--update-check-channel-url", channel.toUri().toString(),
+                "--update-check-target", "linux-x64",
+                "--update-check-state-dir", tempDir.resolve("notice-state").toString(),
+                "version");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void updateAvailableNoticeDoesNotFailOriginalCommandOnBadChannel() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+
+        CommandResult result = execute(
+                "--update-check", "always",
+                "--update-check-install-root", installed.installRoot().toString(),
+                "--update-check-current-executable", installed.binLink().toString(),
+                "--update-check-channel-url", tempDir.resolve("missing-channel.json").toUri().toString(),
+                "--update-check-target", "linux-x64",
+                "--update-check-state-dir", tempDir.resolve("notice-state").toString(),
+                "version");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
+        assertEquals("", result.stderr());
+    }
+
     private CommandResult update(InstalledFixture installed, Path channel) {
         return execute(
                 "update",
