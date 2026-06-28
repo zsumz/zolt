@@ -28,13 +28,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -156,15 +156,7 @@ final class TestRunServiceFrameworkRunnerTest {
         List<TestJvmArguments> workerJvmArguments = Collections.synchronizedList(new ArrayList<>());
         List<Map<String, String>> environments = Collections.synchronizedList(new ArrayList<>());
         List<Optional<Path>> reportDirectories = Collections.synchronizedList(new ArrayList<>());
-        AtomicInteger activeDatabaseWorkers = new AtomicInteger();
-        AtomicBoolean lockViolation = new AtomicBoolean();
-        CountDownLatch databaseWorkerStarted = new CountDownLatch(1);
-        CountDownLatch releaseDatabaseWorker = new CountDownLatch(1);
-        Thread databaseReleaseThread = new Thread(() -> {
-            awaitLatch(databaseWorkerStarted);
-            releaseDatabaseWorker.countDown();
-        });
-        databaseReleaseThread.start();
+        Map<String, String> workerIdsByClass = Collections.synchronizedMap(new LinkedHashMap<>());
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 new JdkDetector(),
@@ -176,17 +168,7 @@ final class TestRunServiceFrameworkRunnerTest {
                     environments.add(environment);
                     reportDirectories.add(reportsDirectory);
                     String className = testSelection.classSelectors().getFirst();
-                    if (className.startsWith("com.example.Db")) {
-                        if (activeDatabaseWorkers.incrementAndGet() > 1) {
-                            lockViolation.set(true);
-                        }
-                        databaseWorkerStarted.countDown();
-                        try {
-                            awaitLatch(releaseDatabaseWorker);
-                        } finally {
-                            activeDatabaseWorkers.decrementAndGet();
-                        }
-                    }
+                    workerIdsByClass.put(className, environment.get("ZOLT_TEST_WORKER_ID"));
                     return new PlainJunitWorkerRunResult(
                             new JunitWorkerClient.WorkerRunResult("passed " + className + "\n", 0),
                             10L,
@@ -215,7 +197,8 @@ final class TestRunServiceFrameworkRunnerTest {
                         .flatMap(selection -> selection.classSelectors().stream())
                         .sorted()
                         .toList());
-        assertFalse(lockViolation.get());
+        assertTrue(workerIdsByClass.getOrDefault("com.example.DbOneTest", "").startsWith("wave-1-worker-"));
+        assertTrue(workerIdsByClass.getOrDefault("com.example.DbTwoTest", "").startsWith("wave-2-worker-"));
         assertEquals(4, environments.size());
         assertEquals(4, workerJvmArguments.size());
         assertTrue(workerJvmArguments.stream()
@@ -435,15 +418,6 @@ final class TestRunServiceFrameworkRunnerTest {
                                 List.of("database"),
                                 "com.example.DbTwoTest",
                                 List.of("database"))))));
-    }
-
-    private static void awaitLatch(CountDownLatch latch) {
-        try {
-            assertTrue(latch.await(2, TimeUnit.SECONDS));
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Interrupted while waiting for test latch.", exception);
-        }
     }
 
 }
