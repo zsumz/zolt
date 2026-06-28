@@ -17,31 +17,26 @@ final class CliSurfaceTest {
     private Path tempDir;
 
     @Test
-    void updateExplainsFutureSelfUpdatePath() {
+    void updateRefusesNonInstallerManagedLaunchByDefault() {
         CommandResult result = execute("update");
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("zolt update is not available yet."));
-        assertTrue(result.stdout().contains("verified native archive"));
-        assertTrue(result.stdout().contains("Next: Track this work in followUps/-design-zolt-update-command.md."));
-        assertEquals("", result.stderr());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("zolt update only supports installer-managed native Zolt layouts"));
     }
 
     @Test
-    void updateUsesModernHumanOutputControls() {
+    void updateErrorsUseModernHumanOutputControls() {
         CommandResult color = execute("--color", "always", "update");
         CommandResult quiet = execute("--quiet", "update");
 
         assertEquals(1, color.exitCode());
-        assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m update is not available yet."));
-        assertTrue(color.stdout().contains("verified native archive"));
-        assertTrue(color.stdout().contains("Next: Track this work in followUps/-design-zolt-update-command.md."));
-        assertFalse(color.stdout().contains("\u001B[36mzolt update is not available yet."));
-        assertFalse(color.stdout().contains("\u001B[36mNext"));
-        assertEquals("", color.stderr());
+        assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m zolt update only supports installer-managed native Zolt layouts"));
+        assertEquals("", color.stdout());
+        assertFalse(color.stderr().contains("\u001B[31mNext"));
         assertEquals(1, quiet.exitCode());
         assertEquals("", quiet.stdout());
-        assertEquals("", quiet.stderr());
+        assertTrue(quiet.stderr().contains("zolt update only supports installer-managed native Zolt layouts"));
     }
 
     @Test

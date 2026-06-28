@@ -1,0 +1,212 @@
+package com.zolt.cli.update;
+
+import static com.zolt.cli.CliTestSupport.execute;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.cli.CliTestSupport.CommandResult;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class UpdateCommandTest {
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void updateRefusesUnsupportedDevelopmentLayout() throws IOException {
+        Path installRoot = tempDir.resolve("home/.zolt");
+        Path channel = writeChannel("0.1.0", "linux-x64", archive("0.1.0", "linux-x64", "0.1.0"), "sidecar");
+        Path devExecutable = tempDir.resolve("dev/zolt");
+        Files.createDirectories(devExecutable.getParent());
+        Files.writeString(devExecutable, "dev");
+
+        CommandResult result = execute(
+                "update",
+                "--install-root", installRoot.toString(),
+                "--current-executable", devExecutable.toString(),
+                "--channel-url", channel.toUri().toString(),
+                "--target", "linux-x64");
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("installer-managed native Zolt layouts"));
+    }
+
+    @Test
+    void updateReportsCurrentVersionWhenChannelMatchesInstalledVersion() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.0", "linux-x64", archive("0.1.0", "linux-x64", "0.1.0"), "sidecar");
+
+        CommandResult result = update(installed, channel);
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Zolt is already current at 0.1.0"));
+        assertTrue(result.stdout().contains("Channel: stable"));
+        assertTrue(result.stdout().contains("Target: linux-x64"));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void updateInstallsNewNativeVersionAndSwitchesCurrentSymlink() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
+
+        CommandResult result = update(installed, channel);
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Updated native Zolt to 0.1.1"));
+        assertTrue(result.stdout().contains("Current version: 0.1.0"));
+        assertTrue(result.stdout().contains("Available version: 0.1.1"));
+        assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
+    }
+
+    @Test
+    void updateFailsOnChecksumMismatchBeforeSwitchingVersion() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "0".repeat(64));
+
+        CommandResult result = update(installed, channel);
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Checksum mismatch for native Zolt archive"));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void updateFailsWhenChannelDoesNotContainCurrentTarget() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-arm64", archive("0.1.1", "linux-arm64", "0.1.1"), "sidecar");
+
+        CommandResult result = update(installed, channel);
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("does not include native archive target `linux-x64`"));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void updateSmokeFailureKeepsPreviousVersionCurrent() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "not-0.1.1"), "sidecar");
+
+        CommandResult result = update(installed, channel);
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("failed smoke verification"));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    private CommandResult update(InstalledFixture installed, Path channel) {
+        return execute(
+                "update",
+                "--install-root", installed.installRoot().toString(),
+                "--current-executable", installed.binLink().toString(),
+                "--channel-url", channel.toUri().toString(),
+                "--target", "linux-x64",
+                "--work-dir", tempDir.resolve("update-work").toString());
+    }
+
+    private InstalledFixture install(String version) throws IOException {
+        Path installRoot = tempDir.resolve("home/.zolt");
+        Path executable = installRoot.resolve("versions").resolve(version).resolve("bin/zolt");
+        writeFakeZolt(executable, version);
+        Path bin = installRoot.resolve("bin");
+        Files.createDirectories(bin);
+        Path binLink = bin.resolve("zolt");
+        Files.deleteIfExists(binLink);
+        Files.createSymbolicLink(binLink, Path.of("../versions", version, "bin", "zolt"));
+        return new InstalledFixture(installRoot, binLink);
+    }
+
+    private Path archive(String version, String target, String binaryVersion) throws IOException {
+        Path root = tempDir.resolve("archives");
+        Path archive = root.resolve("zolt-" + version + "-" + target + ".tar.gz");
+        Path packageDir = tempDir.resolve("package/zolt-" + version + "-" + target);
+        deleteIfExists(tempDir.resolve("package"));
+        writeFakeZolt(packageDir.resolve("bin/zolt"), binaryVersion);
+        Files.createDirectories(root);
+        try {
+            Process process = new ProcessBuilder("tar", "-C", tempDir.resolve("package").toString(), "-czf", archive.toString(), packageDir.getFileName().toString())
+                    .redirectErrorStream(true)
+                    .start();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IOException("tar failed: " + new String(process.getInputStream().readAllBytes()));
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IOException("tar interrupted", exception);
+        }
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"), sha256(archive) + "  " + archive.getFileName() + "\n");
+        return archive;
+    }
+
+    private Path writeChannel(String version, String target, Path archive, String checksum) throws IOException {
+        String checksumField = checksum.equals("sidecar")
+                ? "\"checksumUrl\": \"" + archive.resolveSibling(archive.getFileName() + ".sha256").toUri() + "\","
+                : "\"sha256\": \"" + checksum + "\",";
+        Path channel = tempDir.resolve("channel-" + version + "-" + target + ".json");
+        Files.writeString(channel, """
+                {
+                  "schemaVersion": 1,
+                  "channel": "stable",
+                  "version": "%s",
+                  "commit": "0123456789abcdef",
+                  "createdAt": "2026-06-28T00:00:00Z",
+                  "artifacts": [
+                    {
+                      "target": "%s",
+                      "archive": "%s",
+                      "archiveUrl": "%s",
+                      %s
+                      "format": "tar.gz",
+                      "binaryName": "zolt"
+                    }
+                  ]
+                }
+                """.formatted(version, target, archive.getFileName(), archive.toUri(), checksumField));
+        return channel;
+    }
+
+    private static void writeFakeZolt(Path executable, String version) throws IOException {
+        Files.createDirectories(executable.getParent());
+        Files.writeString(executable, """
+                #!/usr/bin/env bash
+                set -euo pipefail
+                if [[ "${1:-}" == "--version" ]]; then
+                  printf '%s\\n' "%s"
+                  exit 0
+                fi
+                exit 0
+                """.formatted("%s", version));
+        executable.toFile().setExecutable(true);
+    }
+
+    private static String sha256(Path path) throws IOException {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 unavailable", exception);
+        }
+    }
+
+    private static void deleteIfExists(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (var stream = Files.walk(path)) {
+            for (Path entry : stream.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(entry);
+            }
+        }
+    }
+
+    private record InstalledFixture(Path installRoot, Path binLink) {
+    }
+}
