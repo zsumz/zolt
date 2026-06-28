@@ -14,44 +14,44 @@ final class ReleaseChannelManifestValidatorTest {
                 {
                   "target": "macos-arm64",
                   "archive": "zolt-0.1.0-macos-arm64.tar.gz",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-macos-arm64.tar.gz",
-                  "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-macos-arm64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "macos-x64",
                   "archive": "zolt-0.1.0-macos-x64.tar.gz",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-macos-x64.tar.gz",
-                  "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-macos-x64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "linux-arm64",
                   "archive": "zolt-0.1.0-linux-arm64.tar.gz",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-arm64.tar.gz",
-                  "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-arm64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "linux-x64",
                   "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                   "sha256": "%s",
                   "format": "tar.gz",
                   "binaryName": "zolt",
                   "signature": {
                     "kind": "minisign",
-                    "url": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
+                    "url": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
                   }
                 },
                 {
                   "target": "windows-x64",
                   "archive": "zolt-0.1.0-windows-x64.zip",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-windows-x64.zip",
-                  "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-windows-x64.zip.sha256",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip",
+                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip.sha256",
                   "format": "zip",
                   "binaryName": "zolt.exe"
                 }
@@ -77,8 +77,8 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "solaris-sparc",
                           "archive": "zolt-0.1.0-solaris-sparc.tar.gz",
-                          "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz",
-                          "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz.sha256",
+                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz",
+                          "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz.sha256",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
@@ -94,8 +94,8 @@ final class ReleaseChannelManifestValidatorTest {
                 {
                   "target": "linux-x64",
                   "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                  "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
-                  "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 }
@@ -133,8 +133,8 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "linux-x64",
                           "archive": "zolt-0.1.0-linux-x64.jar",
-                          "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.jar",
-                          "checksumUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.jar.sha256",
+                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar",
+                          "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar.sha256",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
@@ -152,7 +152,7 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "linux-x64",
                           "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                          "archiveUrl": "https://downloads.zolt.example/releases/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
