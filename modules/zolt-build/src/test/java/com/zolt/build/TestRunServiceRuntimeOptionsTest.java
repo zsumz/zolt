@@ -321,6 +321,7 @@ final class TestRunServiceRuntimeOptionsTest {
                     Path profile = profileDirectory.orElseThrow();
                     writeProfile(profile, """
                             {
+                              "schemaVersion": 1,
                               "tests": [
                                 {
                                   "uniqueId": "slow",
