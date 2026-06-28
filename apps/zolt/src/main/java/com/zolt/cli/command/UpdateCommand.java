@@ -95,7 +95,7 @@ public final class UpdateCommand implements Callable<Integer> {
                 .command()
                 .map(Path::of)
                 .orElseThrow(() -> new NativeUpdateException(
-                        "Could not determine the current Zolt executable. Reinstall with the native installer."));
+                        "zolt update only supports installer-managed native Zolt layouts. Could not determine the current Zolt executable. Reinstall with the native installer."));
     }
 
     private String effectiveChannelUrl() {

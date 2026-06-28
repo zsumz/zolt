@@ -18,6 +18,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltUpdateNoticeHook",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.ZoltCli$TimingOptions",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
