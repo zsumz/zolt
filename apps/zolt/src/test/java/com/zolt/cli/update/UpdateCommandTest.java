@@ -67,6 +67,32 @@ final class UpdateCommandTest {
     }
 
     @Test
+    void updateUsesInstalledChannelUrlWhenNoChannelUrlIsProvided() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel(
+                "nightly",
+                "0.1.0-nightly.20260628.0123456",
+                "linux-x64",
+                archive("0.1.0-nightly.20260628.0123456", "linux-x64", "0.1.0-nightly.20260628.0123456"),
+                "sidecar");
+        Files.writeString(installed.installRoot().resolve("channel-url"), channel.toUri().toString());
+
+        CommandResult result = execute(
+                "update",
+                "--install-root", installed.installRoot().toString(),
+                "--current-executable", installed.binLink().toString(),
+                "--target", "linux-x64",
+                "--work-dir", tempDir.resolve("update-work").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Updated native Zolt to 0.1.0-nightly.20260628.0123456"));
+        assertTrue(result.stdout().contains("Channel: nightly"));
+        assertEquals(
+                "../versions/0.1.0-nightly.20260628.0123456/bin/zolt",
+                Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
     void updateFailsOnChecksumMismatchBeforeSwitchingVersion() throws IOException {
         InstalledFixture installed = install("0.1.0");
         Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "0".repeat(64));
@@ -119,6 +145,30 @@ final class UpdateCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
         assertTrue(result.stderr().contains("A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Run `zolt update`."));
+    }
+
+    @Test
+    void updateAvailableNoticeUsesInstalledNightlyChannelUrl() throws IOException {
+        InstalledFixture installed = install("0.1.0-nightly.20260627.abcdef1");
+        Path channel = writeChannel(
+                "nightly",
+                "0.1.0-nightly.20260628.0123456",
+                "linux-x64",
+                archive("0.1.0-nightly.20260628.0123456", "linux-x64", "0.1.0-nightly.20260628.0123456"),
+                "sidecar");
+        Files.writeString(installed.installRoot().resolve("channel-url"), channel.toUri().toString());
+
+        CommandResult result = execute(
+                "--update-check", "always",
+                "--update-check-install-root", installed.installRoot().toString(),
+                "--update-check-current-executable", installed.binLink().toString(),
+                "--update-check-target", "linux-x64",
+                "--update-check-state-dir", tempDir.resolve("notice-state").toString(),
+                "version");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stderr().contains(
+                "A newer Zolt is available on nightly: 0.1.0-nightly.20260627.abcdef1 -> 0.1.0-nightly.20260628.0123456. Run `zolt update`."));
     }
 
     @Test
@@ -202,6 +252,10 @@ final class UpdateCommandTest {
     }
 
     private Path writeChannel(String version, String target, Path archive, String checksum) throws IOException {
+        return writeChannel("stable", version, target, archive, checksum);
+    }
+
+    private Path writeChannel(String channelName, String version, String target, Path archive, String checksum) throws IOException {
         String checksumField = checksum.equals("sidecar")
                 ? "\"checksumUrl\": \"" + archive.resolveSibling(archive.getFileName() + ".sha256").toUri() + "\","
                 : "\"sha256\": \"" + checksum + "\",";
@@ -209,7 +263,7 @@ final class UpdateCommandTest {
         Files.writeString(channel, """
                 {
                   "schemaVersion": 1,
-                  "channel": "stable",
+                  "channel": "%s",
                   "version": "%s",
                   "commit": "0123456789abcdef",
                   "createdAt": "2026-06-28T00:00:00Z",
@@ -224,7 +278,7 @@ final class UpdateCommandTest {
                     }
                   ]
                 }
-                """.formatted(version, target, archive.getFileName(), archive.toUri(), checksumField));
+                """.formatted(channelName, version, target, archive.getFileName(), archive.toUri(), checksumField));
         return channel;
     }
 

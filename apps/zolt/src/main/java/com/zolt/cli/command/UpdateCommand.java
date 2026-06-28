@@ -10,6 +10,8 @@ import com.zolt.release.ReleaseChannelManifestException;
 import com.zolt.release.ReleaseDistributionUrlLayout;
 import com.zolt.release.ReleaseTarget;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
@@ -25,7 +27,7 @@ public final class UpdateCommand implements Callable<Integer> {
     private Path installRoot = Path.of(System.getProperty("user.home"), ".zolt");
 
     @Option(names = "--channel-url", hidden = true)
-    private String channelUrl = new ReleaseDistributionUrlLayout().channelManifestUrl("stable");
+    private String channelUrl;
 
     @Option(names = "--target", hidden = true)
     private String target;
@@ -54,7 +56,7 @@ public final class UpdateCommand implements Callable<Integer> {
             NativeUpdateResult result = nativeUpdateService.update(new NativeUpdateRequest(
                     installRoot,
                     effectiveCurrentExecutable(),
-                    URI.create(channelUrl),
+                    URI.create(effectiveChannelUrl()),
                     releaseTarget,
                     workDirectory));
             print(result);
@@ -94,5 +96,23 @@ public final class UpdateCommand implements Callable<Integer> {
                 .map(Path::of)
                 .orElseThrow(() -> new NativeUpdateException(
                         "Could not determine the current Zolt executable. Reinstall with the native installer."));
+    }
+
+    private String effectiveChannelUrl() {
+        if (channelUrl != null && !channelUrl.isBlank()) {
+            return channelUrl;
+        }
+        Path installedChannelUrl = installRoot.resolve("channel-url");
+        if (Files.isRegularFile(installedChannelUrl)) {
+            try {
+                String value = Files.readString(installedChannelUrl, StandardCharsets.UTF_8).strip();
+                if (!value.isBlank()) {
+                    return value;
+                }
+            } catch (java.io.IOException exception) {
+                // Fall back to the stable channel; update will still validate the install layout.
+            }
+        }
+        return new ReleaseDistributionUrlLayout().channelManifestUrl("stable");
     }
 }

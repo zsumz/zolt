@@ -136,7 +136,7 @@ public final class ZoltCli implements Runnable {
     private Path updateCheckInstallRoot = Path.of(System.getProperty("user.home"), ".zolt");
 
     @Option(names = "--update-check-channel-url", scope = ScopeType.INHERIT, hidden = true)
-    private String updateCheckChannelUrl = new ReleaseDistributionUrlLayout().channelManifestUrl("stable");
+    private String updateCheckChannelUrl;
 
     @Option(names = "--update-check-target", scope = ScopeType.INHERIT, hidden = true)
     private String updateCheckTarget;
@@ -227,7 +227,7 @@ public final class ZoltCli implements Runnable {
             service.check(new NativeUpdateNoticeRequest(
                             updateCheckInstallRoot,
                             currentExecutable,
-                            URI.create(updateCheckChannelUrl),
+                            URI.create(effectiveUpdateCheckChannelUrl()),
                             target,
                             updateCheckStateDirectory == null ? updateCheckInstallRoot.resolve("state") : updateCheckStateDirectory,
                             Instant.now(),
@@ -273,6 +273,24 @@ public final class ZoltCli implements Runnable {
                 .command()
                 .map(Path::of)
                 .orElse(null);
+    }
+
+    private String effectiveUpdateCheckChannelUrl() {
+        if (updateCheckChannelUrl != null && !updateCheckChannelUrl.isBlank()) {
+            return updateCheckChannelUrl;
+        }
+        Path installedChannelUrl = updateCheckInstallRoot.resolve("channel-url");
+        if (java.nio.file.Files.isRegularFile(installedChannelUrl)) {
+            try {
+                String value = java.nio.file.Files.readString(installedChannelUrl).strip();
+                if (!value.isBlank()) {
+                    return value;
+                }
+            } catch (java.io.IOException exception) {
+                // Fall back to stable; update notices are best-effort.
+            }
+        }
+        return new ReleaseDistributionUrlLayout().channelManifestUrl("stable");
     }
 
     private String updateCheckMode() {
