@@ -6,11 +6,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class WorkspaceCommandFixture {
+public final class WorkspaceCommandFixture {
     private WorkspaceCommandFixture() {
     }
 
-    static WorkspaceApplicationFixture create(Path tempDir, String name) throws IOException {
+    public static WorkspaceApplicationFixture create(Path tempDir, String name) throws IOException {
         Path workspaceDir = tempDir.resolve(name);
         Path apiDir = workspaceDir.resolve("apps/api");
         Path coreDir = workspaceDir.resolve("modules/core");
@@ -61,6 +61,6 @@ final class WorkspaceCommandFixture {
         return new WorkspaceApplicationFixture(workspaceDir, apiDir, coreDir);
     }
 
-    record WorkspaceApplicationFixture(Path workspaceDir, Path apiDir, Path coreDir) {
+    public record WorkspaceApplicationFixture(Path workspaceDir, Path apiDir, Path coreDir) {
     }
 }

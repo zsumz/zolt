@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-final class CliTestRepository implements AutoCloseable {
+public final class CliTestRepository implements AutoCloseable {
     private final HttpServer server;
     private final Map<String, byte[]> responses = new HashMap<>();
     private final Map<String, byte[]> uploads = new HashMap<>();
@@ -22,7 +22,7 @@ final class CliTestRepository implements AutoCloseable {
         this.baseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/");
     }
 
-    static CliTestRepository start() throws IOException {
+    public static CliTestRepository start() throws IOException {
         HttpServer server;
         try {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -36,11 +36,11 @@ final class CliTestRepository implements AutoCloseable {
         return repository;
     }
 
-    URI baseUri() {
+    public URI baseUri() {
         return baseUri;
     }
 
-    void addArtifact(String groupId, String artifactId, String version, String pom) {
+    public void addArtifact(String groupId, String artifactId, String version, String pom) {
         String base = "/maven2/"
                 + groupId.replace('.', '/')
                 + "/"
@@ -55,7 +55,7 @@ final class CliTestRepository implements AutoCloseable {
         responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
     }
 
-    byte[] uploaded(String path) {
+    public byte[] uploaded(String path) {
         byte[] bytes = uploads.get(path);
         if (bytes == null) {
             throw new AssertionError("No upload recorded for " + path);

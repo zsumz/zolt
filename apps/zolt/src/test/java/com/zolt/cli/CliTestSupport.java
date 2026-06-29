@@ -42,7 +42,7 @@ public final class CliTestSupport {
                 """.formatted(name, currentJavaMajorVersion());
     }
 
-    static String generatedSourceConfig(
+    public static String generatedSourceConfig(
             String scope,
             String id,
             String output,
@@ -59,7 +59,7 @@ public final class CliTestSupport {
                 """.formatted(scope, id, output, input, required);
     }
 
-    static String sha256(Path path) throws IOException {
+    public static String sha256(Path path) throws IOException {
         try {
             return "sha256:" + HexFormat.of().formatHex(
                     MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
@@ -68,7 +68,7 @@ public final class CliTestSupport {
         }
     }
 
-    static void writeFakeConsoleJar(Path jar) throws IOException {
+    public static void writeFakeConsoleJar(Path jar) throws IOException {
         Path workDir = jar.getParent().resolve("fake-console-work");
         Path source = workDir.resolve("src/org/junit/platform/console/ConsoleLauncher.java");
         Files.createDirectories(source.getParent());

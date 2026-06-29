@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestSupport.CommandResult;
-import com.zolt.cli.TestCommandTestSupport;
+import com.zolt.cli.testcmd.TestCommandTestSupport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
