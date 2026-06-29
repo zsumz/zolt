@@ -191,6 +191,7 @@ final class CliSurfaceTest {
                 "classpath",
                 "ide",
                 "quarkus",
+                "aliases",
                 "tasks",
                 "task",
                 "build",
@@ -214,6 +215,7 @@ final class CliSurfaceTest {
         assertEquals(commandClass("version"), "com.zolt.cli.command.dependency.VersionCommand");
         assertEquals(commandClass("update"), "com.zolt.cli.command.update.UpdateCommand");
         assertEquals(commandClass("native-smoke"), "com.zolt.cli.command.nativeimage.NativeSmokeCommand");
+        assertEquals(commandClass("aliases"), "com.zolt.cli.command.task.AliasesCommand");
         assertEquals(commandClass("tasks"), "com.zolt.cli.command.task.TasksCommand");
         assertEquals(commandClass("task"), "com.zolt.cli.command.task.TaskCommand");
         assertEquals(commandClass("release-verify"), "com.zolt.cli.command.publish.ReleaseVerifyCommand");

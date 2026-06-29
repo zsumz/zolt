@@ -70,6 +70,7 @@ import picocli.CommandLine.Spec;
                 ClasspathCommand.class,
                 IdeCommand.class,
                 QuarkusCommand.class,
+                com.zolt.cli.command.task.AliasesCommand.class,
                 com.zolt.cli.command.task.TasksCommand.class,
                 com.zolt.cli.command.task.TaskCommand.class,
                 BuildCommand.class,
@@ -141,6 +142,7 @@ public final class ZoltCli implements Runnable {
         configureUniversalHelp(commandLine);
         CliUsageConfiguration.apply(commandLine, rootCommand::consoleStyle);
         configureExecutionHandling(commandLine, rootCommand);
+        commandLine.setParameterExceptionHandler(new com.zolt.cli.command.task.CommandAliasExpansionHandler());
         return commandLine;
     }
 

@@ -288,6 +288,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.task.AliasesCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.task.TasksCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

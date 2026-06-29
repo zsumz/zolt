@@ -34,6 +34,7 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "policy",
                     "conflicts")),
             new CommandGroup("Build, Test, Run", List.of(
+                    "aliases",
                     "tasks",
                     "task",
                     "build",
