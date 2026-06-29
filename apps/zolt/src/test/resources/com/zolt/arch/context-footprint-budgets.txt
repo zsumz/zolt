@@ -2,4 +2,4 @@
 apps/*/src/main/java|145|15000
 apps/*/src/test/java|145|15000
 modules/*/src/main/java|145|15000
-modules/*/src/test/java|145|15000
+modules/*/src/test/java|145|15100

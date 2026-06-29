@@ -9,37 +9,37 @@ import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class OpenApiGeneratorCommandBuilderTest {
-    private static final Path PROJECT_ROOT = Path.of("/workspace/demo").toAbsolutePath().normalize();
-
     @Test
-    void buildsDeterministicOpenApiGeneratorCommand() {
+    void buildsDeterministicOpenApiGeneratorCommand(@TempDir Path projectRoot) {
+        Path project = projectRoot.toAbsolutePath().normalize();
         OpenApiGeneratorCommandBuilder builder = new OpenApiGeneratorCommandBuilder(":");
         GeneratedSourceStep step = config().build().generatedMainSources().getFirst();
 
         List<String> command = builder.command(
-                PROJECT_ROOT,
+                project,
                 Path.of("/jdk/bin/java"),
                 List.of(
-                        PROJECT_ROOT.resolve("cache/openapi-generator-b.jar"),
-                        PROJECT_ROOT.resolve("cache/openapi-generator-a.jar")),
+                        project.resolve("cache/openapi-generator-b.jar"),
+                        project.resolve("cache/openapi-generator-a.jar")),
                 "main",
                 step);
 
         assertEquals("/jdk/bin/java", command.getFirst());
         assertEquals(
-                PROJECT_ROOT.resolve("cache/openapi-generator-a.jar")
+                project.resolve("cache/openapi-generator-a.jar")
                         + ":"
-                        + PROJECT_ROOT.resolve("cache/openapi-generator-b.jar"),
+                        + project.resolve("cache/openapi-generator-b.jar"),
                 optionValue(command, "-cp"));
         assertTrue(command.contains("org.openapitools.codegen.OpenAPIGenerator"));
         assertTrue(command.contains("generate"));
         assertEquals(
-                PROJECT_ROOT.resolve("src/main/openapi/public-api.yaml").toString(),
+                project.resolve("src/main/openapi/public-api.yaml").toString(),
                 optionValue(command, "--input-spec"));
         assertEquals(
-                PROJECT_ROOT.resolve("target/generated/sources/openapi/public-api").toString(),
+                project.resolve("target/generated/sources/openapi/public-api").toString(),
                 optionValue(command, "--output"));
         assertEquals("spring", optionValue(command, "--generator-name"));
         assertEquals("spring-boot", optionValue(command, "--library"));
