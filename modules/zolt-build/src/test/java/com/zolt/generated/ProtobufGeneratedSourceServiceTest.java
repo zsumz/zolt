@@ -188,8 +188,52 @@ final class ProtobufGeneratedSourceServiceTest {
                 GeneratedSourceException.class,
                 () -> service.generateMain(tempDir, config));
 
-        assertTrue(exception.getMessage().contains("Protobuf input src/main/proto/greeter.proto Java package"));
-        assertTrue(exception.getMessage().contains("[A-Za-z_$][A-Za-z0-9_$]*"));
+        assertTrue(exception.getMessage().contains("Protobuf input src/main/proto/greeter.proto proto package"));
+        assertTrue(exception.getMessage().contains("protobuf dotted identifier"));
+    }
+
+    @Test
+    void generationRejectsUnsafeProtoPackageEvenWithValidJavaPackage() throws IOException {
+        String[] unsafeProtoPackages = {
+            "com.example\"evil",
+            "com.example\\\\evil",
+            "com.example+evil",
+            "com.example evil"
+        };
+        for (int index = 0; index < unsafeProtoPackages.length; index++) {
+            Path project = tempDir.resolve("unsafe-proto-package-" + index);
+            Path proto = project.resolve("src/main/proto/greeter.proto");
+            Files.createDirectories(proto.getParent());
+            Files.writeString(proto, """
+                    syntax = "proto3";
+                    package %s;
+                    option java_package = "com.example.grpc";
+                    service Greeter {}
+                    """.formatted(unsafeProtoPackages[index]));
+            Path marker = project.resolve("target/generated/sources/protobuf/marker.txt");
+            Files.createDirectories(marker.getParent());
+            Files.writeString(marker, "keep");
+            var config = parser.parse(config("""
+                    [generated.main.greeter]
+                    kind = "protobuf"
+                    language = "java"
+                    inputs = ["src/main/proto/greeter.proto"]
+                    output = "target/generated/sources/protobuf"
+                    """));
+
+            GeneratedSourceException exception = assertThrows(
+                    GeneratedSourceException.class,
+                    () -> service.generateMain(project, config));
+
+            assertTrue(exception.getMessage().contains("proto package"), exception.getMessage());
+            assertTrue(exception.getMessage().contains("protobuf dotted identifier"), exception.getMessage());
+            assertEquals("keep", Files.readString(marker));
+        }
+    }
+
+    @Test
+    void javaStringLiteralEscapesGeneratedSourceValues() {
+        assertEquals("\"quote\\\"backslash\\\\newline\\ntab\\t\"", JavaSourceLiterals.string("quote\"backslash\\newline\ntab\t"));
     }
 
     @Test

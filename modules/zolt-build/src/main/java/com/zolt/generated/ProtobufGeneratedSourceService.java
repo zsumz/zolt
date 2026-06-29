@@ -21,10 +21,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public final class ProtobufGeneratedSourceService {
-    private static final Pattern PACKAGE = Pattern.compile("(?m)^\\s*package\\s+([^;\\s]+)\\s*;");
+    private static final Pattern PACKAGE = Pattern.compile("(?m)^\\s*package\\s+([^;]+)\\s*;");
     private static final Pattern JAVA_PACKAGE = Pattern.compile("(?m)^\\s*option\\s+java_package\\s*=\\s*\"([^\"]+)\"\\s*;");
     private static final Pattern MESSAGE = Pattern.compile("(?m)^\\s*message\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\{");
     private static final Pattern SERVICE = Pattern.compile("(?m)^\\s*service\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\{");
+    private static final Pattern PROTOBUF_PACKAGE = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*");
 
     public void generateMain(Path projectDirectory, ProjectConfig config) {
         generate(projectDirectory, "main", config.build().generatedMainSources());
@@ -136,7 +137,7 @@ public final class ProtobufGeneratedSourceService {
         }
         return new ProtoFile(
                 input,
-                protoPackage,
+                validateOptionalProtoPackage("Protobuf input " + input + " proto package", protoPackage),
                 validateOptionalJavaPackage("Protobuf input " + input + " option java_package", javaPackage),
                 messages,
                 services);
@@ -195,9 +196,9 @@ public final class ProtobufGeneratedSourceService {
                 + "Grpc() {\n"
                 + "    }\n\n"
                 + "    public static String serviceName() {\n"
-                + "        return \""
-                + serviceName
-                + "\";\n"
+                + "        return "
+                + JavaSourceLiterals.string(serviceName)
+                + ";\n"
                 + "    }\n"
                 + "}\n";
     }
@@ -248,6 +249,19 @@ public final class ProtobufGeneratedSourceService {
             return "";
         }
         return validateJavaPackage(subject, value);
+    }
+
+    private static String validateOptionalProtoPackage(String subject, String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String normalized = value.strip();
+        if (!PROTOBUF_PACKAGE.matcher(normalized).matches()) {
+            throw new GeneratedSourceException(
+                    subject
+                            + " must be a protobuf dotted identifier matching [A-Za-z_][A-Za-z0-9_]*(.[A-Za-z_][A-Za-z0-9_]*)*.");
+        }
+        return normalized;
     }
 
     private static Path outputPath(Path root, String scope, GeneratedSourceStep step) {
