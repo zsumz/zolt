@@ -18,8 +18,9 @@ import org.junit.jupiter.api.io.TempDir;
 final class ProjectInitializerTest {
     private final ZoltTomlParser parser = new ZoltTomlParser();
     private final WorkspaceConfigParser workspaceParser = new WorkspaceConfigParser();
+    private final WorkspaceTomlWriter workspaceWriter = new WorkspaceTomlWriter();
     private final ProjectInitializer initializer =
-            new ProjectInitializer(new ZoltTomlWriter()::write, new WorkspaceTomlWriter()::write);
+            new ProjectInitializer(new ZoltTomlWriter()::write, this::writeWorkspaceConfig);
 
     @TempDir
     private Path tempDir;
@@ -107,5 +108,16 @@ final class ProjectInitializerTest {
                 () -> initializer.init(tempDir, "hello", "com.example", "21"));
 
         assertTrue(exception.getMessage().contains("is not empty"));
+    }
+
+    private void writeWorkspaceConfig(Path path, WorkspaceInitConfig config) {
+        workspaceWriter.write(
+                path,
+                new WorkspaceConfig(
+                        config.name(),
+                        config.members(),
+                        config.defaultMembers(),
+                        config.repositories(),
+                        config.platforms()));
     }
 }

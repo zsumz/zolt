@@ -9,6 +9,7 @@ import com.zolt.project.ProjectInitResult;
 import com.zolt.project.ProjectInitializer;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlWriter;
+import com.zolt.workspace.WorkspaceConfig;
 import com.zolt.workspace.WorkspaceTomlWriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -58,7 +59,14 @@ public final class InitCommand implements Runnable {
             }
         }, (path, config) -> {
             try {
-                workspaceWriter.write(path, config);
+                workspaceWriter.write(
+                        path,
+                        new WorkspaceConfig(
+                                config.name(),
+                                config.members(),
+                                config.defaultMembers(),
+                                config.repositories(),
+                                config.platforms()));
             } catch (ZoltConfigException exception) {
                 throw new ProjectConfigWriteException(exception.getMessage(), exception);
             }

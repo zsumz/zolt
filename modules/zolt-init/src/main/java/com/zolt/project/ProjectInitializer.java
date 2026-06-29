@@ -1,6 +1,5 @@
 package com.zolt.project;
 
-import com.zolt.workspace.WorkspaceConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,7 +75,7 @@ public final class ProjectInitializer {
                 Map.of(),
                 Map.of(),
                 BuildSettings.defaults());
-        WorkspaceConfig workspaceConfig = new WorkspaceConfig(
+        WorkspaceInitConfig workspaceConfig = new WorkspaceInitConfig(
                 name,
                 List.of(memberPath),
                 List.of(memberPath),
