@@ -1,6 +1,7 @@
 package com.zolt.release;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -71,7 +72,7 @@ final class ReleaseChannelManifestValidatorTest {
 
     @Test
     void rejectsUnsupportedTargetWithActionableDiagnostic() {
-        ReleaseChannelManifestException exception = org.junit.jupiter.api.Assertions.assertThrows(
+        ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson("""
                         {
@@ -101,7 +102,7 @@ final class ReleaseChannelManifestValidatorTest {
                 }
                 """));
 
-        ReleaseChannelManifestException exception = org.junit.jupiter.api.Assertions.assertThrows(
+        ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> manifest.artifactFor(ReleaseTarget.MACOS_ARM64));
 
@@ -111,7 +112,7 @@ final class ReleaseChannelManifestValidatorTest {
 
     @Test
     void malformedManifestFailsWithMissingFieldDiagnostic() {
-        ReleaseChannelManifestException exception = org.junit.jupiter.api.Assertions.assertThrows(
+        ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> validator.validate("""
                         {
@@ -127,7 +128,7 @@ final class ReleaseChannelManifestValidatorTest {
 
     @Test
     void rejectsJreOrJvmArtifactShapes() {
-        ReleaseChannelManifestException exception = org.junit.jupiter.api.Assertions.assertThrows(
+        ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson("""
                         {
@@ -146,7 +147,7 @@ final class ReleaseChannelManifestValidatorTest {
 
     @Test
     void requiresChecksumUrlOrInlineSha256() {
-        ReleaseChannelManifestException exception = org.junit.jupiter.api.Assertions.assertThrows(
+        ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson("""
                         {
@@ -161,18 +162,169 @@ final class ReleaseChannelManifestValidatorTest {
         assertEquals("Release channel artifact `linux-x64` must include checksumUrl or sha256.", exception.getMessage());
     }
 
+    @Test
+    void acceptsNightlyManifestVersion() {
+        ReleaseChannelManifest manifest = validator.validate(manifestJson(
+                "nightly",
+                "0.1.0-nightly.20260628.0123456",
+                """
+                {
+                  "target": "linux-x64",
+                  "archive": "zolt-0.1.0-nightly.20260628.0123456-linux-x64.tar.gz",
+                  "archiveUrl": "https://dist.zolt.build/artifacts/nightly/0.1.0-nightly.20260628.0123456/zolt-0.1.0-nightly.20260628.0123456-linux-x64.tar.gz",
+                  "sha256": "%s",
+                  "format": "tar.gz",
+                  "binaryName": "zolt"
+                }
+                """.formatted("A".repeat(64))));
+
+        assertEquals("nightly", manifest.channel());
+        assertEquals("0.1.0-nightly.20260628.0123456", manifest.version());
+    }
+
+    @Test
+    void rejectsUnsupportedChannel() {
+        ReleaseChannelManifestException exception = assertThrows(
+                ReleaseChannelManifestException.class,
+                () -> validator.validate(manifestJson("dev", "0.1.0", linuxArtifact())));
+
+        assertTrue(exception.getMessage().contains("channel"));
+        assertTrue(exception.getMessage().contains("stable, nightly"));
+    }
+
+    @Test
+    void rejectsUnsafeVersionSegments() {
+        for (String version : new String[] {"../1.0.0", "/tmp/zolt", "C:\\\\zolt", ""}) {
+            ReleaseChannelManifestException exception = assertThrows(
+                    ReleaseChannelManifestException.class,
+                    () -> validator.validate(manifestJson("stable", version, linuxArtifact())));
+
+            assertTrue(exception.getMessage().contains("version"), exception.getMessage());
+        }
+    }
+
+    @Test
+    void rejectsUnsafeArchiveFilenames() {
+        for (String archive : new String[] {
+            "../zolt.tar.gz",
+            "/tmp/zolt.tar.gz",
+            "dir/zolt.tar.gz",
+            "dir\\\\zolt.tar.gz",
+            ""
+        }) {
+            ReleaseChannelManifestException exception = assertThrows(
+                    ReleaseChannelManifestException.class,
+                    () -> validator.validate(manifestJson(linuxArtifact(
+                            archive,
+                            "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                            """
+                            "sha256": "%s",
+                            """.formatted("1".repeat(64))))));
+
+            assertTrue(exception.getMessage().contains("archive"), exception.getMessage());
+        }
+    }
+
+    @Test
+    void rejectsNonHttpsPublicArtifactUrls() {
+        ReleaseChannelManifestException archiveException = assertThrows(
+                ReleaseChannelManifestException.class,
+                () -> validator.validate(manifestJson(linuxArtifact(
+                        "zolt-0.1.0-linux-x64.tar.gz",
+                        "http://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        """
+                        "sha256": "%s",
+                        """.formatted("1".repeat(64))))));
+        assertTrue(archiveException.getMessage().contains("archiveUrl"));
+        assertTrue(archiveException.getMessage().contains("HTTPS"));
+
+        ReleaseChannelManifestException checksumException = assertThrows(
+                ReleaseChannelManifestException.class,
+                () -> validator.validate(manifestJson(linuxArtifact(
+                        "zolt-0.1.0-linux-x64.tar.gz",
+                        "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        """
+                        "checksumUrl": "file:///tmp/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                        """))));
+        assertTrue(checksumException.getMessage().contains("checksumUrl"));
+        assertTrue(checksumException.getMessage().contains("HTTPS"));
+    }
+
+    @Test
+    void rejectsMalformedSha256() {
+        ReleaseChannelManifestException exception = assertThrows(
+                ReleaseChannelManifestException.class,
+                () -> validator.validate(manifestJson(linuxArtifact(
+                        "zolt-0.1.0-linux-x64.tar.gz",
+                        "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        """
+                        "sha256": "not-a-sha",
+                        """))));
+
+        assertEquals("Release channel artifact `linux-x64` sha256 must be exactly 64 hexadecimal characters.", exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnsafeSignatureMetadata() {
+        ReleaseChannelManifestException exception = assertThrows(
+                ReleaseChannelManifestException.class,
+                () -> validator.validate(manifestJson("""
+                        {
+                          "target": "linux-x64",
+                          "archive": "zolt-0.1.0-linux-x64.tar.gz",
+                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                          "sha256": "%s",
+                          "format": "tar.gz",
+                          "binaryName": "zolt",
+                          "signature": {
+                            "kind": "minisign",
+                            "url": "http://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
+                          }
+                        }
+                        """.formatted("1".repeat(64)))));
+
+        assertTrue(exception.getMessage().contains("signature.url"));
+        assertTrue(exception.getMessage().contains("HTTPS"));
+    }
+
     private static String manifestJson(String artifacts) {
+        return manifestJson("stable", "0.1.0", artifacts);
+    }
+
+    private static String manifestJson(String channel, String version, String artifacts) {
         return """
                 {
                   "schemaVersion": 1,
-                  "channel": "stable",
-                  "version": "0.1.0",
+                  "channel": "%s",
+                  "version": "%s",
                   "commit": "0123456789abcdef",
                   "createdAt": "2026-06-28T00:00:00Z",
                   "artifacts": [
                 %s
                   ]
                 }
-                """.formatted(artifacts.indent(4));
+                """.formatted(channel, version, artifacts.indent(4));
+    }
+
+    private static String linuxArtifact() {
+        return linuxArtifact(
+                "zolt-0.1.0-linux-x64.tar.gz",
+                "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                """
+                "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                """);
+    }
+
+    private static String linuxArtifact(String archive, String archiveUrl, String checksumOrShaField) {
+        return """
+                {
+                  "target": "linux-x64",
+                  "archive": "%s",
+                  "archiveUrl": "%s",
+                %s
+                  "format": "tar.gz",
+                  "binaryName": "zolt"
+                }
+                """.formatted(archive, archiveUrl, checksumOrShaField.indent(2));
     }
 }
