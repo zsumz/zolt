@@ -1,9 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildException;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;

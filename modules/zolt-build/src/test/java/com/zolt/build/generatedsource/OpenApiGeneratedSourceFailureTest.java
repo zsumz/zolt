@@ -1,11 +1,12 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.configWithAdditionalProperties;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.packages;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.service;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.writeProjectFiles;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.configWithAdditionalProperties;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.packages;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.service;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.writeProjectFiles;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

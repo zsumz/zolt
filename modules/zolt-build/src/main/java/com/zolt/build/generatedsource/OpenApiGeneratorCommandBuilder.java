@@ -1,7 +1,7 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
-import static com.zolt.build.OpenApiGeneratedSourcePaths.inputPath;
-import static com.zolt.build.OpenApiGeneratedSourcePaths.outputPath;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourcePaths.inputPath;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourcePaths.outputPath;
 
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;

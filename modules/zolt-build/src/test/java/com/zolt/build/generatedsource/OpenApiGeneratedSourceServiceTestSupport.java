@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.classpath.ResolvedPackage;

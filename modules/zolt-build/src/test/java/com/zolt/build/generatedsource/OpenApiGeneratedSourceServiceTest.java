@@ -1,17 +1,18 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.configWithAdditionalProperties;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.multiSpecConfig;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.packages;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.service;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.writeGeneratedInterface;
-import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.writeProjectFiles;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.configWithAdditionalProperties;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.multiSpecConfig;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.packages;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.service;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.writeGeneratedInterface;
+import static com.zolt.build.generatedsource.OpenApiGeneratedSourceServiceTestSupport.writeProjectFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.zolt.build.BuildException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

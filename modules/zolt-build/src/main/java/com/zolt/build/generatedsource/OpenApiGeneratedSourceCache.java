@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.generatedsource;
 
+import com.zolt.build.BuildException;
 import com.zolt.project.GeneratedSourceStep;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
