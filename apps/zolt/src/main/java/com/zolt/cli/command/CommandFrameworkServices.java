@@ -2,11 +2,11 @@ package com.zolt.cli.command;
 
 import com.zolt.build.BuildService;
 import com.zolt.build.CoverageService;
-import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
 import com.zolt.build.RunService;
+import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.testruntime.TestRunService;
 import com.zolt.cli.command.CommandServiceBundles.*;
 import com.zolt.cli.command.CommandServiceClusters.*;
@@ -17,10 +17,10 @@ import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.quarkus.QuarkusBuildAugmenter;
 import com.zolt.quarkus.QuarkusDependencyRequestPlanner;
-import com.zolt.quarkus.QuarkusFrameworkTestRunner;
 import com.zolt.quarkus.QuarkusPackageAugmenter;
 import com.zolt.quarkus.QuarkusPackagePlanRules;
 import com.zolt.quarkus.QuarkusRunAugmenter;
+import com.zolt.quarkus.testworker.QuarkusFrameworkTestRunner;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
@@ -28,10 +28,10 @@ import com.zolt.workspace.WorkspaceBuildService;
 import com.zolt.workspace.WorkspaceCoverageService;
 import com.zolt.workspace.WorkspaceNativeBuildService;
 import com.zolt.workspace.WorkspacePackageService;
+import com.zolt.workspace.WorkspaceResolveService;
 import com.zolt.workspace.WorkspaceRunPackageService;
 import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceTestService;
-import com.zolt.workspace.WorkspaceResolveService;
 import java.util.List;
 
 public final class CommandFrameworkServices {

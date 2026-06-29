@@ -3,4 +3,4 @@ modules/zolt-model/src/main/java/com/zolt/lockfile/LockPackage.java|4|1|17|0||ke
 modules/zolt-model/src/main/java/com/zolt/project/BuildSettings.java|5|8|16|0||keep wide as build config value; fields group committed source/output/resource/test settings
 modules/zolt-model/src/main/java/com/zolt/project/OpenApiGenerationSettings.java|4|2|17|0||keep wide as generated-source config value; fields mirror TOML OpenAPI schema
 modules/zolt-model/src/main/java/com/zolt/project/ProjectConfig.java|2|9|30|0||keep wide as root project config aggregate; detailed construction already split by section
-modules/zolt-quarkus/src/main/java/com/zolt/quarkus/QuarkusTestRunnerDescriptor.java|8|1|13|0||keep wide as serialized Quarkus test-worker descriptor; fields mirror descriptor properties
+modules/zolt-quarkus/src/main/java/com/zolt/quarkus/testworker/QuarkusTestRunnerDescriptor.java|8|1|13|0||keep wide as serialized Quarkus test-worker descriptor; fields mirror descriptor properties

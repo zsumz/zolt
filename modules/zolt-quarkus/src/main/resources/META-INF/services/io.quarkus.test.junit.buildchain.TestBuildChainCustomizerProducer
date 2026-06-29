@@ -1,1 +1,1 @@
-com.zolt.quarkus.ZoltQuarkusTestClassBeanCustomizer
+com.zolt.quarkus.annotation.ZoltQuarkusTestClassBeanCustomizer
