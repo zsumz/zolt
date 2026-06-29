@@ -1,10 +1,10 @@
 package com.zolt.arch;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 final class RepositoryPaths {
     private RepositoryPaths() {
@@ -13,7 +13,7 @@ final class RepositoryPaths {
     static Path root() {
         Path current = Path.of("").toAbsolutePath().normalize();
         while (current != null) {
-            if (Files.isRegularFile(current.resolve("zolt-workspace.toml"))) {
+            if (isWorkspaceRoot(current)) {
                 return current;
             }
             current = current.getParent();
@@ -50,6 +50,21 @@ final class RepositoryPaths {
         addModuleSourceRoots(sourceRoots, repositoryRoot.resolve("apps"), relativeSourceRoot);
         addModuleSourceRoots(sourceRoots, repositoryRoot.resolve("modules"), relativeSourceRoot);
         return List.copyOf(sourceRoots);
+    }
+
+    private static boolean isWorkspaceRoot(Path current) {
+        if (Files.isRegularFile(current.resolve("zolt-workspace.toml"))) {
+            return true;
+        }
+        Path rootConfig = current.resolve("zolt.toml");
+        if (!Files.isRegularFile(rootConfig)) {
+            return false;
+        }
+        try {
+            return Files.readString(rootConfig).lines().map(String::trim).anyMatch("[workspace]"::equals);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not read root config at " + rootConfig + ".", exception);
+        }
     }
 
     private static void addModuleSourceRoots(List<Path> sourceRoots, Path modulesRoot, String relativeSourceRoot) {
