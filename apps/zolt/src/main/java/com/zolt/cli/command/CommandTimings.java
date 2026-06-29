@@ -6,15 +6,15 @@ import com.zolt.perf.TimingRecorder;
 import java.nio.file.Path;
 import picocli.CommandLine.Model.CommandSpec;
 
-final class CommandTimings {
+public final class CommandTimings {
     private CommandTimings() {
     }
 
-    static TimingRecorder recorder(ZoltCli.TimingOptions options) {
+    public static TimingRecorder recorder(ZoltCli.TimingOptions options) {
         return new TimingRecorder(options != null && options.enabled());
     }
 
-    static void print(
+    public static void print(
             CommandSpec spec,
             String command,
             Path projectRoot,

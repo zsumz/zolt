@@ -60,43 +60,43 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.InitCommand",
+    "name": "com.zolt.cli.command.config.InitCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.VersionCommand",
+    "name": "com.zolt.cli.command.dependency.VersionCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.VersionCommand$SetCommand",
+    "name": "com.zolt.cli.command.dependency.VersionCommand$SetCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.VersionCommand$RemoveCommand",
+    "name": "com.zolt.cli.command.dependency.VersionCommand$RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.UpdateCommand",
+    "name": "com.zolt.cli.command.update.UpdateCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.CheckCommand",
+    "name": "com.zolt.cli.command.quality.CheckCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.CheckCommand$Format",
+    "name": "com.zolt.cli.command.quality.CheckCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
@@ -108,31 +108,31 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.AddCommand",
+    "name": "com.zolt.cli.command.dependency.AddCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.RemoveCommand",
+    "name": "com.zolt.cli.command.dependency.RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PlatformCommand",
+    "name": "com.zolt.cli.command.dependency.PlatformCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PlatformCommand$AddCommand",
+    "name": "com.zolt.cli.command.dependency.PlatformCommand$AddCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PlatformCommand$RemoveCommand",
+    "name": "com.zolt.cli.command.dependency.PlatformCommand$RemoveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
@@ -144,91 +144,91 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ResolveCommand",
+    "name": "com.zolt.cli.command.resolve.ResolveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.TreeCommand",
+    "name": "com.zolt.cli.command.insight.TreeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.TreeCommand$Format",
+    "name": "com.zolt.cli.command.insight.TreeCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.WhyCommand",
+    "name": "com.zolt.cli.command.insight.WhyCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.WhyCommand$Format",
+    "name": "com.zolt.cli.command.insight.WhyCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PolicyCommand",
+    "name": "com.zolt.cli.command.quality.PolicyCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PolicyCommand$Format",
+    "name": "com.zolt.cli.command.quality.PolicyCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ConflictsCommand",
+    "name": "com.zolt.cli.command.dependency.ConflictsCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ConfigCommand",
+    "name": "com.zolt.cli.command.config.ConfigCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ConfigCommand$ShowCommand",
+    "name": "com.zolt.cli.command.config.ConfigCommand$ShowCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ExplainCommand",
+    "name": "com.zolt.cli.command.insight.ExplainCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ExplainCommand$Format",
+    "name": "com.zolt.cli.command.insight.ExplainCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ExplainCommand$Source",
+    "name": "com.zolt.cli.command.insight.ExplainCommand$Source",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PlanCommand",
+    "name": "com.zolt.cli.command.build.PlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PlanCommand$Format",
+    "name": "com.zolt.cli.command.build.PlanCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
@@ -240,109 +240,109 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ClasspathCommand",
+    "name": "com.zolt.cli.command.resolve.ClasspathCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ClasspathCommand$Format",
+    "name": "com.zolt.cli.command.resolve.ClasspathCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.IdeCommand",
+    "name": "com.zolt.cli.command.ide.IdeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.IdeCommand$ModelCommand",
+    "name": "com.zolt.cli.command.ide.IdeCommand$ModelCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.IdeCommand$ModelCommand$Format",
+    "name": "com.zolt.cli.command.ide.IdeCommand$ModelCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.QuarkusCommand",
+    "name": "com.zolt.cli.command.quarkus.QuarkusCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.QuarkusCommand$PlanCommand",
+    "name": "com.zolt.cli.command.quarkus.QuarkusCommand$PlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.QuarkusCommand$TestPlanCommand",
+    "name": "com.zolt.cli.command.quarkus.QuarkusCommand$TestPlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.BuildCommand",
+    "name": "com.zolt.cli.command.build.BuildCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.RunCommand",
+    "name": "com.zolt.cli.command.build.RunCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.TestCommand",
+    "name": "com.zolt.cli.command.testcmd.TestCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.CommandTestProfileOptions",
+    "name": "com.zolt.cli.command.testcmd.CommandTestProfileOptions",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.TestPlanCommand",
+    "name": "com.zolt.cli.command.testplan.TestPlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.TestPlanCommand$Format",
+    "name": "com.zolt.cli.command.testplan.TestPlanCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.IntegrationTestCommand",
+    "name": "com.zolt.cli.command.testcmd.IntegrationTestCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.CoverageCommand",
+    "name": "com.zolt.cli.command.quality.CoverageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PackageCommand",
+    "name": "com.zolt.cli.command.packaging.PackageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.PublishCommand",
+    "name": "com.zolt.cli.command.publish.PublishCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
@@ -354,55 +354,55 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.RunPackageCommand",
+    "name": "com.zolt.cli.command.packaging.RunPackageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.NativeCommand",
+    "name": "com.zolt.cli.command.nativeimage.NativeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.NativeSmokeCommand",
+    "name": "com.zolt.cli.command.nativeimage.NativeSmokeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ReleaseArchiveCommand",
+    "name": "com.zolt.cli.command.publish.ReleaseArchiveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.ReleaseVerifyCommand",
+    "name": "com.zolt.cli.command.publish.ReleaseVerifyCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.SelfCheckCommand",
+    "name": "com.zolt.cli.command.selfhost.SelfCheckCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.SelfParityCommand",
+    "name": "com.zolt.cli.command.packaging.SelfParityCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.CleanCommand",
+    "name": "com.zolt.cli.command.build.CleanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "com.zolt.cli.command.DoctorCommand",
+    "name": "com.zolt.cli.command.quality.DoctorCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

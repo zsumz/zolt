@@ -3,6 +3,7 @@ package com.zolt.cli.command;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
+import com.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspaceResolveService;
@@ -11,12 +12,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
-final class CommandLockfiles {
+public final class CommandLockfiles {
     private final ResolveService resolveService;
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final WorkspaceResolveService workspaceResolveService;
 
-    CommandLockfiles() {
+    public CommandLockfiles() {
         this(CommandFrameworkServices.resolveCommandServices());
     }
 
@@ -27,7 +28,7 @@ final class CommandLockfiles {
                 services.workspaceResolveService());
     }
 
-    CommandLockfiles(
+    public CommandLockfiles(
             ResolveService resolveService,
             WorkspaceDiscoveryService workspaceDiscoveryService,
             WorkspaceResolveService workspaceResolveService) {
@@ -36,7 +37,7 @@ final class CommandLockfiles {
         this.workspaceResolveService = workspaceResolveService;
     }
 
-    void requireFreshLockfile(
+    public void requireFreshLockfile(
             Path workingDirectory,
             ProjectConfig config,
             Path cacheRoot,
@@ -48,7 +49,7 @@ final class CommandLockfiles {
         resolveService.resolve(workingDirectory, config, cacheRoot, true, offline);
     }
 
-    void refreshExistingLockfile(
+    public void refreshExistingLockfile(
             Path workingDirectory,
             ProjectConfig config,
             Path cacheRoot,
@@ -60,7 +61,7 @@ final class CommandLockfiles {
         resolveService.resolve(workingDirectory, config, cacheRoot, false, offline);
     }
 
-    void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
+    public void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
         Optional<Workspace> workspace = workspaceDiscoveryService.discover(workingDirectory.toAbsolutePath().normalize());
         if (workspace.isEmpty()) {
             return;

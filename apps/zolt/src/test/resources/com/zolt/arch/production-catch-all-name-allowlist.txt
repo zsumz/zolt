@@ -1,4 +1,3 @@
 # path|followUp|reason
-apps/zolt/src/main/java/com/zolt/cli/command/CommandPackageSupport.java||shared package command path behavior
 modules/zolt-build/src/main/java/com/zolt/build/PackageModeSupport.java||package mode path validation behavior
 modules/zolt-build/src/main/java/com/zolt/build/springboot/SpringBootLoaderSupport.java||Spring Boot loader archive-entry behavior

@@ -2,6 +2,11 @@ package com.zolt.cli.command;
 
 import static com.zolt.cli.command.CommandServiceNullGuardAssertions.assertRejectsNullCollaborators;
 
+import com.zolt.cli.command.CommandServiceClusters.CommandBuildFrameworkServices;
+import com.zolt.cli.command.CommandServiceClusters.CommandConfigEditServices;
+import com.zolt.cli.command.CommandServiceClusters.CommandPackageFrameworkServices;
+import com.zolt.cli.command.CommandServiceClusters.CommandRunFrameworkServices;
+import com.zolt.cli.command.CommandServiceClusters.CommandTestFrameworkServices;
 import org.junit.jupiter.api.Test;
 
 final class CommandServiceClustersTest {

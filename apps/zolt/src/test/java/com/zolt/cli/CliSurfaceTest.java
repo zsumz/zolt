@@ -207,17 +207,17 @@ final class CliSurfaceTest {
                 "self-parity",
                 "clean",
                 "doctor")));
-        assertEquals(commandClass("classpath"), "com.zolt.cli.command.ClasspathCommand");
-        assertEquals(commandClass("config"), "com.zolt.cli.command.ConfigCommand");
-        assertEquals(commandClass("version"), "com.zolt.cli.command.VersionCommand");
-        assertEquals(commandClass("update"), "com.zolt.cli.command.UpdateCommand");
-        assertEquals(commandClass("native-smoke"), "com.zolt.cli.command.NativeSmokeCommand");
-        assertEquals(commandClass("release-verify"), "com.zolt.cli.command.ReleaseVerifyCommand");
-        assertEquals(commandClass("release-archive"), "com.zolt.cli.command.ReleaseArchiveCommand");
-        assertEquals(commandClass("publish"), "com.zolt.cli.command.PublishCommand");
-        assertEquals(commandClass("native"), "com.zolt.cli.command.NativeCommand");
-        assertEquals(commandClass("plan"), "com.zolt.cli.command.PlanCommand");
-        assertEquals(commandClass("explain"), "com.zolt.cli.command.ExplainCommand");
+        assertEquals(commandClass("classpath"), "com.zolt.cli.command.resolve.ClasspathCommand");
+        assertEquals(commandClass("config"), "com.zolt.cli.command.config.ConfigCommand");
+        assertEquals(commandClass("version"), "com.zolt.cli.command.dependency.VersionCommand");
+        assertEquals(commandClass("update"), "com.zolt.cli.command.update.UpdateCommand");
+        assertEquals(commandClass("native-smoke"), "com.zolt.cli.command.nativeimage.NativeSmokeCommand");
+        assertEquals(commandClass("release-verify"), "com.zolt.cli.command.publish.ReleaseVerifyCommand");
+        assertEquals(commandClass("release-archive"), "com.zolt.cli.command.publish.ReleaseArchiveCommand");
+        assertEquals(commandClass("publish"), "com.zolt.cli.command.publish.PublishCommand");
+        assertEquals(commandClass("native"), "com.zolt.cli.command.nativeimage.NativeCommand");
+        assertEquals(commandClass("plan"), "com.zolt.cli.command.build.PlanCommand");
+        assertEquals(commandClass("explain"), "com.zolt.cli.command.insight.ExplainCommand");
     }
 
     private static String commandClass(String command) {

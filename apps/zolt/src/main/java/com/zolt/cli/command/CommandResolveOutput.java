@@ -4,15 +4,15 @@ import com.zolt.cli.CommandHumanOutput;
 import com.zolt.resolve.ResolveResult;
 import picocli.CommandLine.Model.CommandSpec;
 
-final class CommandResolveOutput {
+public final class CommandResolveOutput {
     private CommandResolveOutput() {
     }
 
-    static void print(CommandSpec spec, ResolveResult result) {
+    public static void print(CommandSpec spec, ResolveResult result) {
         print(spec, result, true);
     }
 
-    static void print(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
+    public static void print(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         output.success("Resolved " + result.resolvedCount() + " packages");
         output.detail("Downloaded " + result.downloadCount() + " artifacts");

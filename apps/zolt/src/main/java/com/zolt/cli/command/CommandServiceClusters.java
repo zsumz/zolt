@@ -10,49 +10,54 @@ import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import java.util.Objects;
 
-record CommandConfigEditServices(
-        ZoltTomlParser tomlParser,
-        ZoltTomlWriter tomlWriter,
-        ResolveService resolveService) {
-    CommandConfigEditServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(tomlWriter, "tomlWriter");
-        Objects.requireNonNull(resolveService, "resolveService");
+public final class CommandServiceClusters {
+    private CommandServiceClusters() {
     }
-}
 
-record CommandPackageFrameworkServices(
-        FrameworkPackageAugmenter packageAugmenter,
-        PackagePlanService packagePlanService) {
-    CommandPackageFrameworkServices {
-        Objects.requireNonNull(packageAugmenter, "packageAugmenter");
-        Objects.requireNonNull(packagePlanService, "packagePlanService");
+    public record CommandConfigEditServices(
+            ZoltTomlParser tomlParser,
+            ZoltTomlWriter tomlWriter,
+            ResolveService resolveService) {
+        public CommandConfigEditServices {
+            Objects.requireNonNull(tomlParser, "tomlParser");
+            Objects.requireNonNull(tomlWriter, "tomlWriter");
+            Objects.requireNonNull(resolveService, "resolveService");
+        }
     }
-}
 
-record CommandBuildFrameworkServices(
-        FrameworkBuildAugmenter frameworkBuildAugmenter,
-        ResolveService resolveService) {
-    CommandBuildFrameworkServices {
-        Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
-        Objects.requireNonNull(resolveService, "resolveService");
+    public record CommandPackageFrameworkServices(
+            FrameworkPackageAugmenter packageAugmenter,
+            PackagePlanService packagePlanService) {
+        public CommandPackageFrameworkServices {
+            Objects.requireNonNull(packageAugmenter, "packageAugmenter");
+            Objects.requireNonNull(packagePlanService, "packagePlanService");
+        }
     }
-}
 
-record CommandTestFrameworkServices(
-        FrameworkTestRunner frameworkTestRunner,
-        ResolveService resolveService) {
-    CommandTestFrameworkServices {
-        Objects.requireNonNull(frameworkTestRunner, "frameworkTestRunner");
-        Objects.requireNonNull(resolveService, "resolveService");
+    public record CommandBuildFrameworkServices(
+            FrameworkBuildAugmenter frameworkBuildAugmenter,
+            ResolveService resolveService) {
+        public CommandBuildFrameworkServices {
+            Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
+            Objects.requireNonNull(resolveService, "resolveService");
+        }
     }
-}
 
-record CommandRunFrameworkServices(
-        FrameworkRunAugmenter frameworkRunAugmenter,
-        ResolveService resolveService) {
-    CommandRunFrameworkServices {
-        Objects.requireNonNull(frameworkRunAugmenter, "frameworkRunAugmenter");
-        Objects.requireNonNull(resolveService, "resolveService");
+    public record CommandTestFrameworkServices(
+            FrameworkTestRunner frameworkTestRunner,
+            ResolveService resolveService) {
+        public CommandTestFrameworkServices {
+            Objects.requireNonNull(frameworkTestRunner, "frameworkTestRunner");
+            Objects.requireNonNull(resolveService, "resolveService");
+        }
+    }
+
+    public record CommandRunFrameworkServices(
+            FrameworkRunAugmenter frameworkRunAugmenter,
+            ResolveService resolveService) {
+        public CommandRunFrameworkServices {
+            Objects.requireNonNull(frameworkRunAugmenter, "frameworkRunAugmenter");
+            Objects.requireNonNull(resolveService, "resolveService");
+        }
     }
 }

@@ -3,7 +3,7 @@ package com.zolt.cli.command;
 import java.nio.file.Path;
 import picocli.CommandLine.Option;
 
-final class CommandProjectDirectory {
+public final class CommandProjectDirectory {
     @Option(names = "--cwd", hidden = true)
     private Path workingDirectory = Path.of(".");
 
@@ -13,7 +13,7 @@ final class CommandProjectDirectory {
             description = "Run as if Zolt was started in the given project directory.")
     private Path directory;
 
-    Path path() {
+    public Path path() {
         return directory == null ? workingDirectory : directory;
     }
 }

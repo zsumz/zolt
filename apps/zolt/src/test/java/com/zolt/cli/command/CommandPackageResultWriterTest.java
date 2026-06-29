@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.zolt.build.BuildResult;
 import com.zolt.build.PackageArtifact;
 import com.zolt.build.PackageResult;
+import com.zolt.cli.command.packaging.CommandPackageResultWriter;
 import com.zolt.project.PackageMode;
 import java.nio.file.Path;
 import java.util.List;

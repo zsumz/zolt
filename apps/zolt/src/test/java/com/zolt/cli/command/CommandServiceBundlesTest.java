@@ -2,6 +2,16 @@ package com.zolt.cli.command;
 
 import static com.zolt.cli.command.CommandServiceNullGuardAssertions.assertRejectsNullCollaborators;
 
+import com.zolt.cli.command.CommandServiceBundles.CommandBuildServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandCoverageServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandDependencyEditServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandNativeServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandPackageServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandRunPackageServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandRunServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandTestServices;
+import com.zolt.cli.command.CommandServiceBundles.CommandVersionAliasServices;
 import org.junit.jupiter.api.Test;
 
 final class CommandServiceBundlesTest {

@@ -8,6 +8,8 @@ import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
 import com.zolt.build.RunService;
 import com.zolt.build.testruntime.TestRunService;
+import com.zolt.cli.command.CommandServiceBundles.*;
+import com.zolt.cli.command.CommandServiceClusters.*;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkRunAugmenter;
@@ -32,7 +34,7 @@ import com.zolt.workspace.WorkspaceTestService;
 import com.zolt.workspace.WorkspaceResolveService;
 import java.util.List;
 
-final class CommandFrameworkServices {
+public final class CommandFrameworkServices {
     private CommandFrameworkServices() {}
 
     static ResolveService resolveService() {
@@ -46,13 +48,13 @@ final class CommandFrameworkServices {
                 resolveService());
     }
 
-    static CommandDependencyEditServices dependencyEditCommandServices() {
+    public static CommandDependencyEditServices dependencyEditCommandServices() {
         return new CommandDependencyEditServices(
                 new CoordinateParser(),
                 configEditServices());
     }
 
-    static CommandVersionAliasServices versionAliasCommandServices() {
+    public static CommandVersionAliasServices versionAliasCommandServices() {
         return new CommandVersionAliasServices(configEditServices());
     }
 
@@ -60,7 +62,7 @@ final class CommandFrameworkServices {
         return new WorkspaceResolveService(resolveService());
     }
 
-    static CommandResolveServices resolveCommandServices() {
+    public static CommandResolveServices resolveCommandServices() {
         ResolveService resolveService = resolveService();
         return new CommandResolveServices(
                 resolveService,
@@ -83,7 +85,7 @@ final class CommandFrameworkServices {
         return new CommandBuildFrameworkServices(new QuarkusBuildAugmenter(), resolveService());
     }
 
-    static CommandBuildServices buildCommandServices() {
+    public static CommandBuildServices buildCommandServices() {
         CommandBuildFrameworkServices buildFrameworkServices = buildFrameworkServices();
         return new CommandBuildServices(
                 buildService(buildFrameworkServices),
@@ -107,7 +109,7 @@ final class CommandFrameworkServices {
         return new CommandPackageFrameworkServices(new QuarkusPackageAugmenter(), packagePlanService());
     }
 
-    static CommandPackageServices packageCommandServices() {
+    public static CommandPackageServices packageCommandServices() {
         ResolveService resolveService = resolveService();
         CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
         PackagePlanService packagePlanService = packageFrameworkServices.packagePlanService();
@@ -135,7 +137,7 @@ final class CommandFrameworkServices {
         return new RunService(runFrameworkServices.frameworkRunAugmenter());
     }
 
-    static CommandRunServices runCommandServices() {
+    public static CommandRunServices runCommandServices() {
         CommandRunFrameworkServices runFrameworkServices = runFrameworkServices();
         return new CommandRunServices(
                 runService(runFrameworkServices),
@@ -161,7 +163,7 @@ final class CommandFrameworkServices {
         return runPackageService(packageFrameworkServices());
     }
 
-    static CommandRunPackageServices runPackageCommandServices() {
+    public static CommandRunPackageServices runPackageCommandServices() {
         CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
         return new CommandRunPackageServices(
                 runPackageService(packageFrameworkServices),
@@ -204,14 +206,14 @@ final class CommandFrameworkServices {
                 packageFrameworkServices.packagePlanService());
     }
 
-    static CommandNativeServices nativeCommandServices() {
+    public static CommandNativeServices nativeCommandServices() {
         return new CommandNativeServices(
                 new ZoltTomlParser(),
                 new NativeBuildService(),
                 workspaceNativeBuildService());
     }
 
-    static CommandCoverageServices coverageCommandServices() {
+    public static CommandCoverageServices coverageCommandServices() {
         return new CommandCoverageServices(
                 new ZoltTomlParser(),
                 new CoverageService(),
@@ -247,7 +249,7 @@ final class CommandFrameworkServices {
         return new CommandTestFrameworkServices(new QuarkusFrameworkTestRunner(), resolveService());
     }
 
-    static CommandTestServices testCommandServices() {
+    public static CommandTestServices testCommandServices() {
         CommandTestFrameworkServices testFrameworkServices = testFrameworkServices();
         return new CommandTestServices(
                 testRunService(testFrameworkServices),

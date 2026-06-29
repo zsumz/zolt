@@ -23,124 +23,129 @@ import com.zolt.workspace.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceTestService;
 import java.util.Objects;
 
-record CommandCoverageServices(
-        ZoltTomlParser tomlParser,
-        CoverageService coverageService,
-        WorkspaceCoverageService workspaceCoverageService) {
-    CommandCoverageServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(coverageService, "coverageService");
-        Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
-    }
-}
-
-record CommandNativeServices(
-        ZoltTomlParser tomlParser,
-        NativeBuildService nativeBuildService,
-        WorkspaceNativeBuildService workspaceNativeBuildService) {
-    CommandNativeServices {
-        Objects.requireNonNull(tomlParser, "tomlParser");
-        Objects.requireNonNull(nativeBuildService, "nativeBuildService");
-        Objects.requireNonNull(workspaceNativeBuildService, "workspaceNativeBuildService");
-    }
-}
-
-record CommandVersionAliasServices(
-        CommandConfigEditServices configEditServices) {
-    CommandVersionAliasServices {
-        Objects.requireNonNull(configEditServices, "configEditServices");
+public final class CommandServiceBundles {
+    private CommandServiceBundles() {
     }
 
-    ZoltTomlParser tomlParser() {
-        return configEditServices.tomlParser();
+    public record CommandCoverageServices(
+            ZoltTomlParser tomlParser,
+            CoverageService coverageService,
+            WorkspaceCoverageService workspaceCoverageService) {
+        public CommandCoverageServices {
+            Objects.requireNonNull(tomlParser, "tomlParser");
+            Objects.requireNonNull(coverageService, "coverageService");
+            Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
+        }
     }
 
-    ZoltTomlWriter tomlWriter() {
-        return configEditServices.tomlWriter();
+    public record CommandNativeServices(
+            ZoltTomlParser tomlParser,
+            NativeBuildService nativeBuildService,
+            WorkspaceNativeBuildService workspaceNativeBuildService) {
+        public CommandNativeServices {
+            Objects.requireNonNull(tomlParser, "tomlParser");
+            Objects.requireNonNull(nativeBuildService, "nativeBuildService");
+            Objects.requireNonNull(workspaceNativeBuildService, "workspaceNativeBuildService");
+        }
     }
 
-    ResolveService resolveService() {
-        return configEditServices.resolveService();
-    }
-}
+    public record CommandVersionAliasServices(
+            CommandServiceClusters.CommandConfigEditServices configEditServices) {
+        public CommandVersionAliasServices {
+            Objects.requireNonNull(configEditServices, "configEditServices");
+        }
 
-record CommandDependencyEditServices(
-        CoordinateParser coordinateParser,
-        CommandConfigEditServices configEditServices) {
-    CommandDependencyEditServices {
-        Objects.requireNonNull(coordinateParser, "coordinateParser");
-        Objects.requireNonNull(configEditServices, "configEditServices");
-    }
+        public ZoltTomlParser tomlParser() {
+            return configEditServices.tomlParser();
+        }
 
-    ZoltTomlParser tomlParser() {
-        return configEditServices.tomlParser();
-    }
+        public ZoltTomlWriter tomlWriter() {
+            return configEditServices.tomlWriter();
+        }
 
-    ZoltTomlWriter tomlWriter() {
-        return configEditServices.tomlWriter();
+        public ResolveService resolveService() {
+            return configEditServices.resolveService();
+        }
     }
 
-    ResolveService resolveService() {
-        return configEditServices.resolveService();
-    }
-}
+    public record CommandDependencyEditServices(
+            CoordinateParser coordinateParser,
+            CommandServiceClusters.CommandConfigEditServices configEditServices) {
+        public CommandDependencyEditServices {
+            Objects.requireNonNull(coordinateParser, "coordinateParser");
+            Objects.requireNonNull(configEditServices, "configEditServices");
+        }
 
-record CommandResolveServices(
-        ResolveService resolveService,
-        WorkspaceResolveService workspaceResolveService) {
-    CommandResolveServices {
-        Objects.requireNonNull(resolveService, "resolveService");
-        Objects.requireNonNull(workspaceResolveService, "workspaceResolveService");
-    }
-}
+        public ZoltTomlParser tomlParser() {
+            return configEditServices.tomlParser();
+        }
 
-record CommandBuildServices(
-        BuildService buildService,
-        WorkspaceBuildService workspaceBuildService,
-        FrameworkBuildAugmenter frameworkBuildAugmenter) {
-    CommandBuildServices {
-        Objects.requireNonNull(buildService, "buildService");
-        Objects.requireNonNull(workspaceBuildService, "workspaceBuildService");
-        Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
-    }
-}
+        public ZoltTomlWriter tomlWriter() {
+            return configEditServices.tomlWriter();
+        }
 
-record CommandPackageServices(
-        PackagePlanService packagePlanService,
-        PackageService packageService,
-        BuildService buildService,
-        WorkspacePackageService workspacePackageService) {
-    CommandPackageServices {
-        Objects.requireNonNull(packagePlanService, "packagePlanService");
-        Objects.requireNonNull(packageService, "packageService");
-        Objects.requireNonNull(buildService, "buildService");
-        Objects.requireNonNull(workspacePackageService, "workspacePackageService");
+        public ResolveService resolveService() {
+            return configEditServices.resolveService();
+        }
     }
-}
 
-record CommandRunPackageServices(
-        RunPackageService runPackageService,
-        WorkspaceRunPackageService workspaceRunPackageService) {
-    CommandRunPackageServices {
-        Objects.requireNonNull(runPackageService, "runPackageService");
-        Objects.requireNonNull(workspaceRunPackageService, "workspaceRunPackageService");
+    public record CommandResolveServices(
+            ResolveService resolveService,
+            WorkspaceResolveService workspaceResolveService) {
+        public CommandResolveServices {
+            Objects.requireNonNull(resolveService, "resolveService");
+            Objects.requireNonNull(workspaceResolveService, "workspaceResolveService");
+        }
     }
-}
 
-record CommandRunServices(
-        RunService runService,
-        WorkspaceRunService workspaceRunService) {
-    CommandRunServices {
-        Objects.requireNonNull(runService, "runService");
-        Objects.requireNonNull(workspaceRunService, "workspaceRunService");
+    public record CommandBuildServices(
+            BuildService buildService,
+            WorkspaceBuildService workspaceBuildService,
+            FrameworkBuildAugmenter frameworkBuildAugmenter) {
+        public CommandBuildServices {
+            Objects.requireNonNull(buildService, "buildService");
+            Objects.requireNonNull(workspaceBuildService, "workspaceBuildService");
+            Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
+        }
     }
-}
 
-record CommandTestServices(
-        TestRunService testRunService,
-        WorkspaceTestService workspaceTestService) {
-    CommandTestServices {
-        Objects.requireNonNull(testRunService, "testRunService");
-        Objects.requireNonNull(workspaceTestService, "workspaceTestService");
+    public record CommandPackageServices(
+            PackagePlanService packagePlanService,
+            PackageService packageService,
+            BuildService buildService,
+            WorkspacePackageService workspacePackageService) {
+        public CommandPackageServices {
+            Objects.requireNonNull(packagePlanService, "packagePlanService");
+            Objects.requireNonNull(packageService, "packageService");
+            Objects.requireNonNull(buildService, "buildService");
+            Objects.requireNonNull(workspacePackageService, "workspacePackageService");
+        }
+    }
+
+    public record CommandRunPackageServices(
+            RunPackageService runPackageService,
+            WorkspaceRunPackageService workspaceRunPackageService) {
+        public CommandRunPackageServices {
+            Objects.requireNonNull(runPackageService, "runPackageService");
+            Objects.requireNonNull(workspaceRunPackageService, "workspaceRunPackageService");
+        }
+    }
+
+    public record CommandRunServices(
+            RunService runService,
+            WorkspaceRunService workspaceRunService) {
+        public CommandRunServices {
+            Objects.requireNonNull(runService, "runService");
+            Objects.requireNonNull(workspaceRunService, "workspaceRunService");
+        }
+    }
+
+    public record CommandTestServices(
+            TestRunService testRunService,
+            WorkspaceTestService workspaceTestService) {
+        public CommandTestServices {
+            Objects.requireNonNull(testRunService, "testRunService");
+            Objects.requireNonNull(workspaceTestService, "workspaceTestService");
+        }
     }
 }
