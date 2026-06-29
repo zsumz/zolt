@@ -4,7 +4,7 @@ import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.build.BuildException;
-import com.zolt.build.BuildFingerprintService;
+import com.zolt.build.fingerprint.BuildFingerprintService;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildResultWithClasspaths;
 import com.zolt.build.BuildService;

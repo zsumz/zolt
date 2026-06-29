@@ -5,8 +5,8 @@ import static com.zolt.build.incremental.IncrementalCompileInputHasher.hashText;
 import static com.zolt.build.incremental.IncrementalCompileInputHasher.relative;
 
 import com.zolt.build.BuildException;
-import com.zolt.build.ClassFileAbi;
-import com.zolt.build.ClassFileAbiReader;
+import com.zolt.build.abi.ClassFileAbi;
+import com.zolt.build.abi.ClassFileAbiReader;
 import com.zolt.build.SourceDiscoveryResult;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;

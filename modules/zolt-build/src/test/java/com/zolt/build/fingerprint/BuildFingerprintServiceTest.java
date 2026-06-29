@@ -1,8 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.fingerprint;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.SourceDiscoveryResult;
+import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
@@ -10,7 +13,6 @@ import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
-import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

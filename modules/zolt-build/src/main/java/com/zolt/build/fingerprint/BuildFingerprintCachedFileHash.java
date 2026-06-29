@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.fingerprint;
 
 import java.io.IOException;
 import java.nio.file.Files;

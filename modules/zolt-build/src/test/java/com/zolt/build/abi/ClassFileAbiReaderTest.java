@@ -1,9 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.abi;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.JavacRunner;
 import com.zolt.classpath.Classpath;
 import java.io.IOException;
 import java.nio.file.Files;

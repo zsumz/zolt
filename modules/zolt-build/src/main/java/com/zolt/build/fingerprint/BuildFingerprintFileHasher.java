@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.fingerprint;
 
+import com.zolt.build.BuildException;
 import com.zolt.build.incremental.IncrementalCompileState;
 import com.zolt.build.incremental.IncrementalCompileStateCodec;
 import java.io.IOException;

@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.fingerprint;
 
+import com.zolt.build.BuildException;
 import com.zolt.classpath.Classpath;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceStep;

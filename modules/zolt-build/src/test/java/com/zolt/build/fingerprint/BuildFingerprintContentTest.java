@@ -1,10 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.fingerprint;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildException;
 import com.zolt.classpath.Classpath;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;

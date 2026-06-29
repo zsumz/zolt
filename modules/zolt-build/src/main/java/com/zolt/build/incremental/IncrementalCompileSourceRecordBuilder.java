@@ -1,7 +1,7 @@
 package com.zolt.build.incremental;
 
 import com.zolt.build.BuildException;
-import com.zolt.build.ClassFileAbi;
+import com.zolt.build.abi.ClassFileAbi;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

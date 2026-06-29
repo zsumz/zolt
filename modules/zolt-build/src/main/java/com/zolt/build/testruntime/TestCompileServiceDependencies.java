@@ -1,6 +1,6 @@
 package com.zolt.build.testruntime;
 
-import com.zolt.build.BuildFingerprintService;
+import com.zolt.build.fingerprint.BuildFingerprintService;
 import com.zolt.build.BuildService;
 import com.zolt.build.GroovyCompilerRunner;
 import com.zolt.build.JavacRunner;

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildException;
-import com.zolt.build.ClassFileAbi;
+import com.zolt.build.abi.ClassFileAbi;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

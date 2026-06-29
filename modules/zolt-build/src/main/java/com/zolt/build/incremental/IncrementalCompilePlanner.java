@@ -2,7 +2,7 @@ package com.zolt.build.incremental;
 
 import static com.zolt.build.incremental.IncrementalCompileInputHasher.hash;
 
-import com.zolt.build.ClassFileAbiReader;
+import com.zolt.build.abi.ClassFileAbiReader;
 import com.zolt.build.SourceDiscoveryResult;
 import com.zolt.classpath.Classpath;
 import com.zolt.project.GeneratedSourceStep;

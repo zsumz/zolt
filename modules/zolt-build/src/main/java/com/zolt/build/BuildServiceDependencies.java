@@ -1,5 +1,6 @@
 package com.zolt.build;
 
+import com.zolt.build.fingerprint.BuildFingerprintService;
 import com.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import com.zolt.build.incremental.IncrementalCompilePlanner;
 import com.zolt.build.incremental.IncrementalCompileStateRecorder;

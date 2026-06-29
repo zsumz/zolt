@@ -3,7 +3,7 @@ package com.zolt.build.testruntime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.BuildFingerprintService;
+import com.zolt.build.fingerprint.BuildFingerprintService;
 import com.zolt.build.BuildService;
 import com.zolt.build.GroovyCompilerRunner;
 import com.zolt.build.JavacRunner;
