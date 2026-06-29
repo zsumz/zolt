@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
+import com.zolt.workspace.WorkspaceConfig;
+import com.zolt.workspace.WorkspaceConfigParser;
+import com.zolt.workspace.WorkspaceTomlWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +17,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class ProjectInitializerTest {
     private final ZoltTomlParser parser = new ZoltTomlParser();
-    private final ProjectInitializer initializer = new ProjectInitializer(new ZoltTomlWriter()::write);
+    private final WorkspaceConfigParser workspaceParser = new WorkspaceConfigParser();
+    private final ProjectInitializer initializer =
+            new ProjectInitializer(new ZoltTomlWriter()::write, new WorkspaceTomlWriter()::write);
 
     @TempDir
     private Path tempDir;
@@ -39,6 +44,27 @@ final class ProjectInitializerTest {
         assertEquals("com.example", config.project().group());
         assertEquals("21", config.project().java());
         assertEquals("com.example.Main", config.project().main().orElseThrow());
+    }
+
+    @Test
+    void createsWorkspaceRootConfigAndDefaultAppMember() {
+        ProjectInitResult result = initializer.initWorkspace(tempDir, "platform", "com.example", "21");
+
+        Path workspaceRoot = tempDir.resolve("platform");
+        Path memberRoot = workspaceRoot.resolve("apps/platform");
+        assertEquals(workspaceRoot, result.projectDirectory());
+        assertTrue(Files.exists(workspaceRoot.resolve("zolt.toml")));
+        assertTrue(Files.exists(memberRoot.resolve("zolt.toml")));
+        assertTrue(Files.exists(result.mainSource()));
+        assertTrue(Files.exists(result.testSource()));
+
+        WorkspaceConfig workspaceConfig = workspaceParser.parseRootConfig(result.configFile());
+        ProjectConfig memberConfig = parser.parse(memberRoot.resolve("zolt.toml"));
+        assertEquals("platform", workspaceConfig.name());
+        assertEquals(java.util.List.of("apps/platform"), workspaceConfig.members());
+        assertEquals(java.util.List.of("apps/platform"), workspaceConfig.defaultMembers());
+        assertEquals("platform", memberConfig.project().name());
+        assertEquals("com.example.Main", memberConfig.project().main().orElseThrow());
     }
 
     @Test

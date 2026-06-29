@@ -117,6 +117,18 @@ final class CliSurfaceTest {
     }
 
     @Test
+    void initCreatesWorkspaceAndDefaultAppMember() {
+        CommandResult result = execute("init", "--workspace", "--directory", tempDir.toString(), "platform");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Created Zolt workspace at"));
+        assertTrue(result.stdout().contains("Next: cd platform"));
+        assertTrue(Files.exists(tempDir.resolve("platform/zolt.toml")));
+        assertTrue(Files.exists(tempDir.resolve("platform/apps/platform/zolt.toml")));
+        assertTrue(Files.exists(tempDir.resolve("platform/apps/platform/src/main/java/com/example/Main.java")));
+    }
+
+    @Test
     void initUsesModernHumanOutputControls() {
         CommandResult color = execute("--color=always", "init", "--directory", tempDir.toString(), "color-hello");
         CommandResult quiet = execute("--quiet", "init", "--directory", tempDir.toString(), "quiet-hello");

@@ -1,23 +1,26 @@
 package com.zolt.project;
 
+import com.zolt.workspace.WorkspaceConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class ProjectInitializer {
     private final ProjectConfigWriter writer;
+    private final WorkspaceConfigWriter workspaceWriter;
 
-    public ProjectInitializer(ProjectConfigWriter writer) {
+    public ProjectInitializer(ProjectConfigWriter writer, WorkspaceConfigWriter workspaceWriter) {
         this.writer = writer;
+        this.workspaceWriter = workspaceWriter;
     }
 
     public ProjectInitResult init(Path baseDirectory, String name, String group, String javaVersion) {
         validateProjectName(name);
         validateJavaPackage(group);
-        if (javaVersion == null || javaVersion.isBlank()) {
-            throw new ProjectInitException("Java version is required. Pass a non-empty --java value.");
-        }
+        validateJavaVersion(javaVersion);
 
         Path projectDirectory = baseDirectory.resolve(name).normalize();
         if (Files.exists(projectDirectory) && directoryHasEntries(projectDirectory)) {
@@ -29,8 +32,8 @@ public final class ProjectInitializer {
         ProjectConfig config = ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata(name, "0.1.0", group, javaVersion, Optional.of(mainClass)),
                 ProjectConfig.defaultRepositories(),
-                java.util.Map.of(),
-                java.util.Map.of(),
+                Map.of(),
+                Map.of(),
                 BuildSettings.defaults());
 
         Path packagePath = Path.of(group.replace('.', '/'));
@@ -51,6 +54,55 @@ public final class ProjectInitializer {
         }
 
         return new ProjectInitResult(projectDirectory, configFile, mainSource, testSource);
+    }
+
+    public ProjectInitResult initWorkspace(Path baseDirectory, String name, String group, String javaVersion) {
+        validateProjectName(name);
+        validateJavaPackage(group);
+        validateJavaVersion(javaVersion);
+
+        Path workspaceDirectory = baseDirectory.resolve(name).normalize();
+        if (Files.exists(workspaceDirectory) && directoryHasEntries(workspaceDirectory)) {
+            throw new ProjectInitException(
+                    "Workspace directory " + workspaceDirectory + " is not empty. Choose a new name or empty the directory.");
+        }
+
+        String memberPath = "apps/" + name;
+        Path projectDirectory = workspaceDirectory.resolve(memberPath).normalize();
+        String mainClass = group + ".Main";
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata(name, "0.1.0", group, javaVersion, Optional.of(mainClass)),
+                ProjectConfig.defaultRepositories(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults());
+        WorkspaceConfig workspaceConfig = new WorkspaceConfig(
+                name,
+                List.of(memberPath),
+                List.of(memberPath),
+                ProjectConfig.defaultRepositories(),
+                Map.of());
+
+        Path packagePath = Path.of(group.replace('.', '/'));
+        Path mainSource = projectDirectory.resolve("src/main/java").resolve(packagePath).resolve("Main.java");
+        Path testSource = projectDirectory.resolve("src/test/java").resolve(packagePath).resolve("MainTest.java");
+        Path rootConfigFile = workspaceDirectory.resolve("zolt.toml");
+        Path memberConfigFile = projectDirectory.resolve("zolt.toml");
+
+        try {
+            Files.createDirectories(mainSource.getParent());
+            Files.createDirectories(testSource.getParent());
+            workspaceWriter.write(rootConfigFile, workspaceConfig);
+            writer.write(memberConfigFile, config);
+            Files.writeString(mainSource, mainSource(name, group));
+            Files.writeString(testSource, testSource(group));
+            Files.writeString(workspaceDirectory.resolve(".gitignore"), gitignore());
+        } catch (IOException | ProjectConfigWriteException exception) {
+            throw new ProjectInitException(
+                    "Could not create Zolt workspace at " + workspaceDirectory + ". Check filesystem permissions.");
+        }
+
+        return new ProjectInitResult(workspaceDirectory, rootConfigFile, mainSource, testSource);
     }
 
     private static boolean directoryHasEntries(Path directory) {
@@ -115,6 +167,12 @@ public final class ProjectInitializer {
                 throw new ProjectInitException(
                         "Project group must be a valid Java package, for example `com.example`.");
             }
+        }
+    }
+
+    private static void validateJavaVersion(String javaVersion) {
+        if (javaVersion == null || javaVersion.isBlank()) {
+            throw new ProjectInitException("Java version is required. Pass a non-empty --java value.");
         }
     }
 

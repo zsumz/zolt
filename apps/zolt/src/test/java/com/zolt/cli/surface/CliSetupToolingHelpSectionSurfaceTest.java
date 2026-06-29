@@ -32,7 +32,8 @@ final class CliSetupToolingHelpSectionSurfaceTest {
                 "--version",
                 "--directory",
                 "--group",
-                "--java");
+                "--java",
+                "--workspace");
         assertFalse(result.stdout().contains("Diagnostics:"));
         assertFalse(result.stdout().contains("Resolution:"));
     }
@@ -50,6 +51,7 @@ final class CliSetupToolingHelpSectionSurfaceTest {
         assertTrue(result.stdout().contains("\u001B[1;36m--directory\u001B[0m\u001B[36m <DIRECTORY>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--group\u001B[0m\u001B[36m <GROUP>\u001B[0m"));
         assertTrue(result.stdout().contains("\u001B[1;36m--java\u001B[0m\u001B[36m <JAVA_VERSION>\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[1;36m--workspace\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mDiagnostics:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32mResolution:\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[1;32m--"));
