@@ -1,10 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
-import static com.zolt.build.PackageEvidenceJsonFields.booleanField;
-import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.booleanField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullableStringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
 import com.zolt.generated.GeneratedSourceEvidence;
 import com.zolt.generated.GeneratedSourceEvidenceService;

@@ -1,4 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
+
+import com.zolt.build.PackageException;
 
 public record PackageEvidenceArtifact(
         String classifier,

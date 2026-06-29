@@ -1,13 +1,18 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
-import static com.zolt.build.PackageEvidenceJsonFields.booleanField;
-import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.nullablePathField;
-import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringArrayField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.booleanField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullablePathField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullableStringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringArrayField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
+import com.zolt.build.PackageArtifact;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackagePlan;
+import com.zolt.build.PackagePlanDependency;
+import com.zolt.build.PackageResult;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ResourceFilteringSettings;
 import java.io.IOException;

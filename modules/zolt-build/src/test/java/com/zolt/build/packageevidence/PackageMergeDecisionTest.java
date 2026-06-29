@@ -1,9 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageMergeDecision;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

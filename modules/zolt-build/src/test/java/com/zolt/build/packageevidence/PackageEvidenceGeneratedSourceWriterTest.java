@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

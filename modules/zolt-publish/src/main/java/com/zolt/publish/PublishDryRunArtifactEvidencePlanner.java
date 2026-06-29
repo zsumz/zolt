@@ -1,8 +1,8 @@
 package com.zolt.publish;
 
-import com.zolt.build.PackageEvidenceArtifact;
-import com.zolt.build.PackageEvidenceManifest;
-import com.zolt.build.PackageEvidenceManifestReader;
+import com.zolt.build.packageevidence.PackageEvidenceArtifact;
+import com.zolt.build.packageevidence.PackageEvidenceManifest;
+import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.PackageException;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;

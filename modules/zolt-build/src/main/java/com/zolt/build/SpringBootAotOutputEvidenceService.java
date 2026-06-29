@@ -1,10 +1,12 @@
 package com.zolt.build;
 
-import static com.zolt.build.PackageEvidenceJsonFields.booleanField;
-import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.booleanField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
+import com.zolt.build.packageevidence.PackageEvidenceChecksums;
+import com.zolt.build.packageevidence.PackageEvidencePathWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

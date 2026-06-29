@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
+import com.zolt.build.PackageException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,11 +8,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-final class PackageEvidenceChecksums {
+public final class PackageEvidenceChecksums {
     private PackageEvidenceChecksums() {
     }
 
-    static String fileSha256(Path path) {
+    public static String fileSha256(Path path) {
         if (!Files.isRegularFile(path)) {
             return "missing";
         }

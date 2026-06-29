@@ -1,6 +1,6 @@
 package com.zolt.quality;
 
-import com.zolt.build.PackageEvidenceManifestReader;
+import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.PackagePlanService;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.ZoltLockfileReader;

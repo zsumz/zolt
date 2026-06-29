@@ -2,9 +2,9 @@ package com.zolt.quality;
 
 import static com.zolt.quality.QualityCheckService.PACKAGE_CONTENTS;
 
-import com.zolt.build.PackageEvidenceManifest;
-import com.zolt.build.PackageEvidenceManifestReader;
-import com.zolt.build.PackageEvidenceManifestWriter;
+import com.zolt.build.packageevidence.PackageEvidenceManifest;
+import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
+import com.zolt.build.packageevidence.PackageEvidenceManifestWriter;
 import com.zolt.build.PackageException;
 import com.zolt.build.PackagePlan;
 import com.zolt.build.PackagePlanDependency;

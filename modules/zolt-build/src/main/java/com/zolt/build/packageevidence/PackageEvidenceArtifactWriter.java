@@ -1,10 +1,12 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
-import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.intField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.intField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
+import com.zolt.build.PackageArtifact;
+import com.zolt.build.PackageResult;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

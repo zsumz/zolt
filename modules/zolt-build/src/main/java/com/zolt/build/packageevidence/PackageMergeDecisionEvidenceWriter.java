@@ -1,10 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.nullableStringField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringArrayField;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullableStringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringArrayField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
+import com.zolt.build.PackageMergeDecision;
 import java.util.Comparator;
 import java.util.List;
 

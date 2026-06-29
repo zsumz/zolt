@@ -1,8 +1,13 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackagePlan;
+import com.zolt.build.PackageResult;
+import com.zolt.build.PackageServiceTestSupport;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;

@@ -1,10 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
-final class PackageEvidenceJsonFields {
+public final class PackageEvidenceJsonFields {
     private PackageEvidenceJsonFields() {
     }
 
@@ -60,7 +60,7 @@ final class PackageEvidenceJsonFields {
         json.append('\n');
     }
 
-    static void stringField(
+    public static void stringField(
             StringBuilder json,
             int level,
             String name,
@@ -76,7 +76,7 @@ final class PackageEvidenceJsonFields {
         json.append('\n');
     }
 
-    static void booleanField(
+    public static void booleanField(
             StringBuilder json,
             int level,
             String name,
@@ -106,7 +106,7 @@ final class PackageEvidenceJsonFields {
         json.append('\n');
     }
 
-    static String displayPath(Path projectRoot, Path path) {
+    public static String displayPath(Path projectRoot, Path path) {
         Path normalized = path.toAbsolutePath().normalize();
         if (normalized.startsWith(projectRoot)) {
             return projectRoot.relativize(normalized).toString().replace('\\', '/');
@@ -114,7 +114,7 @@ final class PackageEvidenceJsonFields {
         return normalized.toString();
     }
 
-    static StringBuilder indent(StringBuilder json, int level) {
+    public static StringBuilder indent(StringBuilder json, int level) {
         return json.append("  ".repeat(level));
     }
 

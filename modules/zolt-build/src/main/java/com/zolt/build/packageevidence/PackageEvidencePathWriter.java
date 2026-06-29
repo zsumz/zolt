@@ -1,18 +1,18 @@
-package com.zolt.build;
+package com.zolt.build.packageevidence;
 
-import static com.zolt.build.PackageEvidenceJsonFields.displayPath;
-import static com.zolt.build.PackageEvidenceJsonFields.indent;
-import static com.zolt.build.PackageEvidenceJsonFields.stringField;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
+import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 
-final class PackageEvidencePathWriter {
+public final class PackageEvidencePathWriter {
     private PackageEvidencePathWriter() {
     }
 
-    static void writeFingerprintedPaths(
+    public static void writeFingerprintedPaths(
             StringBuilder json,
             int level,
             String name,

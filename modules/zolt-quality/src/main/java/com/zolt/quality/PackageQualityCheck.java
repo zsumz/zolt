@@ -3,7 +3,7 @@ package com.zolt.quality;
 import static com.zolt.quality.QualityCheckService.MANIFEST_METADATA;
 import static com.zolt.quality.QualityCheckService.PACKAGE_METADATA;
 
-import com.zolt.build.PackageEvidenceManifestReader;
+import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.PackagePlanService;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageSettings;
