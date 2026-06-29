@@ -1,6 +1,6 @@
 package com.zolt.build.springboot;
 
-import com.zolt.build.NativeImageException;
+import com.zolt.build.nativeimage.NativeImageException;
 import com.zolt.project.ProjectConfig;
 import java.util.ArrayList;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.zolt.workspace;
 
-import com.zolt.build.NativeBuildResult;
+import com.zolt.build.nativeimage.NativeBuildResult;
 import com.zolt.resolve.ResolveResult;
 import java.util.List;
 import java.util.Optional;

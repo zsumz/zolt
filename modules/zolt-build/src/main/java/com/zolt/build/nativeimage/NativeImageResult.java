@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.nativeimage;
 
 import java.nio.file.Path;
 

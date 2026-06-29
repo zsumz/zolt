@@ -1,6 +1,6 @@
 package com.zolt.build.springboot;
 
-import com.zolt.build.NativeImageException;
+import com.zolt.build.nativeimage.NativeImageException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

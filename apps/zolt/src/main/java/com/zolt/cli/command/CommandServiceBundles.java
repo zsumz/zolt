@@ -2,7 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.build.BuildService;
 import com.zolt.build.CoverageService;
-import com.zolt.build.NativeBuildService;
+import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;

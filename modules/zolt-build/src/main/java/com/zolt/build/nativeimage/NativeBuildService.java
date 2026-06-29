@@ -1,8 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.nativeimage;
 
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.PackageResult;
+import com.zolt.build.PackageService;
 import com.zolt.build.springboot.SpringBootAotNativeInputs;
 import com.zolt.build.springboot.SpringBootAotOutputEvidenceService;
 import com.zolt.build.springboot.SpringBootNativeBoundaryDiagnostics;

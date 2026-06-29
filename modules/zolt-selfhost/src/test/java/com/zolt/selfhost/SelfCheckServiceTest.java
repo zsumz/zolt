@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.JavaRunResult;
-import com.zolt.build.NativeBuildResult;
-import com.zolt.build.NativeImageResult;
+import com.zolt.build.nativeimage.NativeBuildResult;
+import com.zolt.build.nativeimage.NativeImageResult;
 import com.zolt.build.PackageResult;
 import com.zolt.build.RunPackageResult;
 import com.zolt.build.TestCompileResult;

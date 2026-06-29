@@ -5,7 +5,7 @@ import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPa
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
-import com.zolt.build.NativeImageException;
+import com.zolt.build.nativeimage.NativeImageException;
 import com.zolt.build.packageevidence.PackageEvidenceChecksums;
 import com.zolt.build.packageevidence.PackageEvidencePathWriter;
 import java.io.IOException;

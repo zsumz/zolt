@@ -1,10 +1,13 @@
-package com.zolt.build;
+package com.zolt.build.nativeimage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.BuildResult;
+import com.zolt.build.PackageResult;
 import com.zolt.build.springboot.SpringBootAotNativeInputs;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;

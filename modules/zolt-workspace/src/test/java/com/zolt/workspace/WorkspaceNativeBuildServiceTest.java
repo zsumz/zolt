@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.zolt.build.NativeImageException;
+import com.zolt.build.nativeimage.NativeImageException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

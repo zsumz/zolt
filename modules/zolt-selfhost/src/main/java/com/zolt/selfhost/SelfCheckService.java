@@ -2,8 +2,8 @@ package com.zolt.selfhost;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildService;
-import com.zolt.build.NativeBuildResult;
-import com.zolt.build.NativeBuildService;
+import com.zolt.build.nativeimage.NativeBuildResult;
+import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.PackageResult;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageResult;

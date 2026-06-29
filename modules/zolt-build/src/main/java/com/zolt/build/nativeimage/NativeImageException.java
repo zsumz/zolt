@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.nativeimage;
 
 public final class NativeImageException extends RuntimeException {
     public NativeImageException(String message) {

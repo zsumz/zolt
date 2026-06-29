@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.nativeimage;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
