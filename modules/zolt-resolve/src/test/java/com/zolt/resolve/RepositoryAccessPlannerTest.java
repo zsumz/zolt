@@ -50,6 +50,67 @@ final class RepositoryAccessPlannerTest {
     }
 
     @Test
+    void rejectsRepositoryUrlUserinfoBeforeResolution() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> new RepositoryAccessPlanner().plan(config("""
+                        [repositories]
+                        company = "https://user:super-secret@repo.example/company"
+                        """)));
+
+        assertTrue(exception.getMessage().contains("Repository `company` URL contains embedded credentials"));
+        assertTrue(exception.getMessage().contains("Move credentials to [repositoryCredentials] environment references"));
+        assertTrue(!exception.getMessage().contains("user:super-secret"));
+        assertTrue(!exception.getMessage().contains("super-secret"));
+    }
+
+    @Test
+    void rejectsCredentialedRemoteHttpRepository() {
+        RepositoryAccessPlanner planner = new RepositoryAccessPlanner(Map.of(
+                "REPOSITORY_USERNAME",
+                "user",
+                "REPOSITORY_PASSWORD",
+                "secret")::get);
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> planner.plan(config("""
+                        [repositories]
+                        company = { url = "http://repo.example/company", credentials = "company-artifactory" }
+
+                        [repositoryCredentials.company-artifactory]
+                        usernameEnv = "REPOSITORY_USERNAME"
+                        passwordEnv = "REPOSITORY_PASSWORD"
+                        """)));
+
+        assertTrue(exception.getMessage().contains("Repository `company` uses credentials with an insecure remote repository URL"));
+        assertTrue(exception.getMessage().contains("Credentialed remote repositories require HTTPS"));
+    }
+
+    @Test
+    void rejectsNonLocalHttpRepository() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> new RepositoryAccessPlanner().plan(config("""
+                        [repositories]
+                        company = "http://repo.example/company"
+                        """)));
+
+        assertTrue(exception.getMessage().contains("Repository `company` uses non-local HTTP"));
+        assertTrue(exception.getMessage().contains("plain HTTP is allowed only for localhost or loopback"));
+    }
+
+    @Test
+    void allowsLoopbackHttpRepositoryForLocalDevelopment() {
+        List<RepositoryAccess> access = new RepositoryAccessPlanner().plan(config("""
+                [repositories]
+                local = "http://127.0.0.1:18080/maven2"
+                """));
+
+        assertEquals("http://127.0.0.1:18080/maven2", access.getFirst().uri().toString());
+    }
+
+    @Test
     void reportsMissingCredentialDefinition() {
         ProjectConfig config = withoutRepositoryCredentials(config("""
                 [repositories]

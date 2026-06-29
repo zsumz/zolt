@@ -7,6 +7,7 @@ import com.zolt.maven.RepositoryAuthentication;
 import com.zolt.maven.RepositoryClientException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
+import com.zolt.project.RepositoryUrlPolicy;
 import com.zolt.toml.ZoltTomlParser;
 import java.net.URI;
 import java.nio.file.Path;
@@ -53,21 +54,22 @@ public final class PublishUploadService {
         PublishRepositorySettings repository = selectedRepository(settings, plan);
         Coordinate coordinate = coordinate(config);
         Optional<RepositoryAuthentication> authentication = authentication(repository, config);
+        URI repositoryUri = repositoryUri(repository);
         try {
             repositoryClient.uploadArtifact(
-                    URI.create(repository.url()),
+                    repositoryUri,
                     new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
                     root.resolve(plan.artifactPath()).normalize(),
                     authentication);
             for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
                 repositoryClient.uploadArtifact(
-                        URI.create(repository.url()),
+                        repositoryUri,
                         new ArtifactDescriptor(coordinate, artifact.classifier(), extension(artifact.path())),
                         root.resolve(artifact.path()).normalize(),
                         authentication);
             }
             repositoryClient.uploadPom(
-                    URI.create(repository.url()),
+                    repositoryUri,
                     coordinate,
                     root.resolve(plan.pomPath()).normalize(),
                     authentication);
@@ -79,6 +81,17 @@ public final class PublishUploadService {
             throw new PublishException(exception.getMessage(), exception);
         }
         return new PublishUploadResult(plan);
+    }
+
+    private static URI repositoryUri(PublishRepositorySettings repository) {
+        try {
+            return RepositoryUrlPolicy.requireSafeUrl(
+                    "Publish repository `" + repository.id() + "`",
+                    repository.url(),
+                    repository.credentials().isPresent());
+        } catch (IllegalArgumentException exception) {
+            throw new PublishException(exception.getMessage(), exception);
+        }
     }
 
     private static PublishRepositorySettings selectedRepository(

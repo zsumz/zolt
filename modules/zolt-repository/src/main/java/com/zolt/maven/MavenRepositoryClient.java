@@ -1,5 +1,9 @@
 package com.zolt.maven;
 
+import static com.zolt.maven.RepositoryHttpRequests.diagnosticUri;
+import static com.zolt.maven.RepositoryHttpRequests.fetchRequest;
+import static com.zolt.maven.RepositoryHttpRequests.uploadRequest;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -93,11 +97,7 @@ public final class MavenRepositoryClient {
             String path,
             Optional<RepositoryAuthentication> authentication) {
         URI artifactUri = artifactUri(repositoryBaseUri, path);
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
-                .timeout(httpPolicy.requestTimeout())
-                .GET();
-        authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
-        HttpRequest request = requestBuilder.build();
+        HttpRequest request = fetchRequest(artifactUri, authentication, httpPolicy);
 
         IOException lastIoException = null;
         for (int attempt = 1; attempt <= httpPolicy.maxAttempts(); attempt++) {
@@ -117,7 +117,7 @@ public final class MavenRepositoryClient {
                         "Download interrupted while fetching "
                                 + coordinate
                                 + " from "
-                                + artifactUri
+                                + diagnosticUri(artifactUri)
                                 + ". Try again.",
                         exception);
             }
@@ -127,7 +127,7 @@ public final class MavenRepositoryClient {
                         "Could not find "
                                 + coordinate
                                 + " at "
-                                + artifactUri
+                                + diagnosticUri(artifactUri)
                                 + ". Check the group, artifact, version, and repository URL.");
             }
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -161,11 +161,7 @@ public final class MavenRepositoryClient {
                             + ". Check that the file exists and is readable.",
                     exception);
         }
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
-                .timeout(httpPolicy.requestTimeout())
-                .PUT(bodyPublisher);
-        authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
-        HttpRequest request = requestBuilder.build();
+        HttpRequest request = uploadRequest(artifactUri, bodyPublisher, authentication, httpPolicy);
 
         IOException lastIoException = null;
         for (int attempt = 1; attempt <= httpPolicy.maxAttempts(); attempt++) {
@@ -185,7 +181,7 @@ public final class MavenRepositoryClient {
                         "Upload interrupted while publishing "
                                 + coordinate
                                 + " to "
-                                + artifactUri
+                                + diagnosticUri(artifactUri)
                                 + ". Try again.",
                         exception);
             }
@@ -232,7 +228,7 @@ public final class MavenRepositoryClient {
                         + " "
                         + coordinate
                         + " at "
-                        + artifactUri
+                        + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
                         + ". Try again or check the repository URL.");
     }
@@ -246,7 +242,7 @@ public final class MavenRepositoryClient {
                 "Could not download "
                         + coordinate
                         + " from "
-                        + artifactUri
+                        + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
                         + ". Check your network, proxy, or repository URL and try again.",
                         cause);
@@ -261,7 +257,7 @@ public final class MavenRepositoryClient {
                 "Could not upload "
                         + coordinate
                         + " to "
-                        + artifactUri
+                        + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
                         + ". Check your network, proxy, repository URL, and publish permissions, then try again.",
                 cause);
@@ -292,7 +288,7 @@ public final class MavenRepositoryClient {
                             + " "
                             + coordinate
                             + " from "
-                            + artifactUri
+                            + diagnosticUri(artifactUri)
                             + " after attempt "
                             + attempt
                             + ". Try again.",

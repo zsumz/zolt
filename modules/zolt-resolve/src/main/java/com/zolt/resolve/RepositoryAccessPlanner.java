@@ -4,6 +4,7 @@ import com.zolt.maven.RepositoryAuthentication;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.project.RepositoryUrlPolicy;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,10 +36,21 @@ final class RepositoryAccessPlanner {
         List<RepositoryAccess> access = new ArrayList<>();
         for (RepositorySettings repository : repositories) {
             access.add(new RepositoryAccess(
-                    URI.create(repository.url()),
+                    repositoryUri(repository),
                     repository.credentials().map(credentialId -> authentication(config, repository, credentialId))));
         }
         return List.copyOf(access);
+    }
+
+    private static URI repositoryUri(RepositorySettings repository) {
+        try {
+            return RepositoryUrlPolicy.requireSafeUrl(
+                    "Repository `" + repository.id() + "`",
+                    repository.url(),
+                    repository.credentials().isPresent());
+        } catch (IllegalArgumentException exception) {
+            throw new ResolveException(exception.getMessage(), exception);
+        }
     }
 
     private RepositoryAuthentication authentication(
