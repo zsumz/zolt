@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
+import com.zolt.build.BuildException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
@@ -49,11 +50,11 @@ public record IncrementalCompileState(
         reverseDependencies = sortedReverseDependencies(reverseDependencies);
     }
 
-    static Path mainStatePath(Path outputDirectory) {
+    public static Path mainStatePath(Path outputDirectory) {
         return outputDirectory.resolve(MAIN_FILE_NAME);
     }
 
-    static Path testStatePath(Path outputDirectory) {
+    public static Path testStatePath(Path outputDirectory) {
         return outputDirectory.resolve(TEST_FILE_NAME);
     }
 

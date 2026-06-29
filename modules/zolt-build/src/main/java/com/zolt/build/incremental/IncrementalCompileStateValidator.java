@@ -1,8 +1,8 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
-import static com.zolt.build.IncrementalCompileInputHasher.hash;
-import static com.zolt.build.IncrementalCompileInputHasher.hashText;
-import static com.zolt.build.IncrementalCompileInputHasher.relative;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.hash;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.hashText;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.relative;
 
 import com.zolt.classpath.Classpath;
 import com.zolt.project.GeneratedSourceStep;

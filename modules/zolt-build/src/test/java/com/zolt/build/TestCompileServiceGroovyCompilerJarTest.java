@@ -3,6 +3,8 @@ package com.zolt.build;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.incremental.IncrementalCompileState;
+import com.zolt.build.incremental.IncrementalCompileStateCodec;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;

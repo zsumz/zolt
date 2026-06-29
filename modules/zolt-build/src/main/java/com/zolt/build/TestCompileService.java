@@ -3,6 +3,7 @@ package com.zolt.build;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.build.incremental.IncrementalCompileStateRecorder;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;

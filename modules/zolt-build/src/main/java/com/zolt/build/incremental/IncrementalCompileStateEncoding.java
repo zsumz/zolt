@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

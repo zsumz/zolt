@@ -1,5 +1,9 @@
 package com.zolt.build;
 
+import com.zolt.build.incremental.IncrementalCompilePlan;
+import com.zolt.build.incremental.IncrementalCompilePlanner;
+import com.zolt.build.incremental.IncrementalCompileStateRecorder;
+import com.zolt.build.incremental.IncrementalCompileValidation;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkStatus;

@@ -1,9 +1,13 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
-import static com.zolt.build.IncrementalCompileInputHasher.hash;
-import static com.zolt.build.IncrementalCompileInputHasher.hashText;
-import static com.zolt.build.IncrementalCompileInputHasher.relative;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.hash;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.hashText;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.relative;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.ClassFileAbi;
+import com.zolt.build.ClassFileAbiReader;
+import com.zolt.build.SourceDiscoveryResult;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.GeneratedSourceStep;
@@ -19,7 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-final class IncrementalCompileStateRecorder {
+public final class IncrementalCompileStateRecorder {
     private static final String MAIN_FINGERPRINT_FILE = ".zolt-build-main.fingerprint";
     private static final String TEST_FINGERPRINT_FILE = ".zolt-build-test.fingerprint";
 
@@ -27,7 +31,7 @@ final class IncrementalCompileStateRecorder {
     private final ClassFileAbiReader abiReader;
     private final IncrementalCompileSourceRecordBuilder sourceRecordBuilder;
 
-    IncrementalCompileStateRecorder() {
+    public IncrementalCompileStateRecorder() {
         this(
                 new IncrementalCompileStateCodec(),
                 new ClassFileAbiReader(),
@@ -49,15 +53,15 @@ final class IncrementalCompileStateRecorder {
         this.sourceRecordBuilder = sourceRecordBuilder;
     }
 
-    void deleteMainState(Path outputDirectory) {
+    public void deleteMainState(Path outputDirectory) {
         deleteState(IncrementalCompileState.mainStatePath(outputDirectory));
     }
 
-    void deleteTestState(Path outputDirectory) {
+    public void deleteTestState(Path outputDirectory) {
         deleteState(IncrementalCompileState.testStatePath(outputDirectory));
     }
 
-    void recordMain(
+    public void recordMain(
             Path projectDirectory,
             ProjectConfig config,
             SourceDiscoveryResult sources,
@@ -80,7 +84,7 @@ final class IncrementalCompileStateRecorder {
                 classpaths.processor().entries().isEmpty() ? List.of() : List.of("processor-classpath"));
     }
 
-    void recordTest(
+    public void recordTest(
             Path projectDirectory,
             ProjectConfig config,
             SourceDiscoveryResult sources,

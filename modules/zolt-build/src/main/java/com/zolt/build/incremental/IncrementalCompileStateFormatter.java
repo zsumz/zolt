@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
 final class IncrementalCompileStateFormatter {
     String format(IncrementalCompileState state) {

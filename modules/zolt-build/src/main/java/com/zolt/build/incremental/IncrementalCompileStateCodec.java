@@ -1,16 +1,17 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
+import com.zolt.build.BuildException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
-final class IncrementalCompileStateCodec {
+public final class IncrementalCompileStateCodec {
     private final IncrementalCompileStateFormatter formatter;
     private final IncrementalCompileStateParser parser;
 
-    IncrementalCompileStateCodec() {
+    public IncrementalCompileStateCodec() {
         this(new IncrementalCompileStateFormatter(), new IncrementalCompileStateParser());
     }
 
@@ -21,7 +22,7 @@ final class IncrementalCompileStateCodec {
         this.parser = parser;
     }
 
-    Optional<IncrementalCompileState> read(Path statePath) {
+    public Optional<IncrementalCompileState> read(Path statePath) {
         if (!Files.isRegularFile(statePath)) {
             return Optional.empty();
         }

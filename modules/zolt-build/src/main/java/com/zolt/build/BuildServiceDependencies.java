@@ -1,5 +1,7 @@
 package com.zolt.build;
 
+import com.zolt.build.incremental.IncrementalCompilePlanner;
+import com.zolt.build.incremental.IncrementalCompileStateRecorder;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.generated.ProtobufGeneratedSourceService;

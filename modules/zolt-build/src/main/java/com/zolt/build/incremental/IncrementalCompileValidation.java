@@ -1,14 +1,14 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
 import java.nio.file.Path;
 import java.util.List;
 
-record IncrementalCompileValidation(
+public record IncrementalCompileValidation(
         String fallbackReason,
         List<Path> additionalSources,
         int abiChangedClasses,
         int packagePrivateAbiChangedClasses) {
-    IncrementalCompileValidation {
+    public IncrementalCompileValidation {
         fallbackReason = fallbackReason == null ? "" : fallbackReason;
         additionalSources = additionalSources == null
                 ? List.of()
@@ -17,11 +17,11 @@ record IncrementalCompileValidation(
         packagePrivateAbiChangedClasses = Math.max(0, packagePrivateAbiChangedClasses);
     }
 
-    static IncrementalCompileValidation success(List<Path> additionalSources) {
+    public static IncrementalCompileValidation success(List<Path> additionalSources) {
         return success(additionalSources, 0, 0);
     }
 
-    static IncrementalCompileValidation success(
+    public static IncrementalCompileValidation success(
             List<Path> additionalSources,
             int abiChangedClasses,
             int packagePrivateAbiChangedClasses) {
@@ -32,11 +32,11 @@ record IncrementalCompileValidation(
                 packagePrivateAbiChangedClasses);
     }
 
-    static IncrementalCompileValidation fallback(String reason) {
+    public static IncrementalCompileValidation fallback(String reason) {
         return new IncrementalCompileValidation(reason, List.of(), 0, 0);
     }
 
-    boolean hasFallback() {
+    public boolean hasFallback() {
         return !fallbackReason.isBlank();
     }
 }

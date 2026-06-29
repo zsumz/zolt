@@ -1,10 +1,12 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
-import static com.zolt.build.IncrementalCompileInputHasher.hash;
+import static com.zolt.build.incremental.IncrementalCompileInputHasher.hash;
 
+import com.zolt.build.ClassFileAbiReader;
+import com.zolt.build.SourceDiscoveryResult;
+import com.zolt.classpath.Classpath;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.ProjectConfig;
-import com.zolt.classpath.Classpath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,12 +16,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-final class IncrementalCompilePlanner {
+public final class IncrementalCompilePlanner {
     private final IncrementalCompileStateCodec codec;
     private final IncrementalCompileStateValidator stateValidator;
     private final IncrementalCompileAbiValidator abiValidator;
 
-    IncrementalCompilePlanner() {
+    public IncrementalCompilePlanner() {
         this(new IncrementalCompileStateCodec(), new ClassFileAbiReader());
     }
 
@@ -31,7 +33,7 @@ final class IncrementalCompilePlanner {
         this.abiValidator = new IncrementalCompileAbiValidator(abiReader);
     }
 
-    IncrementalCompilePlan planMain(
+    public IncrementalCompilePlan planMain(
             Path projectDirectory,
             ProjectConfig config,
             List<Path> sources,
@@ -54,7 +56,7 @@ final class IncrementalCompilePlanner {
                 List.of());
     }
 
-    IncrementalCompilePlan planTest(
+    public IncrementalCompilePlan planTest(
             Path projectDirectory,
             ProjectConfig config,
             SourceDiscoveryResult sources,
@@ -167,7 +169,7 @@ final class IncrementalCompilePlanner {
                 state.reverseDependencies());
     }
 
-    IncrementalCompileValidation validateAfterIncrementalCompile(IncrementalCompilePlan plan) {
+    public IncrementalCompileValidation validateAfterIncrementalCompile(IncrementalCompilePlan plan) {
         return abiValidator.validate(plan);
     }
 

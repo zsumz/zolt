@@ -1,12 +1,13 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
+import com.zolt.build.CompileDiagnostics;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-record IncrementalCompilePlan(
+public record IncrementalCompilePlan(
         boolean incremental,
         List<Path> sourcesToCompile,
         String fallbackReason,
@@ -18,15 +19,15 @@ record IncrementalCompilePlan(
         Map<Path, IncrementalCompileState.SourceRecord> previousSources,
         Map<Path, IncrementalCompileState.ClassRecord> previousClasses,
         Map<String, List<Path>> reverseDependencies) {
-    static IncrementalCompilePlan full(String reason) {
+    public static IncrementalCompilePlan full(String reason) {
         return full(reason, List.of());
     }
 
-    static IncrementalCompilePlan full(String reason, List<Path> outputsToDelete) {
+    public static IncrementalCompilePlan full(String reason, List<Path> outputsToDelete) {
         return full(reason, outputsToDelete, 0);
     }
 
-    static IncrementalCompilePlan full(String reason, List<Path> outputsToDelete, int sourcesDeleted) {
+    public static IncrementalCompilePlan full(String reason, List<Path> outputsToDelete, int sourcesDeleted) {
         return new IncrementalCompilePlan(
                 false,
                 List.of(),
@@ -41,7 +42,7 @@ record IncrementalCompilePlan(
                 Map.of());
     }
 
-    static IncrementalCompilePlan incremental(
+    public static IncrementalCompilePlan incremental(
             List<Path> sourcesToCompile,
             int sourcesAdded,
             List<IncrementalCompileState.SourceRecord> changedPreviousRecords,
@@ -70,16 +71,16 @@ record IncrementalCompilePlan(
                 reverseDependencies == null ? Map.of() : reverseDependencies);
     }
 
-    Optional<IncrementalCompileState.ClassRecord> previousClass(Path output) {
+    public Optional<IncrementalCompileState.ClassRecord> previousClass(Path output) {
         Path normalized = output.toAbsolutePath().normalize();
         return Optional.ofNullable(previousClasses.get(normalized));
     }
 
-    boolean hasSource(Path source) {
+    public boolean hasSource(Path source) {
         return previousSources.containsKey(source.toAbsolutePath().normalize());
     }
 
-    CompileDiagnostics diagnostics(int sourcesRecompiled, IncrementalCompileValidation validation) {
+    public CompileDiagnostics diagnostics(int sourcesRecompiled, IncrementalCompileValidation validation) {
         return new CompileDiagnostics(
                 sourcesAdded,
                 sourcesChanged,
@@ -91,7 +92,7 @@ record IncrementalCompilePlan(
                 validation.packagePrivateAbiChangedClasses());
     }
 
-    CompileDiagnostics fullDiagnostics(int sourcesRecompiled) {
+    public CompileDiagnostics fullDiagnostics(int sourcesRecompiled) {
         return new CompileDiagnostics(
                 sourcesAdded,
                 sourcesChanged,

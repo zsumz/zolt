@@ -1,7 +1,8 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.zolt.build.CompileDiagnostics;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;

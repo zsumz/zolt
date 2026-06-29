@@ -1,5 +1,7 @@
 package com.zolt.build;
 
+import com.zolt.build.incremental.IncrementalCompileState;
+import com.zolt.build.incremental.IncrementalCompileStateCodec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

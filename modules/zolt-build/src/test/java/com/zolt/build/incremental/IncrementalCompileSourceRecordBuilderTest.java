@@ -1,9 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.incremental;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.ClassFileAbi;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
