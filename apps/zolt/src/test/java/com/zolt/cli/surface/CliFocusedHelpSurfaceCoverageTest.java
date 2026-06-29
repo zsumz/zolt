@@ -14,6 +14,7 @@ final class CliFocusedHelpSurfaceCoverageTest {
     private static final Set<String> FOCUSED_HELP_SURFACE_PATHS = Set.of(
             "zolt",
             "zolt add",
+            "zolt aliases",
             "zolt build",
             "zolt check",
             "zolt classpath",
@@ -49,6 +50,8 @@ final class CliFocusedHelpSurfaceCoverageTest {
             "zolt run-package",
             "zolt self-check",
             "zolt self-parity",
+            "zolt task",
+            "zolt tasks",
             "zolt test",
             "zolt test plan",
             "zolt tree",

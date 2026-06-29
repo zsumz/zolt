@@ -1,7 +1,11 @@
 [workspace]
 name = "workspace-app"
-members = ["apps/api", "modules/core"]
+members = ["apps/api", "modules/core", "tools"]
 defaultMembers = ["apps/api"]
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
+
+[commands.tasks.release-notes]
+description = "Run the Java tools member release-notes command"
+cmd = ["zolt", "run", "--workspace", "--member", "tools", "--", "release-notes"]
