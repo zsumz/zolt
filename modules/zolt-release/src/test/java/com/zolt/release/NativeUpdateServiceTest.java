@@ -6,12 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -89,6 +92,58 @@ final class NativeUpdateServiceTest {
         assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
+    @Test
+    void tarTraversalEntryFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        String[] unsafeEntries = {
+            "../zolt",
+            "/tmp/zolt",
+            "zolt-0.1.1-linux-x64/../../evil"
+        };
+        for (int index = 0; index < unsafeEntries.length; index++) {
+            Path archive = tarArchive(
+                    "zolt-0.1.1-linux-x64-" + index + ".tar.gz",
+                    TarEntry.file(unsafeEntries[index], "oops"));
+            Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+            Path workDirectory = tempDir.resolve("update-work-" + index);
+
+            NativeUpdateException exception = assertThrows(
+                    NativeUpdateException.class,
+                    () -> service.update(request(installed, channel, workDirectory)));
+
+            assertTrue(exception.getMessage().contains("unsafe entry path"), exception.getMessage());
+            assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        }
+    }
+
+    @Test
+    void tarSymlinkEntryFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = tarArchive("zolt-0.1.1-linux-x64.tar.gz", TarEntry.link("zolt-0.1.1-linux-x64/bin/zolt", '2'));
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work"))));
+
+        assertTrue(exception.getMessage().contains("symbolic link entry"), exception.getMessage());
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void tarHardLinkEntryFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = tarArchive("zolt-0.1.1-linux-x64.tar.gz", TarEntry.link("zolt-0.1.1-linux-x64/bin/zolt", '1'));
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work"))));
+
+        assertTrue(exception.getMessage().contains("hard link entry"), exception.getMessage());
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
     private NativeUpdateRequest request(InstalledFixture installed, Path channel, Path workDirectory) {
         return new NativeUpdateRequest(
                 installed.installRoot(),
@@ -137,6 +192,77 @@ final class NativeUpdateServiceTest {
         }
         Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"), sha256(archive) + "  " + archive.getFileName() + "\n");
         return archive;
+    }
+
+    private Path tarArchive(String archiveName, TarEntry... entries) throws IOException {
+        Path archive = tempDir.resolve("archives").resolve(archiveName);
+        Files.createDirectories(archive.getParent());
+        try (OutputStream output = new GZIPOutputStream(Files.newOutputStream(archive))) {
+            for (TarEntry entry : entries) {
+                writeTarEntry(output, entry);
+            }
+            output.write(new byte[1024]);
+        }
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"), sha256(archive) + "  " + archive.getFileName() + "\n");
+        return archive;
+    }
+
+    private static void writeTarEntry(OutputStream output, TarEntry entry) throws IOException {
+        long size = entry.type() == '0' ? entry.content().length : 0;
+        output.write(tarHeader(entry.name(), entry.type(), size));
+        if (entry.type() == '0') {
+            output.write(entry.content());
+            pad(output, size);
+        }
+    }
+
+    private static byte[] tarHeader(String name, char type, long size) {
+        byte[] header = new byte[512];
+        writeString(header, 0, 100, name);
+        writeOctal(header, 100, 8, 0644);
+        writeOctal(header, 108, 8, 0);
+        writeOctal(header, 116, 8, 0);
+        writeOctal(header, 124, 12, size);
+        writeOctal(header, 136, 12, 0);
+        for (int index = 148; index < 156; index++) {
+            header[index] = ' ';
+        }
+        header[156] = (byte) type;
+        if (type == '1' || type == '2') {
+            writeString(header, 157, 100, "../../outside");
+        }
+        writeString(header, 257, 6, "ustar");
+        writeString(header, 263, 2, "00");
+        long checksum = 0;
+        for (byte value : header) {
+            checksum += Byte.toUnsignedInt(value);
+        }
+        writeOctal(header, 148, 8, checksum);
+        header[155] = ' ';
+        return header;
+    }
+
+    private static void writeString(byte[] output, int offset, int length, String value) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(bytes, 0, output, offset, Math.min(bytes.length, length));
+    }
+
+    private static void writeOctal(byte[] output, int offset, int length, long value) {
+        String octal = Long.toOctalString(value);
+        int start = offset + length - octal.length() - 1;
+        for (int index = offset; index < start; index++) {
+            output[index] = '0';
+        }
+        byte[] bytes = octal.getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(bytes, 0, output, start, bytes.length);
+        output[offset + length - 1] = 0;
+    }
+
+    private static void pad(OutputStream output, long size) throws IOException {
+        int padding = (int) (512 - (size % 512));
+        if (padding != 512) {
+            output.write(new byte[padding]);
+        }
     }
 
     private Path writeChannel(
@@ -215,5 +341,15 @@ final class NativeUpdateServiceTest {
     }
 
     private record InstalledFixture(Path installRoot, Path binLink) {
+    }
+
+    private record TarEntry(String name, char type, byte[] content) {
+        private static TarEntry file(String name, String content) {
+            return new TarEntry(name, '0', content.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private static TarEntry link(String name, char type) {
+            return new TarEntry(name, type, new byte[0]);
+        }
     }
 }

@@ -15,8 +15,6 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public final class NativeUpdateService {
     private final ReleaseChannelManifestValidator manifestValidator = new ReleaseChannelManifestValidator();
@@ -52,7 +50,8 @@ public final class NativeUpdateService {
             unpack(archive, extractDirectory, artifact);
             Path candidateRoot = singleDirectory(extractDirectory);
             assertUnderRoot(extractDirectory, candidateRoot, "native update extraction candidate");
-            Path candidateBinary = candidateRoot.resolve("bin").resolve(artifact.binaryName());
+            Path candidateBinary = candidateRoot.resolve("bin").resolve(artifact.binaryName()).normalize();
+            assertUnderRoot(candidateRoot, candidateBinary, "native update candidate binary");
             if (!Files.isExecutable(candidateBinary)) {
                 throw new NativeUpdateException("Downloaded native Zolt archive does not contain executable bin/" + artifact.binaryName() + ".");
             }
@@ -151,37 +150,8 @@ public final class NativeUpdateService {
         }
     }
 
-    private static void unpack(Path archive, Path destination, ReleaseChannelArtifact artifact) throws IOException, InterruptedException {
-        if (artifact.format().equals("zip")) {
-            unzip(archive, destination);
-            return;
-        }
-        Process process = new ProcessBuilder("tar", "-xzf", archive.toString(), "-C", destination.toString())
-                .redirectErrorStream(true)
-                .start();
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new NativeUpdateException("Could not unpack native Zolt archive with tar.");
-        }
-    }
-
-    private static void unzip(Path archive, Path destination) throws IOException {
-        try (ZipInputStream input = new ZipInputStream(Files.newInputStream(archive))) {
-            ZipEntry entry = input.getNextEntry();
-            while (entry != null) {
-                Path output = destination.resolve(entry.getName()).normalize();
-                if (!output.startsWith(destination)) {
-                    throw new NativeUpdateException("Native Zolt archive contains an unsafe zip entry: " + entry.getName() + ".");
-                }
-                if (entry.isDirectory()) {
-                    Files.createDirectories(output);
-                } else {
-                    Files.createDirectories(output.getParent());
-                    Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING);
-                }
-                entry = input.getNextEntry();
-            }
-        }
+    private static void unpack(Path archive, Path destination, ReleaseChannelArtifact artifact) throws IOException {
+        ReleaseArchiveUnpacker.unpack(archive, destination, artifact.format(), NativeUpdateException::new);
     }
 
     private static Path singleDirectory(Path directory) throws IOException {

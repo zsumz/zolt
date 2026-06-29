@@ -2,7 +2,6 @@ package com.zolt.release;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,9 +10,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public final class ReleaseVerificationService {
     private final ProcessRunner processRunner;
@@ -66,11 +62,11 @@ public final class ReleaseVerificationService {
         verifyChecksum(archive);
         String rootName = rootName(archive.getFileName().toString(), target);
         Path unpackDirectory = Files.createTempDirectory(workDirectory, rootName + "-");
-        if (target.zip()) {
-            unpackZip(archive, unpackDirectory);
-        } else {
-            unpackTarGz(archive, unpackDirectory);
-        }
+        ReleaseArchiveUnpacker.unpack(
+                archive,
+                unpackDirectory,
+                target.archiveExtension().substring(1),
+                message -> archiveFailure(archive, message));
         Path binary = unpackDirectory.resolve(rootName).resolve("bin").resolve(target.binaryName());
         if (!Files.isRegularFile(binary)) {
             throw archiveFailure(archive, "expected binary at " + binary + " after unpacking.");
@@ -166,102 +162,6 @@ public final class ReleaseVerificationService {
             throw archiveFailure(archive, "`zolt build` on the initialized smoke project failed with exit code "
                     + result.exitCode() + ". Output:\n" + result.output());
         }
-    }
-
-    private static void unpackZip(Path archive, Path destination) throws IOException {
-        try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(archive))) {
-            ZipEntry entry = zip.getNextEntry();
-            while (entry != null) {
-                Path output = safeResolve(destination, entry.getName());
-                if (entry.isDirectory()) {
-                    Files.createDirectories(output);
-                } else {
-                    Files.createDirectories(output.getParent());
-                    try (OutputStream file = Files.newOutputStream(output)) {
-                        zip.transferTo(file);
-                    }
-                }
-                zip.closeEntry();
-                entry = zip.getNextEntry();
-            }
-        }
-    }
-
-    private static void unpackTarGz(Path archive, Path destination) throws IOException {
-        try (InputStream input = new GZIPInputStream(Files.newInputStream(archive))) {
-            byte[] header = input.readNBytes(512);
-            while (header.length == 512 && !allZero(header)) {
-                String name = readNullTerminated(header, 0, 100);
-                int mode = Integer.parseInt(readNullTerminated(header, 100, 8).trim(), 8);
-                long size = Long.parseLong(readNullTerminated(header, 124, 12).trim(), 8);
-                byte type = header[156];
-                Path output = safeResolve(destination, name);
-                if (type == '5') {
-                    Files.createDirectories(output);
-                } else {
-                    Files.createDirectories(output.getParent());
-                    try (OutputStream file = Files.newOutputStream(output)) {
-                        copyExactly(input, file, size);
-                    }
-                    output.toFile().setExecutable((mode & 0100) != 0);
-                    skipPadding(input, size);
-                }
-                header = input.readNBytes(512);
-            }
-        }
-    }
-
-    private static Path safeResolve(Path destination, String entryName) {
-        Path output = destination.resolve(entryName).normalize();
-        if (!output.startsWith(destination.normalize())) {
-            throw new ReleaseVerificationException(
-                    "Release archive contains unsafe entry path `" + entryName + "`.");
-        }
-        return output;
-    }
-
-    private static void copyExactly(InputStream input, OutputStream output, long size) throws IOException {
-        byte[] buffer = new byte[8192];
-        long remaining = size;
-        while (remaining > 0) {
-            int read = input.read(buffer, 0, (int) Math.min(buffer.length, remaining));
-            if (read < 0) {
-                throw new ReleaseVerificationException("Release archive ended before file content was complete.");
-            }
-            output.write(buffer, 0, read);
-            remaining -= read;
-        }
-    }
-
-    private static void skipPadding(InputStream input, long size) throws IOException {
-        long padding = (512 - (size % 512)) % 512;
-        while (padding > 0) {
-            long skipped = input.skip(padding);
-            if (skipped <= 0) {
-                if (input.read() < 0) {
-                    throw new ReleaseVerificationException("Release archive ended before file padding was complete.");
-                }
-                skipped = 1;
-            }
-            padding -= skipped;
-        }
-    }
-
-    private static boolean allZero(byte[] bytes) {
-        for (byte value : bytes) {
-            if (value != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static String readNullTerminated(byte[] bytes, int offset, int length) {
-        int end = offset;
-        while (end < offset + length && bytes[end] != 0) {
-            end++;
-        }
-        return new String(bytes, offset, end - offset, StandardCharsets.UTF_8);
     }
 
     private static String sha256(Path archivePath) throws IOException {
