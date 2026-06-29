@@ -1,5 +1,8 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.PackageArtifact;
+import com.zolt.build.PackageException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
@@ -14,14 +17,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-final class PackageSupplementalArtifactAssembler {
+public final class PackageSupplementalArtifactAssembler {
     private final ClasspathBuilder classpathBuilder;
 
-    PackageSupplementalArtifactAssembler(ClasspathBuilder classpathBuilder) {
+    public PackageSupplementalArtifactAssembler(ClasspathBuilder classpathBuilder) {
         this.classpathBuilder = classpathBuilder;
     }
 
-    List<PackageArtifact> assemble(
+    public List<PackageArtifact> assemble(
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,

@@ -3,6 +3,7 @@ package com.zolt.build;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
+import com.zolt.build.packaging.PackageSupplementalArtifactAssembler;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;

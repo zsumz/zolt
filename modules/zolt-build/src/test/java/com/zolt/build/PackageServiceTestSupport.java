@@ -21,15 +21,15 @@ import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Assumptions;
 
-final class PackageServiceTestSupport {
+public final class PackageServiceTestSupport {
     private PackageServiceTestSupport() {
     }
 
-    static ProjectConfig config(Optional<String> mainClass) {
+    public static ProjectConfig config(Optional<String> mainClass) {
         return config(new ProjectMetadata("demo", "0.1.0", "com.example", currentJavaMajorVersion(), mainClass));
     }
 
-    static ProjectConfig config(ProjectMetadata projectMetadata) {
+    public static ProjectConfig config(ProjectMetadata projectMetadata) {
         return ProjectConfigs.withDirectDependencies(
                 projectMetadata,
                 Map.of("central", "https://repo.maven.apache.org/maven2"),
@@ -38,7 +38,7 @@ final class PackageServiceTestSupport {
                 BuildSettings.defaults());
     }
 
-    static BuildSettings buildSettingsWithMetadata(BuildMetadataSettings metadataSettings) {
+    public static BuildSettings buildSettingsWithMetadata(BuildMetadataSettings metadataSettings) {
         return new BuildSettings(
                 "src/main/java",
                 "src/test/java",
@@ -48,7 +48,7 @@ final class PackageServiceTestSupport {
                 metadataSettings);
     }
 
-    static ResourceFilteringSettings resourceFilteringSettings() {
+    public static ResourceFilteringSettings resourceFilteringSettings() {
         return new ResourceFilteringSettings(
                 true,
                 false,
@@ -60,21 +60,21 @@ final class PackageServiceTestSupport {
                         "serverPort", ResourceTokenSettings.literal("0")));
     }
 
-    static void source(Path projectDir, String path, String content) throws IOException {
+    public static void source(Path projectDir, String path, String content) throws IOException {
         Path source = projectDir.resolve(path);
         Files.createDirectories(source.getParent());
         Files.writeString(source, content);
     }
 
-    static void writeLockfile(Path projectDir) throws IOException {
+    public static void writeLockfile(Path projectDir) throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
     }
 
-    static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
+    public static void createJarWithEntry(Path jarPath, String entryName) throws IOException {
         createJarWithEntries(jarPath, Map.of(entryName, "\0"));
     }
 
-    static void createJarWithEntries(Path jarPath, Map<String, String> entries) throws IOException {
+    public static void createJarWithEntries(Path jarPath, Map<String, String> entries) throws IOException {
         Files.createDirectories(jarPath.getParent());
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
             for (Map.Entry<String, String> entry : entries.entrySet().stream()
@@ -87,7 +87,7 @@ final class PackageServiceTestSupport {
         }
     }
 
-    static void createSymlink(Path link, Path target) throws IOException {
+    public static void createSymlink(Path link, Path target) throws IOException {
         try {
             Files.createSymbolicLink(link, target);
         } catch (UnsupportedOperationException | IOException exception) {
@@ -95,13 +95,13 @@ final class PackageServiceTestSupport {
         }
     }
 
-    static String readEntry(JarFile jar, String name) throws IOException {
+    public static String readEntry(JarFile jar, String name) throws IOException {
         try (InputStream input = jar.getInputStream(jar.getEntry(name))) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
-    static String currentJavaMajorVersion() {
+    public static String currentJavaMajorVersion() {
         String version = System.getProperty("java.version");
         String[] parts = version.split("[._+-]", -1);
         if (parts.length >= 2 && "1".equals(parts[0])) {

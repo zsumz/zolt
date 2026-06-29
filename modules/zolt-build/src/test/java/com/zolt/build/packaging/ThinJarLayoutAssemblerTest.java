@@ -1,9 +1,12 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageResult;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;

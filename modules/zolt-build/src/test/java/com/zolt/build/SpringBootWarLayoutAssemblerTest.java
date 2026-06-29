@@ -5,8 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.project.PackageMode;
+import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.dependency.PackageId;
+import com.zolt.project.PackageMode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

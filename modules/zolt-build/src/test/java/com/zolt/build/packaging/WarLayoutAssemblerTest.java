@@ -1,10 +1,14 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.dependency.PackageId;

@@ -1,5 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.GeneratedManifest;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.PackageResult;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
@@ -14,7 +20,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.jar.JarFile;
 
-final class UberJarLayoutAssembler {
+public final class UberJarLayoutAssembler {
     private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
             ".zolt-build-main.fingerprint",
             ".zolt-build-main.fingerprint.state",
@@ -25,11 +31,11 @@ final class UberJarLayoutAssembler {
 
     private final ManifestGenerator manifestGenerator;
 
-    UberJarLayoutAssembler(ManifestGenerator manifestGenerator) {
+    public UberJarLayoutAssembler(ManifestGenerator manifestGenerator) {
         this.manifestGenerator = manifestGenerator;
     }
 
-    PackageResult assemble(
+    public PackageResult assemble(
             ProjectConfig config,
             BuildResult buildResult,
             Path outputDirectory,

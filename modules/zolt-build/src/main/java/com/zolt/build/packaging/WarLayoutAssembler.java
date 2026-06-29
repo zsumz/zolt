@@ -1,5 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.GeneratedManifest;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
@@ -10,7 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-final class WarLayoutAssembler {
+public final class WarLayoutAssembler {
     private static final String WEB_INF_PREFIX = "WEB-INF/";
     private static final String WEB_INF_CLASSES_PREFIX = "WEB-INF/classes/";
     private static final String WEB_INF_LIB_PREFIX = "WEB-INF/lib/";
@@ -24,11 +29,11 @@ final class WarLayoutAssembler {
 
     private final ManifestGenerator manifestGenerator;
 
-    WarLayoutAssembler(ManifestGenerator manifestGenerator) {
+    public WarLayoutAssembler(ManifestGenerator manifestGenerator) {
         this.manifestGenerator = manifestGenerator;
     }
 
-    PackageResult assemble(
+    public PackageResult assemble(
             ProjectConfig config,
             BuildResult buildResult,
             Path outputDirectory,

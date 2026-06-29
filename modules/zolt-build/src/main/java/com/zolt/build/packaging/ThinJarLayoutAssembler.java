@@ -1,5 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.GeneratedManifest;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.lockfile.ZoltLockfile;
@@ -17,7 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-final class ThinJarLayoutAssembler {
+public final class ThinJarLayoutAssembler {
     private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
             ".zolt-build-main.fingerprint",
             ".zolt-build-main.fingerprint.state",
@@ -30,7 +35,7 @@ final class ThinJarLayoutAssembler {
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
 
-    ThinJarLayoutAssembler(
+    public ThinJarLayoutAssembler(
             ManifestGenerator manifestGenerator,
             ZoltLockfileReader lockfileReader,
             ClasspathBuilder classpathBuilder) {
@@ -39,7 +44,7 @@ final class ThinJarLayoutAssembler {
         this.classpathBuilder = classpathBuilder;
     }
 
-    PackageResult assemble(
+    public PackageResult assemble(
             Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,

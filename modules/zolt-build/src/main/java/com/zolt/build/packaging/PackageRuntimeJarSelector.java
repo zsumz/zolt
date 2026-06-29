@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
 import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
@@ -13,12 +13,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class PackageRuntimeJarSelector {
-    List<PackageRuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
+public final class PackageRuntimeJarSelector {
+    public List<PackageRuntimeJar> runtimeJars(ZoltLockfile lockfile, Path cacheRoot) {
         return runtimeJars(packagedClasspathPackages(lockfile, cacheRoot));
     }
 
-    List<PackageRuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
+    public List<PackageRuntimeJar> runtimeJars(List<ResolvedClasspathPackage> classpathPackages) {
         Map<String, PackageRuntimeJar> runtimeJars = new LinkedHashMap<>();
         packagedClasspathPackages(classpathPackages).stream()
                 .filter(dependency -> dependency.scope().entersMainRuntimeClasspath())
@@ -28,14 +28,14 @@ final class PackageRuntimeJarSelector {
         return List.copyOf(runtimeJars.values());
     }
 
-    List<PackageRuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
+    public List<PackageRuntimeJar> runtimeJarsWithoutProvidedDuplicates(List<ResolvedClasspathPackage> classpathPackages) {
         Set<PackageId> providedPackageIds = providedPackageIds(classpathPackages);
         return runtimeJars(classpathPackages).stream()
                 .filter(runtimeJar -> !providedPackageIds.contains(runtimeJar.packageId()))
                 .toList();
     }
 
-    List<PackageRuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
+    public List<PackageRuntimeJar> providedJars(List<ResolvedClasspathPackage> classpathPackages) {
         Map<String, PackageRuntimeJar> providedJars = new LinkedHashMap<>();
         classpathPackages.stream()
                 .filter(dependency -> dependency.scope() == DependencyScope.PROVIDED)
@@ -45,11 +45,11 @@ final class PackageRuntimeJarSelector {
         return List.copyOf(providedJars.values());
     }
 
-    List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
+    public List<ResolvedClasspathPackage> packagedClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
         return packagedClasspathPackages(LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot));
     }
 
-    List<ResolvedClasspathPackage> allClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
+    public List<ResolvedClasspathPackage> allClasspathPackages(ZoltLockfile lockfile, Path cacheRoot) {
         return LockfileClasspathPackageConverter.classpathPackages(lockfile, cacheRoot);
     }
 

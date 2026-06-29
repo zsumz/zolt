@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
 import static com.zolt.build.PackageServiceTestSupport.createJarWithEntries;
 import static com.zolt.build.PackageServiceTestSupport.readEntry;
@@ -7,6 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.ManifestGenerator;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.PackageResult;
+import com.zolt.build.PackageServiceTestSupport;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.classpath.ResolvedPackage;
 import com.zolt.dependency.DependencyScope;

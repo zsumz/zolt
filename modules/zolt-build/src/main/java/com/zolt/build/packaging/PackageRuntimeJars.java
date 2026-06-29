@@ -1,14 +1,15 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.PackageException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class PackageRuntimeJars {
+public final class PackageRuntimeJars {
     private PackageRuntimeJars() {
     }
 
-    static String nestedJarName(PackageRuntimeJar runtimeJar) {
+    public static String nestedJarName(PackageRuntimeJar runtimeJar) {
         Path fileName = runtimeJar.jarPath().getFileName();
         if (fileName != null && !fileName.toString().isBlank()) {
             return fileName.toString();
@@ -16,7 +17,7 @@ final class PackageRuntimeJars {
         return runtimeJar.packageId().toString().replace(':', '-') + "-" + runtimeJar.version() + ".jar";
     }
 
-    static byte[] read(PackageRuntimeJar runtimeJar) throws IOException {
+    public static byte[] read(PackageRuntimeJar runtimeJar) throws IOException {
         if (!Files.isRegularFile(runtimeJar.jarPath())) {
             throw new PackageException(
                     "Runtime dependency jar for "

@@ -1,5 +1,6 @@
 package com.zolt.build;
 
+import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;
 import java.nio.file.Path;

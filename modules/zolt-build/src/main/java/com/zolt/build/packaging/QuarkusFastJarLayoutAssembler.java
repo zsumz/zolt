@@ -1,5 +1,8 @@
-package com.zolt.build;
+package com.zolt.build.packaging;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.project.PackageMode;
 import java.io.IOException;
@@ -9,8 +12,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-final class QuarkusFastJarLayoutAssembler {
-    PackageResult assemble(
+public final class QuarkusFastJarLayoutAssembler {
+    public PackageResult assemble(
             BuildResult buildResult,
             PackageMode expectedMode,
             FrameworkPackageResult packageResult,
