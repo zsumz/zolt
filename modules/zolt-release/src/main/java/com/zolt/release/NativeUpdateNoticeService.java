@@ -32,6 +32,8 @@ public final class NativeUpdateNoticeService {
             return Optional.empty();
         }
 
+        ReleaseChannelUriPolicy.validate(request.channelUri(), true);
+
         Properties cache = readCache(request.stateDirectory());
         Duration interval = request.checkInterval() == null ? DEFAULT_CHECK_INTERVAL : request.checkInterval();
         if (!checkDue(cache, request.now(), interval)) {
@@ -78,7 +80,7 @@ public final class NativeUpdateNoticeService {
     }
 
     private ReleaseChannelManifest validateManifest(URI channelUri, String json) {
-        if ("file".equalsIgnoreCase(channelUri.getScheme())) {
+        if (ReleaseChannelUriPolicy.isLocalFile(channelUri)) {
             return manifestValidator.validateLocalManifest(json);
         }
         return manifestValidator.validate(json);

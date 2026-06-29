@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +38,31 @@ final class NativeUpdateServiceTest {
         assertEquals("0.1.1", result.availableVersion());
         assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
         assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
+    }
+
+    @Test
+    void rejectsUnsafeRemoteChannelUrisBeforeManifestDownload() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        String[] unsafeChannels = {
+            "http://dist.example/channel.json",
+            "https://user:pass@dist.example/channel.json",
+            "ftp://dist.example/channel.json",
+            "jar:https://dist.example/channel.json!/channel.json"
+        };
+
+        for (String unsafeChannel : unsafeChannels) {
+            NativeUpdateException exception = assertThrows(
+                    NativeUpdateException.class,
+                    () -> service.update(new NativeUpdateRequest(
+                            installed.installRoot(),
+                            installed.binLink(),
+                            URI.create(unsafeChannel),
+                            ReleaseTarget.LINUX_X64,
+                            tempDir.resolve("update-work"))));
+
+            assertTrue(exception.getMessage().contains("Release channel URL"), exception.getMessage());
+            assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        }
     }
 
     @Test

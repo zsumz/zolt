@@ -22,6 +22,7 @@ public final class NativeUpdateService {
     public NativeUpdateResult update(NativeUpdateRequest request) {
         try {
             NativeInstalledLayout installed = NativeInstalledLayout.detect(request.installRoot(), request.currentExecutable());
+            ReleaseChannelUriPolicy.validate(request.channelUri(), true);
             ReleaseChannelManifest manifest = validateManifest(request.channelUri(), downloadText(request.channelUri()));
             ReleaseChannelArtifact artifact = manifest.artifactFor(request.target());
             if (installed.version().equals(manifest.version())) {
@@ -85,7 +86,7 @@ public final class NativeUpdateService {
     }
 
     private ReleaseChannelManifest validateManifest(URI channelUri, String json) {
-        if ("file".equalsIgnoreCase(channelUri.getScheme())) {
+        if (ReleaseChannelUriPolicy.isLocalFile(channelUri)) {
             return manifestValidator.validateLocalManifest(json);
         }
         return manifestValidator.validate(json);

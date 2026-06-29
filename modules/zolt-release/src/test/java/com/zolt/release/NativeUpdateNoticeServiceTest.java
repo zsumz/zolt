@@ -1,6 +1,7 @@
 package com.zolt.release;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -79,6 +80,23 @@ final class NativeUpdateNoticeServiceTest {
         assertTrue(service.check(request(installed, channel, now, false, true, false, true)).isEmpty());
         assertTrue(service.check(request(installed, channel, now, false, false, true, true)).isEmpty());
         assertTrue(service.check(request(installed, channel, now, false, false, false, false)).isEmpty());
+    }
+
+    @Test
+    void suppressesInvalidChannelUrisBeforeCachingNoticeState() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path state = tempDir.resolve("state");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.check(request(
+                        installed,
+                        URI.create("http://dist.example/channel.json"),
+                        now,
+                        state)));
+
+        assertTrue(exception.getMessage().contains("Release channel URL"), exception.getMessage());
+        assertTrue(Files.notExists(state.resolve("update-check.properties")));
     }
 
     @Test

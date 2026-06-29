@@ -95,6 +95,24 @@ final class UpdateCommandTest {
     }
 
     @Test
+    void updateRejectsInstalledInsecureChannelUrlBeforeFetch() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Files.writeString(installed.installRoot().resolve("channel-url"), "http://dist.example/channel.json");
+
+        CommandResult result = execute(
+                "update",
+                "--internal-enable-update",
+                "--install-root", installed.installRoot().toString(),
+                "--current-executable", installed.binLink().toString(),
+                "--target", "linux-x64",
+                "--work-dir", tempDir.resolve("update-work").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("Release channel URL must be an HTTPS URL with a host."));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
     void updateFailsOnChecksumMismatchBeforeSwitchingVersion() throws IOException {
         InstalledFixture installed = install("0.1.0");
         Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "0".repeat(64));
