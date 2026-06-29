@@ -1,18 +1,18 @@
 package com.zolt.quarkus;
 
+import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.build.testruntime.TestRunException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionCodec;
 import com.zolt.test.TestSelectionException;
-import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.build.testruntime.TestRunException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
-import java.util.Collections;
 import java.util.stream.Collectors;
 
 public final class QuarkusTestRunnerDescriptorReader {

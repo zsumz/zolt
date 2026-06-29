@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptorReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

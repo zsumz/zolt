@@ -1,12 +1,12 @@
 package com.zolt.quarkus;
 
+import com.zolt.dependency.DependencyScope;
 import com.zolt.framework.FrameworkPackagePlanDependency;
 import com.zolt.framework.FrameworkPackagePlanRules;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPaths;
-import com.zolt.dependency.DependencyScope;
 import java.nio.file.Path;
 
 public final class QuarkusPackagePlanRules implements FrameworkPackagePlanRules {

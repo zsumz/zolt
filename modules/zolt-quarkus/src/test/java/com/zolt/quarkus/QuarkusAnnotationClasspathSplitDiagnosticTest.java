@@ -3,6 +3,8 @@ package com.zolt.quarkus;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.PackageId;
+import com.zolt.quarkus.bootstrap.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

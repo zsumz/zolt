@@ -3,10 +3,10 @@ package com.zolt.quarkus;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.quarkus.test.config.ConfigLauncherSession;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import io.quarkus.test.config.ConfigLauncherSession;
 import org.junit.jupiter.api.Test;
 
 final class QuarkusAnnotationProgrammaticRunnerTest {

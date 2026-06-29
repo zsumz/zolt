@@ -4,6 +4,7 @@ import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.production.QuarkusBuildAugmentationService;
 import java.nio.file.Path;
 import java.util.Optional;
 

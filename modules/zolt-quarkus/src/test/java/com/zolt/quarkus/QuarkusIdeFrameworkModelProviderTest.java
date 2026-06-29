@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.ide.IdeModel;
 import com.zolt.ide.IdeModelJsonWriter;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.production.QuarkusAugmentationMetadataWriter;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;

@@ -9,8 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 final class QuarkusAnnotationFailureDiagnostics {
-    private static final String MAIN_OUTPUT_DIRECTORY_PROPERTY =
-            QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY;
+    private static final String MAIN_OUTPUT_DIRECTORY_PROPERTY = QuarkusAnnotationProgrammaticRunner.MAIN_OUTPUT_DIRECTORY_PROPERTY;
 
     private final PrintStream out;
     private final QuarkusBuildChainDiagnostic buildChainDiagnostic;

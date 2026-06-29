@@ -4,6 +4,7 @@ import com.zolt.framework.FrameworkBuildAugmentationResult;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkBuildException;
 import com.zolt.project.ProjectConfig;
+import com.zolt.quarkus.production.QuarkusBuildAugmentationService;
 import java.nio.file.Path;
 import java.util.Optional;
 

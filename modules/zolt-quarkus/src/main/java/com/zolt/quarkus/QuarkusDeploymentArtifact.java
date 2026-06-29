@@ -1,5 +1,6 @@
 package com.zolt.quarkus;
 
+import com.zolt.quarkus.bootstrap.QuarkusArtifactKey;
 import java.util.Optional;
 
 public record QuarkusDeploymentArtifact(
@@ -24,7 +25,7 @@ public record QuarkusDeploymentArtifact(
         }
     }
 
-    static QuarkusDeploymentArtifact parse(String value) {
+    public static QuarkusDeploymentArtifact parse(String value) {
         String trimmed = requireValue(value);
         String[] parts = trimmed.split(":", -1);
         if (parts.length == 3) {

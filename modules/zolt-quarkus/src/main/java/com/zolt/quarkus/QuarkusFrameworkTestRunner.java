@@ -1,12 +1,12 @@
 package com.zolt.quarkus;
 
-import com.zolt.build.testruntime.TestRunException;
 import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.test.TestSelection;
+import com.zolt.build.testruntime.TestRunException;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.project.ProjectConfig;
+import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;

@@ -1,5 +1,12 @@
 package com.zolt.quarkus;
 
+import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactory;
+import com.zolt.quarkus.bootstrap.QuarkusApplicationModelHandle;
+import com.zolt.quarkus.bootstrap.QuarkusApplicationModelOptions;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptorReader;
+import com.zolt.quarkus.bootstrap.QuarkusSerializedApplicationModelWriter;
+import com.zolt.quarkus.bootstrap.QuarkusWorkspaceModuleInputs;
 import java.io.PrintStream;
 import java.nio.file.Path;
 

@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.ProjectConfig;

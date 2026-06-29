@@ -1,5 +1,7 @@
 package com.zolt.quarkus;
 
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.QuarkusWorkspaceModuleInputs;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

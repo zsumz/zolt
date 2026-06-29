@@ -12,6 +12,8 @@ import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptorReader;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptorWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -1,5 +1,7 @@
 package com.zolt.quarkus;
 
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptorReader;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
