@@ -46,7 +46,8 @@ public final class ZoltTomlParser {
             "publish",
             "framework",
             "native",
-            "workspace");
+            "workspace",
+            "commands");
     public ProjectConfig parse(Path path) {
         try {
             return parse(Toml.parse(path));
