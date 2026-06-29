@@ -1,6 +1,6 @@
 package com.zolt.build;
 
-import static com.zolt.build.OpenApiGeneratedSourcePaths.safeProjectPath;
+import static com.zolt.build.OpenApiGeneratedSourcePaths.inputPath;
 
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
@@ -30,7 +30,7 @@ final class OpenApiGeneratedSourceValidator {
                             + step.id()
                             + "] requires exactly one input spec.");
         }
-        Path input = safeProjectPath(projectRoot, step.inputs().getFirst(), scope, step.id(), "input");
+        Path input = inputPath(projectRoot, step.inputs().getFirst(), scope, step.id(), "input");
         if (!Files.isRegularFile(input)) {
             throw new BuildException(
                     "OpenAPI input "
@@ -60,7 +60,7 @@ final class OpenApiGeneratedSourceValidator {
     }
 
     private static void requireFile(Path projectRoot, String value, String scope, String id, String field) {
-        Path path = safeProjectPath(projectRoot, value, scope, id, field);
+        Path path = inputPath(projectRoot, value, scope, id, field);
         if (!Files.isRegularFile(path)) {
             throw new BuildException(
                     "OpenAPI "
@@ -76,7 +76,7 @@ final class OpenApiGeneratedSourceValidator {
     }
 
     private static void requireDirectory(Path projectRoot, String value, String scope, String id, String field) {
-        Path path = safeProjectPath(projectRoot, value, scope, id, field);
+        Path path = inputPath(projectRoot, value, scope, id, field);
         if (!Files.isDirectory(path)) {
             throw new BuildException(
                     "OpenAPI "

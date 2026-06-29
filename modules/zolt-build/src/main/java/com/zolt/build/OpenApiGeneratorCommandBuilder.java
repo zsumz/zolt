@@ -1,6 +1,7 @@
 package com.zolt.build;
 
-import static com.zolt.build.OpenApiGeneratedSourcePaths.safeProjectPath;
+import static com.zolt.build.OpenApiGeneratedSourcePaths.inputPath;
+import static com.zolt.build.OpenApiGeneratedSourcePaths.outputPath;
 
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
@@ -34,11 +35,11 @@ final class OpenApiGeneratorCommandBuilder {
         command.add(MAIN_CLASS);
         command.add("generate");
         command.add("--input-spec");
-        command.add(safeProjectPath(projectRoot, step.inputs().getFirst(), scope, step.id(), "input").toString());
+        command.add(inputPath(projectRoot, step.inputs().getFirst(), scope, step.id(), "input").toString());
         command.add("--generator-name");
         command.add(settings.generator().orElseThrow());
         command.add("--output");
-        command.add(safeProjectPath(projectRoot, step.output(), scope, step.id(), "output").toString());
+        command.add(outputPath(projectRoot, step.output(), scope, step.id(), "output").toString());
         if (settings.validateSpec().isPresent() && !settings.validateSpec().orElseThrow()) {
             command.add("--skip-validate-spec");
         }
@@ -49,11 +50,11 @@ final class OpenApiGeneratorCommandBuilder {
         settings.config().ifPresent(value -> addOption(
                 command,
                 "--config",
-                safeProjectPath(projectRoot, value, scope, step.id(), "config").toString()));
+                inputPath(projectRoot, value, scope, step.id(), "config").toString()));
         settings.templateDir().ifPresent(value -> addOption(
                 command,
                 "--template-dir",
-                safeProjectPath(projectRoot, value, scope, step.id(), "templateDir").toString()));
+                inputPath(projectRoot, value, scope, step.id(), "templateDir").toString()));
         String additionalProperties = joinedMap(additionalProperties(settings));
         if (!additionalProperties.isBlank()) {
             addOption(command, "--additional-properties", additionalProperties);

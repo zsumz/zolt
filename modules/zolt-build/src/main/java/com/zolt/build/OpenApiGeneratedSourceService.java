@@ -1,6 +1,6 @@
 package com.zolt.build;
 
-import static com.zolt.build.OpenApiGeneratedSourcePaths.safeProjectPath;
+import static com.zolt.build.OpenApiGeneratedSourcePaths.outputPath;
 
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
@@ -91,7 +91,7 @@ public final class OpenApiGeneratedSourceService {
             String scope,
             GeneratedSourceStep step) {
         OpenApiGeneratedSourceValidator.validateStep(projectRoot, scope, step);
-        Path output = safeProjectPath(projectRoot, step.output(), scope, step.id(), "output");
+        Path output = outputPath(projectRoot, step.output(), scope, step.id(), "output");
         OpenApiGeneratedSourceCache.GenerationCacheState cacheState = cache.state(
                 projectRoot,
                 output,

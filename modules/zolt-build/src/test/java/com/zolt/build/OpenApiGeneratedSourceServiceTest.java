@@ -8,7 +8,9 @@ import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.writeGener
 import static com.zolt.build.OpenApiGeneratedSourceServiceTestSupport.writeProjectFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -144,7 +146,40 @@ final class OpenApiGeneratedSourceServiceTest {
         assertEquals(3, commands.size());
     }
 
+    @Test
+    void rejectsSymlinkedOutputBeforeDeletingTarget() throws IOException {
+        writeProjectFiles(projectDir);
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-openapi-output-");
+        Files.writeString(outside.resolve("sentinel.txt"), "keep");
+        Path output = projectDir.resolve("target/generated/sources/openapi/public-api");
+        createSymlink(output, outside);
+        List<List<String>> commands = new ArrayList<>();
+        OpenApiGeneratedSourceService service = service(projectDir, (command, directory) -> {
+            commands.add(command);
+            return new OpenApiGeneratedSourceService.ProcessResult(0, "generated\n");
+        });
+
+        BuildException exception = assertThrows(
+                BuildException.class,
+                () -> service.generateMain(projectDir, configWithAdditionalProperties(Map.of("sourceFolder", ".")), packages(projectDir)));
+
+        assertTrue(exception.getMessage().contains("Invalid OpenAPI output path `target/generated/sources/openapi/public-api`"));
+        assertTrue(exception.getMessage().contains("[generated.main.public-api].output"));
+        assertTrue(exception.getMessage().contains("resolved through symlinks"));
+        assertTrue(Files.exists(outside.resolve("sentinel.txt")));
+        assertTrue(commands.isEmpty());
+    }
+
     private static String optionValue(List<String> command, String option) {
         return command.get(command.indexOf(option) + 1);
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 }
