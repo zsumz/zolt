@@ -191,6 +191,63 @@ final class CleanCommandTest {
         assertEquals("Nothing to clean\n", result.stdout());
     }
 
+    @Test
+    void cleanWorkspaceDeletesSelectedMembersAndDependencies() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-clean");
+        writeWorkspaceConfig(workspaceDir, """
+                [workspace]
+                name = "workspace-clean"
+                members = ["apps/api", "modules/core", "apps/worker"]
+                """);
+        writeWorkspaceMember(workspaceDir, "modules/core", "core", "");
+        writeWorkspaceMember(workspaceDir, "apps/api", "api", """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        writeWorkspaceMember(workspaceDir, "apps/worker", "worker", "");
+        writeOutput(workspaceDir, "modules/core/target/classes/Core.class");
+        writeOutput(workspaceDir, "apps/api/target/classes/Api.class");
+        writeOutput(workspaceDir, "apps/worker/target/classes/Worker.class");
+        writeOutput(workspaceDir, "apps/api/.zolt/cache/artifact.jar");
+        writeOutput(workspaceDir, ".zolt/cache/artifact.jar");
+
+        CommandResult result = execute(
+                "clean",
+                "--workspace",
+                "--member",
+                "apps/api",
+                "--cwd",
+                workspaceDir.toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Deleted 2 workspace build output paths across 2 members"));
+        assertTrue(result.stdout().contains("Deleted modules/core " + workspaceDir.resolve("modules/core/target")));
+        assertTrue(result.stdout().contains("Deleted apps/api " + workspaceDir.resolve("apps/api/target")));
+        assertFalse(Files.exists(workspaceDir.resolve("modules/core/target")));
+        assertFalse(Files.exists(workspaceDir.resolve("apps/api/target")));
+        assertTrue(Files.exists(workspaceDir.resolve("apps/worker/target/classes/Worker.class")));
+        assertTrue(Files.exists(workspaceDir.resolve("apps/api/.zolt/cache/artifact.jar")));
+        assertTrue(Files.exists(workspaceDir.resolve(".zolt/cache/artifact.jar")));
+        assertFalse(Files.exists(workspaceDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void cleanWorkspaceHandlesMissingOutputsCleanly() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-noop-clean");
+        writeWorkspaceConfig(workspaceDir, """
+                [workspace]
+                name = "workspace-noop-clean"
+                members = ["apps/api"]
+                """);
+        writeWorkspaceMember(workspaceDir, "apps/api", "api", "");
+
+        CommandResult result = execute("clean", "--workspace", "--cwd", workspaceDir.toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertEquals("Nothing to clean\n", result.stdout());
+    }
+
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
@@ -214,6 +271,43 @@ final class CleanCommandTest {
                 output = "target/classes"
                 testOutput = "target/test-classes"
                 """.formatted(currentJavaMajorVersion(), repositoryUrl));
+    }
+
+    private static void writeWorkspaceConfig(Path workspaceDir, String content) throws IOException {
+        Files.createDirectories(workspaceDir);
+        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), content);
+    }
+
+    private static void writeWorkspaceMember(
+            Path workspaceDir,
+            String memberPath,
+            String name,
+            String extraToml) throws IOException {
+        Path memberDir = workspaceDir.resolve(memberPath);
+        Files.createDirectories(memberDir);
+        Files.writeString(memberDir.resolve("zolt.toml"), """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+
+                [repositories]
+                central = "https://repo.maven.apache.org/maven2"
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "target/classes"
+                testOutput = "target/test-classes"
+                %s
+                """.formatted(name, currentJavaMajorVersion(), extraToml));
+    }
+
+    private static void writeOutput(Path root, String path) throws IOException {
+        Path output = root.resolve(path);
+        Files.createDirectories(output.getParent());
+        Files.writeString(output, "output");
     }
 
     private static void enableQuarkus(Path projectDir) throws IOException {
