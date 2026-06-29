@@ -39,7 +39,7 @@ public final class NativeUpdateNoticeService {
         }
 
         try {
-            ReleaseChannelManifest manifest = manifestValidator.validate(downloadText(request.channelUri()));
+            ReleaseChannelManifest manifest = validateManifest(request.channelUri(), downloadText(request.channelUri()));
             writeCache(request, manifest.version(), manifest.channel());
             if (isNewer(installed.version(), manifest.version())) {
                 return Optional.of(new NativeUpdateNotice(
@@ -75,6 +75,13 @@ public final class NativeUpdateNoticeService {
                 installed.version(),
                 latestVersion,
                 true));
+    }
+
+    private ReleaseChannelManifest validateManifest(URI channelUri, String json) {
+        if ("file".equalsIgnoreCase(channelUri.getScheme())) {
+            return manifestValidator.validateLocalManifest(json);
+        }
+        return manifestValidator.validate(json);
     }
 
     private static boolean checkDue(Properties cache, Instant now, Duration interval) {

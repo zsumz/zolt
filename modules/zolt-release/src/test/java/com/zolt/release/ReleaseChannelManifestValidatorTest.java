@@ -208,6 +208,7 @@ final class ReleaseChannelManifestValidatorTest {
         for (String archive : new String[] {
             "../zolt.tar.gz",
             "/tmp/zolt.tar.gz",
+            "C:\\\\zolt.tar.gz",
             "dir/zolt.tar.gz",
             "dir\\\\zolt.tar.gz",
             ""

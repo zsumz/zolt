@@ -6,6 +6,7 @@ import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
@@ -23,7 +24,7 @@ public final class NativeUpdateService {
     public NativeUpdateResult update(NativeUpdateRequest request) {
         try {
             NativeInstalledLayout installed = NativeInstalledLayout.detect(request.installRoot(), request.currentExecutable());
-            ReleaseChannelManifest manifest = manifestValidator.validate(downloadText(request.channelUri()));
+            ReleaseChannelManifest manifest = validateManifest(request.channelUri(), downloadText(request.channelUri()));
             ReleaseChannelArtifact artifact = manifest.artifactFor(request.target());
             if (installed.version().equals(manifest.version())) {
                 return new NativeUpdateResult(
@@ -38,30 +39,36 @@ public final class NativeUpdateService {
             Path workDirectory = request.workDirectory() == null
                     ? Files.createTempDirectory("zolt-update-")
                     : request.workDirectory().toAbsolutePath().normalize();
-            Files.createDirectories(workDirectory);
-            Path archive = workDirectory.resolve(artifact.archive());
+            Path workRoot = ownedDirectory(workDirectory, "native update work directory");
+            Path versionsRoot = ownedDirectory(installed.versionsDirectory(), "native versions directory");
+            Path binRoot = ownedDirectory(installed.binLink().getParent(), "native bin directory");
+            Path archive = resolveUnderRoot(workRoot, artifact.archive(), "native update archive");
             download(URI.create(artifact.archiveUrl()), archive);
-            verifyChecksum(archive, expectedChecksum(artifact, workDirectory));
+            verifyChecksum(archive, expectedChecksum(artifact, workRoot));
 
-            Path extractDirectory = workDirectory.resolve("extract");
-            deleteIfExists(extractDirectory);
+            Path extractDirectory = resolveUnderRoot(workRoot, "extract", "native update extraction directory");
+            deleteIfExists(workRoot, extractDirectory, "native update extraction directory");
             Files.createDirectories(extractDirectory);
             unpack(archive, extractDirectory, artifact);
             Path candidateRoot = singleDirectory(extractDirectory);
+            assertUnderRoot(extractDirectory, candidateRoot, "native update extraction candidate");
             Path candidateBinary = candidateRoot.resolve("bin").resolve(artifact.binaryName());
             if (!Files.isExecutable(candidateBinary)) {
                 throw new NativeUpdateException("Downloaded native Zolt archive does not contain executable bin/" + artifact.binaryName() + ".");
             }
 
-            Path installDirectory = installed.versionsDirectory().resolve(manifest.version());
-            Path tempInstallDirectory = installed.versionsDirectory().resolve(manifest.version() + ".tmp");
-            deleteIfExists(tempInstallDirectory);
+            Path installDirectory = resolveUnderRoot(versionsRoot, manifest.version(), "native install directory");
+            Path tempInstallDirectory = resolveUnderRoot(versionsRoot, manifest.version() + ".tmp", "native temporary install directory");
+            deleteIfExists(versionsRoot, tempInstallDirectory, "native temporary install directory");
             Files.move(candidateRoot, tempInstallDirectory);
-            deleteIfExists(installDirectory);
+            deleteIfExists(versionsRoot, installDirectory, "native install directory");
             Files.move(tempInstallDirectory, installDirectory);
             Path installedBinary = installDirectory.resolve("bin").resolve(artifact.binaryName());
+            assertUnderRoot(installDirectory, installedBinary, "native installed binary");
             smokeCandidate(installedBinary, manifest.version());
-            switchCurrent(installed.binLink(), installed.linkTarget(), Path.of("../versions", manifest.version(), "bin", artifact.binaryName()));
+            Path nextTarget = Path.of("../versions", manifest.version(), "bin", artifact.binaryName());
+            assertUnderRoot(versionsRoot, binRoot.resolve(nextTarget), "native update symlink target");
+            switchCurrent(binRoot, installed.binLink(), installed.linkTarget(), nextTarget);
 
             return new NativeUpdateResult(
                     manifest.channel(),
@@ -76,6 +83,13 @@ public final class NativeUpdateService {
             Thread.currentThread().interrupt();
             throw new NativeUpdateException("Could not update native Zolt: update smoke was interrupted.", exception);
         }
+    }
+
+    private ReleaseChannelManifest validateManifest(URI channelUri, String json) {
+        if ("file".equalsIgnoreCase(channelUri.getScheme())) {
+            return manifestValidator.validateLocalManifest(json);
+        }
+        return manifestValidator.validate(json);
     }
 
     private static String downloadText(URI uri) throws IOException {
@@ -108,7 +122,7 @@ public final class NativeUpdateService {
         }
         String checksumUrl = artifact.checksumUrl()
                 .orElseThrow(() -> new NativeUpdateException("Release channel artifact `" + artifact.target().id() + "` must include checksumUrl or sha256."));
-        Path checksum = workDirectory.resolve(artifact.archive() + ".sha256");
+        Path checksum = resolveUnderRoot(workDirectory, artifact.archive() + ".sha256", "native update checksum");
         download(URI.create(checksumUrl), checksum);
         return Files.readString(checksum).split("\\s+")[0];
     }
@@ -192,9 +206,9 @@ public final class NativeUpdateService {
         }
     }
 
-    private static void switchCurrent(Path binLink, Path previousTarget, Path nextTarget) throws IOException {
+    private static void switchCurrent(Path binRoot, Path binLink, Path previousTarget, Path nextTarget) throws IOException {
         Path tempLink = binLink.resolveSibling(binLink.getFileName() + ".update");
-        Files.deleteIfExists(tempLink);
+        deleteIfExists(binRoot, tempLink, "native update temporary symlink");
         try {
             Files.createSymbolicLink(tempLink, nextTarget);
             try {
@@ -203,19 +217,43 @@ public final class NativeUpdateService {
                 Files.move(tempLink, binLink, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            Files.deleteIfExists(tempLink);
-            restoreLink(binLink, previousTarget);
+            deleteIfExists(binRoot, tempLink, "native update temporary symlink");
+            restoreLink(binRoot, binLink, previousTarget);
             throw exception;
         }
     }
 
-    private static void restoreLink(Path binLink, Path previousTarget) throws IOException {
-        Files.deleteIfExists(binLink);
+    private static void restoreLink(Path binRoot, Path binLink, Path previousTarget) throws IOException {
+        deleteIfExists(binRoot, binLink, "native current symlink");
         Files.createSymbolicLink(binLink, previousTarget);
     }
 
-    private static void deleteIfExists(Path path) throws IOException {
-        if (!Files.exists(path)) {
+    private static Path ownedDirectory(Path path, String label) throws IOException {
+        Path directory = path.toAbsolutePath().normalize();
+        Files.createDirectories(directory);
+        if (Files.isSymbolicLink(directory)) {
+            throw new NativeUpdateException(label + " must not be a symbolic link: " + directory + ".");
+        }
+        return directory.toRealPath().normalize();
+    }
+
+    private static Path resolveUnderRoot(Path root, String child, String label) {
+        Path path = root.resolve(child).normalize();
+        assertUnderRoot(root, path, label);
+        return path;
+    }
+
+    private static void assertUnderRoot(Path root, Path path, String label) {
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        Path normalizedPath = path.toAbsolutePath().normalize();
+        if (!normalizedPath.startsWith(normalizedRoot)) {
+            throw new NativeUpdateException(label + " must stay under " + normalizedRoot + ": " + normalizedPath + ".");
+        }
+    }
+
+    private static void deleteIfExists(Path root, Path path, String label) throws IOException {
+        assertUnderRoot(root, path, label);
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
         try (var stream = Files.walk(path)) {

@@ -1,7 +1,5 @@
 package com.zolt.release;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,15 +11,17 @@ import java.util.regex.Pattern;
 public final class ReleaseChannelManifestValidator {
     private static final Pattern NUMBER_FIELD = Pattern.compile("\"%s\"\\s*:\\s*(-?\\d+)");
     private static final Pattern STRING_FIELD = Pattern.compile("\"%s\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
-    private static final Pattern STABLE_VERSION = Pattern.compile("\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z][0-9A-Za-z._-]*)?");
-    private static final Pattern NIGHTLY_VERSION = Pattern.compile("[0-9A-Za-z._-]+-nightly\\.[0-9]{8}\\.[0-9A-Fa-f]{7,40}");
-    private static final Pattern ARCHIVE_FILENAME = Pattern.compile("[A-Za-z0-9._-]+");
-    private static final Pattern SHA256 = Pattern.compile("[0-9A-Fa-f]{64}");
-    private static final Pattern SIGNATURE_KIND = Pattern.compile("[A-Za-z0-9._-]+");
-    private static final Set<String> SUPPORTED_CHANNELS = Set.of("stable", "nightly");
     private static final int BETA_SCHEMA_VERSION = 1;
 
     public ReleaseChannelManifest validate(String json) {
+        return validate(json, false);
+    }
+
+    ReleaseChannelManifest validateLocalManifest(String json) {
+        return validate(json, true);
+    }
+
+    private ReleaseChannelManifest validate(String json, boolean allowFileUrls) {
         if (json == null || json.isBlank()) {
             throw new ReleaseChannelManifestException("Release channel manifest is empty.");
         }
@@ -39,13 +39,13 @@ public final class ReleaseChannelManifestValidator {
         String version = stringRequired(json, "version", "release channel manifest");
         String commit = stringRequired(json, "commit", "release channel manifest");
         String createdAt = stringRequired(json, "createdAt", "release channel manifest");
-        validateChannel(channel);
-        validateVersion(version);
-        List<ReleaseChannelArtifact> artifacts = artifacts(json);
+        ReleaseChannelManifestConstraints.validateChannel(channel);
+        ReleaseChannelManifestConstraints.validateVersion(version);
+        List<ReleaseChannelArtifact> artifacts = artifacts(json, allowFileUrls);
         return new ReleaseChannelManifest(schemaVersion, channel, version, commit, createdAt, artifacts);
     }
 
-    private static List<ReleaseChannelArtifact> artifacts(String json) {
+    private static List<ReleaseChannelArtifact> artifacts(String json, boolean allowFileUrls) {
         String body = arrayBody(json, "artifacts")
                 .orElseThrow(() -> new ReleaseChannelManifestException(
                         "Release channel manifest is missing artifacts array."));
@@ -57,7 +57,7 @@ public final class ReleaseChannelManifestValidator {
         Set<ReleaseTarget> seenTargets = new HashSet<>();
         List<ReleaseChannelArtifact> artifacts = new ArrayList<>();
         for (String artifactJson : artifactObjects) {
-            ReleaseChannelArtifact artifact = artifact(artifactJson);
+            ReleaseChannelArtifact artifact = artifact(artifactJson, allowFileUrls);
             if (!seenTargets.add(artifact.target())) {
                 throw new ReleaseChannelManifestException(
                         "Release channel manifest repeats target `" + artifact.target().id() + "`.");
@@ -67,7 +67,7 @@ public final class ReleaseChannelManifestValidator {
         return artifacts;
     }
 
-    private static ReleaseChannelArtifact artifact(String json) {
+    private static ReleaseChannelArtifact artifact(String json, boolean allowFileUrls) {
         String targetId = stringRequired(json, "target", "release channel artifact");
         ReleaseTarget target;
         try {
@@ -89,7 +89,7 @@ public final class ReleaseChannelManifestValidator {
         String binaryName = stringRequired(json, "binaryName", "release channel artifact " + target.id());
         Optional<ReleaseChannelArtifact.Signature> signature = signature(json);
 
-        validateArtifact(target, archive, archiveUrl, checksumUrl, sha256, format, binaryName, signature);
+        validateArtifact(target, archive, archiveUrl, checksumUrl, sha256, format, binaryName, signature, allowFileUrls);
         return new ReleaseChannelArtifact(
                 target,
                 archive,
@@ -109,7 +109,8 @@ public final class ReleaseChannelManifestValidator {
             Optional<String> sha256,
             String format,
             String binaryName,
-            Optional<ReleaseChannelArtifact.Signature> signature) {
+            Optional<ReleaseChannelArtifact.Signature> signature,
+            boolean allowFileUrls) {
         String expectedFormat = target.archiveExtension().substring(1);
         if (!format.equals(expectedFormat)) {
             throw new ReleaseChannelManifestException(
@@ -131,8 +132,8 @@ public final class ReleaseChannelManifestValidator {
                             + target.binaryName()
                             + "`.");
         }
-        validateArchiveFilename(target, archive);
-        validateHttpsUrl("archiveUrl", archiveUrl);
+        ReleaseChannelManifestConstraints.validateArchiveFilename(target, archive);
+        ReleaseChannelManifestConstraints.validateUrl("archiveUrl", archiveUrl, allowFileUrls);
         if (!archive.endsWith(target.archiveExtension()) || !archiveUrl.endsWith(target.archiveExtension())) {
             throw new ReleaseChannelManifestException(
                     "Release channel artifact `"
@@ -142,14 +143,14 @@ public final class ReleaseChannelManifestValidator {
                             + " archive, not a JVM/JRE artifact.");
         }
         checksumUrl.ifPresent(value -> {
-            validateHttpsUrl("checksumUrl", value);
+            ReleaseChannelManifestConstraints.validateUrl("checksumUrl", value, allowFileUrls);
             if (!value.endsWith(".sha256")) {
                 throw new ReleaseChannelManifestException(
                         "Release channel artifact `" + target.id() + "` checksumUrl must reference a .sha256 sidecar.");
             }
         });
-        sha256.ifPresent(value -> validateSha256(target, value));
-        signature.ifPresent(ReleaseChannelManifestValidator::validateSignature);
+        sha256.ifPresent(value -> ReleaseChannelManifestConstraints.validateSha256(target, value));
+        signature.ifPresent(value -> ReleaseChannelManifestConstraints.validateSignature(value, allowFileUrls));
         if (checksumUrl.isEmpty() && sha256.isEmpty()) {
             throw new ReleaseChannelManifestException(
                     "Release channel artifact `" + target.id() + "` must include checksumUrl or sha256.");
@@ -164,80 +165,6 @@ public final class ReleaseChannelManifestValidator {
         return Optional.of(new ReleaseChannelArtifact.Signature(
                 stringRequired(body.orElseThrow(), "kind", "release channel signature"),
                 stringRequired(body.orElseThrow(), "url", "release channel signature")));
-    }
-
-    private static void validateChannel(String channel) {
-        if (!SUPPORTED_CHANNELS.contains(channel)) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel manifest channel must be one of stable, nightly; got `" + channel + "`.");
-        }
-    }
-
-    private static void validateVersion(String version) {
-        validateSafeSegment("version", version);
-        if (STABLE_VERSION.matcher(version).matches() || NIGHTLY_VERSION.matcher(version).matches()) {
-            return;
-        }
-        throw new ReleaseChannelManifestException(
-                "Release channel manifest version must look like 0.1.0 or <base>-nightly.YYYYMMDD.<commit>; got `"
-                        + version
-                        + "`.");
-    }
-
-    private static void validateArchiveFilename(ReleaseTarget target, String archive) {
-        validateSafeSegment("archive", archive);
-        if (!ARCHIVE_FILENAME.matcher(archive).matches()) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel artifact `"
-                            + target.id()
-                            + "` archive must be a filename using letters, digits, dots, underscores, and hyphens.");
-        }
-    }
-
-    private static void validateSafeSegment(String field, String value) {
-        if (value.isBlank()
-                || !value.equals(value.strip())
-                || value.contains("/")
-                || value.contains("\\")
-                || value.contains("..")
-                || value.contains(":")
-                || value.chars().anyMatch(Character::isISOControl)) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel manifest " + field + " must be one safe path segment.");
-        }
-    }
-
-    private static void validateHttpsUrl(String field, String value) {
-        URI uri;
-        try {
-            uri = new URI(value);
-        } catch (URISyntaxException exception) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel manifest " + field + " must be a valid HTTPS URL.");
-        }
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getHost().isBlank()) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel manifest " + field + " must be a valid HTTPS URL.");
-        }
-        if (uri.getUserInfo() != null) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel manifest " + field + " must not include URL credentials.");
-        }
-    }
-
-    private static void validateSha256(ReleaseTarget target, String sha256) {
-        if (!SHA256.matcher(sha256).matches()) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel artifact `" + target.id() + "` sha256 must be exactly 64 hexadecimal characters.");
-        }
-    }
-
-    private static void validateSignature(ReleaseChannelArtifact.Signature signature) {
-        if (!SIGNATURE_KIND.matcher(signature.kind()).matches()) {
-            throw new ReleaseChannelManifestException(
-                    "Release channel signature kind must use letters, digits, dots, underscores, and hyphens.");
-        }
-        validateHttpsUrl("signature.url", signature.url());
     }
 
     private static int intRequired(String json, String fieldName, String context) {
