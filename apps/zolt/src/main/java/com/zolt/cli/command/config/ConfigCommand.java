@@ -67,7 +67,7 @@ public final class ConfigCommand implements Runnable {
             output.context("machine preferences only", "yes");
             output.context(
                     "project semantics source",
-                    "committed zolt.toml, zolt-workspace.toml, zolt.lock, env references, and command flags");
+                    "committed zolt.toml, workspace root config, zolt.lock, env references, and command flags");
             output.context("cache.root", config.cacheRoot() + " (source: " + config.sources().cacheRoot() + ")");
             output.context(
                     "repository.downloadConcurrency",

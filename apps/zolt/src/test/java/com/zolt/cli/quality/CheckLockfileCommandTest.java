@@ -119,7 +119,7 @@ final class CheckLockfileCommandTest {
                 "--check", "lockfile");
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("ok lockfile zolt.lock Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files."));
+        assertTrue(result.stdout().contains("ok lockfile zolt.lock Workspace zolt.lock matches the workspace config and member zolt.toml files."));
         assertEquals("", result.stderr());
         assertFalse(Files.exists(memberDir.resolve("zolt.lock")));
     }

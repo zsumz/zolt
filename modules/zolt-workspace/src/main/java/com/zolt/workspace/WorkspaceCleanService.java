@@ -30,7 +30,7 @@ public final class WorkspaceCleanService {
     public WorkspaceCleanResult clean(Path startDirectory, WorkspaceSelectionRequest selectionRequest) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new WorkspaceConfigException(
-                "Could not find zolt-workspace.toml. Run `zolt clean --workspace` from a workspace directory or create zolt-workspace.toml."));
+                "Could not find workspace config. Run `zolt clean --workspace` from a workspace directory or add zolt.toml with [workspace]."));
         WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<WorkspaceCleanResult.MemberCleanResult> results = new ArrayList<>();

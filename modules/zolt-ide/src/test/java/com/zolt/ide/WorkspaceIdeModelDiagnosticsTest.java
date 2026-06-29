@@ -66,7 +66,7 @@ final class WorkspaceIdeModelDiagnosticsTest {
         WorkspaceIdeModel model = service.export(tempDir.resolve("standalone"), tempDir.resolve("cache"), false, false);
 
         assertEquals("WORKSPACE_NOT_FOUND", model.diagnostics().getFirst().code());
-        assertEquals("Could not find zolt-workspace.toml.", model.diagnostics().getFirst().message());
+        assertEquals("Could not find workspace config.", model.diagnostics().getFirst().message());
         assertTrue(model.projects().isEmpty());
     }
 

@@ -106,8 +106,8 @@ final class LockfileQualityCheck {
                     Optional.empty(),
                     "zolt.lock",
                     requireOfflineReady
-                            ? "Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files, and locked artifacts are available from the local cache."
-                            : "Workspace zolt.lock matches zolt-workspace.toml and member zolt.toml files.");
+                            ? "Workspace zolt.lock matches the workspace config and member zolt.toml files, and locked artifacts are available from the local cache."
+                            : "Workspace zolt.lock matches the workspace config and member zolt.toml files.");
         } catch (ResolveException exception) {
             return QualityCheckResult.failed(
                     LOCKFILE,

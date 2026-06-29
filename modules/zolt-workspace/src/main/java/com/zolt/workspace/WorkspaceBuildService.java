@@ -84,7 +84,7 @@ public final class WorkspaceBuildService {
             WorkspaceSelectionRequest selectionRequest) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt build --workspace` from a workspace directory or create zolt-workspace.toml."));
+                "Could not find workspace config. Run `zolt build --workspace` from a workspace directory or add zolt.toml with [workspace]."));
         WorkspaceSelection selection = memberSelector.select(workspace, selectionRequest);
         Path lockfilePath = workspace.root().resolve("zolt.lock");
         Optional<ResolveResult> resolveResult = Optional.empty();

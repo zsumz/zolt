@@ -68,7 +68,7 @@ public final class WorkspaceResolveService {
     private ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, ResolveOptions options) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
-                "Could not find zolt-workspace.toml. Run `zolt resolve --workspace` from a workspace directory or create zolt-workspace.toml."));
+                "Could not find workspace config. Run `zolt resolve --workspace` from a workspace directory or add zolt.toml with [workspace]."));
         Path lockfilePath = workspace.root().resolve("zolt.lock");
         if (locked && !Files.isRegularFile(lockfilePath)) {
             throw new ResolveException(

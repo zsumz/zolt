@@ -127,7 +127,7 @@ final class WorkspaceSelfCheckService {
     static ProjectConfig selectedAppConfig(Path root) {
         Workspace workspace = new WorkspaceDiscoveryService()
                 .discover(root)
-                .orElseThrow(() -> new IllegalStateException("No zolt-workspace.toml found for self-check."));
+                .orElseThrow(() -> new IllegalStateException("No workspace config found for self-check."));
         WorkspaceSelection selection = new WorkspaceMemberSelector().select(workspace, WorkspaceSelectionRequest.defaults());
         String selectedMember = selection.selectedMembers().stream()
                 .findFirst()

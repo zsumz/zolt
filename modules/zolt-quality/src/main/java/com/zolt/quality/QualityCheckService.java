@@ -84,7 +84,7 @@ public final class QualityCheckService {
                 if (maybeWorkspace.isEmpty()) {
                     return new QualityCheckReport(root, true, QualityCheckCatalog.unavailableResults(
                             requestedChecks,
-                            "zolt-workspace.toml",
+                            "workspace config",
                             "No Zolt workspace was found for `zolt check --workspace`.",
                             "Run from a workspace root or remove --workspace for a single-project check."));
                 }
@@ -94,9 +94,9 @@ public final class QualityCheckService {
             } catch (WorkspaceConfigException exception) {
                 return new QualityCheckReport(root, true, QualityCheckCatalog.unavailableResults(
                         requestedChecks,
-                        "zolt-workspace.toml",
+                        "workspace config",
                         exception.getMessage(),
-                        "Fix zolt-workspace.toml or run `zolt check` for a single project."));
+                        "Fix workspace config or run `zolt check` for a single project."));
             }
         }
 

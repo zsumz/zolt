@@ -259,9 +259,9 @@ public final class WorkspaceIdeModelService {
                 List.of(new IdeModel.Diagnostic(
                         "error",
                         "WORKSPACE_NOT_FOUND",
-                        "Could not find zolt-workspace.toml.",
+                        "Could not find workspace config.",
                         start,
-                        "Run from a workspace directory or create zolt-workspace.toml.")));
+                        "Run from a workspace directory or add zolt.toml with [workspace].")));
     }
 
     private static WorkspaceIdeModel invalidWorkspace(Path start, WorkspaceConfigException exception) {
@@ -275,7 +275,7 @@ public final class WorkspaceIdeModelService {
                         "WORKSPACE_INVALID",
                         exception.getMessage(),
                         start,
-                        "Fix zolt-workspace.toml and run zolt ide model --workspace --format json again.")));
+                        "Fix workspace config and run zolt ide model --workspace --format json again.")));
     }
 
     private static WorkspaceIdeModel.WorkspaceInfo emptyWorkspaceInfo() {
