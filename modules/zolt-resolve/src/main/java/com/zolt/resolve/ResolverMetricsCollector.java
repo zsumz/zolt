@@ -1,6 +1,10 @@
 package com.zolt.resolve;
 
-final class ResolverMetricsCollector
+import com.zolt.resolve.materialization.ArtifactLoadMetricsSink;
+import com.zolt.resolve.metadata.EffectivePomLoadMetricsSink;
+import com.zolt.resolve.metadata.RawPomLoadMetricsSink;
+
+public final class ResolverMetricsCollector
         implements ResolverMetricsSink, ArtifactLoadMetricsSink, RawPomLoadMetricsSink, EffectivePomLoadMetricsSink {
     private int downloadCount;
     private int pomCacheHits;
@@ -104,15 +108,15 @@ final class ResolverMetricsCollector
         versionSelectionNanos += nanos;
     }
 
-    synchronized void addLockfileAssemblyNanos(long nanos) {
+    public synchronized void addLockfileAssemblyNanos(long nanos) {
         lockfileAssemblyNanos += nanos;
     }
 
-    synchronized int downloadCount() {
+    public synchronized int downloadCount() {
         return downloadCount;
     }
 
-    synchronized ResolveMetrics metrics() {
+    public synchronized ResolveMetrics metrics() {
         return new ResolveMetrics(
                 pomCacheHits,
                 pomCacheMisses,

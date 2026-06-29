@@ -8,6 +8,7 @@ import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.materialization.RepositoryOverlay;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.file.Files;
 import java.nio.file.Path;

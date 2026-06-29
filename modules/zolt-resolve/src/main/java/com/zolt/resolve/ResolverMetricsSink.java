@@ -1,6 +1,6 @@
 package com.zolt.resolve;
 
-interface ResolverMetricsSink {
+public interface ResolverMetricsSink {
     void addGraphTraversalNanos(long nanos);
 
     void addVersionSelectionNanos(long nanos);

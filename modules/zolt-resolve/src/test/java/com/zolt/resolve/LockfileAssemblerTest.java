@@ -1,17 +1,18 @@
 package com.zolt.resolve;
 
-import com.zolt.dependency.DependencyScope;
-import com.zolt.dependency.PackageId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cache.CachedArtifact;
+import com.zolt.dependency.DependencyScope;
+import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.metadata.ManagedVersion;
 import com.zolt.toml.ZoltTomlParser;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

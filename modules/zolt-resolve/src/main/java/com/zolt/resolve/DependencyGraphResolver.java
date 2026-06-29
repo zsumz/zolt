@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import com.zolt.project.DependencyPolicySettings;
+import com.zolt.resolve.metadata.DependencyMetadataSource;
 import java.util.List;
 
 final class DependencyGraphResolver {

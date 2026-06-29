@@ -1,13 +1,14 @@
 package com.zolt.resolve;
 
-import com.zolt.dependency.DependencyScope;
-import com.zolt.dependency.PackageId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.zolt.dependency.DependencyScope;
+import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.resolve.metadata.ManagedVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

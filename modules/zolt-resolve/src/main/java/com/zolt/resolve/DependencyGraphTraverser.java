@@ -6,6 +6,7 @@ import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.PomDependencyManager;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyPolicySettings;
+import com.zolt.resolve.metadata.DependencyMetadataSource;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;

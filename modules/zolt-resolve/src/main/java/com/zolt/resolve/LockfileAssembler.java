@@ -1,8 +1,8 @@
 package com.zolt.resolve;
 
+import com.zolt.cache.CachedArtifact;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.cache.CachedArtifact;
 import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
@@ -15,6 +15,7 @@ import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.metadata.ManagedVersion;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

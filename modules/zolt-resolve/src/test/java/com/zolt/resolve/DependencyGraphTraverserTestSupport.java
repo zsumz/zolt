@@ -8,6 +8,7 @@ import com.zolt.maven.RawPom;
 import com.zolt.maven.RawPomDependency;
 import com.zolt.maven.RawPomExclusion;
 import com.zolt.maven.RawPomRelocation;
+import com.zolt.resolve.metadata.DependencyMetadataSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

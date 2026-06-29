@@ -1,14 +1,15 @@
 package com.zolt.resolve;
 
-import com.zolt.dependency.PackageId;
 import com.zolt.cache.CachedArtifact;
+import com.zolt.dependency.PackageId;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.metadata.ManagedVersion;
 import java.util.List;
 import java.util.Map;
 
-interface LockfileAssemblyContext {
+public interface LockfileAssemblyContext {
     ProjectConfig config();
 
     Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors);

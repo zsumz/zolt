@@ -2,8 +2,8 @@ package com.zolt.resolve;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.LockfileFreshnessSummary;
+import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.lockfile.ZoltLockfileWriter;
@@ -12,6 +12,8 @@ import com.zolt.maven.MavenRepositoryClient;
 import com.zolt.maven.RawPomParser;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.materialization.RepositorySession;
+import com.zolt.resolve.metadata.DependencyMetadataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

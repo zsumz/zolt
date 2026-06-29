@@ -1,5 +1,6 @@
 package com.zolt.resolve;
 
+import com.zolt.resolve.materialization.RepositoryOverlay;
 import java.util.List;
 
 public record ResolveOptions(

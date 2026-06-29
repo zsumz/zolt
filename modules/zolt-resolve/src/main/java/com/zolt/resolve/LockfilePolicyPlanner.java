@@ -5,6 +5,7 @@ import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.resolve.metadata.ManagedVersion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

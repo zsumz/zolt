@@ -6,6 +6,7 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.EffectiveRawPom;
 import com.zolt.maven.PomPropertyInterpolator;
 import com.zolt.maven.RawPomRelocation;
+import com.zolt.resolve.metadata.DependencyMetadataSource;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
