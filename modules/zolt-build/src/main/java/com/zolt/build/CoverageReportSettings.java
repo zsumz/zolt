@@ -1,5 +1,6 @@
 package com.zolt.build;
 
+import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
 import com.zolt.test.TestShardSpec;

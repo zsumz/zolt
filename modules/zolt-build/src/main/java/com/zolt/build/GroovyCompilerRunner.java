@@ -20,7 +20,7 @@ public final class GroovyCompilerRunner {
         this(java.io.File.pathSeparator, GroovyCompilerRunner::runProcess);
     }
 
-    GroovyCompilerRunner(String pathSeparator, ProcessRunner processRunner) {
+    public GroovyCompilerRunner(String pathSeparator, ProcessRunner processRunner) {
         this.pathSeparator = pathSeparator;
         this.processRunner = processRunner;
     }
@@ -116,10 +116,10 @@ public final class GroovyCompilerRunner {
     }
 
     @FunctionalInterface
-    interface ProcessRunner {
+    public interface ProcessRunner {
         ProcessResult run(List<String> command);
     }
 
-    record ProcessResult(int exitCode, String output) {
+    public record ProcessResult(int exitCode, String output) {
     }
 }

@@ -2,8 +2,8 @@ package com.zolt.cli.command;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.CompileDiagnostics;
-import com.zolt.build.TestCompileResult;
-import com.zolt.build.TestRunResult;
+import com.zolt.build.testruntime.TestCompileResult;
+import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.test.TestSelection;
 import com.zolt.workspace.WorkspaceTestResult;
 import java.util.LinkedHashMap;

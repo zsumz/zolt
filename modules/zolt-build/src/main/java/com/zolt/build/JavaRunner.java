@@ -31,7 +31,7 @@ public final class JavaRunner {
         });
     }
 
-    JavaRunner(String pathSeparator, ProcessRunner processRunner) {
+    public JavaRunner(String pathSeparator, ProcessRunner processRunner) {
         this.pathSeparator = pathSeparator;
         this.processRunner = processRunner;
     }
@@ -201,7 +201,7 @@ public final class JavaRunner {
     }
 
     @FunctionalInterface
-    interface ProcessRunner {
+    public interface ProcessRunner {
         ProcessResult run(List<String> command, Consumer<String> outputConsumer);
 
         default ProcessResult run(
@@ -212,6 +212,6 @@ public final class JavaRunner {
         }
     }
 
-    record ProcessResult(int exitCode, String output) {
+    public record ProcessResult(int exitCode, String output) {
     }
 }

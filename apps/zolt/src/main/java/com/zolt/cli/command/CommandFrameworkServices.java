@@ -7,7 +7,7 @@ import com.zolt.build.PackagePlanService;
 import com.zolt.build.PackageService;
 import com.zolt.build.RunPackageService;
 import com.zolt.build.RunService;
-import com.zolt.build.TestRunService;
+import com.zolt.build.testruntime.TestRunService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkRunAugmenter;

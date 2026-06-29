@@ -1,7 +1,7 @@
 package com.zolt.cli.command;
 
-import com.zolt.build.TestReportSettings;
-import com.zolt.build.TestRunException;
+import com.zolt.build.testruntime.TestReportSettings;
+import com.zolt.build.testruntime.TestRunException;
 import com.zolt.plan.BuildPlan;
 import com.zolt.plan.BuildPlanFormatter;
 import com.zolt.plan.BuildPlanService;

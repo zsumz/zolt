@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.TestRunException;
+import com.zolt.build.testruntime.TestRunException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

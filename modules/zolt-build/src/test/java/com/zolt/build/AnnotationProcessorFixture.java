@@ -10,11 +10,11 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
 
-final class AnnotationProcessorFixture {
+public final class AnnotationProcessorFixture {
     private AnnotationProcessorFixture() {
     }
 
-    static Path processorJar(Path workDirectory) throws IOException {
+    public static Path processorJar(Path workDirectory) throws IOException {
         Path processorSource = source(workDirectory, "processor-src/com/example/processor/GeneratingProcessor.java", """
                 package com.example.processor;
 

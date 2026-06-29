@@ -3,7 +3,7 @@ package com.zolt.quarkus;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.TestJvmArguments;
+import com.zolt.build.testruntime.TestJvmArguments;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;

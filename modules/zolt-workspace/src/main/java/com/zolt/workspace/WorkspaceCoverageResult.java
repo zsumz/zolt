@@ -1,6 +1,6 @@
 package com.zolt.workspace;
 
-import com.zolt.build.TestRunResult;
+import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.resolve.ResolveResult;
 import java.nio.file.Path;
 import java.util.List;

@@ -1,8 +1,8 @@
 package com.zolt.workspace;
 
-import com.zolt.build.TestJvmArguments;
-import com.zolt.build.TestReportSettings;
-import com.zolt.build.TestRunService;
+import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.build.testruntime.TestReportSettings;
+import com.zolt.build.testruntime.TestRunService;
 import com.zolt.build.profile.TestProfileMerger;
 import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.doctor.JdkChecker;

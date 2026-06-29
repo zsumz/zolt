@@ -1,5 +1,6 @@
 package com.zolt.build;
 
+import com.zolt.build.testruntime.TestRunResult;
 import java.nio.file.Path;
 import java.util.Optional;
 

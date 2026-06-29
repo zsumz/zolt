@@ -5,7 +5,7 @@ import com.zolt.build.CoverageReportSettings;
 import com.zolt.build.CoverageService;
 import com.zolt.build.CoverageTooling;
 import com.zolt.build.JavaRunResult;
-import com.zolt.build.TestJvmArguments;
+import com.zolt.build.testruntime.TestJvmArguments;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestShardSpec;
@@ -167,7 +167,7 @@ public final class WorkspaceCoverageService {
                     Path cacheRoot,
                     TestSelection testSelection,
                     TestJvmArguments jvmArguments,
-                    com.zolt.build.TestReportSettings reportSettings,
+                    com.zolt.build.testruntime.TestReportSettings reportSettings,
                     List<String> cliEvents,
                     String suiteName,
                     TestShardSpec shard) {
@@ -238,7 +238,7 @@ public final class WorkspaceCoverageService {
                 Path cacheRoot,
                 TestSelection testSelection,
                 TestJvmArguments jvmArguments,
-                com.zolt.build.TestReportSettings reportSettings,
+                com.zolt.build.testruntime.TestReportSettings reportSettings,
                 List<String> cliEvents,
                 String suiteName,
                 TestShardSpec shard);

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.zolt.build.testruntime.TestReportSettings;
+import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;

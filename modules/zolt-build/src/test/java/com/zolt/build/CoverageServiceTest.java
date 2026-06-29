@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.build.testruntime.TestReportSettings;
+import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.doctor.JdkStatus;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
