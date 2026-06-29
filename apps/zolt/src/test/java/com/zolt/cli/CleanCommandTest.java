@@ -248,6 +248,48 @@ final class CleanCommandTest {
         assertEquals("Nothing to clean\n", result.stdout());
     }
 
+    @Test
+    void cleanWorkspaceUsesModernHumanOutputControls() throws IOException {
+        Path colorWorkspace = tempDir.resolve("workspace-color-clean");
+        writeWorkspaceConfig(colorWorkspace, """
+                [workspace]
+                name = "workspace-color-clean"
+                members = ["apps/api"]
+                """);
+        writeWorkspaceMember(colorWorkspace, "apps/api", "api", "");
+        writeOutput(colorWorkspace, "apps/api/target/classes/Api.class");
+        Path quietWorkspace = tempDir.resolve("workspace-quiet-clean");
+        writeWorkspaceConfig(quietWorkspace, """
+                [workspace]
+                name = "workspace-quiet-clean"
+                members = ["apps/api"]
+                """);
+        writeWorkspaceMember(quietWorkspace, "apps/api", "api", "");
+        writeOutput(quietWorkspace, "apps/api/target/classes/Api.class");
+
+        CommandResult color = execute(
+                "--color=always",
+                "clean",
+                "--workspace",
+                "--cwd",
+                colorWorkspace.toString());
+        CommandResult quiet = execute(
+                "--quiet",
+                "clean",
+                "--workspace",
+                "--cwd",
+                quietWorkspace.toString());
+
+        assertEquals(0, color.exitCode(), color.stderr());
+        assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m 1 workspace build output paths across 1 members"));
+        assertTrue(color.stdout().contains("\u001B[32mDeleted\u001B[0m apps/api " + colorWorkspace.resolve("apps/api/target")));
+        assertFalse(color.stdout().contains("\u001B[32mDeleted 1 workspace"));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+        assertFalse(Files.exists(colorWorkspace.resolve("apps/api/target")));
+        assertFalse(Files.exists(quietWorkspace.resolve("apps/api/target")));
+    }
+
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
