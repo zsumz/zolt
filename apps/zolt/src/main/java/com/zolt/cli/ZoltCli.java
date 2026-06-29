@@ -70,6 +70,8 @@ import picocli.CommandLine.Spec;
                 ClasspathCommand.class,
                 IdeCommand.class,
                 QuarkusCommand.class,
+                com.zolt.cli.command.task.TasksCommand.class,
+                com.zolt.cli.command.task.TaskCommand.class,
                 BuildCommand.class,
                 RunCommand.class,
                 TestCommand.class,

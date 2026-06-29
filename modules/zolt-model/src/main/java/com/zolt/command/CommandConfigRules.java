@@ -3,7 +3,7 @@ package com.zolt.command;
 import java.nio.file.Path;
 import java.util.Locale;
 
-public final class CommandConfigRules {
+final class CommandConfigRules {
     private CommandConfigRules() {
     }
 

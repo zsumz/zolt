@@ -288,6 +288,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.command.task.TasksCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.zolt.cli.command.task.TaskCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.command.build.BuildCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

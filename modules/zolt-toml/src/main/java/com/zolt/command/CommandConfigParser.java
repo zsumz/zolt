@@ -18,32 +18,6 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class CommandConfigParser {
-    private static final Set<String> TOP_LEVEL_SECTIONS = Set.of(
-            "project",
-            "repositories",
-            "repositoryCredentials",
-            "versions",
-            "platforms",
-            "dependencyPolicy",
-            "dependencyConstraints",
-            "api",
-            "dependencies",
-            "runtime",
-            "provided",
-            "dev",
-            "annotationProcessors",
-            "test",
-            "integrationTest",
-            "build",
-            "resources",
-            "generated",
-            "compiler",
-            "package",
-            "publish",
-            "framework",
-            "native",
-            "workspace",
-            "commands");
     private static final Set<String> COMMANDS_KEYS = Set.of("aliases", "tasks");
     private static final Set<String> TASK_KEYS = Set.of("description", "cmd", "cwd", "env");
 
@@ -73,7 +47,6 @@ public final class CommandConfigParser {
         if (result.hasErrors()) {
             throw new ZoltConfigException(parseErrorMessage(result));
         }
-        validateTopLevelSections(result);
 
         TomlTable commandsTable = result.getTable("commands");
         if (commandsTable == null) {
@@ -337,15 +310,6 @@ public final class CommandConfigParser {
             if (!allowedKeys.contains(key)) {
                 throw new ZoltConfigException(
                         "Unknown field [" + section + "]." + key + " in zolt.toml. Remove it or check the spelling.");
-            }
-        }
-    }
-
-    private static void validateTopLevelSections(TomlParseResult result) {
-        for (String key : result.keySet()) {
-            if (!TOP_LEVEL_SECTIONS.contains(key)) {
-                throw new ZoltConfigException(
-                        "Unknown top-level section [" + key + "] in zolt.toml. Remove it or check the spelling.");
             }
         }
     }
