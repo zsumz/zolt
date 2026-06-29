@@ -2,6 +2,7 @@ package com.zolt.generated;
 
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.JavaPackageValidator;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
@@ -20,7 +21,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public final class ProtobufGeneratedSourceService {
-    private static final Pattern PACKAGE = Pattern.compile("(?m)^\\s*package\\s+([A-Za-z_][A-Za-z0-9_.]*)\\s*;");
+    private static final Pattern PACKAGE = Pattern.compile("(?m)^\\s*package\\s+([^;\\s]+)\\s*;");
     private static final Pattern JAVA_PACKAGE = Pattern.compile("(?m)^\\s*option\\s+java_package\\s*=\\s*\"([^\"]+)\"\\s*;");
     private static final Pattern MESSAGE = Pattern.compile("(?m)^\\s*message\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\{");
     private static final Pattern SERVICE = Pattern.compile("(?m)^\\s*service\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\{");
@@ -53,10 +54,14 @@ public final class ProtobufGeneratedSourceService {
                 .sorted()
                 .map(input -> protoFile(root, step, scope, input))
                 .toList();
+        List<GeneratedProtoFile> generatedProtoFiles = protoFiles.stream()
+                .map(protoFile -> new GeneratedProtoFile(protoFile, javaPackage(step.protobuf(), protoFile)))
+                .toList();
         deleteOutput(output);
         createDirectory(output);
-        for (ProtoFile protoFile : protoFiles) {
-            String javaPackage = javaPackage(step.protobuf(), protoFile);
+        for (GeneratedProtoFile generatedProtoFile : generatedProtoFiles) {
+            ProtoFile protoFile = generatedProtoFile.protoFile();
+            String javaPackage = generatedProtoFile.javaPackage();
             Path packageRoot = packageRoot(output, javaPackage);
             createDirectory(packageRoot);
             for (String message : protoFile.messages()) {
@@ -68,7 +73,7 @@ public final class ProtobufGeneratedSourceService {
                 }
             }
         }
-        writeDescriptor(output, step, protoFiles);
+        writeDescriptor(output, step, generatedProtoFiles);
     }
 
     private static void validateStep(Path root, String scope, GeneratedSourceStep step) {
@@ -129,19 +134,33 @@ public final class ProtobufGeneratedSourceService {
                             + step.id()
                             + "].");
         }
-        return new ProtoFile(input, protoPackage, javaPackage, messages, services);
+        return new ProtoFile(
+                input,
+                protoPackage,
+                validateOptionalJavaPackage("Protobuf input " + input + " option java_package", javaPackage),
+                messages,
+                services);
     }
 
     private static String javaPackage(ProtobufGenerationSettings settings, ProtoFile protoFile) {
-        return settings.javaPackage()
+        String selected = settings.javaPackage()
                 .filter(value -> !value.isBlank())
                 .or(() -> Optional.of(protoFile.javaPackage()).filter(value -> !value.isBlank()))
                 .or(() -> Optional.of(protoFile.protoPackage()).filter(value -> !value.isBlank()))
                 .orElse("generated.protobuf");
+        return validateJavaPackage("Protobuf input " + protoFile.input() + " Java package", selected);
     }
 
     private static Path packageRoot(Path output, String javaPackage) {
-        return output.resolve(javaPackage.replace('.', '/'));
+        Path packageRoot = output;
+        for (String segment : javaPackage.split("\\.")) {
+            packageRoot = packageRoot.resolve(segment);
+        }
+        Path normalized = packageRoot.normalize();
+        if (!normalized.startsWith(output.normalize())) {
+            throw new GeneratedSourceException("Protobuf Java package path must stay under " + output + ".");
+        }
+        return normalized;
     }
 
     private static String messageSource(String javaPackage, String message) {
@@ -187,14 +206,15 @@ public final class ProtobufGeneratedSourceService {
         return javaPackage == null || javaPackage.isBlank() ? "" : "package " + javaPackage + ";\n";
     }
 
-    private static void writeDescriptor(Path output, GeneratedSourceStep step, List<ProtoFile> protoFiles) {
+    private static void writeDescriptor(Path output, GeneratedSourceStep step, List<GeneratedProtoFile> protoFiles) {
         Path descriptor = output.resolve("META-INF/zolt/protobuf/" + step.id() + ".descriptor");
         StringBuilder content = new StringBuilder();
         content.append("id=").append(step.id()).append('\n');
-        for (ProtoFile protoFile : protoFiles) {
+        for (GeneratedProtoFile generatedProtoFile : protoFiles) {
+            ProtoFile protoFile = generatedProtoFile.protoFile();
             content.append("input=").append(protoFile.input()).append('\n');
             content.append("package=").append(protoFile.protoPackage()).append('\n');
-            content.append("javaPackage=").append(javaPackage(step.protobuf(), protoFile)).append('\n');
+            content.append("javaPackage=").append(generatedProtoFile.javaPackage()).append('\n');
             content.append("messages=").append(String.join(",", protoFile.messages())).append('\n');
             content.append("services=").append(String.join(",", protoFile.services())).append('\n');
         }
@@ -213,6 +233,21 @@ public final class ProtobufGeneratedSourceService {
     private static Optional<String> first(Pattern pattern, String content) {
         Matcher matcher = pattern.matcher(content);
         return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
+    }
+
+    private static String validateJavaPackage(String subject, String value) {
+        try {
+            return JavaPackageValidator.requireValid(subject, value);
+        } catch (IllegalArgumentException exception) {
+            throw new GeneratedSourceException(exception.getMessage(), exception);
+        }
+    }
+
+    private static String validateOptionalJavaPackage(String subject, String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return validateJavaPackage(subject, value);
     }
 
     private static Path outputPath(Path root, String scope, GeneratedSourceStep step) {
@@ -275,5 +310,8 @@ public final class ProtobufGeneratedSourceService {
             messages = new ArrayList<>(messages).stream().sorted().toList();
             services = new ArrayList<>(services).stream().sorted().toList();
         }
+    }
+
+    private record GeneratedProtoFile(ProtoFile protoFile, String javaPackage) {
     }
 }

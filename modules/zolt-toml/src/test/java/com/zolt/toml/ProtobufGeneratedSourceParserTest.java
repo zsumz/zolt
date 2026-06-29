@@ -125,11 +125,47 @@ final class ProtobufGeneratedSourceParserTest {
         assertTrue(exception.getMessage().contains("Add at least one project-relative .proto input path"));
     }
 
+    @Test
+    void rejectsUnsafeConfiguredJavaPackage() {
+        for (String javaPackage : new String[] {
+            ".tmp.pwn",
+            "../pwn",
+            "com..example",
+            "com.example; class Evil {}",
+            "com.example\nclass Evil {}"
+        }) {
+            ZoltConfigException exception = assertThrows(ZoltConfigException.class, () ->
+                    ProtobufGeneratedSourceParser.parseStep(
+                            "greeter",
+                            table("""
+                                    [generated.main.greeter]
+                                    kind = "protobuf"
+                                    language = "java"
+                                    output = "target/generated/sources/protobuf"
+                                    inputs = ["src/main/proto/greeter.proto"]
+                                    javaPackage = "%s"
+                                    """.formatted(tomlString(javaPackage)), "generated", "main", "greeter"),
+                            "generated.main.greeter",
+                            ProtobufGenerationSettings.empty()));
+
+            assertTrue(exception.getMessage().contains("[generated.main.greeter].javaPackage Java package"));
+            assertTrue(exception.getMessage().contains("[A-Za-z_$][A-Za-z0-9_$]*"));
+            assertTrue(!exception.getMessage().contains("Evil"), exception.getMessage());
+        }
+    }
+
     private static TomlTable table(String content, String... path) {
         TomlTable table = Toml.parse(content);
         for (String key : path) {
             table = table.getTable(List.of(key));
         }
         return table;
+    }
+
+    private static String tomlString(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n");
     }
 }

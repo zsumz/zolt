@@ -128,6 +128,94 @@ final class ProtobufGeneratedSourceServiceTest {
         assertEquals(false, step.protobuf().grpc());
     }
 
+    @Test
+    void generationRejectsUnsafeProtoJavaPackageBeforeWritingOutput() throws IOException {
+        String[] unsafePackages = {
+            ".tmp.pwn",
+            "../pwn",
+            "com..example",
+            "com.example; class Evil {}",
+            "com.example\nclass Evil {}"
+        };
+        for (int index = 0; index < unsafePackages.length; index++) {
+            Path project = tempDir.resolve("unsafe-java-package-" + index);
+            Path proto = project.resolve("src/main/proto/greeter.proto");
+            Files.createDirectories(proto.getParent());
+            Files.writeString(proto, """
+                    syntax = "proto3";
+                    option java_package = "%s";
+                    message HelloReply {}
+                    """.formatted(unsafePackages[index]));
+            Path marker = project.resolve("target/generated/sources/protobuf/marker.txt");
+            Files.createDirectories(marker.getParent());
+            Files.writeString(marker, "keep");
+            var config = parser.parse(config("""
+                    [generated.main.greeter]
+                    kind = "protobuf"
+                    language = "java"
+                    inputs = ["src/main/proto/greeter.proto"]
+                    output = "target/generated/sources/protobuf"
+                    """));
+
+            GeneratedSourceException exception = assertThrows(
+                    GeneratedSourceException.class,
+                    () -> service.generateMain(project, config));
+
+            assertTrue(exception.getMessage().contains("option java_package"), exception.getMessage());
+            assertTrue(!exception.getMessage().contains("Evil"), exception.getMessage());
+            assertEquals("keep", Files.readString(marker));
+        }
+    }
+
+    @Test
+    void generationRejectsUnsafeProtoPackageWhenUsedAsJavaPackage() throws IOException {
+        Path proto = tempDir.resolve("src/main/proto/greeter.proto");
+        Files.createDirectories(proto.getParent());
+        Files.writeString(proto, """
+                syntax = "proto3";
+                package com..example;
+                message HelloReply {}
+                """);
+        var config = parser.parse(config("""
+                [generated.main.greeter]
+                kind = "protobuf"
+                language = "java"
+                inputs = ["src/main/proto/greeter.proto"]
+                output = "target/generated/sources/protobuf"
+                """));
+
+        GeneratedSourceException exception = assertThrows(
+                GeneratedSourceException.class,
+                () -> service.generateMain(tempDir, config));
+
+        assertTrue(exception.getMessage().contains("Protobuf input src/main/proto/greeter.proto Java package"));
+        assertTrue(exception.getMessage().contains("[A-Za-z_$][A-Za-z0-9_$]*"));
+    }
+
+    @Test
+    void generationBuildsPackagePathUnderOutputRoot() throws IOException {
+        Path proto = tempDir.resolve("src/main/proto/greeter.proto");
+        Files.createDirectories(proto.getParent());
+        Files.writeString(proto, """
+                syntax = "proto3";
+                option java_package = "com.example_$._internal";
+                message HelloReply {}
+                """);
+        var config = parser.parse(config("""
+                [generated.main.greeter]
+                kind = "protobuf"
+                language = "java"
+                inputs = ["src/main/proto/greeter.proto"]
+                output = "target/generated/sources/protobuf"
+                """));
+
+        service.generateMain(tempDir, config);
+
+        Path output = tempDir.resolve("target/generated/sources/protobuf/com/example_$/_internal");
+        assertTrue(Files.exists(output.resolve("HelloReply.java")));
+        assertTrue(Files.readString(output.resolve("HelloReply.java")).startsWith("package com.example_$._internal;"));
+    }
+
     private static String config(String generated) {
         return """
                 [project]

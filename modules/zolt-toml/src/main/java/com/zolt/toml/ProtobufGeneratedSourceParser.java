@@ -2,6 +2,7 @@ package com.zolt.toml;
 
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
+import com.zolt.project.JavaPackageValidator;
 import com.zolt.project.OpenApiGenerationSettings;
 import com.zolt.project.ProtobufGenerationSettings;
 import java.util.List;
@@ -51,7 +52,7 @@ final class ProtobufGeneratedSourceParser {
                 tool.grpcPluginCoordinate(),
                 tool.grpcPluginVersion(),
                 tool.grpcPluginVersionRef(),
-                TomlScalars.optionalString(table, section, "javaPackage"),
+                javaPackage(table, section),
                 TomlScalars.booleanOrDefault(table, section, "grpc", true));
         return new GeneratedSourceStep(
                 id,
@@ -122,5 +123,16 @@ final class ProtobufGeneratedSourceParser {
                             + ". Add it to [versions] or use an explicit version.");
         }
         return Optional.of(resolved);
+    }
+
+    private static Optional<String> javaPackage(TomlTable table, String section) {
+        return TomlScalars.optionalString(table, section, "javaPackage")
+                .map(value -> {
+                    try {
+                        return JavaPackageValidator.requireValid("[" + section + "].javaPackage", value);
+                    } catch (IllegalArgumentException exception) {
+                        throw new ZoltConfigException(exception.getMessage());
+                    }
+                });
     }
 }
