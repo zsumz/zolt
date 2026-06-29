@@ -14,6 +14,56 @@ java_opts=()
 if [[ -n "${ZOLT_JAVA_OPTS:-}" ]]; then
   read -r -a java_opts <<< "$ZOLT_JAVA_OPTS"
 fi
+BOOTSTRAP_LIST_MISSING=false
+BOOTSTRAP_OFFLINE=false
+if [[ "${ZOLT_BOOTSTRAP_OFFLINE:-}" == "1" ]]; then
+  BOOTSTRAP_OFFLINE=true
+fi
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/bootstrap-zolt-jvm [bootstrap-options] [zolt-args...]
+
+Compiles and runs Zolt from source with JDK tools, zolt.lock, and the local
+.zolt/cache artifact cache. Remaining arguments are passed to the Zolt CLI.
+
+Bootstrap options:
+  --bootstrap-list-missing   List missing cache artifacts from zolt.lock and exit.
+  --bootstrap-offline        Do not download missing bootstrap artifacts.
+  --help, -h                 Show this help and exit.
+
+Environment:
+  ZOLT_CACHE_ROOT            Artifact cache root. Default: .zolt/cache
+  ZOLT_LOCKFILE              Lockfile to read. Default: zolt.lock
+  ZOLT_MAVEN_CENTRAL         Download base URL. Default: Maven Central
+  ZOLT_BOOTSTRAP_OFFLINE=1   Same as --bootstrap-offline
+  ZOLT_JAVA_OPTS             Whitespace-separated JVM options for Zolt.
+USAGE
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --bootstrap-list-missing)
+      BOOTSTRAP_LIST_MISSING=true
+      shift
+      ;;
+    --bootstrap-offline)
+      BOOTSTRAP_OFFLINE=true
+      shift
+      ;;
+    --help | -h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 if [[ ! -f "$LOCKFILE" ]]; then
   printf 'error: bootstrap lockfile does not exist at %s\n' "$LOCKFILE" >&2
@@ -21,16 +71,22 @@ if [[ ! -f "$LOCKFILE" ]]; then
   exit 1
 fi
 
-if ! command -v javac >/dev/null 2>&1; then
-  printf 'error: javac is required for scripts/bootstrap-zolt-jvm\n' >&2
-  printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
-  exit 1
-fi
+require_jdk_tools() {
+  if ! command -v javac >/dev/null 2>&1; then
+    printf 'error: javac is required for scripts/bootstrap-zolt-jvm\n' >&2
+    printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
+    exit 1
+  fi
 
-if ! command -v jar >/dev/null 2>&1; then
-  printf 'error: jar is required for scripts/bootstrap-zolt-jvm\n' >&2
-  printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
-  exit 1
+  if ! command -v jar >/dev/null 2>&1; then
+    printf 'error: jar is required for scripts/bootstrap-zolt-jvm\n' >&2
+    printf 'hint: install JDK 21 or set JAVA_HOME to a JDK before retrying\n' >&2
+    exit 1
+  fi
+}
+
+if [[ "$BOOTSTRAP_LIST_MISSING" != true && "$BOOTSTRAP_OFFLINE" != true ]]; then
+  require_jdk_tools
 fi
 
 checksum() {
@@ -44,19 +100,47 @@ checksum() {
   fi
 }
 
+missing_artifact_block() {
+  local coordinate="$1"
+  local jar_path="$2"
+  local expected_sha="$3"
+  local artifact="${CACHE_ROOT}/${jar_path}"
+
+  printf 'missing bootstrap artifact:\n'
+  printf '  coordinate: %s\n' "$coordinate"
+  printf '  cache: %s\n' "$artifact"
+  printf '  source: %s/%s\n' "$MAVEN_CENTRAL" "$jar_path"
+  printf '  sha256: %s\n' "$expected_sha"
+}
+
 ensure_artifact() {
-  local jar_path="$1"
-  local expected_sha="$2"
+  local coordinate="$1"
+  local jar_path="$2"
+  local expected_sha="$3"
   local artifact="${CACHE_ROOT}/${jar_path}"
 
   if [[ ! -f "$artifact" ]]; then
+    if [[ "$BOOTSTRAP_LIST_MISSING" == true || "$BOOTSTRAP_OFFLINE" == true ]]; then
+      missing_artifact_block "$coordinate" "$jar_path" "$expected_sha"
+      missing_count=$((missing_count + 1))
+      return 0
+    fi
     if ! command -v curl >/dev/null 2>&1; then
       printf 'error: bootstrap artifact is missing and curl is not available: %s\n' "$artifact" >&2
+      missing_artifact_block "$coordinate" "$jar_path" "$expected_sha" >&2
       printf 'hint: seed %s or install curl before scripts/bootstrap-zolt-jvm\n' "$CACHE_ROOT" >&2
+      printf 'hint: run scripts/bootstrap-zolt-jvm --bootstrap-list-missing to list missing cache entries\n' >&2
       exit 1
     fi
     mkdir -p "$(dirname "$artifact")"
-    curl -fsSL "${MAVEN_CENTRAL}/${jar_path}" -o "$artifact"
+    if ! curl -fsSL "${MAVEN_CENTRAL}/${jar_path}" -o "$artifact"; then
+      rm -f "$artifact"
+      printf 'error: could not download bootstrap artifact for %s\n' "$coordinate" >&2
+      missing_artifact_block "$coordinate" "$jar_path" "$expected_sha" >&2
+      printf 'hint: clean source bootstrap requires Maven Central/network access or a seeded %s cache\n' "$CACHE_ROOT" >&2
+      printf 'hint: run scripts/bootstrap-zolt-jvm --bootstrap-list-missing to list cache entries to seed\n' >&2
+      exit 1
+    fi
   fi
 
   local actual_sha
@@ -71,12 +155,18 @@ ensure_artifact() {
 }
 
 classpath=""
-while IFS='|' read -r scope jar_path jar_sha; do
+missing_count=0
+while IFS='|' read -r scope package_id package_version jar_path jar_sha; do
   if [[ -z "$jar_path" ]]; then
     continue
   fi
-  ensure_artifact "$jar_path" "$jar_sha"
+  coordinate="$package_id"
+  if [[ -n "$package_version" ]]; then
+    coordinate="${coordinate}:${package_version}"
+  fi
+  ensure_artifact "$coordinate" "$jar_path" "$jar_sha"
   artifact="${CACHE_ROOT}/${jar_path}"
+  [[ -f "$artifact" ]] || continue
   if [[ -z "$classpath" ]]; then
     classpath="$artifact"
   else
@@ -85,8 +175,18 @@ while IFS='|' read -r scope jar_path jar_sha; do
 done < <(awk '
   /^\[\[package\]\]/ {
     scope = ""
+    id = ""
+    version = ""
     jar = ""
     sha = ""
+  }
+  /^id = / {
+    id = $3
+    gsub(/"/, "", id)
+  }
+  /^version = / {
+    version = $3
+    gsub(/"/, "", version)
   }
   /^scope = / {
     scope = $3
@@ -100,15 +200,35 @@ done < <(awk '
     sha = $3
     gsub(/"/, "", sha)
     if (scope != "test") {
-      print scope "|" jar "|" sha
+      print scope "|" id "|" version "|" jar "|" sha
     }
   }
 ' "$LOCKFILE")
+
+if [[ "$BOOTSTRAP_LIST_MISSING" == true ]]; then
+  if [[ "$missing_count" -gt 0 ]]; then
+    printf 'error: %s bootstrap artifact(s) missing from %s\n' "$missing_count" "$CACHE_ROOT" >&2
+    printf 'hint: seed the listed cache paths, or rerun scripts/bootstrap-zolt-jvm on a networked machine\n' >&2
+    exit 1
+  fi
+  printf 'ok: all bootstrap artifacts are present in %s\n' "$CACHE_ROOT"
+  exit 0
+fi
+
+if [[ "$missing_count" -gt 0 ]]; then
+  printf 'error: bootstrap offline mode found %s missing artifact(s) in %s\n' "$missing_count" "$CACHE_ROOT" >&2
+  printf 'hint: seed the listed cache paths or rerun without --bootstrap-offline on a networked machine\n' >&2
+  exit 1
+fi
 
 if [[ -z "$classpath" ]]; then
   printf 'error: no compile/runtime bootstrap artifacts were found in %s\n' "$LOCKFILE" >&2
   printf 'hint: check that zolt.lock contains non-test package entries\n' >&2
   exit 1
+fi
+
+if [[ "$BOOTSTRAP_OFFLINE" == true ]]; then
+  require_jdk_tools
 fi
 
 mkdir -p "$BOOTSTRAP_WORK_ROOT"
