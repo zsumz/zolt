@@ -28,6 +28,7 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "update",
+                "--internal-enable-update",
                 "--install-root", installRoot.toString(),
                 "--current-executable", devExecutable.toString(),
                 "--channel-url", channel.toUri().toString(),
@@ -79,6 +80,7 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "update",
+                "--internal-enable-update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
                 "--target", "linux-x64",
@@ -135,6 +137,7 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "--update-check", "always",
+                "--internal-enable-update-notices",
                 "--update-check-install-root", installed.installRoot().toString(),
                 "--update-check-current-executable", installed.binLink().toString(),
                 "--update-check-channel-url", channel.toUri().toString(),
@@ -144,7 +147,27 @@ final class UpdateCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
-        assertTrue(result.stderr().contains("A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Run `zolt update`."));
+        assertTrue(result.stderr().contains(
+                "A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Download and verify the latest native archive for this channel."));
+    }
+
+    @Test
+    void forcedUpdateAvailableNoticeIsSuppressedWithoutInternalFlag() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
+
+        CommandResult result = execute(
+                "--update-check", "always",
+                "--update-check-install-root", installed.installRoot().toString(),
+                "--update-check-current-executable", installed.binLink().toString(),
+                "--update-check-channel-url", channel.toUri().toString(),
+                "--update-check-target", "linux-x64",
+                "--update-check-state-dir", tempDir.resolve("notice-state").toString(),
+                "version");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
+        assertEquals("", result.stderr());
     }
 
     @Test
@@ -160,6 +183,7 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "--update-check", "always",
+                "--internal-enable-update-notices",
                 "--update-check-install-root", installed.installRoot().toString(),
                 "--update-check-current-executable", installed.binLink().toString(),
                 "--update-check-target", "linux-x64",
@@ -168,7 +192,7 @@ final class UpdateCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stderr().contains(
-                "A newer Zolt is available on nightly: 0.1.0-nightly.20260627.abcdef1 -> 0.1.0-nightly.20260628.0123456. Run `zolt update`."));
+                "A newer Zolt is available on nightly: 0.1.0-nightly.20260627.abcdef1 -> 0.1.0-nightly.20260628.0123456. Download and verify the latest native archive for this channel."));
     }
 
     @Test
@@ -194,6 +218,7 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "--update-check", "always",
+                "--internal-enable-update-notices",
                 "--update-check-install-root", installed.installRoot().toString(),
                 "--update-check-current-executable", installed.binLink().toString(),
                 "--update-check-channel-url", tempDir.resolve("missing-channel.json").toUri().toString(),
@@ -209,6 +234,7 @@ final class UpdateCommandTest {
     private CommandResult update(InstalledFixture installed, Path channel) {
         return execute(
                 "update",
+                "--internal-enable-update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
                 "--channel-url", channel.toUri().toString(),

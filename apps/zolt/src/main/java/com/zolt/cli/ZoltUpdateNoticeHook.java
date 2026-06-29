@@ -16,7 +16,7 @@ import picocli.CommandLine.ParseResult;
 
 final class ZoltUpdateNoticeHook {
     @Option(names = "--update-check", scope = CommandLine.ScopeType.INHERIT, hidden = true)
-    private String updateCheck = "auto";
+    private String updateCheck = "never";
 
     @Option(names = "--update-check-install-root", scope = CommandLine.ScopeType.INHERIT, hidden = true)
     private Path updateCheckInstallRoot = Path.of(System.getProperty("user.home"), ".zolt");
@@ -36,6 +36,9 @@ final class ZoltUpdateNoticeHook {
     @Option(names = "--update-check-interval-seconds", scope = CommandLine.ScopeType.INHERIT, hidden = true)
     private long updateCheckIntervalSeconds = 86_400;
 
+    @Option(names = "--internal-enable-update-notices", scope = CommandLine.ScopeType.INHERIT, hidden = true)
+    private boolean internalEnableUpdateNotices;
+
     int executeWithNotice(CommandLine commandLine, ParseResult parseResult, boolean quiet) {
         int exitCode = new CommandLine.RunLast().execute(parseResult);
         if (exitCode == 0) {
@@ -47,6 +50,7 @@ final class ZoltUpdateNoticeHook {
     private void printUpdateNotice(CommandLine commandLine, ParseResult parseResult, boolean quiet) {
         if (parseResult.isUsageHelpRequested()
                 || parseResult.isVersionHelpRequested()
+                || !internalEnableUpdateNotices
                 || shouldSkipUpdateNotice(parseResult, quiet)) {
             return;
         }

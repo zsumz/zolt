@@ -32,7 +32,7 @@ final class NativeUpdateNoticeServiceTest {
         assertEquals("0.1.0", notice.orElseThrow().currentVersion());
         assertEquals("0.1.1", notice.orElseThrow().availableVersion());
         assertEquals(
-                "A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Run `zolt update`.",
+                "A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Download and verify the latest native archive for this channel.",
                 notice.orElseThrow().message());
     }
 

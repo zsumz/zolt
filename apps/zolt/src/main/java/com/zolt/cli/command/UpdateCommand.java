@@ -19,7 +19,7 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-@Command(name = "update", description = "Update the Zolt executable in place.")
+@Command(name = "update", description = "Update the Zolt executable in place.", hidden = true)
 public final class UpdateCommand implements Callable<Integer> {
     private final NativeUpdateService nativeUpdateService;
 
@@ -38,6 +38,9 @@ public final class UpdateCommand implements Callable<Integer> {
     @Option(names = "--work-dir", hidden = true)
     private Path workDirectory;
 
+    @Option(names = "--internal-enable-update", hidden = true)
+    private boolean internalEnableUpdate;
+
     @Spec
     private CommandSpec spec;
 
@@ -52,6 +55,10 @@ public final class UpdateCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
+            if (!internalEnableUpdate) {
+                throw new NativeUpdateException(
+                        "zolt update is not a public-alpha install path. Download the native archive, verify its checksum, extract it, and put its bin directory on PATH.");
+            }
             ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
             NativeUpdateResult result = nativeUpdateService.update(new NativeUpdateRequest(
                     installRoot,

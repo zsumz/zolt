@@ -13,6 +13,6 @@ public record NativeUpdateNotice(
                 + currentVersion
                 + " -> "
                 + availableVersion
-                + ". Run `zolt update`.";
+                + ". Download and verify the latest native archive for this channel.";
     }
 }

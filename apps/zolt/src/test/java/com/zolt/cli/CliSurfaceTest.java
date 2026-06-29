@@ -17,26 +17,36 @@ final class CliSurfaceTest {
     private Path tempDir;
 
     @Test
-    void updateRefusesNonInstallerManagedLaunchByDefault() {
+    void updateIsNotAPublicAlphaInstallPathByDefault() {
         CommandResult result = execute("update");
 
         assertEquals(1, result.exitCode());
         assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("zolt update only supports installer-managed native Zolt layouts"));
+        assertTrue(result.stderr().contains("zolt update is not a public-alpha install path"));
+        assertTrue(result.stderr().contains("Download the native archive"));
     }
 
     @Test
-    void updateErrorsUseModernHumanOutputControls() {
+    void updateDisabledErrorsUseModernHumanOutputControls() {
         CommandResult color = execute("--color", "always", "update");
         CommandResult quiet = execute("--quiet", "update");
 
         assertEquals(1, color.exitCode());
-        assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m zolt update only supports installer-managed native Zolt layouts"));
+        assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m zolt update is not a public-alpha install path"));
         assertEquals("", color.stdout());
         assertFalse(color.stderr().contains("\u001B[31mNext"));
         assertEquals(1, quiet.exitCode());
         assertEquals("", quiet.stdout());
-        assertTrue(quiet.stderr().contains("zolt update only supports installer-managed native Zolt layouts"));
+        assertTrue(quiet.stderr().contains("zolt update is not a public-alpha install path"));
+    }
+
+    @Test
+    void rootHelpDoesNotAdvertiseUpdateForPublicAlpha() {
+        CommandResult result = execute("--list");
+
+        assertEquals(0, result.exitCode());
+        assertFalse(result.stdout().contains("update"));
+        assertTrue(result.stdout().contains("version"));
     }
 
     @Test
