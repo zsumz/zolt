@@ -6,6 +6,8 @@ import com.zolt.build.packaging.PackageRuntimeJarSelector;
 import com.zolt.build.packaging.QuarkusFastJarLayoutAssembler;
 import com.zolt.build.packaging.UberJarLayoutAssembler;
 import com.zolt.build.packaging.WarLayoutAssembler;
+import com.zolt.build.springboot.SpringBootJarLayoutAssembler;
+import com.zolt.build.springboot.SpringBootWarLayoutAssembler;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkPackageResult;
 import com.zolt.lockfile.ZoltLockfileReader;

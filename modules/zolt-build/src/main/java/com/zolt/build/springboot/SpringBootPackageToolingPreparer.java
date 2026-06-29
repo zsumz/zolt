@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;
@@ -8,11 +8,11 @@ import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class SpringBootPackageToolingPreparer {
+public final class SpringBootPackageToolingPreparer {
     private final Resolver resolver;
     private final ZoltLockfileReader lockfileReader;
 
-    SpringBootPackageToolingPreparer(ResolveService resolveService, ZoltLockfileReader lockfileReader) {
+    public SpringBootPackageToolingPreparer(ResolveService resolveService, ZoltLockfileReader lockfileReader) {
         this(resolveService::resolve, lockfileReader);
     }
 
@@ -21,7 +21,7 @@ final class SpringBootPackageToolingPreparer {
         this.lockfileReader = lockfileReader;
     }
 
-    void prepareIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
+    public void prepareIfNeeded(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         if (!isSpringBootArchive(config.packageSettings().mode())) {
             return;

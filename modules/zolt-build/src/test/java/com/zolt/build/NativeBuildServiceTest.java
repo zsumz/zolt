@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.zolt.build.springboot.SpringBootAotNativeInputs;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;

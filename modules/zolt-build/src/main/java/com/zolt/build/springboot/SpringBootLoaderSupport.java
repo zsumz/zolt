@@ -1,5 +1,6 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
+import com.zolt.build.PackageException;
 import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.dependency.PackageId;
 import java.io.IOException;

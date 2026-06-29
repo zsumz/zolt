@@ -1,5 +1,10 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
+import com.zolt.build.BuildException;
+import com.zolt.build.JavaRunException;
+import com.zolt.build.JavaRunner;
+import com.zolt.build.JavacException;
+import com.zolt.build.JavacRunner;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkStatus;
@@ -14,22 +19,22 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
-final class SpringBootAotGenerationService {
+public final class SpringBootAotGenerationService {
     private static final String SPRING_APPLICATION_AOT_PROCESSOR = "org.springframework.boot.SpringApplicationAotProcessor";
 
     private final JavacRunner javacRunner;
     private final JavaRunner javaRunner;
 
-    SpringBootAotGenerationService(JavacRunner javacRunner) {
+    public SpringBootAotGenerationService(JavacRunner javacRunner) {
         this(javacRunner, new JavaRunner());
     }
 
-    SpringBootAotGenerationService(JavacRunner javacRunner, JavaRunner javaRunner) {
+    public SpringBootAotGenerationService(JavacRunner javacRunner, JavaRunner javaRunner) {
         this.javacRunner = javacRunner;
         this.javaRunner = javaRunner;
     }
 
-    void generate(
+    public void generate(
             Path projectDirectory,
             ProjectConfig config,
             JdkStatus jdkStatus,

@@ -1,4 +1,4 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
 import java.nio.file.Path;
 import java.util.List;

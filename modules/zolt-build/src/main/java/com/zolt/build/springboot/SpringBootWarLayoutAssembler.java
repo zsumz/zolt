@@ -1,5 +1,9 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.GeneratedManifest;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.build.packaging.PackageArchiveWriter;
 import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.build.packaging.PackageRuntimeJars;
@@ -15,7 +19,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-final class SpringBootWarLayoutAssembler {
+public final class SpringBootWarLayoutAssembler {
     private static final String WEB_INF_PREFIX = "WEB-INF/";
     private static final String WEB_INF_CLASSES_PREFIX = "WEB-INF/classes/";
     private static final String WEB_INF_LIB_PREFIX = "WEB-INF/lib/";
@@ -28,7 +32,7 @@ final class SpringBootWarLayoutAssembler {
             ".zolt-incremental-main.state",
             ".zolt-incremental-test.state");
 
-    PackageResult assemble(
+    public PackageResult assemble(
             String startClass,
             BuildResult buildResult,
             Path outputDirectory,

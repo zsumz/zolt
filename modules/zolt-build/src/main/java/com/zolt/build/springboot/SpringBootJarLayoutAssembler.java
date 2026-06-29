@@ -1,5 +1,9 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
+import com.zolt.build.BuildResult;
+import com.zolt.build.GeneratedManifest;
+import com.zolt.build.PackageException;
+import com.zolt.build.PackageResult;
 import com.zolt.build.packaging.PackageArchiveWriter;
 import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.build.packaging.PackageRuntimeJars;
@@ -15,7 +19,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-final class SpringBootJarLayoutAssembler {
+public final class SpringBootJarLayoutAssembler {
     private static final String BOOT_INF_PREFIX = "BOOT-INF/";
     private static final String BOOT_CLASSES_PREFIX = "BOOT-INF/classes/";
     private static final String BOOT_LIB_PREFIX = "BOOT-INF/lib/";
@@ -27,7 +31,7 @@ final class SpringBootJarLayoutAssembler {
             ".zolt-incremental-main.state",
             ".zolt-incremental-test.state");
 
-    PackageResult assemble(
+    public PackageResult assemble(
             String startClass,
             BuildResult buildResult,
             Path outputDirectory,

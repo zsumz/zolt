@@ -2,6 +2,7 @@ package com.zolt.build;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.springboot.SpringBootAotGenerationService;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkStatus;

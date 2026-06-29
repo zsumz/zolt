@@ -7,6 +7,7 @@ import com.zolt.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import com.zolt.build.incremental.IncrementalCompileStateRecorder;
+import com.zolt.build.springboot.SpringBootAotGenerationService;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;

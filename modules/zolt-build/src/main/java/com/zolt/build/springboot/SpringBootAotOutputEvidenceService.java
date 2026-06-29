@@ -1,10 +1,11 @@
-package com.zolt.build;
+package com.zolt.build.springboot;
 
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.booleanField;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.displayPath;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
+import com.zolt.build.NativeImageException;
 import com.zolt.build.packageevidence.PackageEvidenceChecksums;
 import com.zolt.build.packageevidence.PackageEvidencePathWriter;
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-final class SpringBootAotOutputEvidenceService {
+public final class SpringBootAotOutputEvidenceService {
     private static final String SCHEMA = "zolt.spring-aot-evidence.v1";
 
     SpringBootAotOutputEvidence collect(Path projectRoot, String outputRoot) {
@@ -48,7 +49,7 @@ final class SpringBootAotOutputEvidenceService {
                 fingerprint(root, List.of(generatedSources, generatedClasses, generatedResources)));
     }
 
-    Path write(Path projectRoot, String outputRoot, Path evidencePath) {
+    public Path write(Path projectRoot, String outputRoot, Path evidencePath) {
         Path root = projectRoot.toAbsolutePath().normalize();
         SpringBootAotOutputEvidence evidence = collect(root, outputRoot);
         try {

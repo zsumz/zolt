@@ -5,6 +5,7 @@ import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.build.packageevidence.PackageEvidenceManifestWriter;
 import com.zolt.build.packaging.PackageSupplementalArtifactAssembler;
+import com.zolt.build.springboot.SpringBootPackageToolingPreparer;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
