@@ -101,12 +101,121 @@ final class WorkspaceCleanServiceTest {
         output("apps/api/target/classes/Api.class");
         output("apps/api/.zolt/cache/artifact.jar");
         output(".zolt/cache/artifact.jar");
+        output("zolt.lock");
+        output("apps/api/src/main/java/com/acme/Api.java");
 
         service.clean(tempDir, WorkspaceSelectionRequest.defaults());
 
         assertFalse(Files.exists(tempDir.resolve("apps/api/target")));
         assertTrue(Files.exists(tempDir.resolve("apps/api/.zolt/cache/artifact.jar")));
         assertTrue(Files.exists(tempDir.resolve(".zolt/cache/artifact.jar")));
+        assertTrue(Files.exists(tempDir.resolve("zolt-workspace.toml")));
+        assertTrue(Files.exists(tempDir.resolve("zolt.lock")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/zolt.toml")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/src/main/java/com/acme/Api.java")));
+    }
+
+    @Test
+    void preservesMavenAndGradleOutputsWhenMemberUsesIsolatedOutputRoot() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", """
+
+                [build]
+                outputRoot = ".zolt/build"
+                source = "src/main/java"
+                test = "src/test/java"
+                output = ".zolt/build/classes"
+                testOutput = ".zolt/build/test-classes"
+                """);
+        output("apps/api/.zolt/build/classes/Api.class");
+        output("apps/api/target/classes/MavenApi.class");
+        output("apps/api/build/classes/java/main/GradleApi.class");
+
+        WorkspaceCleanResult result = service.clean(tempDir, WorkspaceSelectionRequest.defaults());
+
+        assertEquals(1, result.deletedCount());
+        assertFalse(Files.exists(tempDir.resolve("apps/api/.zolt/build")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/MavenApi.class")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/build/classes/java/main/GradleApi.class")));
+    }
+
+    @Test
+    void preservesExternallyOwnedGeneratedRootsAndDeletesCleanOwnedGeneratedRoots() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", """
+
+                [generated.main.external]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/external"
+                inputs = ["src/main/openapi/external.yaml"]
+                required = false
+                clean = false
+
+                [generated.main.owned]
+                kind = "declared-root"
+                language = "java"
+                output = "target/generated/sources/owned"
+                inputs = ["src/main/openapi/owned.yaml"]
+                required = false
+                clean = true
+                """);
+        output("apps/api/target/classes/Api.class");
+        output("apps/api/target/test-classes/ApiTest.class");
+        output("apps/api/target/generated/sources/external/External.java");
+        output("apps/api/target/generated/sources/owned/Owned.java");
+
+        service.clean(tempDir, WorkspaceSelectionRequest.defaults());
+
+        assertFalse(Files.exists(tempDir.resolve("apps/api/target/classes")));
+        assertFalse(Files.exists(tempDir.resolve("apps/api/target/test-classes")));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/generated/sources/external/External.java")));
+        assertFalse(Files.exists(tempDir.resolve("apps/api/target/generated/sources/owned")));
+    }
+
+    @Test
+    void removesFrameworkOutputsOnlyForMembersThatDeclareFrameworkSettings() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/quarkus", "apps/plain", "apps/spring"]
+                """);
+        member("apps/quarkus", "quarkus", nonTargetBuildSection() + """
+
+                [framework.quarkus]
+                enabled = true
+                package = "fast-jar"
+                """);
+        member("apps/plain", "plain", nonTargetBuildSection());
+        member("apps/spring", "spring", nonTargetBuildSection() + """
+
+                [framework.springBoot.native]
+                enabled = true
+                """);
+        output("apps/quarkus/out/main/Api.class");
+        output("apps/quarkus/target/quarkus/zolt-augmentation.properties");
+        output("apps/quarkus/target/quarkus-app/quarkus-run.jar");
+        output("apps/plain/out/main/Plain.class");
+        output("apps/plain/target/quarkus/zolt-augmentation.properties");
+        output("apps/plain/target/spring-aot/main/classes/Plain__BeanDefinitions.class");
+        output("apps/spring/out/main/Spring.class");
+        output("apps/spring/target/spring-aot/main/classes/Spring__BeanDefinitions.class");
+
+        service.clean(tempDir, new WorkspaceSelectionRequest(true, List.of()));
+
+        assertFalse(Files.exists(tempDir.resolve("apps/quarkus/target/quarkus")));
+        assertFalse(Files.exists(tempDir.resolve("apps/quarkus/target/quarkus-app")));
+        assertTrue(Files.exists(tempDir.resolve("apps/plain/target/quarkus/zolt-augmentation.properties")));
+        assertTrue(Files.exists(tempDir.resolve("apps/plain/target/spring-aot/main/classes/Plain__BeanDefinitions.class")));
+        assertFalse(Files.exists(tempDir.resolve("apps/spring/target/spring-aot")));
     }
 
     @Test
@@ -130,6 +239,7 @@ final class WorkspaceCleanServiceTest {
         assertTrue(exception.getMessage().contains("Workspace member `apps/api` could not be cleaned."));
         assertTrue(exception.getMessage().contains("[build].output"));
         assertTrue(exception.getMessage().contains("../outside/classes"));
+        assertTrue(Files.exists(tempDir.resolve("zolt-workspace.toml")));
     }
 
     private void workspace(String content) throws IOException {
@@ -167,6 +277,17 @@ final class WorkspaceCleanServiceTest {
         Path output = tempDir.resolve(path);
         Files.createDirectories(output.getParent());
         Files.writeString(output, "output");
+    }
+
+    private static String nonTargetBuildSection() {
+        return """
+
+                [build]
+                source = "src/main/java"
+                test = "src/test/java"
+                output = "out/main"
+                testOutput = "out/test"
+                """;
     }
 
     private static String currentJavaMajorVersion() {
