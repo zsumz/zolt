@@ -2,6 +2,7 @@ package com.zolt.workspace;
 
 import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.createSymlink;
 import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.member;
+import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.rootWorkspace;
 import static com.zolt.workspace.WorkspaceDiscoveryServiceTestSupport.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -94,6 +95,30 @@ final class WorkspaceDiscoveryValidationTest {
                 "Workspace member `apps/api` must contain zolt.toml at "
                         + tempDir.toAbsolutePath().normalize().resolve("apps/api/zolt.toml")
                         + ".",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsAmbiguousWorkspaceConfigPaths() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "legacy"
+                members = ["apps/api"]
+                """);
+        rootWorkspace(tempDir, """
+                [workspace]
+                name = "root"
+                members = ["apps/api"]
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Ambiguous workspace config at "
+                        + tempDir.toAbsolutePath().normalize()
+                        + ". Use either zolt.toml with [workspace] or zolt-workspace.toml, not both.",
                 exception.getMessage());
     }
 

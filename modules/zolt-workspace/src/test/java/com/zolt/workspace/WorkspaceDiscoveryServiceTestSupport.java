@@ -12,6 +12,10 @@ final class WorkspaceDiscoveryServiceTestSupport {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }
 
+    static void rootWorkspace(Path tempDir, String content) throws IOException {
+        Files.writeString(tempDir.resolve("zolt.toml"), content);
+    }
+
     static void member(Path tempDir, String path, String name, String group, String extraToml) throws IOException {
         Path member = tempDir.resolve(path);
         Files.createDirectories(member);

@@ -41,8 +41,9 @@ public final class WorkspaceDiscoveryService {
         }
 
         while (current != null) {
-            if (Files.isRegularFile(current.resolve(WorkspaceConfigParser.WORKSPACE_FILE))) {
-                return Optional.of(load(current));
+            Optional<Path> configPath = workspaceConfigPath(current);
+            if (configPath.isPresent()) {
+                return Optional.of(load(current, configPath.orElseThrow()));
             }
             current = current.getParent();
         }
@@ -51,13 +52,49 @@ public final class WorkspaceDiscoveryService {
 
     public Workspace load(Path workspaceRoot) {
         Path root = workspaceRoot.toAbsolutePath().normalize();
-        Path configPath = root.resolve(WorkspaceConfigParser.WORKSPACE_FILE).normalize();
-        WorkspaceConfig config = workspaceParser.parse(configPath);
+        Path configPath = workspaceConfigPath(root)
+                .orElseThrow(() -> new WorkspaceConfigException(
+                        "Could not find workspace config at "
+                                + root
+                                + ". Add zolt.toml with [workspace] or create zolt-workspace.toml."));
+        return load(root, configPath);
+    }
+
+    private Workspace load(Path root, Path configPath) {
+        WorkspaceConfig config = workspaceConfig(configPath);
         List<WorkspaceMember> members = members(root, config);
         validateDefaultMembers(root, config.defaultMembers(), members);
         List<WorkspaceProjectEdge> edges = workspaceProjectEdges(root, members);
         List<String> buildOrder = buildOrderPlanner.buildOrder(members, edges);
         return new Workspace(root, configPath, config, members, edges, buildOrder);
+    }
+
+    private WorkspaceConfig workspaceConfig(Path configPath) {
+        if (WorkspaceConfigParser.ROOT_CONFIG_FILE.equals(configPath.getFileName().toString())) {
+            return workspaceParser.parseRootConfig(configPath);
+        }
+        return workspaceParser.parse(configPath);
+    }
+
+    private Optional<Path> workspaceConfigPath(Path root) {
+        Path legacyConfig = root.resolve(WorkspaceConfigParser.WORKSPACE_FILE).normalize();
+        Path rootConfig = root.resolve(WorkspaceConfigParser.ROOT_CONFIG_FILE).normalize();
+        boolean hasLegacyConfig = Files.isRegularFile(legacyConfig);
+        boolean hasRootWorkspaceConfig =
+                Files.isRegularFile(rootConfig) && workspaceParser.hasWorkspaceSection(rootConfig);
+        if (hasLegacyConfig && hasRootWorkspaceConfig) {
+            throw new WorkspaceConfigException(
+                    "Ambiguous workspace config at "
+                            + root
+                            + ". Use either zolt.toml with [workspace] or zolt-workspace.toml, not both.");
+        }
+        if (hasRootWorkspaceConfig) {
+            return Optional.of(rootConfig);
+        }
+        if (hasLegacyConfig) {
+            return Optional.of(legacyConfig);
+        }
+        return Optional.empty();
     }
 
     private List<WorkspaceMember> members(Path root, WorkspaceConfig config) {

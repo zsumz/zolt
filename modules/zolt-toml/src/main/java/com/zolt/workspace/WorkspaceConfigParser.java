@@ -16,70 +16,133 @@ import org.tomlj.TomlTable;
 
 public final class WorkspaceConfigParser {
     public static final String WORKSPACE_FILE = "zolt-workspace.toml";
+    public static final String ROOT_CONFIG_FILE = "zolt.toml";
 
     private static final Set<String> TOP_LEVEL_SECTIONS = Set.of("workspace", "repositories", "platforms");
+    private static final Set<String> ROOT_TOP_LEVEL_SECTIONS = Set.of(
+            "project",
+            "repositories",
+            "repositoryCredentials",
+            "versions",
+            "platforms",
+            "dependencyPolicy",
+            "dependencyConstraints",
+            "api",
+            "dependencies",
+            "runtime",
+            "provided",
+            "dev",
+            "annotationProcessors",
+            "test",
+            "integrationTest",
+            "build",
+            "resources",
+            "generated",
+            "compiler",
+            "package",
+            "publish",
+            "framework",
+            "native",
+            "workspace",
+            "commands");
     private static final Set<String> WORKSPACE_KEYS = Set.of("name", "members", "defaultMembers");
 
     public WorkspaceConfig parse(Path path) {
         try {
-            return parse(Toml.parse(path));
+            return parse(Toml.parse(path), WORKSPACE_FILE, TOP_LEVEL_SECTIONS);
         } catch (IOException exception) {
             throw new WorkspaceConfigException(
                     "Could not read zolt-workspace.toml at " + path + ". Check that the file exists and is readable.");
         }
     }
 
-    public WorkspaceConfig parse(String content) {
-        return parse(Toml.parse(content));
+    public WorkspaceConfig parseRootConfig(Path path) {
+        try {
+            return parse(Toml.parse(path), ROOT_CONFIG_FILE, ROOT_TOP_LEVEL_SECTIONS);
+        } catch (IOException exception) {
+            throw new WorkspaceConfigException(
+                    "Could not read zolt.toml at " + path + ". Check that the file exists and is readable.");
+        }
     }
 
-    private WorkspaceConfig parse(TomlParseResult result) {
-        if (result.hasErrors()) {
-            throw new WorkspaceConfigException(parseErrorMessage(result));
-        }
-        validateTopLevelSections(result);
+    public WorkspaceConfig parseRootConfig(String content) {
+        return parse(Toml.parse(content), ROOT_CONFIG_FILE, ROOT_TOP_LEVEL_SECTIONS);
+    }
 
-        TomlTable workspaceTable = requiredTable(result, "workspace");
-        validateKeys("workspace", workspaceTable, WORKSPACE_KEYS);
+    public boolean hasWorkspaceSection(Path path) {
+        try {
+            TomlParseResult result = Toml.parse(path);
+            if (result.hasErrors()) {
+                throw new WorkspaceConfigException(parseErrorMessage(result, ROOT_CONFIG_FILE));
+            }
+            return result.getTable("workspace") != null;
+        } catch (IOException exception) {
+            throw new WorkspaceConfigException(
+                    "Could not read zolt.toml at " + path + ". Check that the file exists and is readable.");
+        }
+    }
+
+    public WorkspaceConfig parse(String content) {
+        return parse(Toml.parse(content), WORKSPACE_FILE, TOP_LEVEL_SECTIONS);
+    }
+
+    private WorkspaceConfig parse(
+            TomlParseResult result,
+            String sourceName,
+            Set<String> allowedTopLevelSections) {
+        if (result.hasErrors()) {
+            throw new WorkspaceConfigException(parseErrorMessage(result, sourceName));
+        }
+        validateTopLevelSections(result, sourceName, allowedTopLevelSections);
+
+        TomlTable workspaceTable = requiredTable(result, "workspace", sourceName);
+        validateKeys("workspace", workspaceTable, WORKSPACE_KEYS, sourceName);
 
         return new WorkspaceConfig(
-                requiredString(workspaceTable, "workspace", "name"),
-                requiredStringList(workspaceTable, "workspace", "members"),
-                stringListOrDefault(workspaceTable, "workspace", "defaultMembers", List.of()),
-                stringMap(optionalTable(result, "repositories"), "repositories"),
-                stringMap(optionalTable(result, "platforms"), "platforms"));
+                requiredString(workspaceTable, "workspace", "name", sourceName),
+                requiredStringList(workspaceTable, "workspace", "members", sourceName),
+                stringListOrDefault(workspaceTable, "workspace", "defaultMembers", List.of(), sourceName),
+                stringMap(optionalTable(result, "repositories"), "repositories", sourceName),
+                stringMap(optionalTable(result, "platforms"), "platforms", sourceName));
     }
 
-    private static String parseErrorMessage(TomlParseResult result) {
+    private static String parseErrorMessage(TomlParseResult result, String sourceName) {
         TomlParseError firstError = result.errors().getFirst();
-        return "Could not parse zolt-workspace.toml. Fix the TOML syntax near "
+        return "Could not parse " + sourceName + ". Fix the TOML syntax near "
                 + firstError.position()
                 + ": "
                 + firstError.getMessage();
     }
 
-    private static void validateTopLevelSections(TomlParseResult result) {
+    private static void validateTopLevelSections(
+            TomlParseResult result,
+            String sourceName,
+            Set<String> allowedTopLevelSections) {
         for (String key : result.keySet()) {
-            if (!TOP_LEVEL_SECTIONS.contains(key)) {
+            if (!allowedTopLevelSections.contains(key)) {
                 throw new WorkspaceConfigException(
-                        "Unknown top-level section [" + key + "] in zolt-workspace.toml. Remove it or check the spelling.");
+                        "Unknown top-level section [" + key + "] in " + sourceName + ". Remove it or check the spelling.");
             }
         }
     }
 
-    private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys) {
+    private static void validateKeys(
+            String section,
+            TomlTable table,
+            Set<String> allowedKeys,
+            String sourceName) {
         for (String key : table.keySet()) {
             if (!allowedKeys.contains(key)) {
                 throw new WorkspaceConfigException(
-                        "Unknown field [" + section + "]." + key + " in zolt-workspace.toml. Remove it or check the spelling.");
+                        "Unknown field [" + section + "]." + key + " in " + sourceName + ". Remove it or check the spelling.");
             }
         }
     }
 
-    private static TomlTable requiredTable(TomlParseResult result, String section) {
+    private static TomlTable requiredTable(TomlParseResult result, String section, String sourceName) {
         TomlTable table = result.getTable(section);
         if (table == null) {
-            throw new WorkspaceConfigException("Missing required section [" + section + "] in zolt-workspace.toml.");
+            throw new WorkspaceConfigException("Missing required section [" + section + "] in " + sourceName + ".");
         }
         return table;
     }
@@ -88,24 +151,28 @@ public final class WorkspaceConfigParser {
         return result.getTable(section);
     }
 
-    private static String requiredString(TomlTable table, String section, String key) {
+    private static String requiredString(TomlTable table, String section, String key, String sourceName) {
         String value = table.getString(key);
         if (value == null || value.isBlank()) {
             throw new WorkspaceConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt-workspace.toml. Add a non-empty string value.");
+                    "Missing required field [" + section + "]." + key + " in " + sourceName + ". Add a non-empty string value.");
         }
         return value;
     }
 
-    private static List<String> requiredStringList(TomlTable table, String section, String key) {
-        List<String> values = stringListOrDefault(table, section, key, null);
+    private static List<String> requiredStringList(
+            TomlTable table,
+            String section,
+            String key,
+            String sourceName) {
+        List<String> values = stringListOrDefault(table, section, key, null, sourceName);
         if (values == null) {
             throw new WorkspaceConfigException(
-                    "Missing required field [" + section + "]." + key + " in zolt-workspace.toml. Add an array of member paths.");
+                    "Missing required field [" + section + "]." + key + " in " + sourceName + ". Add an array of member paths.");
         }
         if (values.isEmpty()) {
             throw new WorkspaceConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt-workspace.toml. Add at least one member path.");
+                    "Invalid value for [" + section + "]." + key + " in " + sourceName + ". Add at least one member path.");
         }
         return values;
     }
@@ -114,14 +181,15 @@ public final class WorkspaceConfigParser {
             TomlTable table,
             String section,
             String key,
-            List<String> defaultValue) {
+            List<String> defaultValue,
+            String sourceName) {
         Object rawValue = table.get(List.of(key));
         if (rawValue == null) {
             return defaultValue;
         }
         if (!(rawValue instanceof TomlArray array)) {
             throw new WorkspaceConfigException(
-                    "Invalid value for [" + section + "]." + key + " in zolt-workspace.toml. Use an array of strings.");
+                    "Invalid value for [" + section + "]." + key + " in " + sourceName + ". Use an array of strings.");
         }
 
         ArrayList<String> values = new ArrayList<>();
@@ -130,18 +198,18 @@ public final class WorkspaceConfigParser {
             String value = array.getString(index);
             if (value == null || value.isBlank()) {
                 throw new WorkspaceConfigException(
-                        "Invalid value for [" + section + "]." + key + "[" + index + "] in zolt-workspace.toml. Use a non-empty string.");
+                        "Invalid value for [" + section + "]." + key + "[" + index + "] in " + sourceName + ". Use a non-empty string.");
             }
             if (!uniqueValues.add(value)) {
                 throw new WorkspaceConfigException(
-                        "Duplicate value `" + value + "` in [" + section + "]." + key + " in zolt-workspace.toml.");
+                        "Duplicate value `" + value + "` in [" + section + "]." + key + " in " + sourceName + ".");
             }
             values.add(value);
         }
         return List.copyOf(values);
     }
 
-    private static Map<String, String> stringMap(TomlTable table, String section) {
+    private static Map<String, String> stringMap(TomlTable table, String section, String sourceName) {
         if (table == null) {
             return Map.of();
         }
@@ -151,7 +219,7 @@ public final class WorkspaceConfigParser {
             Object rawValue = table.get(List.of(key));
             if (!(rawValue instanceof String value) || value.isBlank()) {
                 throw new WorkspaceConfigException(
-                        "Invalid value for [" + section + "]." + key + " in zolt-workspace.toml. Use a non-empty string value.");
+                        "Invalid value for [" + section + "]." + key + " in " + sourceName + ". Use a non-empty string value.");
             }
             values.put(key, value);
         }

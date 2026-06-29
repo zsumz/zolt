@@ -39,6 +39,47 @@ final class WorkspaceConfigParserTest {
     }
 
     @Test
+    void parsesWorkspaceConfigFromRootZoltToml() {
+        WorkspaceConfig config = parser.parseRootConfig("""
+                [project]
+                name = "root"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [workspace]
+                name = "acme-platform"
+                members = [".", "modules/core"]
+                defaultMembers = ["."]
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+
+        assertEquals("acme-platform", config.name());
+        assertEquals(List.of(".", "modules/core"), config.members());
+        assertEquals(List.of("."), config.defaultMembers());
+    }
+
+    @Test
+    void rejectsUnknownTopLevelSectionsInRootZoltToml() {
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> parser.parseRootConfig("""
+                        [workspace]
+                        name = "bad"
+                        members = ["apps/api"]
+
+                        [dependency]
+                        typo = "true"
+                        """));
+
+        assertEquals(
+                "Unknown top-level section [dependency] in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsUnknownTopLevelSections() {
         WorkspaceConfigException exception = assertThrows(
                 WorkspaceConfigException.class,

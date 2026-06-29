@@ -48,4 +48,36 @@ final class WorkspaceResolveCommandTest {
         assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
         assertFalse(Files.exists(coreDir.resolve("zolt.lock")));
     }
+
+    @Test
+    void resolveWorkspaceDiscoversRootZoltTomlWorkspaceConfig() throws IOException {
+        Path workspaceDir = tempDir.resolve("root-workspace");
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+
+        CommandResult result = execute(
+                "resolve",
+                "--workspace",
+                "--cwd", apiDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("Resolved 0 packages"));
+        assertTrue(result.stdout().contains("Wrote " + workspaceDir.resolve("zolt.lock")));
+        assertTrue(Files.readString(workspaceDir.resolve("zolt.lock"))
+                .contains("projectResolutionFingerprint = \"sha256:"));
+        assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
+        assertFalse(Files.exists(coreDir.resolve("zolt.lock")));
+    }
 }
