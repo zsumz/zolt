@@ -1,6 +1,7 @@
 package com.zolt.build.testruntime;
 
 import com.zolt.build.testruntime.compile.TestCompileResult;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.Optional;

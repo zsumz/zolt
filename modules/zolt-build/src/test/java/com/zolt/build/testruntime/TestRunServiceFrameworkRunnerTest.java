@@ -23,6 +23,8 @@ import com.zolt.junit.JunitWorkerClient;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestSuiteSettings;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;

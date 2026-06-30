@@ -8,7 +8,7 @@ import com.zolt.build.coverage.CoverageReportSettings;
 import com.zolt.build.coverage.CoverageTooling;
 import com.zolt.build.run.JavaRunResult;
 import com.zolt.build.testruntime.compile.TestCompileResult;
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.classpath.Classpath;

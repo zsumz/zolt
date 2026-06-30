@@ -1,6 +1,6 @@
 package com.zolt.build.testruntime.execution;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import java.util.List;
 import java.util.Map;
 

@@ -3,7 +3,7 @@ package com.zolt.build.junit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;

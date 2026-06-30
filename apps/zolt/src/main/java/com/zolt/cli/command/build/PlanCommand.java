@@ -1,7 +1,7 @@
 package com.zolt.cli.command.build;
 
 import com.zolt.build.testruntime.TestReportSettings;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandOutput;
 import com.zolt.cli.command.CommandProjectDirectory;

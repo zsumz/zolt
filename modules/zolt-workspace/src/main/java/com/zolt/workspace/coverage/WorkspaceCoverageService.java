@@ -5,7 +5,7 @@ import com.zolt.build.coverage.CoverageReportSettings;
 import com.zolt.build.coverage.CoverageService;
 import com.zolt.build.coverage.CoverageTooling;
 import com.zolt.build.run.JavaRunResult;
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.resolve.ResolveResult;
 import com.zolt.test.TestSelection;
 import com.zolt.test.shard.TestShardSpec;

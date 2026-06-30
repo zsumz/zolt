@@ -10,7 +10,7 @@ import com.zolt.build.JavaRunException;
 import com.zolt.build.JavacException;
 import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.ZoltCli;

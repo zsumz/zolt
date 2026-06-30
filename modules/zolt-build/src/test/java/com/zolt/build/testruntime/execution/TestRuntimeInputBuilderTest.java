@@ -3,8 +3,8 @@ package com.zolt.build.testruntime.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.project.TestRuntimeSettings;
 import java.nio.file.Path;
 import java.util.List;

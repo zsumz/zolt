@@ -1,4 +1,4 @@
-package com.zolt.build.testruntime;
+package com.zolt.test.runtime;
 
 import java.util.List;
 

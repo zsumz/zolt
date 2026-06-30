@@ -1,7 +1,7 @@
 package com.zolt.build.junit;
 
-import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.junit.JunitWorkerClient;
 import com.zolt.junit.JunitWorkerClientException;
 import com.zolt.junit.JunitWorkerProcess;

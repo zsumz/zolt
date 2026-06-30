@@ -24,6 +24,8 @@ import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.test.TestPlanException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionException;

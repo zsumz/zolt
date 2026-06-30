@@ -1,4 +1,4 @@
-package com.zolt.build.testruntime;
+package com.zolt.test.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

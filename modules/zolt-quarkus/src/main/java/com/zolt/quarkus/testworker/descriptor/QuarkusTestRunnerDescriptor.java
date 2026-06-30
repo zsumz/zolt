@@ -1,6 +1,6 @@
 package com.zolt.quarkus.testworker.descriptor;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;

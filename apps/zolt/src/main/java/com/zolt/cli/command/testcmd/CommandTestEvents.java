@@ -1,6 +1,6 @@
 package com.zolt.cli.command.testcmd;
 
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.project.TestRuntimeSettings;
 import java.util.ArrayList;
 import java.util.List;

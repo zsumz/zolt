@@ -18,6 +18,7 @@ import com.zolt.build.junit.PlainJunitWorkerRunner;
 import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.test.shard.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;

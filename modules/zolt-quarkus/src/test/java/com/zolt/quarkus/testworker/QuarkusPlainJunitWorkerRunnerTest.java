@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.nio.file.Path;

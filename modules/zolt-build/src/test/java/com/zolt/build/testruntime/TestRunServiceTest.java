@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.run.JavaRunner;
 import com.zolt.build.testruntime.TestRunServiceTestSupport.CachingJdkChecker;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,7 +1,7 @@
 package com.zolt.quarkus.testworker.descriptor;
 
-import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.test.TestSelection;
 import com.zolt.test.TestSelectionCodec;

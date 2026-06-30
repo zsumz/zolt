@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.run.JavaRunResult;
 import com.zolt.build.run.JavaRunner;
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.doctor.JdkStatus;

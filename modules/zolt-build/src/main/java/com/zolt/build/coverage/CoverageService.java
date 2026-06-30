@@ -15,7 +15,7 @@ import com.zolt.dependency.PackageId;
 import com.zolt.classpath.Classpath;
 import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.build.testruntime.TestRunService;

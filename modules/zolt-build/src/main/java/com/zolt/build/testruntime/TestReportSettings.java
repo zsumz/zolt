@@ -2,6 +2,7 @@ package com.zolt.build.testruntime;
 
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.test.shard.TestShardSpec;
 import com.zolt.test.TestSuitePathSegments;
 import java.nio.file.Path;

@@ -1,4 +1,4 @@
-package com.zolt.build.testruntime;
+package com.zolt.test.runtime;
 
 public final class TestRunException extends RuntimeException {
     public TestRunException(String message) {

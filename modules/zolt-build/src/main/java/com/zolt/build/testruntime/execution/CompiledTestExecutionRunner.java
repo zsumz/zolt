@@ -3,7 +3,7 @@ package com.zolt.build.testruntime.execution;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.build.testruntime.compile.TestCompileResult;
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.project.ProjectConfig;

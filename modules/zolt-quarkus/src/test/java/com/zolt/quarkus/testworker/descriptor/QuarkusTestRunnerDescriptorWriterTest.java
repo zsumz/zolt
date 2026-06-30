@@ -3,7 +3,7 @@ package com.zolt.quarkus.testworker.descriptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.quarkus.testworker.QuarkusTestRunnerRequest;
 import com.zolt.test.TestSelection;
 import java.io.IOException;

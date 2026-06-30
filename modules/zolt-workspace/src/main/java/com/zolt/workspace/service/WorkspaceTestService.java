@@ -1,6 +1,6 @@
 package com.zolt.workspace.service;
 
-import com.zolt.build.testruntime.TestJvmArguments;
+import com.zolt.test.runtime.TestJvmArguments;
 import com.zolt.build.testruntime.TestReportSettings;
 import com.zolt.build.testruntime.TestRunService;
 import com.zolt.build.profile.TestProfileMerger;

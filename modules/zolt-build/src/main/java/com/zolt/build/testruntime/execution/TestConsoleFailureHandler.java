@@ -1,7 +1,7 @@
 package com.zolt.build.testruntime.execution;
 
 import com.zolt.build.JavaRunException;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.Optional;

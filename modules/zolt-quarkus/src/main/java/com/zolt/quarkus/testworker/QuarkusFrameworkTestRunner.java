@@ -1,7 +1,7 @@
 package com.zolt.quarkus.testworker;
 
-import com.zolt.build.testruntime.TestJvmArguments;
-import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.runtime.TestJvmArguments;
+import com.zolt.test.runtime.TestRunException;
 import com.zolt.framework.FrameworkTestRunRequest;
 import com.zolt.framework.FrameworkTestRunResult;
 import com.zolt.framework.FrameworkTestRunner;
