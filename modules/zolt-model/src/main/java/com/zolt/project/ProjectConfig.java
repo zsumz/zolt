@@ -291,6 +291,10 @@ public record ProjectConfig(
         return ProjectConfigUpdater.withBuildSettings(this, build);
     }
 
+    public ProjectConfig withVersion(String version) {
+        return ProjectConfigUpdater.withVersion(this, version);
+    }
+
     public ProjectConfig withVersionAliases(Map<String, String> versionAliases) {
         return ProjectConfigUpdater.withVersionAliases(this, versionAliases);
     }

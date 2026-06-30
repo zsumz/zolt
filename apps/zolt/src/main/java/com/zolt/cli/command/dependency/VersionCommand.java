@@ -39,7 +39,7 @@ public final class VersionCommand implements Runnable {
 
     @Override
     public void run() {
-        spec.commandLine().getOut().println(ZoltCli.VERSION);
+        spec.commandLine().getOut().println(ZoltCli.version());
     }
 
     @Command(

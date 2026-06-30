@@ -4,6 +4,7 @@ import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandProjectDirectory;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectVersionOverride;
 import com.zolt.selfhost.NativeSmokeException;
 import com.zolt.selfhost.NativeSmokeResult;
 import com.zolt.selfhost.NativeSmokeService;
@@ -48,7 +49,8 @@ public final class NativeSmokeCommand implements Runnable {
     public void run() {
         Path projectRoot = projectDirectory.path();
         try {
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ProjectConfig config = ProjectVersionOverride.apply(
+                    tomlParser.parse(projectRoot.resolve("zolt.toml")));
             NativeSmokeResult result = nativeSmokeService.smoke(
                     projectRoot,
                     config,

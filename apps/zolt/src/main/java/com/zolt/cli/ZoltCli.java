@@ -48,7 +48,7 @@ import picocli.CommandLine.Spec;
 
 @Command(
         name = "zolt",
-        version = ZoltCli.VERSION,
+        versionProvider = ZoltCli.ZoltVersionProvider.class,
         description = "The modern Java build toolkit.",
         subcommands = {
                 ZoltHelpCommand.class,
@@ -92,6 +92,28 @@ import picocli.CommandLine.Spec;
         })
 public final class ZoltCli implements Runnable {
     public static final String VERSION = "0.1.0-SNAPSHOT";
+
+    /**
+     * Effective {@code zolt --version} string: the validated {@code ZOLT_VERSION_OVERRIDE} when set,
+     * otherwise the compiled-in {@link #VERSION}. A nightly build exports the computed nightly string
+     * into the override so the binary's {@code --version} output agrees with the stamped archives.
+     */
+    public static String version() {
+        return com.zolt.project.ProjectVersionOverride.resolveVersion(VERSION);
+    }
+
+    /**
+     * Resolves the version at runtime so {@code @Command(versionProvider = ...)} honors the override.
+     * picocli annotation values must be compile-time constants, so the version cannot be a dynamic
+     * field; reading it through this provider keeps the override load-bearing for the native smoke's
+     * {@code --version} equality check.
+     */
+    public static final class ZoltVersionProvider implements CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            return new String[] {version()};
+        }
+    }
 
     @Option(
             names = "--color",

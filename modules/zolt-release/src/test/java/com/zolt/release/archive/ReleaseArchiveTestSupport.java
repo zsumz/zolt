@@ -53,6 +53,30 @@ abstract class ReleaseArchiveTestSupport {
                 new NativeSettings("zolt", "target/native", List.of("--no-fallback")));
     }
 
+    protected static String versionFileContent(Path archivePath, String rootDirectory) throws IOException {
+        byte[] content;
+        try (GZIPInputStream input = new GZIPInputStream(Files.newInputStream(archivePath))) {
+            content = input.readAllBytes();
+        }
+        String target = rootDirectory + "/VERSION";
+        int offset = 0;
+        while (offset + 512 <= content.length) {
+            byte[] header = java.util.Arrays.copyOfRange(content, offset, offset + 512);
+            if (allZero(header)) {
+                break;
+            }
+            String name = readNullTerminated(header, 0, 100);
+            long size = Long.parseLong(readNullTerminated(header, 124, 12).trim(), 8);
+            if (name.equals(target)) {
+                return new String(
+                        java.util.Arrays.copyOfRange(content, offset + 512, offset + 512 + (int) size),
+                        StandardCharsets.UTF_8);
+            }
+            offset += 512 + paddedSize(size);
+        }
+        throw new IOException("VERSION entry " + target + " not found in " + archivePath);
+    }
+
     protected static List<String> tarEntries(Path archivePath) throws IOException {
         byte[] content;
         try (GZIPInputStream input = new GZIPInputStream(Files.newInputStream(archivePath))) {

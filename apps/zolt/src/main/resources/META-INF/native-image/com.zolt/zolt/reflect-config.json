@@ -42,6 +42,12 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.zolt.cli.ZoltCli$ZoltVersionProvider",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.zolt.cli.console.ColorMode",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

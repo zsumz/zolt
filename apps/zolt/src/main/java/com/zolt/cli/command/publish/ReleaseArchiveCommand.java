@@ -6,6 +6,7 @@ import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandProjectDirectory;
 import com.zolt.cli.console.ProgressWriter;
 import com.zolt.project.ProjectConfig;
+import com.zolt.project.ProjectVersionOverride;
 import com.zolt.release.archive.ReleaseArchiveException;
 import com.zolt.release.archive.ReleaseArchiveResult;
 import com.zolt.release.archive.ReleaseArchiveService;
@@ -55,7 +56,8 @@ public final class ReleaseArchiveCommand implements Runnable {
         ProgressWriter progress = CommandProgress.human(spec);
         Path projectRoot = projectDirectory.path();
         try {
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ProjectConfig config = ProjectVersionOverride.apply(
+                    tomlParser.parse(projectRoot.resolve("zolt.toml")));
             ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
             Path nativeBinary = binary == null
                     ? defaultNativeBinary(config, releaseTarget)

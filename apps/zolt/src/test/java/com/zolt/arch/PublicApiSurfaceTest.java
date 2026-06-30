@@ -98,6 +98,7 @@ final class PublicApiSurfaceTest {
             "com.zolt.project.ProjectMetadata",
             "com.zolt.project.ProjectPathException",
             "com.zolt.project.ProjectPaths",
+            "com.zolt.project.ProjectVersionOverride",
             "com.zolt.project.ProtobufGenerationSettings",
             "com.zolt.project.PublicationMetadata",
             "com.zolt.project.QuarkusPackageMode",

@@ -17,6 +17,49 @@ final class ProjectConfigUpdater {
                 config.dependencyMetadata());
     }
 
+    static ProjectConfig withVersion(ProjectConfig config, String version) {
+        ProjectMetadata current = config.project();
+        ProjectMetadata updated = new ProjectMetadata(
+                current.name(),
+                version,
+                current.group(),
+                current.java(),
+                current.main());
+        return new ProjectConfig(
+                updated,
+                config.repositories(),
+                config.repositorySettings(),
+                config.repositoryCredentials(),
+                config.versionAliases(),
+                config.platforms(),
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies(),
+                config.dependencies(),
+                config.managedDependencies(),
+                config.workspaceDependencies(),
+                config.runtimeDependencies(),
+                config.managedRuntimeDependencies(),
+                config.providedDependencies(),
+                config.managedProvidedDependencies(),
+                config.devDependencies(),
+                config.managedDevDependencies(),
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.workspaceTestDependencies(),
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors(),
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors(),
+                config.dependencyPolicy(),
+                config.build(),
+                config.nativeSettings(),
+                config.compilerSettings(),
+                config.packageSettings(),
+                config.frameworkSettings(),
+                config.dependencyMetadata());
+    }
+
     static ProjectConfig withVersionAliases(ProjectConfig config, Map<String, String> versionAliases) {
         return copy(
                 config,
