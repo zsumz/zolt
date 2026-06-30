@@ -72,6 +72,31 @@ final class ReleaseChannelManifestValidatorTest {
     }
 
     @Test
+    void acceptsGitHubReleasesFlatDownloadUrls() {
+        // The gh-release publish backend (scripts/publish-native-release) emits flat
+        // per-tag GitHub Releases asset URLs with no /artifacts/<channel>/<version>/
+        // segments. Lock in that these validate cleanly alongside the dist.zolt.build layout.
+        ReleaseChannelManifest manifest = validator.validate(manifestJson("""
+                {
+                  "target": "linux-x64",
+                  "archive": "zolt-0.1.0-linux-x64.tar.gz",
+                  "archiveUrl": "https://github.com/devshawn/zolt/releases/download/v0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                  "checksumUrl": "https://github.com/devshawn/zolt/releases/download/v0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                  "format": "tar.gz",
+                  "binaryName": "zolt"
+                }
+                """));
+
+        ReleaseChannelArtifact artifact = manifest.artifactFor(ReleaseTarget.LINUX_X64);
+        assertEquals(
+                "https://github.com/devshawn/zolt/releases/download/v0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                artifact.archiveUrl());
+        assertEquals(
+                "https://github.com/devshawn/zolt/releases/download/v0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                artifact.checksumUrl().orElseThrow());
+    }
+
+    @Test
     void rejectsUnsupportedTargetWithActionableDiagnostic() {
         ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
