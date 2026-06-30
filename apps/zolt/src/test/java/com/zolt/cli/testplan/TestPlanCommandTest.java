@@ -203,7 +203,7 @@ final class TestPlanCommandTest extends TestCommandTestSupport {
         Path workspaceDir = tempDir.resolve("workspace-shard-plan-json");
         Path memberDir = workspaceDir.resolve("modules/api");
         Files.createDirectories(workspaceDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace-shard-plan-json"
                 members = ["modules/api"]

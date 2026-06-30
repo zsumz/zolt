@@ -34,7 +34,7 @@ final class WorkspaceBuildCommandStaleLockTest {
             Path workspaceDir = tempDir.resolve("workspace");
             Path apiDir = workspaceDir.resolve("apps/api");
             Files.createDirectories(apiDir);
-            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+            Files.writeString(workspaceDir.resolve("zolt.toml"), """
                     [workspace]
                     name = "workspace"
                     members = ["apps/api"]
@@ -53,7 +53,7 @@ final class WorkspaceBuildCommandStaleLockTest {
                     "--cwd", apiDir.toString(),
                     "--cache-root", tempDir.resolve("cache").toString());
             String existingLockfile = Files.readString(workspaceDir.resolve("zolt.lock"));
-            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+            Files.writeString(workspaceDir.resolve("zolt.toml"), """
                     [workspace]
                     name = "workspace"
                     members = ["apps/api"]
