@@ -1,6 +1,6 @@
 [workspace]
 name = "zolt"
-members = ["modules/zolt-model", "modules/zolt-framework-api", "modules/zolt-toml", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-test-model", "modules/zolt-build", "modules/zolt-workspace", "modules/zolt-ide", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-publish", "modules/zolt-policy", "modules/zolt-quality", "modules/zolt-tree", "modules/zolt-plan", "modules/zolt-explain", "modules/zolt-config", "modules/zolt-selfhost", "modules/zolt-init", "apps/zolt"]
+members = ["modules/zolt-model", "modules/zolt-framework-api", "modules/zolt-toml", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-test-model", "modules/zolt-junit", "modules/zolt-build", "modules/zolt-workspace", "modules/zolt-ide", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-publish", "modules/zolt-policy", "modules/zolt-quality", "modules/zolt-tree", "modules/zolt-plan", "modules/zolt-explain", "modules/zolt-config", "modules/zolt-selfhost", "modules/zolt-init", "apps/zolt"]
 defaultMembers = ["apps/zolt"]
 
 [repositories]

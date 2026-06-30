@@ -1,11 +1,11 @@
 [
   {
-    "file": "modules/zolt-build/src/main/java/com/zolt/junit/JunitLauncherWorker.java",
+    "file": "modules/zolt-junit/src/main/java/com/zolt/junit/JunitLauncherWorker.java",
     "disposition": "WORKER_JVM",
     "note": "Reflects over org.junit.platform.* in the forked JUnit worker JVM launched by JunitWorkerProcessLauncher; targets are absent from the native binary."
   },
   {
-    "file": "modules/zolt-build/src/main/java/com/zolt/junit/JunitTestProfileCollector.java",
+    "file": "modules/zolt-junit/src/main/java/com/zolt/junit/JunitTestProfileCollector.java",
     "disposition": "WORKER_JVM",
     "note": "Reflects over org.junit.platform.* test descriptors in the forked JUnit worker JVM; targets are absent from the native binary."
   },

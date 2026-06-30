@@ -9,6 +9,7 @@ central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
+"com.zolt:zolt-junit" = { workspace = "modules/zolt-junit" }
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
@@ -37,10 +38,6 @@ includeClassname = [
     "com.zolt.build.testruntime.TestRunServiceSelectionTest",
     "com.zolt.build.testruntime.TestRunServiceTest",
     "com.zolt.build.junit.PlainJunitWorkerPoolRunnerTest",
-    "com.zolt.junit.JunitLauncherWorkerTest",
-    "com.zolt.junit.JunitWorkerClientTest",
-    "com.zolt.junit.JunitWorkerProcessLauncherTest",
-    "com.zolt.junit.JunitWorkerProtocolTest",
 ]
 
 [build]
