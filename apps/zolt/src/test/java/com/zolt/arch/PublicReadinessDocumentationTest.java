@@ -364,6 +364,48 @@ final class PublicReadinessDocumentationTest {
     }
 
     @Test
+    void readmeSurfacesImplementedMigrationExplainAudit() throws IOException {
+        String readme = Files.readString(RepositoryPaths.root().resolve("README.md"));
+
+        assertTrue(readme.contains("Migration audit (`zolt explain`)"));
+        assertTrue(readme.contains(
+                "Static Maven and Gradle project inspection with text/JSON output, `--scorecard`, and `--blockers` reports"));
+        assertTrue(readme.contains("It does not execute Maven or Gradle"));
+        assertTrue(readme.contains(
+                "migration audit (`zolt explain`) for static Maven/Gradle inspection with text/JSON, scorecard, and blocker reports"));
+    }
+
+    @Test
+    void readmeBoundsVertxCanarySupport() throws IOException {
+        String readme = Files.readString(RepositoryPaths.root().resolve("README.md"));
+
+        assertTrue(readme.contains("| Vert.x | Bounded JVM Core HTTP canary plus a narrow real native-image canary"));
+        assertTrue(readme.contains("a real Vert.x Core HTTP native executable smoke through `scripts/smoke-vertx-native`"));
+        assertTrue(readme.contains("Vert.x PostgreSQL CRUD readiness is still pending real-database smoke evidence"));
+        assertTrue(readme.contains("This is not a broad Vert.x native-image support claim"));
+        assertFalse(
+                readme.contains("| Vert.x | Supported native"),
+                "README must not promote Vert.x native to a broad supported claim");
+    }
+
+    @Test
+    void explainIsNoLongerFramedAsFuture() throws IOException {
+        String roadmap = Files.readString(RepositoryPaths.root().resolve("docs/roadmap.md"));
+        String migrationExplain = Files.readString(RepositoryPaths.root().resolve("docs/migration-explain.md"));
+        String explainCommand = Files.readString(RepositoryPaths.root().resolve(
+                "apps/zolt/src/main/java/com/zolt/cli/command/insight/ExplainCommand.java"));
+
+        assertFalse(roadmap.contains("a future static audit command"));
+        assertTrue(roadmap.contains("the Maven and Gradle static audit is implemented"));
+        assertFalse(migrationExplain.contains("`zolt explain` is future migration intelligence"));
+        assertTrue(migrationExplain.contains("`zolt explain` is the implemented static migration-audit command"));
+        assertTrue(migrationExplain.contains("This is not compatibility mode"));
+        assertFalse(explainCommand.contains("not implemented yet"));
+        assertFalse(explainCommand.contains("not-implemented"));
+        assertTrue(explainCommand.contains("No Maven or Gradle metadata"));
+    }
+
+    @Test
     void vertxPostgresReadinessStaysSpecificUntilSmokesExist() throws IOException {
         String frameworkReadiness = Files.readString(RepositoryPaths.root().resolve("docs/framework-readiness.md"));
         String nativeGraalvm = Files.readString(RepositoryPaths.root().resolve("docs/native-graalvm.md"));

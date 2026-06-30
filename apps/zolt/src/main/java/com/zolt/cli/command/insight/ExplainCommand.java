@@ -218,27 +218,32 @@ public final class ExplainCommand implements Callable<Integer> {
     }
 
     private Integer explainPlaceholder(Path root, Source detectedSource) {
+        String nextStep = "Run zolt explain against a Maven (pom.xml) or Gradle "
+                + "(settings.gradle[.kts]/build.gradle[.kts]) project, or pass --directory <path> "
+                + "or --source maven|gradle to point it at one.";
         if (format == Format.JSON) {
             CommandOutput.printAndFlush(spec, """
-                    {"schemaVersion":1,"command":"explain","status":"not-implemented","source":"%s","root":"%s","message":"zolt explain is a future migration-audit command. It will inspect Maven and Gradle metadata statically without executing Maven or Gradle.","nextStep":"Track implementation in followUps/-add-zolt-explain-command-scaffold.md through followUps/-add-migration-explain-fixtures-and-golden-tests.md."}
-                    """.formatted(detectedSource.name().toLowerCase(), jsonEscape(root.toString())).stripTrailing());
+                    {"schemaVersion":1,"command":"explain","status":"no-project","source":"%s","root":"%s","message":"%s","nextStep":"%s"}
+                    """.formatted(
+                            detectedSource.name().toLowerCase(),
+                            jsonEscape(root.toString()),
+                            jsonEscape("No Maven or Gradle metadata was found at " + root + "."),
+                            jsonEscape(nextStep))
+                    .stripTrailing());
             return 1;
         }
         CommandHumanOutput output = CommandHumanOutput.of(spec);
-        output.work("zolt explain is not implemented yet.");
+        output.work("No Maven or Gradle metadata found at " + root + ".");
         output.blankLine();
-        output.line("Planned behavior:");
-        output.line("  - audit Maven and Gradle project metadata statically");
-        output.line("  - report what Zolt can build, test, package, and cache");
-        output.line("  - report non-determinism and migration blockers");
-        output.line("  - emit deterministic text or JSON reports");
+        output.line("zolt explain audits Maven and Gradle metadata statically. It looks for:");
+        output.line("  - a Maven pom.xml");
+        output.line("  - a Gradle settings.gradle[.kts] or build.gradle[.kts]");
         output.blankLine();
-        output.line("This command will not execute Maven or Gradle and will not create compatibility mode.");
+        output.line("None were detected at this project root, so there is nothing to audit here.");
         output.blankLine();
         output.context("Requested source", detectedSource.name().toLowerCase());
         output.context("Project root", root.toString());
-        output.next("Track this work in followUps/-add-zolt-explain-command-scaffold.md "
-                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md.");
+        output.next(nextStep);
         return 1;
     }
 

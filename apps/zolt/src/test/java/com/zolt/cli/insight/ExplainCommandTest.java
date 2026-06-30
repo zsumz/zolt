@@ -18,21 +18,24 @@ final class ExplainCommandTest {
 
     @Test
     void explainTextPlaceholderIsActionableWhenSourceIsUnknown() {
+        Path root = tempDir.toAbsolutePath().normalize();
         CommandResult result = execute("explain", "--directory", tempDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stdout().contains("zolt explain is not implemented yet."));
-        assertTrue(result.stdout().contains("audit Maven and Gradle project metadata statically"));
-        assertTrue(result.stdout().contains("This command will not execute Maven or Gradle"));
+        assertTrue(result.stdout().contains("No Maven or Gradle metadata found at " + root + "."));
+        assertTrue(result.stdout().contains("zolt explain audits Maven and Gradle metadata statically"));
+        assertFalse(result.stdout().contains("not implemented yet"));
         assertTrue(result.stdout().contains("Requested source: auto"));
-        assertTrue(result.stdout().contains("Project root: " + tempDir.toAbsolutePath().normalize()));
-        assertTrue(result.stdout().contains("Next: Track this work in followUps/-add-zolt-explain-command-scaffold.md "
-                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md."));
+        assertTrue(result.stdout().contains("Project root: " + root));
+        assertTrue(result.stdout().contains("Next: Run zolt explain against a Maven (pom.xml) or Gradle "
+                + "(settings.gradle[.kts]/build.gradle[.kts]) project, or pass --directory <path> "
+                + "or --source maven|gradle to point it at one."));
         assertEquals("", result.stderr());
     }
 
     @Test
     void explainPlaceholderUsesModernHumanOutputControls() {
+        Path root = tempDir.toAbsolutePath().normalize();
         CommandResult color = execute("--color=always", "explain", "--directory", tempDir.toString());
         CommandResult quiet = execute("--quiet", "explain", "--directory", tempDir.toString());
         CommandResult json = execute(
@@ -42,11 +45,10 @@ final class ExplainCommandTest {
                 "--format", "json");
 
         assertEquals(1, color.exitCode());
-        assertTrue(color.stdout().contains("\u001B[36mzolt\u001B[0m explain is not implemented yet."));
+        assertTrue(color.stdout().contains("\u001B[36mNo\u001B[0m Maven or Gradle metadata found at " + root + "."));
         assertTrue(color.stdout().contains("Requested source: auto"));
-        assertTrue(color.stdout().contains("Next: Track this work in followUps/-add-zolt-explain-command-scaffold.md "
-                + "through followUps/-add-migration-explain-fixtures-and-golden-tests.md."));
-        assertFalse(color.stdout().contains("\u001B[36mzolt explain is not implemented yet."));
+        assertTrue(color.stdout().contains("Next: Run zolt explain against a Maven (pom.xml) or Gradle"));
+        assertFalse(color.stdout().contains("not implemented yet"));
         assertFalse(color.stdout().contains("\u001B[36mNext"));
         assertEquals("", color.stderr());
         assertEquals(1, quiet.exitCode());
@@ -54,7 +56,9 @@ final class ExplainCommandTest {
         assertEquals("", quiet.stderr());
         assertEquals(1, json.exitCode());
         assertFalse(json.stdout().contains("\u001B["));
-        assertTrue(json.stdout().contains("\"status\":\"not-implemented\""));
+        assertFalse(json.stdout().contains("\"status\":\"not-implemented\""));
+        assertTrue(json.stdout().contains("\"status\":\"no-project\""));
+        assertTrue(json.stdout().contains("\"command\":\"explain\""));
     }
 
     @Test
