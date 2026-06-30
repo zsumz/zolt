@@ -7,7 +7,7 @@ import com.zolt.build.packaging.PackageResult;
 import com.zolt.build.packaging.PackageService;
 import com.zolt.build.RunPackageException;
 import com.zolt.classpath.Classpath;
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;

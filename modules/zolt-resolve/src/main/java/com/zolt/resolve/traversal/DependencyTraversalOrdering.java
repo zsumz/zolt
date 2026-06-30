@@ -1,6 +1,6 @@
 package com.zolt.resolve.traversal;
 
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.resolve.DependencyPolicyEffect;
 import com.zolt.resolve.request.DependencyRequest;
 import java.util.Comparator;

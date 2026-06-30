@@ -1,6 +1,6 @@
 package com.zolt.cli.command.task;
 
-import com.zolt.command.CommandConfigParser;
+import com.zolt.command.toml.CommandConfigParser;
 import com.zolt.cli.command.CommandProjectDirectory;
 import java.nio.file.Path;
 import picocli.CommandLine.Model.CommandSpec;

@@ -1,10 +1,10 @@
 package com.zolt.resolve.metadata.pom;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.PomInterpolationException;
-import com.zolt.maven.PomPropertyInterpolator;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.PomInterpolationException;
+import com.zolt.maven.repository.PomPropertyInterpolator;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.resolve.ResolveException;
 import java.util.ArrayList;
 import java.util.List;

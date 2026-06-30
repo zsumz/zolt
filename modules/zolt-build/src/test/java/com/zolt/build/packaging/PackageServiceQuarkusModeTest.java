@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.build.BuildService;
 import com.zolt.build.PackageException;
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.build.manifest.ManifestGenerator;
 import com.zolt.framework.FrameworkPackageResult;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;

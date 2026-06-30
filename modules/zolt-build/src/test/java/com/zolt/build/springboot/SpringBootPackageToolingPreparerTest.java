@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.packaging.PackageServiceTestSupport;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.NativeSettings;

@@ -2,7 +2,7 @@ package com.zolt.cli.command.task;
 
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceConfigParser;
+import com.zolt.workspace.toml.WorkspaceConfigParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;

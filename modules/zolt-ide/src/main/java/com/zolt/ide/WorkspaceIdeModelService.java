@@ -1,15 +1,15 @@
 package com.zolt.ide;
 
 import com.zolt.cache.ArtifactCacheException;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.resolve.ResolveException;
-import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceClasspathService;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceClasspathService;
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceProjectEdge;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceProjectEdge;
 import com.zolt.workspace.discovery.WorkspaceDiscoveryService;
 import com.zolt.workspace.resolve.WorkspaceResolveService;
 import java.nio.file.Files;

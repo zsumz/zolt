@@ -1,7 +1,7 @@
 package com.zolt.build.springboot;
 
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;

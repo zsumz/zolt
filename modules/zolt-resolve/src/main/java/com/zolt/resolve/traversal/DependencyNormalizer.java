@@ -1,6 +1,6 @@
 package com.zolt.resolve.traversal;
 
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.resolve.request.DependencyExclusion;
 import java.util.List;
 

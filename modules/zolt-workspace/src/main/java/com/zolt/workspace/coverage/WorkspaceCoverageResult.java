@@ -2,8 +2,8 @@ package com.zolt.workspace.coverage;
 
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.resolve.ResolveResult;
-import com.zolt.workspace.WorkspaceBuildResult;
-import com.zolt.workspace.WorkspaceTestResult;
+import com.zolt.workspace.service.WorkspaceBuildResult;
+import com.zolt.workspace.service.WorkspaceTestResult;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;

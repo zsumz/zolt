@@ -1,18 +1,18 @@
 package com.zolt.cli.command.resolve;
 
 import com.zolt.cache.ArtifactCacheException;
-import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.classpath.ClasspathFormatter;
-import com.zolt.classpath.ClasspathLaneAuditFormatter;
+import com.zolt.build.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathFormatter;
+import com.zolt.build.classpath.ClasspathLaneAuditFormatter;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandLockfiles;
 import com.zolt.cli.command.CommandOutput;
 import com.zolt.cli.command.CommandProjectDirectory;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;

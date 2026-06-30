@@ -11,7 +11,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.maven.PomInterpolationException;
+import com.zolt.maven.repository.PomInterpolationException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

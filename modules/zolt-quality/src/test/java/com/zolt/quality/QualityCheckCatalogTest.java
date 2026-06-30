@@ -3,7 +3,7 @@ package com.zolt.quality;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.workspace.WorkspaceSelectionRequest;
+import com.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

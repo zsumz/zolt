@@ -2,9 +2,9 @@ package com.zolt.quality;
 
 import static com.zolt.quality.QualityCheckService.DEPENDENCY_POLICY;
 
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.policy.DependencyPolicyReport;
 import com.zolt.policy.DependencyPolicyReportException;
 import com.zolt.policy.DependencyPolicyReportService;

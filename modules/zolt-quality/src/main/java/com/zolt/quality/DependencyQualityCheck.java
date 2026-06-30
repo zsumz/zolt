@@ -4,15 +4,15 @@ import static com.zolt.quality.QualityCheckService.DEPENDENCY_METADATA;
 
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.policy.DependencyPolicyReportService;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.ProjectConfig;
-import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceSelection;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceSelection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -228,7 +228,7 @@ final class DependencyQualityCheck {
         for (Map.Entry<String, String> dependency : new TreeMap<>(member.config().workspaceApiDependencies()).entrySet()) {
             String coordinate = dependency.getKey();
             String target = normalizeMemberPath(dependency.getValue());
-            Optional<com.zolt.workspace.WorkspaceProjectEdge> edge = workspace.edges().stream()
+            Optional<com.zolt.workspace.service.WorkspaceProjectEdge> edge = workspace.edges().stream()
                     .filter(candidate -> candidate.from().equals(member.path())
                             && candidate.to().equals(target)
                             && candidate.coordinate().equals(coordinate))

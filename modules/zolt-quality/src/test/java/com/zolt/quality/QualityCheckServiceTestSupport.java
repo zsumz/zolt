@@ -1,6 +1,6 @@
 package com.zolt.quality;
 
-import com.zolt.workspace.WorkspaceSelectionRequest;
+import com.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;

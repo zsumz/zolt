@@ -13,14 +13,14 @@ import com.zolt.maven.CoordinateParser;
 import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
-import com.zolt.workspace.WorkspaceBuildService;
+import com.zolt.workspace.service.WorkspaceBuildService;
 import com.zolt.workspace.coverage.WorkspaceCoverageService;
 import com.zolt.workspace.packaging.WorkspaceNativeBuildService;
 import com.zolt.workspace.packaging.WorkspacePackageService;
 import com.zolt.workspace.resolve.WorkspaceResolveService;
 import com.zolt.workspace.packaging.WorkspaceRunPackageService;
 import com.zolt.workspace.run.WorkspaceRunService;
-import com.zolt.workspace.WorkspaceTestService;
+import com.zolt.workspace.service.WorkspaceTestService;
 import java.util.Objects;
 
 public final class CommandServiceBundles {

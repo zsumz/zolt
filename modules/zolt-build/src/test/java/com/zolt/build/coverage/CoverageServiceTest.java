@@ -243,7 +243,7 @@ final class CoverageServiceTest {
             List<List<String>> reportCommands) {
         return new CoverageService(
                 testRunner,
-                new com.zolt.lockfile.ZoltLockfileReader(),
+                new com.zolt.lockfile.toml.ZoltLockfileReader(),
                 requiredVersion -> new JdkStatus(
                         Optional.of(projectDir),
                         Optional.of(Path.of("/java")),

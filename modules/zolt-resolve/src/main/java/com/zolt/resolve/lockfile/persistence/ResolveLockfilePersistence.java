@@ -2,10 +2,10 @@ package com.zolt.resolve.lockfile.persistence;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.lockfile.LockfileFreshnessSummary;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
-import com.zolt.lockfile.ZoltLockfileWriter;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileWriter;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.metrics.ResolveMetrics;

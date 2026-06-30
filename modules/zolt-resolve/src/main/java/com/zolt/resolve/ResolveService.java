@@ -2,10 +2,10 @@ package com.zolt.resolve;
 
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileWriter;
+import com.zolt.lockfile.toml.ZoltLockfileWriter;
 import com.zolt.maven.CoordinateParser;
-import com.zolt.maven.MavenRepositoryClient;
-import com.zolt.maven.RawPomParser;
+import com.zolt.maven.repository.MavenRepositoryClient;
+import com.zolt.maven.repository.RawPomParser;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.framework.FrameworkDependencyRequestPlanRequestAssembler;

@@ -5,7 +5,7 @@ import com.zolt.build.packaging.PackageService;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.packaging.WorkspacePackageService;
-import com.zolt.workspace.WorkspaceSelectionRequest;
+import com.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

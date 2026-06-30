@@ -2,7 +2,7 @@ package com.zolt.cli.command.task;
 
 import com.zolt.command.CommandAlias;
 import com.zolt.command.CommandConfig;
-import com.zolt.command.CommandConfigParser;
+import com.zolt.command.toml.CommandConfigParser;
 import com.zolt.toml.ZoltConfigException;
 import java.io.PrintWriter;
 import java.nio.file.Path;

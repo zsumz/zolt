@@ -18,7 +18,7 @@ import com.zolt.cli.command.*;
 import com.zolt.cli.command.CommandServiceBundles.CommandCoverageServices;
 import com.zolt.cli.command.testcmd.CommandTestAttributes;
 import com.zolt.cli.command.testcmd.CommandTestEvents;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;

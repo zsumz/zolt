@@ -1,6 +1,6 @@
 package com.zolt.resolve.materialization.session;
 
-import com.zolt.maven.RepositoryAuthentication;
+import com.zolt.maven.repository.RepositoryAuthentication;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;

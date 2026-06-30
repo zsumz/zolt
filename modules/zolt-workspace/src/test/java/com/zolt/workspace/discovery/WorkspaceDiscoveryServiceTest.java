@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceProjectEdge;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceProjectEdge;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

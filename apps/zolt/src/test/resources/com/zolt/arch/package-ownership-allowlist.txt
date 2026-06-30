@@ -1,0 +1,5 @@
+# Tracked exceptions to single-module package ownership.
+# Format: package|followUp|reason
+# A package listed here is allowed to be declared in more than one module until the
+# referenced followUp resolves the split.  resolved every historical split,
+# so this allowlist is intentionally empty; add an entry only with a tracking followUp.

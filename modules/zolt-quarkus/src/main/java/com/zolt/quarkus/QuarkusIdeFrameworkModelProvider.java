@@ -2,7 +2,7 @@ package com.zolt.quarkus;
 
 import com.zolt.ide.IdeFrameworkModelProvider;
 import com.zolt.ide.IdeModel;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.production.QuarkusAugmentationState;
 import com.zolt.quarkus.production.QuarkusOutputLayout;

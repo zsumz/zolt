@@ -11,7 +11,7 @@ import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.PrintedUserException;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandProjectDirectory;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.resolve.ResolveException;
 import com.zolt.selfhost.SelfHostingParityException;
 import com.zolt.selfhost.SelfHostingParityResult;

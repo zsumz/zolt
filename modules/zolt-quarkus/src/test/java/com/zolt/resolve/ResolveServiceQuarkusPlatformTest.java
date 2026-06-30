@@ -3,8 +3,8 @@ package com.zolt.resolve;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;

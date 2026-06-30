@@ -6,10 +6,10 @@ import com.zolt.dependency.PackageId;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.MavenRepositoryClient;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomParser;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.MavenRepositoryClient;
+import com.zolt.maven.repository.RawPom;
+import com.zolt.maven.repository.RawPomParser;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.lockfile.assembly.LockfileAssemblyContext;
@@ -169,22 +169,22 @@ public final class RepositorySession implements DependencyMetadataSource, Resolv
         return rawPomMetadataLoader.load(coordinate, this::getPom, metricsCollector);
     }
 
-    private com.zolt.maven.RepositoryArtifact fetchPom(Coordinate coordinate) {
+    private com.zolt.maven.repository.RepositoryArtifact fetchPom(Coordinate coordinate) {
         return fetchFromRepositories(access ->
                 repositoryClient.fetchPom(access.uri(), coordinate, access.authentication()));
     }
 
-    private com.zolt.maven.RepositoryArtifact fetchJar(Coordinate coordinate) {
+    private com.zolt.maven.repository.RepositoryArtifact fetchJar(Coordinate coordinate) {
         return fetchFromRepositories(access ->
                 repositoryClient.fetchJar(access.uri(), coordinate, access.authentication()));
     }
 
-    private com.zolt.maven.RepositoryArtifact fetchArtifact(ArtifactDescriptor descriptor) {
+    private com.zolt.maven.repository.RepositoryArtifact fetchArtifact(ArtifactDescriptor descriptor) {
         return fetchFromRepositories(access ->
                 repositoryClient.fetchArtifact(access.uri(), descriptor, access.authentication()));
     }
 
-    private com.zolt.maven.RepositoryArtifact fetchFromRepositories(RepositoryFetchAction action) {
+    private com.zolt.maven.repository.RepositoryArtifact fetchFromRepositories(RepositoryFetchAction action) {
         return repositoryFetchCoordinator.fetch(repositoryAccesses(), action::fetch);
     }
 

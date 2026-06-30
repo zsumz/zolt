@@ -1,10 +1,10 @@
 package com.zolt.cli.command;
 
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
 import com.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
-import com.zolt.workspace.Workspace;
+import com.zolt.workspace.service.Workspace;
 import com.zolt.workspace.resolve.WorkspaceResolveService;
 import com.zolt.workspace.discovery.WorkspaceDiscoveryService;
 import java.io.IOException;

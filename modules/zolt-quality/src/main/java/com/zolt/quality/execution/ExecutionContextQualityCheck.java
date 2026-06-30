@@ -3,9 +3,9 @@ package com.zolt.quality.execution;
 import static com.zolt.quality.QualityCheckService.EXECUTION_CONTEXT;
 
 import com.zolt.lockfile.LockPackage;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckResult;
 import java.nio.file.Files;

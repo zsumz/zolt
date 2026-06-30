@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.RawPom;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.resolve.ResolveException;
 import java.util.List;
 import java.util.Map;

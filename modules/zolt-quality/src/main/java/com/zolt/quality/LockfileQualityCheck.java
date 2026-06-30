@@ -4,14 +4,14 @@ import static com.zolt.quality.QualityCheckService.CACHE_INTEGRITY;
 import static com.zolt.quality.QualityCheckService.LOCKFILE;
 
 import com.zolt.cache.ArtifactCacheException;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
-import com.zolt.workspace.Workspace;
+import com.zolt.workspace.service.Workspace;
 import com.zolt.workspace.resolve.WorkspaceResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;

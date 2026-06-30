@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.RunException;
 import com.zolt.build.testruntime.TestRunServiceTestSupport;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,9 +1,9 @@
 package com.zolt.build;
 
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.build.compile.MainCompileSourceExecutor;
 import com.zolt.build.discovery.SourceDiscoverer;
@@ -23,7 +23,7 @@ import com.zolt.doctor.JdkStatus;
 import com.zolt.generated.GeneratedSourceException;
 import com.zolt.generated.ProtobufGeneratedSourceService;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveResult;

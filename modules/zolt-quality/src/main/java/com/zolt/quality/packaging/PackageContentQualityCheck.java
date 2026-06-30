@@ -10,7 +10,7 @@ import com.zolt.build.packageplan.PackagePlan;
 import com.zolt.build.packageplan.PackagePlanDependency;
 import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.build.packageplan.PackagePlanWarning;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quality.QualityCheckResult;
 import com.zolt.quality.QualityCheckText;

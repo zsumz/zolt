@@ -2,8 +2,8 @@ package com.zolt.resolve.traversal;
 
 import com.zolt.dependency.PackageId;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.PomDependencyManager;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.PomDependencyManager;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.resolve.request.DependencyExclusion;

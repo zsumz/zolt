@@ -2,7 +2,7 @@ package com.zolt.resolve.metadata.pom;
 
 import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
+import com.zolt.maven.repository.EffectiveRawPom;
 import com.zolt.resolve.ResolveException;
 import java.util.ArrayList;
 import java.util.Comparator;

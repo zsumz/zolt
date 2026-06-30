@@ -2,7 +2,7 @@ package com.zolt.workspace.run;
 
 import com.zolt.build.run.RunResult;
 import com.zolt.resolve.ResolveResult;
-import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.service.WorkspaceBuildResult;
 import java.util.List;
 import java.util.Optional;
 

@@ -1,15 +1,15 @@
 package com.zolt.build.nativeimage;
 
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.build.packaging.PackageResult;
 import com.zolt.build.packaging.PackageService;
 import com.zolt.build.springboot.SpringBootAotNativeInputs;
 import com.zolt.build.springboot.SpringBootAotOutputEvidenceService;
 import com.zolt.build.springboot.SpringBootNativeBoundaryDiagnostics;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;

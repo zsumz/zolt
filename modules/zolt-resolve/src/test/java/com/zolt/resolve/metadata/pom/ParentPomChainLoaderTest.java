@@ -3,8 +3,8 @@ package com.zolt.resolve.metadata.pom;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomParent;
+import com.zolt.maven.repository.RawPom;
+import com.zolt.maven.repository.RawPomParent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

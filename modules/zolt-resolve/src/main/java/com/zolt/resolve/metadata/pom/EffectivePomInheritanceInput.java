@@ -1,7 +1,7 @@
 package com.zolt.resolve.metadata.pom;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPom;
+import com.zolt.maven.repository.RawPom;
 import com.zolt.resolve.traversal.GraphTraversalException;
 import java.util.List;
 

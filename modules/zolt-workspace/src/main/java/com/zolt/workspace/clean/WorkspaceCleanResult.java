@@ -1,7 +1,7 @@
 package com.zolt.workspace.clean;
 
 import com.zolt.build.clean.CleanResult;
-import com.zolt.workspace.WorkspaceSelection;
+import com.zolt.workspace.service.WorkspaceSelection;
 import java.util.List;
 
 public record WorkspaceCleanResult(

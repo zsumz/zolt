@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.concurrent.RepositoryExecutionLane;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.CoordinateParser;
-import com.zolt.maven.RepositoryArtifact;
+import com.zolt.maven.repository.RepositoryArtifact;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;

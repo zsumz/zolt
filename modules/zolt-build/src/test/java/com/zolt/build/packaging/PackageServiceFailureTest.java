@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.PackageException;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.ProjectPathException;
 import java.io.IOException;

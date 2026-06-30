@@ -1,13 +1,13 @@
 package com.zolt.quarkus;
 
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectPathException;
 import com.zolt.project.ProjectPaths;

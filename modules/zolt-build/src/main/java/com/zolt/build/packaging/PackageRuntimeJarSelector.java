@@ -1,6 +1,6 @@
 package com.zolt.build.packaging;
 
-import com.zolt.classpath.LockfileClasspathPackageConverter;
+import com.zolt.build.classpath.LockfileClasspathPackageConverter;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;

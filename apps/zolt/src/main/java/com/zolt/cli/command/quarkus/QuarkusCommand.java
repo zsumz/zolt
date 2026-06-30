@@ -8,7 +8,7 @@ import com.zolt.cli.command.CommandOutput;
 import com.zolt.cli.command.CommandProjectDirectory;
 import com.zolt.cli.command.CommandTimings;
 import com.zolt.cli.command.testplan.TestPlanCommand;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusPlan;

@@ -10,10 +10,10 @@ import com.zolt.build.incremental.IncrementalCompileStateRecorder;
 import com.zolt.build.metadata.BuildMetadataGenerator;
 import com.zolt.build.resources.ResourceCopier;
 import com.zolt.build.springboot.SpringBootAotGenerationService;
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.generated.ProtobufGeneratedSourceService;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.resolve.ResolveService;
 
 final class BuildServiceDependencies {

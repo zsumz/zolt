@@ -1,8 +1,8 @@
 package com.zolt.workspace.discovery;
 
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceProjectEdge;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceProjectEdge;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

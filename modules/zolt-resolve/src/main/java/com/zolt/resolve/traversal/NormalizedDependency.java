@@ -2,7 +2,7 @@ package com.zolt.resolve.traversal;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.resolve.request.DependencyExclusion;
 import java.util.List;
 

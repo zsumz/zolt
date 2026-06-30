@@ -1,8 +1,8 @@
 package com.zolt.resolve.metadata.pom;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.RawPom;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.RawPom;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.metrics.EffectivePomLoadMetricsSink;
 import java.util.ArrayList;

@@ -1,7 +1,7 @@
 package com.zolt.resolve.traversal;
 
 import com.zolt.dependency.DependencyScope;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 
 public final class DependencyScopeParser {
     public DependencyScope parse(RawPomDependency dependency) {

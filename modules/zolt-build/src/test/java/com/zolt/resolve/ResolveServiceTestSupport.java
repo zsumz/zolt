@@ -1,6 +1,6 @@
 package com.zolt.resolve;
 
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.net.URI;

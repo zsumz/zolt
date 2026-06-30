@@ -8,7 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.resolve.ResolveResult;
 import java.io.IOException;
 import java.net.InetSocketAddress;

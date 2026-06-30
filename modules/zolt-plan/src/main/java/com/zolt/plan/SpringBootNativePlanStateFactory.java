@@ -1,8 +1,8 @@
 package com.zolt.plan;
 
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;

@@ -32,6 +32,7 @@ final class PublicApiSurfaceTest {
             "com.zolt.classpath.ResolvedPackage",
             "com.zolt.command.CommandAlias",
             "com.zolt.command.CommandConfig",
+            "com.zolt.command.CommandConfigRules",
             "com.zolt.command.CommandTask",
             "com.zolt.dependency.ConflictSelectionReason",
             "com.zolt.dependency.DependencyScope",

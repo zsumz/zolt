@@ -11,7 +11,7 @@ import com.zolt.build.springboot.SpringBootJarLayoutAssembler;
 import com.zolt.build.springboot.SpringBootWarLayoutAssembler;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkPackageResult;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Files;

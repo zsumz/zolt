@@ -4,7 +4,7 @@ import com.zolt.cache.CachedArtifact;
 import com.zolt.cache.LocalArtifactCache;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.MavenRepositoryPathBuilder;
+import com.zolt.maven.repository.MavenRepositoryPathBuilder;
 import com.zolt.resolve.materialization.RepositoryOverlay;
 import com.zolt.resolve.materialization.RepositoryOverlayKind;
 import java.nio.file.Files;

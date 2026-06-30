@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RepositoryArtifact;
-import com.zolt.maven.RepositoryAuthentication;
-import com.zolt.maven.RepositoryMissingArtifactException;
+import com.zolt.maven.repository.RepositoryArtifact;
+import com.zolt.maven.repository.RepositoryAuthentication;
+import com.zolt.maven.repository.RepositoryMissingArtifactException;
 import com.zolt.resolve.ResolveException;
 import java.net.URI;
 import java.util.ArrayList;

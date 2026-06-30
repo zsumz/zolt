@@ -2,8 +2,8 @@ package com.zolt.resolve.metadata.pom;
 
 import com.zolt.cache.CachedArtifact;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomParser;
+import com.zolt.maven.repository.RawPom;
+import com.zolt.maven.repository.RawPomParser;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.metrics.RawPomLoadMetricsSink;
 import java.util.Map;

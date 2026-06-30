@@ -1,7 +1,7 @@
 package com.zolt.resolve.metadata;
 
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.EffectiveRawPom;
+import com.zolt.maven.repository.EffectiveRawPom;
 import java.util.List;
 
 @FunctionalInterface

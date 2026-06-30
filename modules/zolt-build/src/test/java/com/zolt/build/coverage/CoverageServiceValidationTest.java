@@ -83,7 +83,7 @@ final class CoverageServiceValidationTest {
             List<List<String>> reportCommands) {
         return new CoverageService(
                 testRunner,
-                new com.zolt.lockfile.ZoltLockfileReader(),
+                new com.zolt.lockfile.toml.ZoltLockfileReader(),
                 requiredVersion -> new com.zolt.doctor.JdkStatus(
                         Optional.of(Path.of(".")),
                         Optional.of(Path.of("/java")),

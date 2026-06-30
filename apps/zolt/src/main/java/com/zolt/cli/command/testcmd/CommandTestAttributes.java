@@ -6,7 +6,7 @@ import com.zolt.build.testruntime.compile.TestCompileResult;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.cli.command.CommandAttributeKeys;
 import com.zolt.test.TestSelection;
-import com.zolt.workspace.WorkspaceTestResult;
+import com.zolt.workspace.service.WorkspaceTestResult;
 import java.util.LinkedHashMap;
 import java.util.Map;
 

@@ -38,7 +38,7 @@ final class DependencyGraphTraverserGeneratedGraphTest extends DependencyGraphTr
         List<String> artifactIds = List.of("node-a", "node-b", "node-c", "node-d", "node-e", "node-f");
         List<String> description = new ArrayList<>();
 
-        List<com.zolt.maven.RawPomDependency> rootDependencies = new ArrayList<>();
+        List<com.zolt.maven.repository.RawPomDependency> rootDependencies = new ArrayList<>();
         rootDependencies.add(dependency("com.generated", "node-a", "1.0.0"));
         rootDependencies.add(runtimeDependency("com.generated", "node-b", "1.0.0"));
         rootDependencies.add(dependency("com.generated", "excluded", "1.0.0"));
@@ -48,7 +48,7 @@ final class DependencyGraphTraverserGeneratedGraphTest extends DependencyGraphTr
 
         for (int index = 0; index < artifactIds.size(); index++) {
             String artifactId = artifactIds.get(index);
-            List<com.zolt.maven.RawPomDependency> dependencies = new ArrayList<>();
+            List<com.zolt.maven.repository.RawPomDependency> dependencies = new ArrayList<>();
             for (int candidate = index + 1; candidate < artifactIds.size(); candidate++) {
                 if (random.nextBoolean()) {
                     String target = artifactIds.get(candidate);
@@ -73,7 +73,7 @@ final class DependencyGraphTraverserGeneratedGraphTest extends DependencyGraphTr
         };
     }
 
-    private com.zolt.maven.RawPomDependency generatedDependency(DependencyScope scope, String artifactId) {
+    private com.zolt.maven.repository.RawPomDependency generatedDependency(DependencyScope scope, String artifactId) {
         return switch (scope) {
             case COMPILE -> dependency("com.generated", artifactId, "1.0.0");
             case RUNTIME -> runtimeDependency("com.generated", artifactId, "1.0.0");

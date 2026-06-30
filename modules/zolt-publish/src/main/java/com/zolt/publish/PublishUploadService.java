@@ -2,9 +2,9 @@ package com.zolt.publish;
 
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.MavenRepositoryClient;
-import com.zolt.maven.RepositoryAuthentication;
-import com.zolt.maven.RepositoryClientException;
+import com.zolt.maven.repository.MavenRepositoryClient;
+import com.zolt.maven.repository.RepositoryAuthentication;
+import com.zolt.maven.repository.RepositoryClientException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositoryUrlPolicy;

@@ -6,7 +6,7 @@ import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.PackageException;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.MavenRepositoryPathBuilder;
+import com.zolt.maven.repository.MavenRepositoryPathBuilder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;

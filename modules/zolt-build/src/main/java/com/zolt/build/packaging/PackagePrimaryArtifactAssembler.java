@@ -2,13 +2,13 @@ package com.zolt.build.packaging;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.PackageException;
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.classpath.ResolvedClasspathPackage;
 import com.zolt.build.manifest.ManifestGenerator;
 import com.zolt.build.packaging.layout.ThinJarLayoutAssembler;
 import com.zolt.framework.FrameworkPackageAugmenter;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;
 import java.nio.file.Path;

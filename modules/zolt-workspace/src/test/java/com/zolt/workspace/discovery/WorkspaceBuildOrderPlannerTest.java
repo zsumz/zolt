@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceProjectEdge;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceProjectEdge;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

@@ -3,8 +3,8 @@ package com.zolt.workspace.resolve;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.RepositorySettings;
 import com.zolt.resolve.ResolveException;
-import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceMember;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceMember;
 import java.util.LinkedHashMap;
 import java.util.Map;
 

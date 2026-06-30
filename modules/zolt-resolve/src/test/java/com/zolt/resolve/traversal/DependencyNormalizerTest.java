@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPomDependency;
-import com.zolt.maven.RawPomExclusion;
+import com.zolt.maven.repository.RawPomDependency;
+import com.zolt.maven.repository.RawPomExclusion;
 import com.zolt.resolve.request.DependencyExclusion;
 import java.util.List;
 import java.util.Optional;

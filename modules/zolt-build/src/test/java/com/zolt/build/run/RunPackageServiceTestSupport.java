@@ -2,7 +2,7 @@ package com.zolt.build.run;
 
 import com.zolt.build.BuildService;
 import com.zolt.build.packaging.PackageService;
-import com.zolt.classpath.ClasspathBuilder;
+import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.project.BuildSettings;

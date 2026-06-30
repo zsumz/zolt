@@ -1,15 +1,15 @@
 package com.zolt.quality.execution;
 
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishSettingsReader;
 import com.zolt.quality.QualityCheckContext;
 import com.zolt.quality.QualityCheckRequest;
 import com.zolt.quality.QualityCheckResult;
-import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceMember;
-import com.zolt.workspace.WorkspaceSelection;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceMember;
+import com.zolt.workspace.service.WorkspaceSelection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

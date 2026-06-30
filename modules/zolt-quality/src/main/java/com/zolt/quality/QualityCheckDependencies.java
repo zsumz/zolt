@@ -3,7 +3,7 @@ package com.zolt.quality;
 import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.generated.GeneratedSourceEvidenceService;
-import com.zolt.lockfile.ZoltLockfileReader;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.policy.DependencyPolicyReportService;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishSettingsReader;

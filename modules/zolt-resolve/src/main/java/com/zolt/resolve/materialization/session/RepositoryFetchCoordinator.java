@@ -1,7 +1,7 @@
 package com.zolt.resolve.materialization.session;
 
-import com.zolt.maven.RepositoryArtifact;
-import com.zolt.maven.RepositoryMissingArtifactException;
+import com.zolt.maven.repository.RepositoryArtifact;
+import com.zolt.maven.repository.RepositoryMissingArtifactException;
 import com.zolt.resolve.ResolveException;
 import java.util.List;
 

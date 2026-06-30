@@ -19,7 +19,7 @@ import com.zolt.cli.command.CommandProjectDirectory;
 import com.zolt.cli.command.CommandServiceBundles.CommandNativeServices;
 import com.zolt.cli.command.CommandWorkspaceSelections;
 import com.zolt.cli.console.ProgressWriter;
-import com.zolt.lockfile.LockfileReadException;
+import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.toml.ZoltConfigException;

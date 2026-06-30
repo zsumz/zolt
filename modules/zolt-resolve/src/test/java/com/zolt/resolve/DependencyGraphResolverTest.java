@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.maven.EffectiveRawPom;
-import com.zolt.maven.RawPom;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.EffectiveRawPom;
+import com.zolt.maven.repository.RawPom;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.resolve.graph.PackageNode;
 import com.zolt.resolve.metrics.ResolverMetricsSink;

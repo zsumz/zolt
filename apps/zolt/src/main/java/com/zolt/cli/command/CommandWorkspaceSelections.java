@@ -1,6 +1,6 @@
 package com.zolt.cli.command;
 
-import com.zolt.workspace.WorkspaceSelectionRequest;
+import com.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.util.ArrayList;
 import java.util.List;
 

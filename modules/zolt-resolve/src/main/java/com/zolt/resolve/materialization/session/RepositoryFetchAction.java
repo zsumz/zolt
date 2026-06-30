@@ -2,5 +2,5 @@ package com.zolt.resolve.materialization.session;
 
 @FunctionalInterface
 interface RepositoryFetchAction {
-    com.zolt.maven.RepositoryArtifact fetch(RepositoryAccess access);
+    com.zolt.maven.repository.RepositoryArtifact fetch(RepositoryAccess access);
 }

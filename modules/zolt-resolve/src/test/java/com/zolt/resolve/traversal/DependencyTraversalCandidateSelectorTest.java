@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyConstraintKind;
 import com.zolt.resolve.request.DependencyExclusion;

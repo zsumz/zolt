@@ -4,7 +4,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
-import com.zolt.maven.RawPomDependency;
+import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.resolve.DependencyPolicyEffect;
 import com.zolt.resolve.request.DependencyRequest;
