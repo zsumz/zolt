@@ -16,9 +16,13 @@ final class RepositoryFetchCoordinator {
             }
         }
         if (lastMissing != null) {
-            throw lastMissing;
+            throw ResolveException.actionable(
+                    lastMissing.getMessage(),
+                    "Check the group, artifact, version, and repository URL, then run `zolt resolve` again.",
+                    lastMissing);
         }
-        throw new ResolveException(
-                "No repositories are configured in zolt.toml. Add [repositories] with at least one Maven-compatible repository URL.");
+        throw ResolveException.actionable(
+                "No repositories are configured in zolt.toml.",
+                "Add [repositories] with at least one Maven-compatible repository URL.");
     }
 }

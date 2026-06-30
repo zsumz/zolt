@@ -30,8 +30,9 @@ public final class ZoltLockfileReader {
         try {
             return read(Toml.parse(path));
         } catch (IOException exception) {
-            throw new LockfileReadException(
-                    "Could not read zolt.lock at " + path + ". Check that the file exists and is readable.",
+            throw LockfileReadException.actionable(
+                    "Could not read zolt.lock at " + path + ".",
+                    "Check that the file exists and is readable.",
                     exception);
         }
     }
@@ -44,19 +45,16 @@ public final class ZoltLockfileReader {
         try {
             if (result.hasErrors()) {
                 TomlParseError error = result.errors().getFirst();
-                throw new LockfileReadException(
-                        "Could not parse zolt.lock. Fix the TOML syntax near "
-                                + error.position()
-                                + ": "
-                                + error.getMessage());
+                throw LockfileReadException.actionable(
+                        "Could not parse zolt.lock near " + error.position() + ": " + error.getMessage(),
+                        "Fix the TOML syntax in zolt.lock, or run `zolt resolve` to regenerate it.");
             }
 
             int version = LockfileTomlValues.requireInt(result, "version");
             if (version != ZoltLockfile.CURRENT_VERSION) {
-                throw new LockfileReadException(
-                        "Unsupported zolt.lock version "
-                                + version
-                                + ". Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.");
+                throw LockfileReadException.actionable(
+                        "Unsupported zolt.lock version " + version + ".",
+                        "Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.");
             }
 
             return new ZoltLockfile(

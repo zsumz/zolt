@@ -159,7 +159,9 @@ public final class PackageCommand implements Runnable {
             Optional<PackageMode> packageModeOverride = PackageCommandModes.packageModeOverride(mode);
             PackageCommandModes.PlanOutputFormat planOutputFormat = PackageCommandModes.planOutputFormat(format);
             if (!planOnly && planOutputFormat != PackageCommandModes.PlanOutputFormat.TEXT) {
-                throw new PackageException("Package --format is only supported with --plan. Use `zolt package --plan --format json`.");
+                throw PackageException.actionable(
+                        "Package --format is only supported with --plan.",
+                        "Use `zolt package --plan --format json`.");
             }
             if (workspace) {
                 runWorkspacePackage(projectRoot, timings, packageModeOverride, planOnly);
@@ -189,7 +191,9 @@ public final class PackageCommand implements Runnable {
             Optional<PackageMode> packageModeOverride,
             boolean planOnly) {
         if (planOnly) {
-            throw new PackageException("Package --plan is currently single-project. Run it from the member project you want to inspect.");
+            throw PackageException.actionable(
+                    "Package --plan is currently single-project.",
+                    "Run it from the member project you want to inspect.");
         }
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         ProgressWriter progress = CommandProgress.human(spec);

@@ -63,17 +63,17 @@ public final class PomMetadataPreloader {
         List<PomMetadataFailure> sorted = failures.stream()
                 .sorted(Comparator.comparing(PomMetadataFailure::coordinate))
                 .toList();
-        StringBuilder message = new StringBuilder("POM metadata fetch failed:");
+        StringBuilder summary = new StringBuilder("POM metadata fetch failed:");
         for (PomMetadataFailure failure : sorted) {
-            message.append(System.lineSeparator())
+            summary.append(System.lineSeparator())
                     .append("- ")
                     .append(failure.coordinate())
                     .append(": ")
                     .append(failure.message());
         }
-        message.append(System.lineSeparator())
-                .append("Retry the command or check your repository and network settings.");
-        return new ResolveException(message.toString());
+        return ResolveException.actionable(
+                summary.toString(),
+                "Retry the command or check your repository and network settings.");
     }
 
     private static String failureMessage(Throwable cause) {

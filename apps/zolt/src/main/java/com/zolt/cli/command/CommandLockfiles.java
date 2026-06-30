@@ -80,10 +80,9 @@ public final class CommandLockfiles {
                     || content.contains("aliasFingerprint = ")
                     || content.contains("projectResolutionFingerprint = ");
         } catch (IOException exception) {
-            throw new LockfileReadException(
-                    "Could not read zolt.lock at "
-                            + lockfilePath
-                            + " while checking lockfile freshness. Check that the file exists and is readable.",
+            throw LockfileReadException.actionable(
+                    "Could not read zolt.lock at " + lockfilePath + " while checking lockfile freshness.",
+                    "Check that the file exists and is readable.",
                     exception);
         }
     }

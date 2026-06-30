@@ -78,15 +78,15 @@ public final class TomlVersions {
             String subject,
             String version) {
         VersionPolicy.violation(context, version).ifPresent(violation -> {
-            throw new ZoltConfigException(
+            throw new ZoltConfigException(com.zolt.error.ActionableError.of(
                     "Invalid "
                             + context.description()
                             + " `"
                             + version
                             + "` for ["
                             + subject
-                            + "] in zolt.toml. "
-                            + violation.guidance());
+                            + "] in zolt.toml.",
+                    violation.guidance()));
         });
     }
 

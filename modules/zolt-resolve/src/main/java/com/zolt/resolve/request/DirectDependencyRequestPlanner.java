@@ -144,27 +144,27 @@ final class DirectDependencyRequestPlanner {
 
     private static void validateSupportedVersion(String section, PackageId packageId, String version) {
         VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version).ifPresent(violation -> {
-            throw new ResolveException(
+            throw ResolveException.actionable(
                     "Unsupported external dependency version `"
                             + version
                             + "` for `"
                             + packageId
                             + "` in ["
                             + section
-                            + "]. "
-                            + violation.guidance()
-                            + " Use a fixed released version, then run `zolt resolve` again.");
+                            + "].",
+                    violation.guidance() + " Use a fixed released version, then run `zolt resolve` again.");
         });
     }
 
     private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion) {
         if ("*".equals(exclusion.group()) || "*".equals(exclusion.artifact())) {
-            throw new ResolveException(
+            throw ResolveException.actionable(
                     "Wildcard dependency exclusions are not supported in zolt.toml: "
                             + exclusion.group()
                             + ":"
                             + exclusion.artifact()
-                            + ". Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
+                            + ".",
+                    "Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
         }
         return new DependencyExclusion(exclusion.group(), exclusion.artifact());
     }
@@ -175,12 +175,13 @@ final class DirectDependencyRequestPlanner {
             Map<PackageId, String> projectManagedVersions) {
         String version = projectManagedVersions.get(packageId);
         if (version == null || version.isBlank()) {
-            throw new ResolveException(
+            throw ResolveException.actionable(
                     "Dependency "
                             + packageId
                             + " in ["
                             + section
-                            + "] uses a platform-managed version, but no declared [platforms] entry manages it. Add a version or add a platform that manages this dependency.");
+                            + "] uses a platform-managed version, but no declared [platforms] entry manages it.",
+                    "Add a version or add a platform that manages this dependency.");
         }
         return version;
     }

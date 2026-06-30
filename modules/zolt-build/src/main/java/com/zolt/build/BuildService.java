@@ -153,9 +153,10 @@ public final class BuildService {
             return false;
         }
         if (request.offline()) {
-            throw new BuildException(
-                    "OpenAPI generation requires locked tool artifacts in scope `tool-openapi`, but zolt.lock does not contain them. "
-                            + "Run `zolt resolve` without --offline to seed the OpenAPI generator tooling, then retry.");
+            throw BuildException.actionable(
+                    "OpenAPI generation requires locked tool artifacts in scope `tool-openapi`, "
+                            + "but zolt.lock does not contain them.",
+                    "Run `zolt resolve` without --offline to seed the OpenAPI generator tooling, then retry.");
         }
         return true;
     }
@@ -180,7 +181,7 @@ public final class BuildService {
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
-            throw new BuildException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
+            throw BuildException.actionable("JDK check failed.", String.join(" ", jdkStatus.problems()));
         }
 
         Path outputDirectory = projectDirectory.resolve(config.build().output());

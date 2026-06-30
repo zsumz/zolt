@@ -14,9 +14,6 @@ import java.util.Objects;
 import java.util.function.Function;
 
 final class RepositoryAccessPlanner {
-    private static final String NO_REPOSITORIES_MESSAGE =
-            "No repositories are configured in zolt.toml. Add [repositories] with at least one Maven-compatible repository URL.";
-
     private final Function<String, String> environment;
 
     RepositoryAccessPlanner() {
@@ -32,7 +29,9 @@ final class RepositoryAccessPlanner {
                 .sorted(Comparator.comparing(RepositorySettings::id))
                 .toList();
         if (repositories.isEmpty()) {
-            throw new ResolveException(NO_REPOSITORIES_MESSAGE);
+            throw ResolveException.actionable(
+                    "No repositories are configured in zolt.toml.",
+                    "Add [repositories] with at least one Maven-compatible repository URL.");
         }
         List<RepositoryAccess> access = new ArrayList<>();
         for (RepositorySettings repository : repositories) {

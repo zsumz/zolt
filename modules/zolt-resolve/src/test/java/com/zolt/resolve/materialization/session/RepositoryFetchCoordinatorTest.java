@@ -46,8 +46,8 @@ final class RepositoryFetchCoordinatorTest {
         RepositoryMissingArtifactException first = new RepositoryMissingArtifactException("missing from one");
         RepositoryMissingArtifactException second = new RepositoryMissingArtifactException("missing from two");
 
-        RepositoryMissingArtifactException exception = assertThrows(
-                RepositoryMissingArtifactException.class,
+        ResolveException exception = assertThrows(
+                ResolveException.class,
                 () -> coordinator.fetch(
                         List.of(access("https://repo.example/one"), access("https://repo.example/two")),
                         access -> {
@@ -57,7 +57,12 @@ final class RepositoryFetchCoordinatorTest {
                             throw second;
                         }));
 
-        assertSame(second, exception);
+        // The last missing-artifact failure is surfaced as an actionable ResolveException so the CLI
+        // renders a remediation line, with the original missing-artifact exception preserved as cause.
+        assertSame(second, exception.getCause());
+        assertTrue(exception.getMessage().contains("missing from two"));
+        assertTrue(exception.actionableError() != null);
+        assertTrue(exception.actionableError().remediation().contains("Check the group, artifact, version"));
     }
 
     @Test

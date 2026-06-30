@@ -87,7 +87,7 @@ final class ZoltLockfileReaderTest {
                 LockfileReadException.class,
                 () -> reader.read("version =\n"));
 
-        assertTrue(exception.getMessage().contains("Could not parse zolt.lock."));
+        assertTrue(exception.getMessage().contains("Could not parse zolt.lock"));
         assertTrue(exception.getMessage().contains("Fix the TOML syntax"));
     }
 

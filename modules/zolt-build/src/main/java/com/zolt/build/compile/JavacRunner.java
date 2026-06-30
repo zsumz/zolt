@@ -70,10 +70,10 @@ public final class JavacRunner {
             }
         } catch (IOException exception) {
             throw new JavacException(
-                    "Could not create compilation output directories for "
-                            + outputDirectory
-                            + ". Check that the project directory is writable.",
-                    exception);
+                    com.zolt.error.ActionableError.of(
+                            "Could not create compilation output directories for " + outputDirectory + ".",
+                            "Check that the project directory is writable.",
+                            exception));
         }
         if (sortedSources.isEmpty()) {
             return new JavacResult(0, outputDirectory, "");
@@ -89,13 +89,14 @@ public final class JavacRunner {
                 effectiveOptions);
         ProcessResult result = processRunner.run(command);
         if (result.exitCode() != 0) {
-            throw new JavacException(
-                    "javac failed with exit code "
-                            + result.exitCode()
-                            + ". Fix the Java compilation errors and try again. "
+            String diagnostics = result.output().stripTrailing();
+            String summary = "javac failed with exit code " + result.exitCode() + "."
+                    + (diagnostics.isEmpty() ? "" : "\n" + diagnostics);
+            throw new JavacException(com.zolt.error.ActionableError.of(
+                    summary,
+                    "Fix the Java compilation errors and try again. "
                             + "If annotation processing is configured, inspect [annotationProcessors], "
-                            + "[test.annotationProcessors], and processor-scoped entries in zolt.lock.\n"
-                            + result.output().stripTrailing());
+                            + "[test.annotationProcessors], and processor-scoped entries in zolt.lock."));
         }
         return new JavacResult(sortedSources.size(), outputDirectory, result.output());
     }
@@ -178,11 +179,15 @@ public final class JavacRunner {
             return new ProcessResult(exitCode, output);
         } catch (IOException exception) {
             throw new JavacException(
-                    "Could not run javac. Check that the configured JDK is installed and readable.",
-                    exception);
+                    com.zolt.error.ActionableError.of(
+                            "Could not run javac.",
+                            "Check that the configured JDK is installed and readable.",
+                            exception));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new JavacException("javac was interrupted. Try the build again.", exception);
+            throw new JavacException(
+                    com.zolt.error.ActionableError.of(
+                            "javac was interrupted.", "Try the build again.", exception));
         }
     }
 

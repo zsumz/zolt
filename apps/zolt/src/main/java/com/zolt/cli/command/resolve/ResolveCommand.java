@@ -104,9 +104,9 @@ public final class ResolveCommand implements Runnable {
         try {
             if (workspace) {
                 if (!repositoryOverlays.isEmpty() || noLocalOverlays) {
-                    throw new ResolveException(
-                            "Repository overlay options are currently supported for single-project resolve only. "
-                                    + "Run without --workspace or wait for workspace overlay policy support.");
+                    throw ResolveException.actionable(
+                            "Repository overlay options are currently supported for single-project resolve only.",
+                            "Run without --workspace or wait for workspace overlay policy support.");
                 }
                 progress.start("Resolving workspace dependencies");
                 ResolveResult result = timings.measure(
@@ -157,10 +157,9 @@ public final class ResolveCommand implements Runnable {
         String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case "maven-local", "local-maven" -> RepositoryOverlay.mavenLocal(mavenLocalRoot);
-            default -> throw new ResolveException(
-                    "Unsupported repository overlay `"
-                            + value
-                            + "`. Supported overlays: maven-local.");
+            default -> throw ResolveException.actionable(
+                    "Unsupported repository overlay `" + value + "`.",
+                    "Supported overlays: maven-local.");
         };
     }
 

@@ -126,11 +126,7 @@ public final class MavenRepositoryClient {
 
             if (response.statusCode() == 404) {
                 throw new RepositoryMissingArtifactException(
-                        "Could not find "
-                                + coordinate
-                                + " at "
-                                + diagnosticUri(artifactUri)
-                                + ". Check the group, artifact, version, and repository URL.");
+                        "Could not find " + coordinate + " at " + diagnosticUri(artifactUri) + ".");
             }
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return new RepositoryArtifact(coordinate, path, artifactUri, response.body());

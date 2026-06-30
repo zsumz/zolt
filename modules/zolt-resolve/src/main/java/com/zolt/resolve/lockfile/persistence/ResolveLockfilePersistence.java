@@ -27,10 +27,9 @@ public final class ResolveLockfilePersistence {
 
     public ResolveOptions prepare(Path lockfilePath, boolean locked, ResolveOptions options) {
         if (locked && !Files.isRegularFile(lockfilePath)) {
-            throw new ResolveException(
-                    "Locked resolve requires zolt.lock at "
-                            + lockfilePath
-                            + ". Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
+            throw ResolveException.actionable(
+                    "Locked resolve requires zolt.lock at " + lockfilePath + ".",
+                    "Run `zolt resolve` to create it, then retry `zolt resolve --locked`.");
         }
         if (locked && options.rejectLocalOverlays()) {
             rejectExistingLocalOverlayLockfile(lockfilePath);
@@ -65,14 +64,13 @@ public final class ResolveLockfilePersistence {
         try {
             existing = Files.readString(lockfilePath);
         } catch (IOException exception) {
-            throw new ResolveException(
-                    "Could not read zolt.lock at "
-                            + lockfilePath
-                            + " while checking local overlay origins. Check that the file exists and is readable.",
+            throw ResolveException.actionable(
+                    "Could not read zolt.lock at " + lockfilePath + " while checking local overlay origins.",
+                    "Check that the file exists and is readable.",
                     exception);
         }
         if (existing.contains("source = \"local-overlay:")) {
-            throw new ResolveException(localOverlayRejectedMessage());
+            throw localOverlayRejected();
         }
     }
 
@@ -80,7 +78,7 @@ public final class ResolveLockfilePersistence {
         boolean hasLocalOverlay = lockfile.packages().stream()
                 .anyMatch(lockPackage -> localOverlaySource(lockPackage.source()));
         if (hasLocalOverlay) {
-            throw new ResolveException(localOverlayRejectedMessage());
+            throw localOverlayRejected();
         }
     }
 
@@ -100,10 +98,11 @@ public final class ResolveLockfilePersistence {
         return source != null && source.startsWith("local-overlay:");
     }
 
-    private static String localOverlayRejectedMessage() {
-        return "Local repository overlay artifacts are not allowed for this resolve. "
-                + "Run `zolt resolve` without local overlays to refresh zolt.lock from configured repositories, "
-                + "or remove --no-local-overlays for a local development-only resolve.";
+    private static ResolveException localOverlayRejected() {
+        return ResolveException.actionable(
+                "Local repository overlay artifacts are not allowed for this resolve.",
+                "Run `zolt resolve` without local overlays to refresh zolt.lock from configured repositories, "
+                        + "or remove --no-local-overlays for a local development-only resolve.");
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {
@@ -111,20 +110,18 @@ public final class ResolveLockfilePersistence {
         try {
             existing = Files.readString(lockfilePath);
         } catch (IOException exception) {
-            throw new ResolveException(
-                    "Could not read zolt.lock at "
-                            + lockfilePath
-                            + " for locked resolve. Check that the file exists and is readable.",
+            throw ResolveException.actionable(
+                    "Could not read zolt.lock at " + lockfilePath + " for locked resolve.",
+                    "Check that the file exists and is readable.",
                     exception);
         }
 
         String expected = lockfileWriter.write(candidate);
         if (!existing.equals(expected)) {
             String changedInputs = changedInputs(existing, candidate);
-            throw new ResolveException(
-                    "zolt.lock is out of date."
-                            + changedInputs
-                            + " Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.");
+            throw ResolveException.actionable(
+                    "zolt.lock is out of date." + changedInputs,
+                    "Run `zolt resolve` to refresh it, then retry `zolt resolve --locked`.");
         }
     }
 

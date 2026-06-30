@@ -29,7 +29,22 @@ final class ActionableErrorContractTest {
     private static final List<Path> MIGRATED_SITES = List.of(
             RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/toml/ZoltTomlParser.java"),
             RepositoryPaths.root().resolve(
-                    "modules/zolt-build/src/main/java/com/zolt/build/springboot/SpringBootNativeBoundaryDiagnostics.java"));
+                    "modules/zolt-build/src/main/java/com/zolt/build/springboot/SpringBootNativeBoundaryDiagnostics.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-resolve/src/main/java/com/zolt/resolve/lockfile/persistence/ResolveLockfilePersistence.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-resolve/src/main/java/com/zolt/resolve/materialization/session/RepositoryAccessPlanner.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-resolve/src/main/java/com/zolt/resolve/request/DirectDependencyRequestPlanner.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-resolve/src/main/java/com/zolt/resolve/materialization/session/RepositoryFetchCoordinator.java"),
+            RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/compile/JavacRunner.java"),
+            RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/BuildService.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-toml/src/main/java/com/zolt/lockfile/toml/ZoltLockfileReader.java"),
+            RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/toml/support/TomlVersions.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-workspace/src/main/java/com/zolt/workspace/service/WorkspaceBuildService.java"));
 
     /**
      * User-facing domain exceptions that carry an {@link HasActionableError} so the CLI renderer always
@@ -38,6 +53,11 @@ final class ActionableErrorContractTest {
      */
     private static final List<Path> CARRIER_EXCEPTIONS = List.of(
             RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/toml/ZoltConfigException.java"),
+            RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/lockfile/toml/LockfileReadException.java"),
+            RepositoryPaths.root().resolve("modules/zolt-resolve/src/main/java/com/zolt/resolve/ResolveException.java"),
+            RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/BuildException.java"),
+            RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/JavacException.java"),
+            RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/PackageException.java"),
             RepositoryPaths.root().resolve(
                     "modules/zolt-build/src/main/java/com/zolt/build/nativeimage/NativeImageException.java"));
 
@@ -81,8 +101,10 @@ final class ActionableErrorContractTest {
             assertTrue(Files.isRegularFile(site), () -> "Expected migrated error site at " + site);
             String source = Files.readString(site);
             assertTrue(
-                    source.contains("ActionableError.of("),
-                    () -> RepositoryPaths.displayPath(site) + " must construct ActionableError for its user errors.");
+                    source.contains("ActionableError.of(") || source.contains(".actionable("),
+                    () -> RepositoryPaths.displayPath(site)
+                            + " must construct an ActionableError (directly or via an exception's actionable(...) factory) "
+                            + "for its user errors.");
         }
     }
 

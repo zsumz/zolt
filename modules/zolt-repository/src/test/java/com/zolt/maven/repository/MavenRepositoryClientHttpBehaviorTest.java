@@ -23,7 +23,6 @@ final class MavenRepositoryClientHttpBehaviorTest extends MavenRepositoryClientT
                 () -> client.fetchPom(baseUri, coordinate));
 
         assertTrue(exception.getMessage().contains("Could not find com.google.guava:missing:1.0.0"));
-        assertTrue(exception.getMessage().contains("Check the group, artifact, version, and repository URL."));
         assertEquals(
                 1,
                 requestCount("/maven2/com/google/guava/missing/1.0.0/missing-1.0.0.pom"));

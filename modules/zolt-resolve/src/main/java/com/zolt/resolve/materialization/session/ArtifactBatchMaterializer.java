@@ -75,17 +75,17 @@ final class ArtifactBatchMaterializer {
         List<ArtifactDownloadFailure> sorted = failures.stream()
                 .sorted(Comparator.comparing(ArtifactDownloadFailure::artifactKey))
                 .toList();
-        StringBuilder message = new StringBuilder("Selected artifact downloads failed:");
+        StringBuilder summary = new StringBuilder("Selected artifact downloads failed:");
         for (ArtifactDownloadFailure failure : sorted) {
-            message.append(System.lineSeparator())
+            summary.append(System.lineSeparator())
                     .append("- ")
                     .append(failure.artifactKey())
                     .append(": ")
                     .append(failure.message());
         }
-        message.append(System.lineSeparator())
-                .append("Retry the command or check your repository and network settings.");
-        return new ResolveException(message.toString());
+        return ResolveException.actionable(
+                summary.toString(),
+                "Retry the command or check your repository and network settings.");
     }
 
     private static String failureMessage(Throwable cause) {

@@ -11,9 +11,9 @@ public record ResolveOptions(
     public ResolveOptions {
         repositoryOverlays = repositoryOverlays == null ? List.of() : List.copyOf(repositoryOverlays);
         if (rejectLocalOverlays && !repositoryOverlays.isEmpty()) {
-            throw new ResolveException(
-                    "Cannot combine local repository overlays with local-overlay rejection. "
-                            + "Remove --repository-overlay or remove --no-local-overlays.");
+            throw ResolveException.actionable(
+                    "Cannot combine local repository overlays with local-overlay rejection.",
+                    "Remove --repository-overlay or remove --no-local-overlays.");
         }
     }
 
