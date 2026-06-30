@@ -12,6 +12,7 @@ central = "https://repo.maven.apache.org/maven2"
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-policy" = { workspace = "modules/zolt-policy" }
 "com.zolt:zolt-publish" = { workspace = "modules/zolt-publish" }
+"com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 "com.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
