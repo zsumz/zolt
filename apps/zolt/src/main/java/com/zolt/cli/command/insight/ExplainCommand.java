@@ -12,9 +12,14 @@ import com.zolt.explain.MigrationBlockerReports;
 import com.zolt.explain.MigrationExplainException;
 import com.zolt.explain.MigrationReadinessScorecardFormatter;
 import com.zolt.explain.MigrationReadinessScorecards;
+import com.zolt.explain.emit.DraftZoltToml;
+import com.zolt.explain.emit.DraftZoltTomlRenderer;
+import com.zolt.explain.emit.InspectionToProjectConfig;
+import com.zolt.explain.emit.ProjectConfigRenderer;
 import com.zolt.explain.gradle.GradleExplainFormatter;
 import com.zolt.explain.gradle.GradleInspectionResult;
 import com.zolt.explain.gradle.GradleStaticProjectInspector;
+import com.zolt.toml.ZoltTomlWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
@@ -46,6 +51,9 @@ public final class ExplainCommand implements Callable<Integer> {
     private final GradleExplainFormatter gradleExplainFormatter;
     private final MigrationBlockerReportFormatter blockerReportFormatter;
     private final MigrationReadinessScorecardFormatter scorecardFormatter;
+    private final InspectionToProjectConfig draftMapper;
+    private final DraftZoltTomlRenderer draftRenderer;
+    private final ProjectConfigRenderer configRenderer;
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
@@ -58,6 +66,9 @@ public final class ExplainCommand implements Callable<Integer> {
 
     @Option(names = "--blockers", description = "Print a focused migration blocker report instead of the raw explain report.")
     private boolean blockers;
+
+    @Option(names = "--emit-toml", description = "Print a draft zolt.toml synthesized from the migration audit instead of the raw explain report.")
+    private boolean emitToml;
 
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
@@ -72,7 +83,10 @@ public final class ExplainCommand implements Callable<Integer> {
                 new MavenExplainFormatter(),
                 new GradleExplainFormatter(),
                 new MigrationBlockerReportFormatter(),
-                new MigrationReadinessScorecardFormatter());
+                new MigrationReadinessScorecardFormatter(),
+                new InspectionToProjectConfig(),
+                new DraftZoltTomlRenderer(),
+                new ZoltTomlWriter()::write);
     }
 
     ExplainCommand(
@@ -81,13 +95,19 @@ public final class ExplainCommand implements Callable<Integer> {
             MavenExplainFormatter mavenExplainFormatter,
             GradleExplainFormatter gradleExplainFormatter,
             MigrationBlockerReportFormatter blockerReportFormatter,
-            MigrationReadinessScorecardFormatter scorecardFormatter) {
+            MigrationReadinessScorecardFormatter scorecardFormatter,
+            InspectionToProjectConfig draftMapper,
+            DraftZoltTomlRenderer draftRenderer,
+            ProjectConfigRenderer configRenderer) {
         this.mavenInspector = mavenInspector;
         this.gradleInspector = gradleInspector;
         this.mavenExplainFormatter = mavenExplainFormatter;
         this.gradleExplainFormatter = gradleExplainFormatter;
         this.blockerReportFormatter = blockerReportFormatter;
         this.scorecardFormatter = scorecardFormatter;
+        this.draftMapper = draftMapper;
+        this.draftRenderer = draftRenderer;
+        this.configRenderer = configRenderer;
     }
 
     @Override
@@ -97,6 +117,13 @@ public final class ExplainCommand implements Callable<Integer> {
             throw new CommandLine.ParameterException(
                     spec.commandLine(),
                     "`--scorecard` and `--blockers` select different explain reports. Choose one.");
+        }
+        if (emitToml && (scorecard || blockers)) {
+            throw new CommandLine.ParameterException(
+                    spec.commandLine(),
+                    "`--emit-toml` emits a draft zolt.toml and cannot combine with "
+                            + (scorecard ? "`--scorecard`" : "`--blockers`")
+                            + ". Choose one.");
         }
         Source detectedSource = detectSource(root);
         if (detectedSource == Source.MAVEN) {
@@ -111,6 +138,11 @@ public final class ExplainCommand implements Callable<Integer> {
     private Integer explainMaven(Path root) {
         try {
             MavenInspectionResult result = mavenInspector.inspect(root);
+            if (emitToml) {
+                DraftZoltToml draft = draftMapper.fromMaven(result);
+                CommandOutput.printAndFlush(spec, draftRenderer.render(draft, configRenderer).stripTrailing());
+                return 0;
+            }
             if (blockers) {
                 if (format == Format.JSON) {
                     CommandOutput.printAndFlush(
@@ -147,6 +179,11 @@ public final class ExplainCommand implements Callable<Integer> {
     private Integer explainGradle(Path root) {
         try {
             GradleInspectionResult result = gradleInspector.inspect(root);
+            if (emitToml) {
+                DraftZoltToml draft = draftMapper.fromGradle(result);
+                CommandOutput.printAndFlush(spec, draftRenderer.render(draft, configRenderer).stripTrailing());
+                return 0;
+            }
             if (blockers) {
                 if (format == Format.JSON) {
                     CommandOutput.printAndFlush(
