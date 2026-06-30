@@ -119,7 +119,7 @@
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-repository/src/main/java/com/zolt/maven/RawPomParser.java",
+    "file": "modules/zolt-repository/src/main/java/com/zolt/maven/repository/RawPomParser.java",
     "disposition": "JAXP_FACTORY",
     "note": "DocumentBuilderFactory.newInstance() JAXP lookup handled by GraalVM built-in JAXP support; exercised by native resolve/build POM parsing."
   }
