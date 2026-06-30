@@ -46,22 +46,45 @@ public final class ReleaseArchiveUnpacker {
 
     private static void unpackTarGz(Path archive, Path destination, Failure failure) throws IOException {
         try (InputStream input = new GZIPInputStream(Files.newInputStream(archive))) {
+            String pendingPath = null;
+            long pendingSize = -1;
             byte[] header = input.readNBytes(512);
             while (header.length == 512 && !allZero(header)) {
-                String name = readNullTerminated(header, 0, 100);
-                int mode = (int) parseOctal(header, 100, 8, "mode", name, failure);
-                long size = parseOctal(header, 124, 12, "size", name, failure);
+                String rawName = readNullTerminated(header, 0, 100);
+                int mode = (int) parseOctal(header, 100, 8, "mode", rawName, failure);
+                long size = parseOctal(header, 124, 12, "size", rawName, failure);
                 byte type = header[156];
+                // POSIX pax extended (`x`) / global (`g`) headers carry metadata for the next entry,
+                // not a file of their own. Read and discard the payload; apply `x` path/size overrides.
+                if (type == 'x' || type == 'g') {
+                    byte[] payload = readPaxPayload(input, size, failure);
+                    skipPadding(input, size, failure);
+                    if (type == 'x') {
+                        PaxOverrides overrides = parsePax(payload, failure);
+                        if (overrides.path() != null) {
+                            pendingPath = overrides.path();
+                        }
+                        if (overrides.size() >= 0) {
+                            pendingSize = overrides.size();
+                        }
+                    }
+                    header = input.readNBytes(512);
+                    continue;
+                }
+                String name = pendingPath != null ? pendingPath : rawName;
+                long contentSize = pendingSize >= 0 ? pendingSize : size;
+                pendingPath = null;
+                pendingSize = -1;
                 Path output = safeResolve(destination, name, failure);
                 if (type == '5') {
                     Files.createDirectories(output);
                 } else if (type == '0' || type == 0) {
                     Files.createDirectories(output.getParent());
                     try (OutputStream file = Files.newOutputStream(output)) {
-                        copyExactly(input, file, size, failure);
+                        copyExactly(input, file, contentSize, failure);
                     }
                     output.toFile().setExecutable((mode & 0100) != 0);
-                    skipPadding(input, size, failure);
+                    skipPadding(input, contentSize, failure);
                 } else if (type == '2') {
                     throw failure.create("Release archive contains unsupported symbolic link entry `" + name + "`.");
                 } else if (type == '1') {
@@ -72,6 +95,61 @@ public final class ReleaseArchiveUnpacker {
                 header = input.readNBytes(512);
             }
         }
+    }
+
+    private static byte[] readPaxPayload(InputStream input, long size, Failure failure) throws IOException {
+        if (size < 0 || size > (1 << 20)) {
+            throw failure.create("Release archive contains an oversized pax extended header (" + size + " bytes).");
+        }
+        byte[] payload = input.readNBytes((int) size);
+        if (payload.length != size) {
+            throw failure.create("Release archive ended inside a pax extended header.");
+        }
+        return payload;
+    }
+
+    // Each pax record is `"<length> key=value\n"` where <length> is the byte length of the whole record.
+    private static PaxOverrides parsePax(byte[] payload, Failure failure) {
+        String path = null;
+        long size = -1;
+        int position = 0;
+        while (position < payload.length) {
+            int space = position;
+            while (space < payload.length && payload[space] != ' ') {
+                space++;
+            }
+            int recordLength;
+            try {
+                recordLength = Integer.parseInt(new String(payload, position, space - position, StandardCharsets.UTF_8));
+            } catch (NumberFormatException exception) {
+                throw failure.create("Release archive contains a malformed pax extended header record.");
+            }
+            int keyValueLength = recordLength - (space - position) - 2;
+            if (space >= payload.length || recordLength <= 0 || position + recordLength > payload.length
+                    || keyValueLength < 0 || payload[position + recordLength - 1] != '\n') {
+                throw failure.create("Release archive contains a malformed pax extended header record.");
+            }
+            String keyValue = new String(payload, space + 1, keyValueLength, StandardCharsets.UTF_8);
+            int equals = keyValue.indexOf('=');
+            if (equals > 0) {
+                String key = keyValue.substring(0, equals);
+                String value = keyValue.substring(equals + 1);
+                if (key.equals("path")) {
+                    path = value;
+                } else if (key.equals("size")) {
+                    try {
+                        size = Long.parseLong(value);
+                    } catch (NumberFormatException ignored) {
+                        // Fall back to the ustar header size when the pax size record is unparseable.
+                    }
+                }
+            }
+            position += recordLength;
+        }
+        return new PaxOverrides(path, size);
+    }
+
+    private record PaxOverrides(String path, long size) {
     }
 
     private static Path safeResolve(Path destination, String entryName, Failure failure) {
