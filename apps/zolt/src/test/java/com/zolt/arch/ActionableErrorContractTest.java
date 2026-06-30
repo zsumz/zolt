@@ -59,7 +59,7 @@ final class ActionableErrorContractTest {
             RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/JavacException.java"),
             RepositoryPaths.root().resolve("modules/zolt-build/src/main/java/com/zolt/build/PackageException.java"),
             RepositoryPaths.root().resolve(
-                    "modules/zolt-build/src/main/java/com/zolt/build/nativeimage/NativeImageException.java"));
+                    "modules/zolt-build/src/main/java/com/zolt/build/NativeImageException.java"));
 
     @Test
     void carrierKeepsRequiredNonBlankRemediationField() throws IOException {

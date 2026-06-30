@@ -9,7 +9,7 @@ import com.zolt.build.ResourceCopyException;
 import com.zolt.build.SourceDiscoveryException;
 import com.zolt.build.nativeimage.NativeBuildResult;
 import com.zolt.build.nativeimage.NativeBuildService;
-import com.zolt.build.nativeimage.NativeImageException;
+import com.zolt.build.NativeImageException;
 import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.command.CommandFailures;

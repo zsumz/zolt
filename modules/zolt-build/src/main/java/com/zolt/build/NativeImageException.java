@@ -1,4 +1,4 @@
-package com.zolt.build.nativeimage;
+package com.zolt.build;
 
 import com.zolt.error.ActionableError;
 import com.zolt.error.HasActionableError;

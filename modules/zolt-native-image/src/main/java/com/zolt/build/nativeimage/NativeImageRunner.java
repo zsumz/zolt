@@ -1,5 +1,6 @@
 package com.zolt.build.nativeimage;
 
+import com.zolt.build.NativeImageException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;

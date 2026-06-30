@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.build.NativeImageException;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectPathException;
 import java.io.IOException;

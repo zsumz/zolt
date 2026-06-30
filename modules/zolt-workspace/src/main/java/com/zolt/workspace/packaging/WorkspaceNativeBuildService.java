@@ -2,7 +2,7 @@ package com.zolt.workspace.packaging;
 
 import com.zolt.build.nativeimage.NativeBuildResult;
 import com.zolt.build.nativeimage.NativeBuildService;
-import com.zolt.build.nativeimage.NativeImageException;
+import com.zolt.build.NativeImageException;
 import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.project.PackageMode;

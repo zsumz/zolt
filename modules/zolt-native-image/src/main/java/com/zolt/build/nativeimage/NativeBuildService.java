@@ -1,5 +1,6 @@
 package com.zolt.build.nativeimage;
 
+import com.zolt.build.NativeImageException;
 import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.build.classpath.LockfileClasspathPackageConverter;

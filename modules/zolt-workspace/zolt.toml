@@ -9,6 +9,7 @@ central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
+"com.zolt:zolt-native-image" = { workspace = "modules/zolt-native-image" }
 "com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
