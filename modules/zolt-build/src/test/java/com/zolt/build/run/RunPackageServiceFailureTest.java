@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.RunPackageException;
-import com.zolt.build.testruntime.TestRunServiceTestSupport;
+import com.zolt.doctor.CachingJdkChecker;
 import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
@@ -106,7 +106,7 @@ final class RunPackageServiceFailureTest extends RunPackageServiceTestSupport {
                     }
                 }
                 """);
-        TestRunServiceTestSupport.CachingJdkChecker jdkChecker = new TestRunServiceTestSupport.CachingJdkChecker();
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
         RunPackageService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),
                 jdkChecker);

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.RunException;
-import com.zolt.build.testruntime.TestRunServiceTestSupport;
+import com.zolt.doctor.CachingJdkChecker;
 import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
@@ -80,7 +80,7 @@ final class RunServiceFailureTest extends RunServiceTestSupport {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         ProjectConfig config = config(false, Optional.of("com.example.Main"));
-        TestRunServiceTestSupport.CachingJdkChecker jdkChecker = new TestRunServiceTestSupport.CachingJdkChecker();
+        CachingJdkChecker jdkChecker = new CachingJdkChecker();
         RunService service = service(
                 (actualProjectDirectory, actualConfig, actualCacheRoot) -> Optional.empty(),
                 (actualCommand, outputConsumer) -> new JavaRunner.ProcessResult(0, "hello\n"),

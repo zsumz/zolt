@@ -21,21 +21,8 @@ central = "https://repo.maven.apache.org/maven2"
 
 [test.suites.test-execution]
 includeClassname = [
-    "com.zolt.build.coverage.CoverageServiceTest",
-    "com.zolt.build.coverage.CoverageServiceValidationTest",
-    "com.zolt.build.testruntime.execution.CurrentWorkerClasspathTest",
-    "com.zolt.build.testruntime.execution.FrameworkTestSelectionMapperTest",
-    "com.zolt.build.testruntime.execution.JunitConsoleArgumentsTest",
-    "com.zolt.build.testruntime.execution.JunitLauncherClasspathTest",
-    "com.zolt.build.testruntime.execution.TestConsoleFailureHandlerTest",
     "com.zolt.build.profile.TestProfileMergerTest",
     "com.zolt.build.profile.TestProfileSummaryFormatterTest",
-    "com.zolt.build.testruntime.execution.TestRuntimeInputBuilderTest",
-    "com.zolt.build.testruntime.TestRunServiceFailureTest",
-    "com.zolt.build.testruntime.TestRunServiceFrameworkRunnerTest",
-    "com.zolt.build.testruntime.TestRunServiceRuntimeOptionsTest",
-    "com.zolt.build.testruntime.TestRunServiceSelectionTest",
-    "com.zolt.build.testruntime.TestRunServiceTest",
     "com.zolt.build.junit.PlainJunitWorkerPoolRunnerTest",
 ]
 
