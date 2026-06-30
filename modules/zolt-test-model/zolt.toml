@@ -1,5 +1,5 @@
 [project]
-name = "zolt-workspace"
+name = "zolt-test-model"
 version = "0.1.0-SNAPSHOT"
 group = "com.zolt"
 java = "21"
@@ -8,12 +8,7 @@ java = "21"
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
-"com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
-"com.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
-"com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"

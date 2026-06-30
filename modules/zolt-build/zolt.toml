@@ -12,6 +12,7 @@ central = "https://repo.maven.apache.org/maven2"
 "com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
 "com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
+"com.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
 "com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 
 [test.dependencies]
@@ -40,13 +41,6 @@ includeClassname = [
     "com.zolt.junit.JunitWorkerClientTest",
     "com.zolt.junit.JunitWorkerProcessLauncherTest",
     "com.zolt.junit.JunitWorkerProtocolTest",
-    "com.zolt.test.TestProfileHistoryTest",
-    "com.zolt.test.TestInventoryBuilderTest",
-    "com.zolt.test.TestPlanJsonFormatterTest",
-    "com.zolt.test.TestSelectionTest",
-    "com.zolt.test.shard.TestShardPlannerTest",
-    "com.zolt.test.shard.TestShardSpecTest",
-    "com.zolt.test.shard.TestWorkerPoolSchedulerTest",
 ]
 
 [build]
