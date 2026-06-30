@@ -31,7 +31,7 @@ final class WorkspaceIdeModelCommandTest {
             Path workspaceDir = tempDir.resolve("workspace");
             Path apiDir = workspaceDir.resolve("apps/api");
             Files.createDirectories(apiDir);
-            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+            Files.writeString(workspaceDir.resolve("zolt.toml"), """
                     [workspace]
                     name = "workspace"
                     members = ["apps/api"]
@@ -50,7 +50,7 @@ final class WorkspaceIdeModelCommandTest {
                     "--cwd", apiDir.toString(),
                     "--cache-root", tempDir.resolve("cache").toString());
             String existingLockfile = Files.readString(workspaceDir.resolve("zolt.lock"));
-            Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+            Files.writeString(workspaceDir.resolve("zolt.toml"), """
                     [workspace]
                     name = "workspace"
                     members = ["apps/api"]
@@ -111,7 +111,7 @@ final class WorkspaceIdeModelCommandTest {
         Path coreDir = workspaceDir.resolve("modules/core");
         Files.createDirectories(apiDir);
         Files.createDirectories(coreDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api", "modules/core"]
@@ -150,7 +150,7 @@ final class WorkspaceIdeModelCommandTest {
         Path coreDir = workspaceDir.resolve("modules/core");
         Files.createDirectories(apiDir);
         Files.createDirectories(coreDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api", "modules/core"]
