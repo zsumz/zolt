@@ -185,7 +185,7 @@ final class CheckGeneratedSourcesCommandTest {
         Files.createDirectories(apiDir.resolve("src/main/openapi"));
         Files.createDirectories(implDir);
         Files.writeString(apiDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-generated-sources"
                 members = ["modules/api", "modules/impl"]

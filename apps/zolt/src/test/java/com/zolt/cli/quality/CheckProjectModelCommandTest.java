@@ -22,7 +22,7 @@ final class CheckProjectModelCommandTest {
         Path workspaceDir = tempDir.resolve("check-workspace-unused-version-alias");
         Path apiDir = workspaceDir.resolve("api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-unused-version-alias"
                 members = ["api"]

@@ -122,7 +122,7 @@ final class CheckPackageMetadataCommandTest {
         Path implDir = workspaceDir.resolve("modules/impl");
         Files.createDirectories(apiDir);
         Files.createDirectories(implDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-library-metadata"
                 members = ["modules/api", "modules/impl"]

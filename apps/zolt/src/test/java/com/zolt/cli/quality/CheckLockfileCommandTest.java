@@ -102,7 +102,7 @@ final class CheckLockfileCommandTest {
         Path workspaceDir = tempDir.resolve("check-workspace-lock");
         Path memberDir = workspaceDir.resolve("modules/core");
         Files.createDirectories(memberDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-lock"
                 members = ["modules/core"]

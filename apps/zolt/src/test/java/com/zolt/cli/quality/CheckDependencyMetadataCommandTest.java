@@ -134,7 +134,7 @@ final class CheckDependencyMetadataCommandTest {
         Path bindingDir = workspaceDir.resolve("binding");
         Files.createDirectories(apiDir);
         Files.createDirectories(bindingDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-dependency-metadata"
                 members = ["api", "binding"]

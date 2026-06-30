@@ -22,7 +22,7 @@ final class CheckExecutionContextWorkspaceEvidenceTest {
         Path apiDir = workspaceDir.resolve("apps/api");
         Path reportsDir = apiDir.resolve("target/test-reports/apps/api");
         Files.createDirectories(reportsDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-context-ci-workspace-reports-ok"
                 members = ["apps/api"]
@@ -53,7 +53,7 @@ final class CheckExecutionContextWorkspaceEvidenceTest {
         Path reportsDir = apiDir.resolve("target/test-reports/apps/api");
         Files.createDirectories(coreDir);
         Files.createDirectories(reportsDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-context-ci-workspace-selected-reports-ok"
                 members = ["modules/core", "apps/api"]
@@ -88,7 +88,7 @@ final class CheckExecutionContextWorkspaceEvidenceTest {
         Path apiDir = workspaceDir.resolve("apps/api");
         Path coverageDir = apiDir.resolve("target/coverage");
         Files.createDirectories(coverageDir.resolve("html"));
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-context-ci-workspace-coverage-ok"
                 members = ["apps/api"]
@@ -118,7 +118,7 @@ final class CheckExecutionContextWorkspaceEvidenceTest {
         Path workspaceDir = tempDir.resolve("check-context-ci-workspace-coverage-missing");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-context-ci-workspace-coverage-missing"
                 members = ["apps/api"]

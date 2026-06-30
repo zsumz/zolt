@@ -62,7 +62,7 @@ final class PolicyDependencyPolicyCommandTest {
         Path workspaceDir = tempDir.resolve("check-workspace-dependency-policy-empty");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-dependency-policy-empty"
                 members = ["apps/api"]
@@ -89,7 +89,7 @@ final class PolicyDependencyPolicyCommandTest {
         Path apiDir = workspaceDir.resolve("apps/api");
         PolicyCommandTestSupport.writePolicyProject(apiDir);
         PolicyCommandTestSupport.writePolicyLockfile(workspaceDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-dependency-policy-direct-conflict"
                 members = ["apps/api"]
@@ -117,7 +117,7 @@ final class PolicyDependencyPolicyCommandTest {
         Path workspaceDir = tempDir.resolve("check-workspace-dependency-policy-malformed-lockfile");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-dependency-policy-malformed-lockfile"
                 members = ["apps/api"]

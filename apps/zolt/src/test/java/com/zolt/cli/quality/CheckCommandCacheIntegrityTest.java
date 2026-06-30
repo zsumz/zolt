@@ -74,7 +74,7 @@ final class CheckCommandCacheIntegrityTest extends CheckCommandTestSupport {
         Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-missing-lockfile");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-cache-integrity-missing-lockfile"
                 members = ["apps/api"]
@@ -99,7 +99,7 @@ final class CheckCommandCacheIntegrityTest extends CheckCommandTestSupport {
         Path workspaceDir = tempDir.resolve("check-workspace-cache-integrity-malformed-lockfile");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "check-workspace-cache-integrity-malformed-lockfile"
                 members = ["apps/api"]
