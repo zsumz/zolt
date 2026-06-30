@@ -157,7 +157,7 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
             int active = activePomRequests.incrementAndGet();
             maxPomRequests.accumulateAndGet(active, Math::max);
             try {
-                awaitConcurrentPeer(activePomRequests, slowPomPaths.size(), slowPomMonitor);
+                awaitConcurrentPeer(maxPomRequests, slowPomPaths.size(), slowPomMonitor);
             } finally {
                 activePomRequests.decrementAndGet();
                 notifyPeers(slowPomMonitor);
@@ -167,7 +167,7 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
             int active = activeArtifactRequests.incrementAndGet();
             maxArtifactRequests.accumulateAndGet(active, Math::max);
             try {
-                awaitConcurrentPeer(activeArtifactRequests, slowArtifactPaths.size(), slowArtifactMonitor);
+                awaitConcurrentPeer(maxArtifactRequests, slowArtifactPaths.size(), slowArtifactMonitor);
             } finally {
                 activeArtifactRequests.decrementAndGet();
                 notifyPeers(slowArtifactMonitor);
@@ -182,7 +182,7 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
     }
 
     private static void awaitConcurrentPeer(
-            AtomicInteger activeRequests,
+            AtomicInteger maxRequests,
             int expectedSlowPaths,
             Object monitor) throws IOException {
         int target = Math.min(2, expectedSlowPaths);
@@ -192,7 +192,7 @@ abstract class ResolveServiceRepositoryTestSupport extends ResolveServiceReposit
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
         synchronized (monitor) {
             monitor.notifyAll();
-            while (activeRequests.get() < target) {
+            while (maxRequests.get() < target) {
                 long remainingNanos = deadline - System.nanoTime();
                 if (remainingNanos <= 0) {
                     throw new IOException("Timed out waiting for concurrent fake repository requests.");
