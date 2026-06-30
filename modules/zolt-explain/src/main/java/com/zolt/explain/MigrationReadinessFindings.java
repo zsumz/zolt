@@ -1,6 +1,6 @@
 package com.zolt.explain;
 
-final class MigrationReadinessFindings {
+public final class MigrationReadinessFindings {
     private MigrationReadinessFindings() {
     }
 
@@ -21,7 +21,7 @@ final class MigrationReadinessFindings {
                 "");
     }
 
-    static MigrationReadinessFinding generic(ExplainSignal signal) {
+    public static MigrationReadinessFinding generic(ExplainSignal signal) {
         MigrationReadinessCategory category = switch (signal.category()) {
             case NON_DETERMINISM -> MigrationReadinessCategory.NON_DETERMINISTIC;
             case MIGRATION_BLOCKER -> MigrationReadinessCategory.BLOCKED;
@@ -32,7 +32,7 @@ final class MigrationReadinessFindings {
         return finding("dependencies", category, signal, signal.id(), "explicit Zolt model", "", signal.nextStep());
     }
 
-    static MigrationReadinessFinding finding(
+    public static MigrationReadinessFinding finding(
             String concern,
             MigrationReadinessCategory category,
             ExplainSignal signal,

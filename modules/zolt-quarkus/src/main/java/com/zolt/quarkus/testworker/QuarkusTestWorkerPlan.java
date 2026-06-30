@@ -1,6 +1,7 @@
 package com.zolt.quarkus.testworker;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import com.zolt.quarkus.testplan.QuarkusAnnotationRunnerCandidates;
 import com.zolt.quarkus.testplan.QuarkusUnsupportedTest;
 import java.util.List;

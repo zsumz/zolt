@@ -3,9 +3,9 @@ package com.zolt.quarkus.production;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.QuarkusPlanExtension;
-import com.zolt.quarkus.bootstrap.QuarkusApplicationArtifact;
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDependency;
-import com.zolt.quarkus.bootstrap.QuarkusPlatformPropertiesArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDependency;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusPlatformPropertiesArtifact;
 import java.nio.file.Path;
 import java.util.List;
 

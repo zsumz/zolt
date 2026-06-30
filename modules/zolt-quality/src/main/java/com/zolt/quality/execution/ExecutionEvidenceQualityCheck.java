@@ -1,0 +1,50 @@
+package com.zolt.quality.execution;
+
+import com.zolt.quality.QualityCheckContext;
+import com.zolt.quality.QualityCheckResult;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+final class ExecutionEvidenceQualityCheck {
+    private final ExecutionTestReportEvidenceCheck testReports;
+    private final ExecutionCoverageEvidenceCheck coverageReports;
+
+    ExecutionEvidenceQualityCheck() {
+        ExecutionSplitEvidence splitEvidence = new ExecutionSplitEvidence();
+        this.testReports = new ExecutionTestReportEvidenceCheck(splitEvidence);
+        this.coverageReports = new ExecutionCoverageEvidenceCheck(splitEvidence);
+    }
+
+    List<QualityCheckResult> checkTestReports(
+            Optional<String> member,
+            Path projectRoot,
+            Path reportsDir,
+            Path commandReportsDir,
+            Path outputRoot,
+            QualityCheckContext context) {
+        return testReports.check(
+                member,
+                projectRoot,
+                reportsDir,
+                commandReportsDir,
+                outputRoot,
+                context);
+    }
+
+    List<QualityCheckResult> checkCoverageReports(
+            Optional<String> member,
+            Path projectRoot,
+            Path coverageDir,
+            Path commandCoverageDir,
+            Path outputRoot,
+            QualityCheckContext context) {
+        return coverageReports.check(
+                member,
+                projectRoot,
+                coverageDir,
+                commandCoverageDir,
+                outputRoot,
+                context);
+    }
+}

@@ -19,17 +19,17 @@ central = "https://repo.maven.apache.org/maven2"
 
 [test.suites.test-execution]
 includeClassname = [
-    "com.zolt.build.CoverageServiceTest",
-    "com.zolt.build.CoverageServiceValidationTest",
-    "com.zolt.build.testruntime.CurrentWorkerClasspathTest",
-    "com.zolt.build.testruntime.FrameworkTestSelectionMapperTest",
-    "com.zolt.build.testruntime.JunitConsoleArgumentsTest",
-    "com.zolt.build.testruntime.JunitLauncherClasspathTest",
-    "com.zolt.build.testruntime.TestConsoleFailureHandlerTest",
+    "com.zolt.build.coverage.CoverageServiceTest",
+    "com.zolt.build.coverage.CoverageServiceValidationTest",
+    "com.zolt.build.testruntime.execution.CurrentWorkerClasspathTest",
+    "com.zolt.build.testruntime.execution.FrameworkTestSelectionMapperTest",
+    "com.zolt.build.testruntime.execution.JunitConsoleArgumentsTest",
+    "com.zolt.build.testruntime.execution.JunitLauncherClasspathTest",
+    "com.zolt.build.testruntime.execution.TestConsoleFailureHandlerTest",
     "com.zolt.build.testruntime.TestJvmArgumentsTest",
     "com.zolt.build.profile.TestProfileMergerTest",
     "com.zolt.build.profile.TestProfileSummaryFormatterTest",
-    "com.zolt.build.testruntime.TestRuntimeInputBuilderTest",
+    "com.zolt.build.testruntime.execution.TestRuntimeInputBuilderTest",
     "com.zolt.build.testruntime.TestRunServiceFailureTest",
     "com.zolt.build.testruntime.TestRunServiceFrameworkRunnerTest",
     "com.zolt.build.testruntime.TestRunServiceRuntimeOptionsTest",
@@ -44,9 +44,9 @@ includeClassname = [
     "com.zolt.test.TestInventoryBuilderTest",
     "com.zolt.test.TestPlanJsonFormatterTest",
     "com.zolt.test.TestSelectionTest",
-    "com.zolt.test.TestShardPlannerTest",
-    "com.zolt.test.TestShardSpecTest",
-    "com.zolt.test.TestWorkerPoolSchedulerTest",
+    "com.zolt.test.shard.TestShardPlannerTest",
+    "com.zolt.test.shard.TestShardSpecTest",
+    "com.zolt.test.shard.TestWorkerPoolSchedulerTest",
 ]
 
 [build]

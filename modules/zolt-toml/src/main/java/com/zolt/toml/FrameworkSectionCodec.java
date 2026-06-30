@@ -1,5 +1,7 @@
 package com.zolt.toml;
 
+import com.zolt.toml.support.TomlValidation;
+import com.zolt.toml.support.TomlScalars;
 import com.zolt.project.FrameworkSettings;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;

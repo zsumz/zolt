@@ -1,7 +1,7 @@
 package com.zolt.cli.command.packaging;
 
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

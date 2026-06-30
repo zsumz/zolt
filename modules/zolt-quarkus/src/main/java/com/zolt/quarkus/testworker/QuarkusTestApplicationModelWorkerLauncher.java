@@ -1,7 +1,7 @@
 package com.zolt.quarkus.testworker;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.bootstrap.QuarkusWorkspaceModuleInputs;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

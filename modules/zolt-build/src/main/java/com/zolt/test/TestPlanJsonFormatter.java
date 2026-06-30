@@ -1,6 +1,9 @@
 package com.zolt.test;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.test.shard.TestShardBalancing;
+import com.zolt.test.shard.TestShardPlan;
+import com.zolt.test.shard.TestShardSpec;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;

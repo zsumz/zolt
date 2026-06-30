@@ -1,10 +1,10 @@
 package com.zolt.cli;
 
-import com.zolt.release.NativeUpdateNotice;
-import com.zolt.release.NativeUpdateNoticeRequest;
-import com.zolt.release.NativeUpdateNoticeService;
-import com.zolt.release.ReleaseDistributionUrlLayout;
 import com.zolt.release.ReleaseTarget;
+import com.zolt.release.channel.ReleaseDistributionUrlLayout;
+import com.zolt.release.update.NativeUpdateNotice;
+import com.zolt.release.update.NativeUpdateNoticeRequest;
+import com.zolt.release.update.NativeUpdateNoticeService;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;

@@ -1,14 +1,16 @@
 package com.zolt.quality;
 
 import com.zolt.project.ProjectConfig;
+import com.zolt.quality.execution.QualityExecutionContextRunner;
+import com.zolt.quality.packaging.PackageQualityCheck;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.Workspace;
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceDiscoveryService;
 import com.zolt.workspace.WorkspaceMember;
 import com.zolt.workspace.WorkspaceMemberSelector;
 import com.zolt.workspace.WorkspaceSelection;
+import com.zolt.workspace.discovery.WorkspaceDiscoveryService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;

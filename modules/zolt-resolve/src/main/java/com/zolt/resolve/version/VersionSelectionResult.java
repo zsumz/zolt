@@ -1,0 +1,13 @@
+package com.zolt.resolve.version;
+
+import com.zolt.resolve.graph.PackageNode;
+import java.util.List;
+
+public record VersionSelectionResult(
+        List<PackageNode> selectedNodes,
+        List<VersionConflict> conflicts) {
+    public VersionSelectionResult {
+        selectedNodes = List.copyOf(selectedNodes);
+        conflicts = List.copyOf(conflicts);
+    }
+}

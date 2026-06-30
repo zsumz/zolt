@@ -8,11 +8,11 @@ import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullableS
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringArrayField;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
-import com.zolt.build.PackageArtifact;
+import com.zolt.build.packaging.PackageArtifact;
 import com.zolt.build.PackageException;
-import com.zolt.build.PackagePlan;
-import com.zolt.build.PackagePlanDependency;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packageplan.PackagePlan;
+import com.zolt.build.packageplan.PackagePlanDependency;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ResourceFilteringSettings;
 import java.io.IOException;

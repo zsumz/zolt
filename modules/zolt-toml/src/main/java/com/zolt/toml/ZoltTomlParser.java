@@ -11,6 +11,8 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.RepositoryCredentialSettings;
 import com.zolt.project.RepositorySettings;
+import com.zolt.toml.dependency.DependencySectionCodec;
+import com.zolt.toml.generated.GeneratedSectionCodec;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;

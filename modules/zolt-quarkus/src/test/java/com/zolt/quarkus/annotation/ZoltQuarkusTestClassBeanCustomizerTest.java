@@ -3,6 +3,9 @@ package com.zolt.quarkus.annotation;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.quarkus.annotation.bridge.QuarkusAdditionalApplicationArchiveBuildItemBridge;
+import com.zolt.quarkus.annotation.bridge.QuarkusAdditionalBeanBuildItemBridge;
+import com.zolt.quarkus.annotation.diagnostic.QuarkusContextClassLoaderDiagnostic;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

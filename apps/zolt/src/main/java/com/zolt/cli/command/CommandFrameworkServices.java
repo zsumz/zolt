@@ -1,11 +1,11 @@
 package com.zolt.cli.command;
 
 import com.zolt.build.BuildService;
-import com.zolt.build.CoverageService;
-import com.zolt.build.PackagePlanService;
-import com.zolt.build.PackageService;
-import com.zolt.build.RunPackageService;
-import com.zolt.build.RunService;
+import com.zolt.build.coverage.CoverageService;
+import com.zolt.build.packageplan.PackagePlanService;
+import com.zolt.build.packaging.PackageService;
+import com.zolt.build.run.RunPackageService;
+import com.zolt.build.run.RunService;
 import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.testruntime.TestRunService;
 import com.zolt.cli.command.CommandServiceBundles.*;
@@ -25,12 +25,12 @@ import com.zolt.resolve.ResolveService;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.toml.ZoltTomlWriter;
 import com.zolt.workspace.WorkspaceBuildService;
-import com.zolt.workspace.WorkspaceCoverageService;
-import com.zolt.workspace.WorkspaceNativeBuildService;
-import com.zolt.workspace.WorkspacePackageService;
-import com.zolt.workspace.WorkspaceResolveService;
-import com.zolt.workspace.WorkspaceRunPackageService;
-import com.zolt.workspace.WorkspaceRunService;
+import com.zolt.workspace.coverage.WorkspaceCoverageService;
+import com.zolt.workspace.packaging.WorkspaceNativeBuildService;
+import com.zolt.workspace.packaging.WorkspacePackageService;
+import com.zolt.workspace.resolve.WorkspaceResolveService;
+import com.zolt.workspace.packaging.WorkspaceRunPackageService;
+import com.zolt.workspace.run.WorkspaceRunService;
 import com.zolt.workspace.WorkspaceTestService;
 import java.util.List;
 

@@ -8,6 +8,7 @@ import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryArtifactDoubles.FakeArtifactKey;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryModelDoubles.FakeApplicationModel;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDependency;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

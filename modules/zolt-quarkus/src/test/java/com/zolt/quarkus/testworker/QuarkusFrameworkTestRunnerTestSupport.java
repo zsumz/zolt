@@ -10,6 +10,7 @@ import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import com.zolt.project.QuarkusPackageMode;
 import com.zolt.project.QuarkusSettings;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;

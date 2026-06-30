@@ -3,7 +3,13 @@ package com.zolt.build.testruntime;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.build.BuildResult;
 import com.zolt.build.BuildResultWithClasspaths;
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
+import com.zolt.build.testruntime.compile.TestCompileResult;
+import com.zolt.build.testruntime.compile.TestCompileResultWithClasspaths;
+import com.zolt.build.testruntime.compile.TestCompileService;
+import com.zolt.build.testruntime.execution.CompiledTestExecutionRunner;
+import com.zolt.build.testruntime.execution.CompiledTestRunner;
+import com.zolt.build.testruntime.execution.CurrentWorkerClasspath;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
@@ -12,7 +18,7 @@ import com.zolt.build.junit.PlainJunitWorkerRunner;
 import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveService;
-import com.zolt.test.TestShardSpec;
+import com.zolt.test.shard.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.List;
@@ -42,10 +48,7 @@ public final class TestRunService {
         this(new JdkDetector(), frameworkTestRunner, resolveService);
     }
 
-    public TestRunService(
-            JdkChecker jdkDetector,
-            FrameworkTestRunner frameworkTestRunner,
-            ResolveService resolveService) {
+    public TestRunService(JdkChecker jdkDetector, FrameworkTestRunner frameworkTestRunner, ResolveService resolveService) {
         this(
                 new TestCompileService(jdkDetector, resolveService),
                 jdkDetector,
@@ -56,7 +59,6 @@ public final class TestRunService {
                 Boolean.getBoolean("zolt.junit.worker"),
                 java.io.File.pathSeparator);
     }
-
     TestRunService(
             TestCompileService testCompileService,
             JdkChecker jdkDetector,
@@ -165,8 +167,7 @@ public final class TestRunService {
             String suiteName,
             TestShardSpec shard,
             TestProfileSettings profileSettings) {
-        TestCompileResultWithClasspaths compileResult =
-                compileTests(projectDirectory, config, cacheRoot);
+        TestCompileResultWithClasspaths compileResult = compileTests(projectDirectory, config, cacheRoot);
         return runCompiledTests(
                 projectDirectory,
                 config,
@@ -340,11 +341,7 @@ public final class TestRunService {
     }
 
     public TestCompileResult compileTests(
-            Path projectDirectory,
-            ProjectConfig config,
-            ClasspathSet classpaths,
-            BuildResult buildResult) {
+            Path projectDirectory, ProjectConfig config, ClasspathSet classpaths, BuildResult buildResult) {
         return testCompileService.compileTests(projectDirectory, config, classpaths, buildResult);
     }
-
 }

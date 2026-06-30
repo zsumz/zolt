@@ -7,12 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
-import com.zolt.build.JavaRunResult;
+import com.zolt.build.run.JavaRunResult;
 import com.zolt.build.nativeimage.NativeBuildResult;
 import com.zolt.build.nativeimage.NativeImageResult;
-import com.zolt.build.PackageResult;
-import com.zolt.build.RunPackageResult;
-import com.zolt.build.testruntime.TestCompileResult;
+import com.zolt.build.packaging.PackageResult;
+import com.zolt.build.run.RunPackageResult;
+import com.zolt.build.testruntime.compile.TestCompileResult;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.doctor.SelfHostingCheckService;
 import com.zolt.resolve.ResolveResult;

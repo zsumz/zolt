@@ -3,6 +3,7 @@ package com.zolt.release;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.release.archive.ReleaseArchiveException;
 import org.junit.jupiter.api.Test;
 
 final class ReleaseTargetTest {

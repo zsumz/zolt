@@ -10,9 +10,7 @@ import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencySection;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.ProjectConfig;
-import com.zolt.project.TestSuiteSettings;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlWriterTest {
@@ -173,40 +171,6 @@ final class ZoltTomlWriterTest {
         assertTrue(toml.contains("[test.sources]\ngroovy = [\"src/test/groovy\"]"));
         assertEquals(config.build().groovyTestSources(), parsed.build().groovyTestSources());
         assertEquals("2.4-M5-groovy-4.0", parsed.testDependencies().get("org.spockframework:spock-core"));
-    }
-
-    @Test
-    void preservesTestSuitesWhenEditingDependencies() {
-        ProjectConfig config = config()
-                .build(BuildSettings.defaults().withTestSuites(Map.of(
-                        "fast",
-                        new TestSuiteSettings(
-                                List.of("*Test", "*Spec"),
-                                List.of("*ContractTest"),
-                                List.of("fast"),
-                                List.of("slow"),
-                                true,
-                                4,
-                                Map.of(
-                                        "com.example.DbTest",
-                                        List.of("database"),
-                                        "com.example.KafkaSpec",
-                                        List.of("kafka", "topic"))))))
-                .build();
-        config = writer.addDependency(config, DependencySection.TEST, "org.junit.jupiter:junit-jupiter", "5.11.4");
-
-        String toml = writer.write(config);
-        ProjectConfig parsed = parser.parse(toml);
-
-        assertTrue(toml.contains("[test.suites.fast]\n"));
-        assertTrue(toml.contains("includeClassname = [\"*Test\", \"*Spec\"]"));
-        assertTrue(toml.contains("excludeClassname = [\"*ContractTest\"]"));
-        assertTrue(toml.contains("includeTag = [\"fast\"]"));
-        assertTrue(toml.contains("excludeTag = [\"slow\"]"));
-        assertTrue(toml.contains("parallelSafe = true"));
-        assertTrue(toml.contains("maxWorkers = 4"));
-        assertTrue(toml.contains("resourceLocks = { \"com.example.DbTest\" = [\"database\"], \"com.example.KafkaSpec\" = [\"kafka\", \"topic\"] }"));
-        assertEquals(config.build().testSuites(), parsed.build().testSuites());
     }
 
     @Test

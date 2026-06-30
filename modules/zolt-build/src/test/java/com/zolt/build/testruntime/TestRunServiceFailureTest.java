@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.zolt.build.JavaRunException;
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

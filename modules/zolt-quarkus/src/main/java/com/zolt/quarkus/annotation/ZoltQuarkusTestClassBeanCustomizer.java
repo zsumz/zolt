@@ -1,5 +1,10 @@
 package com.zolt.quarkus.annotation;
 
+import com.zolt.quarkus.annotation.diagnostic.QuarkusSelectedTestIndexDiagnostic;
+import com.zolt.quarkus.annotation.diagnostic.QuarkusTestProfileDiagnostic;
+import com.zolt.quarkus.annotation.bridge.QuarkusAdditionalApplicationArchiveBuildItemBridge;
+import com.zolt.quarkus.annotation.bridge.QuarkusAdditionalBeanBuildItemBridge;
+import com.zolt.quarkus.annotation.bridge.QuarkusOptionalBuildItemConsumes;
 import io.quarkus.builder.BuildChainBuilder;
 import io.quarkus.builder.BuildStepBuilder;
 import io.quarkus.builder.item.BuildItem;
@@ -175,7 +180,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    static ClassLoader buildChainClassLoader(BuildChainBuilder builder) throws ReflectiveOperationException {
+    public static ClassLoader buildChainClassLoader(BuildChainBuilder builder) throws ReflectiveOperationException {
         Method getClassLoader = builder.getClass().getDeclaredMethod("getClassLoader");
         getClassLoader.setAccessible(true);
         Object classLoader = getClassLoader.invoke(builder);
@@ -259,7 +264,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    static void writeDiagnostic(String... lines) {
+    public static void writeDiagnostic(String... lines) {
         String diagnosticFile = System.getProperty(DIAGNOSTIC_FILE_PROPERTY, "");
         if (diagnosticFile.isBlank()) {
             return;
@@ -281,7 +286,7 @@ public final class ZoltQuarkusTestClassBeanCustomizer implements TestBuildChainC
         }
     }
 
-    static String classLoaderName(ClassLoader classLoader) {
+    public static String classLoaderName(ClassLoader classLoader) {
         if (classLoader == null) {
             return "<bootstrap>";
         }

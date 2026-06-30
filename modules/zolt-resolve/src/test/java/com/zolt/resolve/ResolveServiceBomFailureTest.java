@@ -1,5 +1,7 @@
 package com.zolt.resolve;
 
+import com.zolt.resolve.support.ResolveServiceTestSupport;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.PackageException;
-import com.zolt.build.PackagePlan;
-import com.zolt.build.PackageResult;
-import com.zolt.build.PackageServiceTestSupport;
+import com.zolt.build.packageplan.PackagePlan;
+import com.zolt.build.packaging.PackageResult;
+import com.zolt.build.packaging.PackageServiceTestSupport;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.ProjectConfig;

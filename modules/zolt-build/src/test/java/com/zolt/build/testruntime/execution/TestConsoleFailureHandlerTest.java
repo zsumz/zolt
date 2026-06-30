@@ -1,0 +1,68 @@
+package com.zolt.build.testruntime.execution;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.zolt.build.JavaRunException;
+import com.zolt.build.testruntime.TestRunException;
+import com.zolt.test.TestSelection;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+final class TestConsoleFailureHandlerTest {
+    private final TestConsoleFailureHandler handler = new TestConsoleFailureHandler();
+
+    @Test
+    void selectedTestFailureWithNoTestsFoundBecomesActionableSelectionError() {
+        JavaRunException failure = new JavaRunException("No tests found for request");
+        TestSelection selection = TestSelection.fromCli(List.of("com.example.MissingTest"), List.of(), List.of(), List.of());
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> handler.throwForFailedRun(failure, selection, Optional.empty()));
+
+        assertTrue(exception.getMessage().contains("Selected tests did not match any tests"));
+        assertTrue(exception.getMessage().contains("Check --test, --tests, --include-tag, and --exclude-tag"));
+        assertSame(failure, exception.getCause());
+    }
+
+    @Test
+    void reportDirectoryIsAddedToUnselectedConsoleFailure() {
+        JavaRunException failure = new JavaRunException("test failed");
+        Path reports = Path.of("target/test-reports");
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> handler.throwForFailedRun(failure, TestSelection.empty(), Optional.of(reports)));
+
+        assertTrue(exception.getMessage().contains("test failed"));
+        assertTrue(exception.getMessage().contains("Test reports: target/test-reports"));
+        assertSame(failure, exception.getCause());
+    }
+
+    @Test
+    void unselectedConsoleFailureWithoutReportsIsRethrown() {
+        JavaRunException failure = new JavaRunException("test failed");
+
+        JavaRunException exception = assertThrows(
+                JavaRunException.class,
+                () -> handler.throwForFailedRun(failure, TestSelection.empty(), Optional.empty()));
+
+        assertSame(failure, exception);
+    }
+
+    @Test
+    void successfulConsoleOutputWithZeroSelectedTestsStillFails() {
+        TestSelection selection = TestSelection.fromCli(List.of(), List.of("*MissingTest"), List.of(), List.of());
+
+        TestRunException exception = assertThrows(
+                TestRunException.class,
+                () -> handler.throwIfSelectedTestsDidNotMatch("[         0 tests found           ]", selection));
+
+        assertTrue(exception.getMessage().contains("Selected tests did not match any tests"));
+        assertTrue(exception.getMessage().contains("0 tests found"));
+    }
+}

@@ -1,7 +1,7 @@
 package com.zolt.build.nativeimage;
 
 import com.zolt.classpath.ClasspathBuilder;
-import com.zolt.build.PackageService;
+import com.zolt.build.packaging.PackageService;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.NativeSettings;

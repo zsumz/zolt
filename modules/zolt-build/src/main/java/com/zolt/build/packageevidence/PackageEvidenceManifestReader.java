@@ -1,7 +1,7 @@
 package com.zolt.build.packageevidence;
 
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.packaging.PackageMergeDecision;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

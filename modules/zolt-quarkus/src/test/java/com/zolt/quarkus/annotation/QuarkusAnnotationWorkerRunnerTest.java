@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.quarkus.annotation.diagnostic.QuarkusAnnotationClasspathSplitDiagnostic;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationJvmRunner;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationLaunchRequest;
 import com.zolt.quarkus.testworker.QuarkusTestWorkerPlan;
 import com.zolt.quarkus.testworker.QuarkusTestWorkerPlanStatus;
 import java.nio.file.Files;

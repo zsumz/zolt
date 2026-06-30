@@ -1,5 +1,6 @@
 package com.zolt.quarkus.annotation;
 
+import com.zolt.quarkus.annotation.diagnostic.QuarkusAnnotationFailureDiagnostics;
 import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;

@@ -1,6 +1,7 @@
 package com.zolt.quarkus.bootstrap;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.production.QuarkusProductionApplicationHandle;
 import com.zolt.quarkus.production.QuarkusProductionApplicationSummary;
 import java.io.PrintStream;

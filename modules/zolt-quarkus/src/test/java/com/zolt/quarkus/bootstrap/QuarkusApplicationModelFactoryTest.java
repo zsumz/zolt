@@ -13,6 +13,10 @@ import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryArtifactDoubles.
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryArtifactDoubles.FakePlatformImportsImpl;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryModelDoubles.FakeApplicationModel;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryModelDoubles.FakeResolvedDependencyBuilder;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDependency;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptorWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

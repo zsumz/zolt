@@ -1,6 +1,8 @@
 package com.zolt.quarkus.annotation;
 
-import com.zolt.quarkus.testworker.QuarkusTestRunnerDescriptor;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationJvmRunner;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationLaunchRequest;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import com.zolt.quarkus.testworker.QuarkusTestRunnerRequest;
 import com.zolt.quarkus.testworker.QuarkusTestWorkerPlan;
 import com.zolt.quarkus.testworker.QuarkusTestWorkerPlanStatus;

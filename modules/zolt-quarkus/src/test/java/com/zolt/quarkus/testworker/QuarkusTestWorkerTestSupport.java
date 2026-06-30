@@ -1,6 +1,8 @@
 package com.zolt.quarkus.testworker;
 
 import com.zolt.quarkus.annotation.QuarkusAnnotationWorkerRunner;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationJvmRunner;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;

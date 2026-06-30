@@ -2,7 +2,7 @@ package com.zolt.cli.command.testcmd;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.CompileDiagnostics;
-import com.zolt.build.testruntime.TestCompileResult;
+import com.zolt.build.testruntime.compile.TestCompileResult;
 import com.zolt.build.testruntime.TestRunResult;
 import com.zolt.cli.command.CommandAttributeKeys;
 import com.zolt.test.TestSelection;

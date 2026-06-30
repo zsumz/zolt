@@ -3,8 +3,8 @@ package com.zolt.build.packageevidence;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
-import com.zolt.build.PackageArtifact;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageArtifact;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.project.PackageMode;
 import java.io.IOException;
 import java.nio.file.Files;

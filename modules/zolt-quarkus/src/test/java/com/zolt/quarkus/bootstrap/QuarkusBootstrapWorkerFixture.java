@@ -1,5 +1,6 @@
 package com.zolt.quarkus.bootstrap;
 
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptorReader;
 import com.zolt.quarkus.production.QuarkusProductionApplicationCreator;
 import com.zolt.quarkus.production.QuarkusProductionApplicationSummarizer;
 import com.zolt.quarkus.production.QuarkusProductionOutputValidator;

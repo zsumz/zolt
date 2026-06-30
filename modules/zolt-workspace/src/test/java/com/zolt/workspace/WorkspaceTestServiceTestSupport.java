@@ -1,6 +1,6 @@
 package com.zolt.workspace;
 
-import com.zolt.build.JavacRunner;
+import com.zolt.build.compile.JavacRunner;
 import com.zolt.classpath.Classpath;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkStatus;

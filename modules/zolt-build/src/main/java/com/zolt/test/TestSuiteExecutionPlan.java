@@ -1,5 +1,6 @@
 package com.zolt.test;
 
+import com.zolt.test.shard.TestWorkerPoolPlan;
 import java.util.List;
 
 public record TestSuiteExecutionPlan(

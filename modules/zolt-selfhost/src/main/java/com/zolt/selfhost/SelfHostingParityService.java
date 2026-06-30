@@ -1,10 +1,10 @@
 package com.zolt.selfhost;
 
-import com.zolt.build.PackageResult;
-import com.zolt.build.PackageService;
+import com.zolt.build.packaging.PackageResult;
+import com.zolt.build.packaging.PackageService;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
-import com.zolt.workspace.WorkspacePackageService;
+import com.zolt.workspace.packaging.WorkspacePackageService;
 import com.zolt.workspace.WorkspaceSelectionRequest;
 import java.io.IOException;
 import java.nio.file.Files;

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.packaging.PackageMergeDecision;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

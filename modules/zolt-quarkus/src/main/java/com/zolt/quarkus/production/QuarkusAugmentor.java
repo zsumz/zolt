@@ -1,6 +1,6 @@
 package com.zolt.quarkus.production;
 
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.bootstrap.QuarkusBootstrapWorkerResult;
 
 @FunctionalInterface

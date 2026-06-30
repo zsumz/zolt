@@ -5,8 +5,8 @@ import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.indent;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.intField;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
-import com.zolt.build.PackageArtifact;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageArtifact;
+import com.zolt.build.packaging.PackageResult;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

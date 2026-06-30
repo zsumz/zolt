@@ -3,8 +3,6 @@ package com.zolt.build.discovery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.SourceDiscoverer;
-import com.zolt.build.SourceDiscoveryResult;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;

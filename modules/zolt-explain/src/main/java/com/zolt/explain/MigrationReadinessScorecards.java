@@ -1,5 +1,9 @@
 package com.zolt.explain;
 
+import com.zolt.explain.gradle.GradleInspectionResult;
+import com.zolt.explain.gradle.GradleMigrationReadinessFindings;
+import com.zolt.explain.maven.MavenInspectionResult;
+import com.zolt.explain.maven.MavenMigrationReadinessFindings;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -5,7 +5,7 @@ import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.nullableS
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringArrayField;
 import static com.zolt.build.packageevidence.PackageEvidenceJsonFields.stringField;
 
-import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.packaging.PackageMergeDecision;
 import java.util.Comparator;
 import java.util.List;
 

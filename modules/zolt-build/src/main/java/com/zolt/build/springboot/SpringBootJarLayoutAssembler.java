@@ -1,9 +1,9 @@
 package com.zolt.build.springboot;
 
 import com.zolt.build.BuildResult;
-import com.zolt.build.GeneratedManifest;
+import com.zolt.build.manifest.GeneratedManifest;
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.build.packaging.PackageArchiveWriter;
 import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.build.packaging.PackageRuntimeJars;

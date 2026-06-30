@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.PackageId;
 import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.bootstrap.QuarkusApplicationArtifact;
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

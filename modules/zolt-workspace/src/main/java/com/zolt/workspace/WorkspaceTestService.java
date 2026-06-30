@@ -9,7 +9,7 @@ import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.resolve.ResolveService;
-import com.zolt.test.TestShardSpec;
+import com.zolt.test.shard.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.nio.file.Path;
 import java.util.ArrayList;

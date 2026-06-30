@@ -1,6 +1,8 @@
 package com.zolt.quarkus.bootstrap;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;

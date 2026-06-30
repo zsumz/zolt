@@ -23,7 +23,7 @@ import com.zolt.resolve.materialization.RepositoryOverlay;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.WorkspaceConfigException;
-import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.resolve.WorkspaceResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

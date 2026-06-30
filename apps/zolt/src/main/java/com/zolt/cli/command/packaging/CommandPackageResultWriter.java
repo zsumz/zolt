@@ -1,7 +1,7 @@
 package com.zolt.cli.command.packaging;
 
-import com.zolt.build.PackageArtifact;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageArtifact;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.cli.CommandHumanOutput;
 import java.util.ArrayList;
 import java.util.List;

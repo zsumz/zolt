@@ -1,6 +1,7 @@
 package com.zolt.quarkus.bootstrap;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import java.lang.reflect.InvocationTargetException;
 
 public final class QuarkusBootstrapApiProbe {

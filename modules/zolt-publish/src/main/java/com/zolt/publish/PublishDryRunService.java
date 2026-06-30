@@ -2,8 +2,8 @@ package com.zolt.publish;
 
 import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
 import com.zolt.build.packageevidence.PackageEvidenceManifestWriter;
-import com.zolt.build.PackagePlan;
-import com.zolt.build.PackagePlanService;
+import com.zolt.build.packageplan.PackagePlan;
+import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.ZoltLockfileReader;

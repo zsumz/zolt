@@ -1,5 +1,7 @@
 package com.zolt.test;
 
+import com.zolt.test.shard.TestShardSpec;
+
 public final class TestSuitePathSegments {
     private TestSuitePathSegments() {
     }

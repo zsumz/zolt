@@ -1,11 +1,11 @@
 package com.zolt.build.packaging;
 
-import static com.zolt.build.PackageServiceTestSupport.config;
+import static com.zolt.build.packaging.PackageServiceTestSupport.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.PackageServiceTestSupport;
+import com.zolt.build.packaging.PackageServiceTestSupport;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;

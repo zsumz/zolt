@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.quarkus.annotation.QuarkusAnnotationWorkerRunner;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationJvmRunner;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import com.zolt.quarkus.testplan.QuarkusUnsupportedTest;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;

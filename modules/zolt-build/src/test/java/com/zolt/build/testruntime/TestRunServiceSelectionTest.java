@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.TestSuiteSettings;
 import com.zolt.test.TestPlanException;
-import com.zolt.test.TestShardSpec;
+import com.zolt.test.shard.TestShardSpec;
 import com.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;

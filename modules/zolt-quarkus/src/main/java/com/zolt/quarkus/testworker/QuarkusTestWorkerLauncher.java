@@ -1,6 +1,7 @@
 package com.zolt.quarkus.testworker;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

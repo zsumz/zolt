@@ -1,7 +1,7 @@
 package com.zolt.build.fingerprint;
 
 import com.zolt.build.BuildException;
-import com.zolt.build.SourceDiscoveryResult;
+import com.zolt.build.discovery.SourceDiscoveryResult;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.BuildSettings;

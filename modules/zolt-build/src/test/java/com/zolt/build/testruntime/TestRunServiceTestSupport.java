@@ -2,7 +2,8 @@ package com.zolt.build.testruntime;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
+import com.zolt.build.testruntime.compile.TestCompileService;
 import com.zolt.doctor.JdkChecker;
 import com.zolt.doctor.JdkDetector;
 import com.zolt.doctor.JdkStatus;

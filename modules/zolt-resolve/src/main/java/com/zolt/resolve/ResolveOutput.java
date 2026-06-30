@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.resolve.metrics.ResolveMetrics;
 
 public record ResolveOutput(
         ZoltLockfile lockfile,

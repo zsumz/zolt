@@ -1,0 +1,186 @@
+package com.zolt.workspace.packaging;
+
+import com.zolt.build.RunPackageException;
+import com.zolt.build.packageplan.PackagePlanService;
+import com.zolt.build.run.JavaRunResult;
+import com.zolt.build.run.JavaRunner;
+import com.zolt.build.run.RunPackageResult;
+import com.zolt.classpath.Classpath;
+import com.zolt.doctor.JdkChecker;
+import com.zolt.doctor.JdkDetector;
+import com.zolt.doctor.JdkStatus;
+import com.zolt.framework.FrameworkPackageAugmenter;
+import com.zolt.project.PackageMode;
+import com.zolt.resolve.ResolveService;
+import com.zolt.workspace.Workspace;
+import com.zolt.workspace.WorkspaceBuildPlan;
+import com.zolt.workspace.WorkspaceBuildResult;
+import com.zolt.workspace.WorkspaceMember;
+import com.zolt.workspace.WorkspaceSelectionRequest;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+public final class WorkspaceRunPackageService {
+    private final WorkspacePackageService workspacePackageService;
+    private final JdkChecker jdkDetector;
+    private final JavaRunner javaRunner;
+
+    public WorkspaceRunPackageService() {
+        this(new JdkDetector());
+    }
+
+    public WorkspaceRunPackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    public WorkspaceRunPackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
+    }
+
+    WorkspaceRunPackageService(JdkChecker jdkDetector) {
+        this(jdkDetector, new ResolveService(), FrameworkPackageAugmenter.none());
+    }
+
+    WorkspaceRunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, new PackagePlanService());
+    }
+
+    WorkspaceRunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService) {
+        this(
+                new WorkspacePackageService(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService),
+                jdkDetector,
+                new JavaRunner());
+    }
+
+    WorkspaceRunPackageService(
+            WorkspacePackageService workspacePackageService,
+            JdkChecker jdkDetector,
+            JavaRunner javaRunner) {
+        this.workspacePackageService = workspacePackageService;
+        this.jdkDetector = jdkDetector;
+        this.javaRunner = javaRunner;
+    }
+
+    public WorkspaceRunPackageResult runPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            List<String> arguments) {
+        return runPackages(startDirectory, cacheRoot, selectionRequest, arguments, Optional.empty());
+    }
+
+    public WorkspaceRunPackageResult runPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            List<String> arguments,
+            Optional<PackageMode> packageModeOverride) {
+        WorkspaceBuildPlan plan = planRunPackages(startDirectory, cacheRoot, selectionRequest);
+        WorkspaceBuildResult buildResult = buildRunPackageInputs(plan, cacheRoot);
+        WorkspacePackageResult packageResult = packageRunPackageInputs(plan, buildResult, packageModeOverride);
+        return runPackagedMembers(plan, packageResult, arguments);
+    }
+
+    public WorkspaceBuildPlan planRunPackages(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest) {
+        return workspacePackageService.planPackages(startDirectory, cacheRoot, selectionRequest);
+    }
+
+    public WorkspaceBuildResult buildRunPackageInputs(WorkspaceBuildPlan plan, Path cacheRoot) {
+        return workspacePackageService.buildPackageInputs(plan, cacheRoot);
+    }
+
+    public WorkspacePackageResult packageRunPackageInputs(
+            WorkspaceBuildPlan plan,
+            WorkspaceBuildResult buildResult,
+            Optional<PackageMode> packageModeOverride) {
+        return workspacePackageService.packageBuiltJars(plan, buildResult, packageModeOverride);
+    }
+
+    public WorkspaceRunPackageResult runPackagedMembers(
+            WorkspaceBuildPlan plan,
+            WorkspacePackageResult packageResult,
+            List<String> arguments) {
+        Workspace workspace = plan.workspace();
+        Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
+        Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(packageResult);
+
+        List<WorkspaceRunPackageResult.MemberRunPackageResult> results = new ArrayList<>();
+        for (WorkspacePackageResult.MemberPackageResult memberPackage : packageResult.members()) {
+            WorkspaceMember member = membersByPath.get(memberPackage.member());
+            WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPackage.member());
+            if (memberPackage.result().mode() == PackageMode.WAR) {
+                throw new RunPackageException(
+                        "Workspace member `"
+                                + member.path()
+                                + "` packaged as `war`, which cannot be run directly. "
+                                + "Deploy it to a servlet container, or use package mode `spring-boot-war` for java -jar.");
+            }
+            String mainClass = member.config().project().main().orElseThrow(() -> new RunPackageException(
+                    "Workspace member `"
+                            + member.path()
+                            + "` has no main class configured. Add [project].main to its zolt.toml or choose an application member."));
+            JdkStatus jdkStatus = jdkDetector.detect(member.config().project().java());
+            if (!jdkStatus.ok()) {
+                throw new RunPackageException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
+            }
+            if (memberPackage.result().mode() == PackageMode.SPRING_BOOT
+                    || memberPackage.result().mode() == PackageMode.SPRING_BOOT_WAR) {
+                JavaRunResult javaRunResult = javaRunner.runJar(
+                        jdkStatus.java().orElseThrow(),
+                        memberPackage.result().jarPath(),
+                        mainClass,
+                        arguments);
+                results.add(new WorkspaceRunPackageResult.MemberRunPackageResult(
+                        memberPackage.member(),
+                        new RunPackageResult(memberPackage.result(), javaRunResult)));
+                continue;
+            }
+
+            List<Path> runtimeEntries = new ArrayList<>();
+            runtimeEntries.add(memberPackage.result().jarPath());
+            runtimeEntries.addAll(memberBuild.classpaths().runtime().entries());
+            JavaRunResult javaRunResult = javaRunner.run(
+                    jdkStatus.java().orElseThrow(),
+                    new Classpath(runtimeEntries),
+                    mainClass,
+                    arguments);
+            results.add(new WorkspaceRunPackageResult.MemberRunPackageResult(
+                    memberPackage.member(),
+                    new RunPackageResult(memberPackage.result(), javaRunResult)));
+        }
+        return new WorkspaceRunPackageResult(packageResult.resolveResult(), packageResult.builtMembers(), results);
+    }
+
+    private static Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath(WorkspacePackageResult result) {
+        Map<String, WorkspaceBuildResult.MemberBuildResult> builds = new LinkedHashMap<>();
+        for (WorkspaceBuildResult.MemberBuildResult member : result.builtMembers()) {
+            builds.put(member.member(), member);
+        }
+        return builds;
+    }
+
+    private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
+        Map<String, WorkspaceMember> members = new LinkedHashMap<>();
+        for (WorkspaceMember member : workspace.members()) {
+            members.put(member.path(), member);
+        }
+        return members;
+    }
+}

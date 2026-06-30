@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
 import com.zolt.build.profile.TestProfileSettings;
 import com.zolt.lockfile.LockfileReadException;
 import com.zolt.test.TestSelection;
@@ -295,7 +295,7 @@ final class TestRunServiceRuntimeOptionsTest {
                 TestReportSettings.disabled(),
                 List.of(),
                 "all",
-                new com.zolt.test.TestShardSpec(1, 2),
+                new com.zolt.test.shard.TestShardSpec(1, 2),
                 TestProfileSettings.fromCli(true, Path.of("target/test-profile")));
 
         Path profileDirectory = projectDir.resolve("target/test-profile/shards/all/shard-1-of-2").toAbsolutePath().normalize();

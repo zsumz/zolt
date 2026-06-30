@@ -1,7 +1,7 @@
 package com.zolt.quarkus.production;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.bootstrap.QuarkusBootstrapWorkerResult;
 import java.nio.file.Path;
 

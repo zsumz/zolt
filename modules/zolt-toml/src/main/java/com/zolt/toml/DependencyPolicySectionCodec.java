@@ -1,5 +1,8 @@
 package com.zolt.toml;
 
+import com.zolt.toml.support.TomlVersions;
+import com.zolt.toml.support.TomlValidation;
+import com.zolt.toml.support.TomlScalars;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyConstraintKind;
 import com.zolt.project.DependencyPolicyExclusion;

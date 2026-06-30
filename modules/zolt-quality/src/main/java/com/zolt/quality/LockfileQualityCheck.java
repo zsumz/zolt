@@ -12,7 +12,7 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.ResolveService;
 import com.zolt.workspace.Workspace;
-import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.resolve.WorkspaceResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;

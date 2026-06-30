@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.annotation.QuarkusAnnotationWorkerRunner;
+import com.zolt.quarkus.annotation.launcher.QuarkusAnnotationJvmRunner;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;

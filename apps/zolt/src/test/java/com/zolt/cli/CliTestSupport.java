@@ -99,7 +99,7 @@ public final class CliTestSupport {
                 }
                 """);
         Path classes = workDir.resolve("classes");
-        new com.zolt.build.JavacRunner().compile(
+        new com.zolt.build.compile.JavacRunner().compile(
                 currentJavac(),
                 java.util.List.of(source),
                 new com.zolt.classpath.Classpath(java.util.List.of()),

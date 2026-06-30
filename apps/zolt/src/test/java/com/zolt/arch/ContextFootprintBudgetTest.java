@@ -92,4 +92,18 @@ final class ContextFootprintBudgetTest {
         assertEquals(2, process.waitFor(), output);
         assertTrue(output.contains("ZOLT_CONTEXT_FOOTPRINT_LIMIT must be a positive integer"), output);
     }
+
+    @Test
+    void reportScriptHonorsValidSmallLimit() throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder("scripts/report-context-footprint");
+        builder.directory(RepositoryPaths.root().toFile());
+        builder.redirectErrorStream(true);
+        builder.environment().put("ZOLT_CONTEXT_FOOTPRINT_LIMIT", "1");
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes());
+
+        assertEquals(0, process.waitFor(), output);
+        assertTrue(output.contains("top: 1 packages"), output);
+        assertTrue(output.contains("apps/zolt/src/test/java"), output);
+    }
 }

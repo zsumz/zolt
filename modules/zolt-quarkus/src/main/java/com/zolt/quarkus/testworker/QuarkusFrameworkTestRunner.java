@@ -8,6 +8,8 @@ import com.zolt.framework.FrameworkTestRunner;
 import com.zolt.project.ProjectConfig;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptorWriter;
 import com.zolt.quarkus.testplan.QuarkusTestPlan;
 import com.zolt.quarkus.testplan.QuarkusTestPlanService;
 import com.zolt.quarkus.testplan.QuarkusUnsupportedTest;

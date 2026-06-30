@@ -1,7 +1,7 @@
 package com.zolt.quarkus.annotation;
 
 import com.zolt.quarkus.QuarkusAugmentationException;
-import com.zolt.quarkus.testworker.QuarkusTestRunnerDescriptor;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

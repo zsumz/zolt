@@ -3,6 +3,8 @@ package com.zolt.quarkus.testworker;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.QuarkusPlanException;
 import com.zolt.quarkus.annotation.QuarkusAnnotationWorkerRunner;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptor;
+import com.zolt.quarkus.testworker.descriptor.QuarkusTestRunnerDescriptorReader;
 import com.zolt.quarkus.testplan.QuarkusUnsupportedTest;
 import java.io.PrintStream;
 import java.nio.file.Path;

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.packaging.PackageMergeDecision;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

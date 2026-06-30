@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
 import com.zolt.build.PackageException;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.build.packaging.PackageRuntimeJar;
 import com.zolt.dependency.PackageId;
 import com.zolt.project.PackageMode;

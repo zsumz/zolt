@@ -1,8 +1,8 @@
 package com.zolt.cli.command.build;
 
 import com.zolt.build.CleanException;
-import com.zolt.build.CleanResult;
-import com.zolt.build.CleanService;
+import com.zolt.build.clean.CleanResult;
+import com.zolt.build.clean.CleanService;
 import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandProjectDirectory;
@@ -10,8 +10,8 @@ import com.zolt.cli.command.CommandWorkspaceSelections;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltConfigException;
 import com.zolt.toml.ZoltTomlParser;
-import com.zolt.workspace.WorkspaceCleanResult;
-import com.zolt.workspace.WorkspaceCleanService;
+import com.zolt.workspace.clean.WorkspaceCleanResult;
+import com.zolt.workspace.clean.WorkspaceCleanService;
 import com.zolt.workspace.WorkspaceConfigException;
 import java.nio.file.Path;
 import java.util.List;

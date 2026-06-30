@@ -1,14 +1,16 @@
 package com.zolt.quality;
 
 import com.zolt.build.packageevidence.PackageEvidenceManifestReader;
-import com.zolt.build.PackagePlanService;
+import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.generated.GeneratedSourceEvidenceService;
 import com.zolt.lockfile.ZoltLockfileReader;
 import com.zolt.policy.DependencyPolicyReportService;
 import com.zolt.publish.PublishDryRunService;
 import com.zolt.publish.PublishSettingsReader;
+import com.zolt.quality.execution.QualityExecutionContextRunner;
+import com.zolt.quality.packaging.PackageQualityCheck;
 import com.zolt.resolve.ResolveService;
-import com.zolt.workspace.WorkspaceResolveService;
+import com.zolt.workspace.resolve.WorkspaceResolveService;
 import java.util.function.Function;
 
 final class QualityCheckDependencies {
@@ -36,11 +38,11 @@ final class QualityCheckDependencies {
         return new QualityCheckDependencies(
                 new GeneratedSourceQualityCheck(new GeneratedSourceEvidenceService()),
                 new LockfileQualityCheck(new ResolveService(), new WorkspaceResolveService(), lockfileReader),
-                new QualityExecutionContextRunner(
-                        new ExecutionContextQualityCheck(lockfileReader),
-                        new CredentialQualityCheck(new PublishSettingsReader(), environment),
-                        new ExecutionEvidenceQualityCheck(),
-                        new PublishDryRunQualityCheck(new PublishDryRunService())),
+                QualityExecutionContextRunner.create(
+                        lockfileReader,
+                        new PublishSettingsReader(),
+                        environment,
+                        new PublishDryRunService()),
                 new PackageQualityCheck(new PackagePlanService(), new PackageEvidenceManifestReader()),
                 new DependencyQualityCheck(lockfileReader, new DependencyPolicyReportService()));
     }

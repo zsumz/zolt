@@ -1,6 +1,6 @@
 package com.zolt.build.packageevidence;
 
-import com.zolt.build.PackageMergeDecision;
+import com.zolt.build.packaging.PackageMergeDecision;
 import java.util.List;
 
 public record PackageEvidenceManifest(

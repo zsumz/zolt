@@ -2,6 +2,16 @@ package com.zolt.explain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.zolt.explain.gradle.GradleDependencyInspection;
+import com.zolt.explain.gradle.GradleExplainFormatter;
+import com.zolt.explain.gradle.GradleInspectionResult;
+import com.zolt.explain.gradle.GradlePluginInspection;
+import com.zolt.explain.gradle.GradleProjectInspection;
+import com.zolt.explain.gradle.GradleRepositoryInspection;
+import com.zolt.explain.gradle.GradleVersionCatalogAlias;
+import com.zolt.explain.maven.MavenExplainFormatter;
+import com.zolt.explain.maven.MavenInspectionResult;
+import com.zolt.explain.maven.MavenProjectInspection;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

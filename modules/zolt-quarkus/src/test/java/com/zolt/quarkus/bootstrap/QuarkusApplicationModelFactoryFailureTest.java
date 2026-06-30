@@ -10,6 +10,10 @@ import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryArtifactDoubles.
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryArtifactDoubles.FakePlatformImportsImpl;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryModelDoubles.FakeResolvedDependencyBuilder;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactoryModelDoubles.IncompatibleApplicationModelBuilder;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDependency;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptorWriter;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;

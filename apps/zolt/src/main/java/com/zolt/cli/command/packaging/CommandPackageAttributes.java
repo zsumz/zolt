@@ -1,9 +1,9 @@
 package com.zolt.cli.command.packaging;
 
-import com.zolt.build.PackagePlan;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packageplan.PackagePlan;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.cli.command.CommandAttributeKeys;
-import com.zolt.workspace.WorkspacePackageResult;
+import com.zolt.workspace.packaging.WorkspacePackageResult;
 import java.util.LinkedHashMap;
 import java.util.Map;
 

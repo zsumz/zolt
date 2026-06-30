@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.build.JavaRunner;
+import com.zolt.build.run.JavaRunner;
 import com.zolt.build.testruntime.TestRunServiceTestSupport.CachingJdkChecker;
 import com.zolt.test.TestSelection;
 import java.io.IOException;

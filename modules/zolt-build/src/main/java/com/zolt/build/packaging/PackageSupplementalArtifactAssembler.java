@@ -1,7 +1,7 @@
 package com.zolt.build.packaging;
 
 import com.zolt.build.BuildResult;
-import com.zolt.build.PackageArtifact;
+import com.zolt.build.packaging.PackageArtifact;
 import com.zolt.build.PackageException;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;

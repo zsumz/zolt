@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.BuildResult;
-import com.zolt.build.PackageResult;
+import com.zolt.build.packaging.PackageResult;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
 import java.io.IOException;

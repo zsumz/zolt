@@ -1,6 +1,6 @@
 package com.zolt.cli.command;
 
-import com.zolt.build.PackagePlanService;
+import com.zolt.build.packageplan.PackagePlanService;
 import com.zolt.framework.FrameworkBuildAugmenter;
 import com.zolt.framework.FrameworkPackageAugmenter;
 import com.zolt.framework.FrameworkRunAugmenter;

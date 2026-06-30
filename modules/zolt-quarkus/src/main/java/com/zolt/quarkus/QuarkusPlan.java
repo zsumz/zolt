@@ -1,9 +1,9 @@
 package com.zolt.quarkus;
 
 import com.zolt.project.QuarkusPackageMode;
-import com.zolt.quarkus.bootstrap.QuarkusApplicationArtifact;
-import com.zolt.quarkus.bootstrap.QuarkusBootstrapDependency;
-import com.zolt.quarkus.bootstrap.QuarkusPlatformPropertiesArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusApplicationArtifact;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDependency;
+import com.zolt.quarkus.bootstrap.descriptor.QuarkusPlatformPropertiesArtifact;
 import com.zolt.quarkus.production.QuarkusAugmentationState;
 import com.zolt.quarkus.production.QuarkusOutputLayout;
 import java.nio.file.Path;

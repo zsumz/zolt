@@ -1,0 +1,249 @@
+package com.zolt.workspace.resolve;
+
+import com.zolt.dependency.DependencyScope;
+import com.zolt.dependency.PackageId;
+import com.zolt.lockfile.LockConflict;
+import com.zolt.lockfile.LockPackage;
+import com.zolt.lockfile.LockPolicyEffect;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.project.ProjectPathException;
+import com.zolt.project.ProjectPaths;
+import com.zolt.resolve.ResolveException;
+import com.zolt.workspace.Workspace;
+import com.zolt.workspace.WorkspaceMember;
+import com.zolt.workspace.WorkspaceProjectEdge;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+final class WorkspaceLockfileAggregator {
+    ZoltLockfile aggregate(Workspace workspace, List<WorkspaceMemberResolveOutput> memberOutputs) {
+        if (isTransitionalRootWorkspace(workspace, memberOutputs)) {
+            return memberOutputs.getFirst().lockfile();
+        }
+
+        Map<String, LockPackage> packages = new LinkedHashMap<>();
+        Map<String, LockConflict> conflicts = new LinkedHashMap<>();
+        Map<String, LockPolicyEffect> policyEffects = new LinkedHashMap<>();
+        for (LockPackage lockPackage : workspacePackages(workspace)) {
+            String key = packageKey(lockPackage);
+            LockPackage existingPackage = packages.get(key);
+            packages.put(key, existingPackage == null ? lockPackage : merge(existingPackage, lockPackage));
+        }
+
+        List<LockPackage> externalCandidates = new ArrayList<>();
+        for (WorkspaceMemberResolveOutput memberOutput : memberOutputs) {
+            for (LockPackage lockPackage : memberOutput.lockfile().packages()) {
+                if (!lockPackage.workspace().isPresent()) {
+                    externalCandidates.add(withMember(
+                            lockPackage,
+                            memberOutput.member(),
+                            memberOutput.exportedPackageIds()));
+                }
+            }
+            for (LockConflict conflict : memberOutput.lockfile().conflicts()) {
+                conflicts.putIfAbsent(conflictKey(conflict), conflict);
+            }
+            for (LockPolicyEffect policyEffect : memberOutput.lockfile().policyEffects()) {
+                policyEffects.putIfAbsent(policyEffectKey(policyEffect), policyEffect);
+            }
+        }
+
+        WorkspaceExternalSelection globalSelection = new WorkspaceExternalPackageSelector().select(externalCandidates);
+        for (LockPackage lockPackage : globalSelection.packages()) {
+            String key = packageKey(lockPackage);
+            LockPackage existingPackage = packages.get(key);
+            packages.put(key, existingPackage == null ? lockPackage : merge(existingPackage, lockPackage));
+        }
+        for (LockConflict conflict : globalSelection.conflicts()) {
+            conflicts.put(conflictKey(conflict), conflict);
+        }
+
+        return new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                WorkspaceLockfileFingerprints.aliasFingerprint(memberOutputs),
+                WorkspaceLockfileFingerprints.projectResolutionFingerprint(memberOutputs),
+                WorkspaceLockfileFingerprints.projectResolutionInputFingerprints(memberOutputs),
+                List.copyOf(packages.values()),
+                List.copyOf(conflicts.values()),
+                List.copyOf(policyEffects.values()));
+    }
+
+    private static boolean isTransitionalRootWorkspace(
+            Workspace workspace,
+            List<WorkspaceMemberResolveOutput> memberOutputs) {
+        return workspace.members().size() == 1
+                && workspace.edges().isEmpty()
+                && workspace.members().getFirst().path().equals(".")
+                && memberOutputs.size() == 1
+                && memberOutputs.getFirst().member().equals(".");
+    }
+
+    private static List<LockPackage> workspacePackages(Workspace workspace) {
+        Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
+        List<LockPackage> packages = new ArrayList<>();
+        for (WorkspaceProjectEdge edge : workspace.edges()) {
+            WorkspaceMember target = membersByPath.get(edge.to());
+            packages.add(new LockPackage(
+                    packageId(edge.coordinate()),
+                    target.config().project().version(),
+                    "workspace",
+                    scope(edge.scope()),
+                    true,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(edge.to()),
+                    Optional.of(workspaceOutput(workspace.root(), target)),
+                    List.of(),
+                    List.of(edge.from()),
+                    edge.exported() ? List.of(edge.from()) : List.of(),
+                    List.of()));
+        }
+        return packages;
+    }
+
+    private static String workspaceOutput(Path workspaceRoot, WorkspaceMember member) {
+        String configuredOutput = member.config().build().output();
+        try {
+            Path memberRoot = ProjectPaths.existingRoot(
+                    ProjectPaths.root(workspaceRoot),
+                    "[workspace].members",
+                    member.path());
+            ProjectPaths.output(memberRoot, "[build].output", configuredOutput);
+            return configuredOutput;
+        } catch (ProjectPathException exception) {
+            throw new ResolveException(
+                    "Workspace member `"
+                            + member.path()
+                            + "` has an invalid [build].output. "
+                            + exception.getMessage(),
+                    exception);
+        }
+    }
+
+    private static PackageId packageId(String coordinate) {
+        String[] parts = coordinate.split(":", -1);
+        return new PackageId(parts[0], parts[1]);
+    }
+
+    private static DependencyScope scope(String value) {
+        return switch (value) {
+            case "compile" -> DependencyScope.COMPILE;
+            case "test" -> DependencyScope.TEST;
+            default -> throw new ResolveException("Unsupported workspace dependency scope `" + value + "`.");
+        };
+    }
+
+    private static LockPackage merge(LockPackage left, LockPackage right) {
+        Set<String> dependencies = new LinkedHashSet<>(left.dependencies());
+        dependencies.addAll(right.dependencies());
+        Set<String> members = new LinkedHashSet<>(left.members());
+        members.addAll(right.members());
+        Set<String> exportedBy = new LinkedHashSet<>(left.exportedBy());
+        exportedBy.addAll(right.exportedBy());
+        return new LockPackage(
+                left.packageId(),
+                left.version(),
+                left.source(),
+                left.scope(),
+                left.direct() || right.direct(),
+                firstPresent(left.jar(), right.jar()),
+                firstPresent(left.pom(), right.pom()),
+                firstPresent(left.jarSha256(), right.jarSha256()),
+                firstPresent(left.pomSha256(), right.pomSha256()),
+                firstPresent(left.artifact(), right.artifact()),
+                firstPresent(left.artifactType(), right.artifactType()),
+                firstPresent(left.artifactSha256(), right.artifactSha256()),
+                firstPresent(left.workspace(), right.workspace()),
+                firstPresent(left.workspaceOutput(), right.workspaceOutput()),
+                List.copyOf(dependencies),
+                List.copyOf(members),
+                List.copyOf(exportedBy),
+                merged(left.policies(), right.policies()));
+    }
+
+    private static LockPackage withMember(
+            LockPackage lockPackage,
+            String member,
+            Set<PackageId> exportedPackageIds) {
+        Set<String> members = new LinkedHashSet<>(lockPackage.members());
+        members.add(member);
+        Set<String> exportedBy = new LinkedHashSet<>(lockPackage.exportedBy());
+        if (exportedPackageIds.contains(lockPackage.packageId())) {
+            exportedBy.add(member);
+        }
+        return new LockPackage(
+                lockPackage.packageId(),
+                lockPackage.version(),
+                lockPackage.source(),
+                lockPackage.scope(),
+                lockPackage.direct(),
+                lockPackage.jar(),
+                lockPackage.pom(),
+                lockPackage.jarSha256(),
+                lockPackage.pomSha256(),
+                lockPackage.artifact(),
+                lockPackage.artifactType(),
+                lockPackage.artifactSha256(),
+                lockPackage.workspace(),
+                lockPackage.workspaceOutput(),
+                lockPackage.dependencies(),
+                List.copyOf(members),
+                List.copyOf(exportedBy),
+                lockPackage.policies());
+    }
+
+    private static List<String> merged(List<String> left, List<String> right) {
+        Set<String> values = new LinkedHashSet<>(left);
+        values.addAll(right);
+        return List.copyOf(values);
+    }
+
+    private static Optional<String> firstPresent(Optional<String> left, Optional<String> right) {
+        return left.isPresent() ? left : right;
+    }
+
+    private static String packageKey(LockPackage lockPackage) {
+        return lockPackage.packageId()
+                + ":"
+                + lockPackage.version()
+                + ":"
+                + lockPackage.source()
+                + ":"
+                + lockPackage.scope().lockfileName();
+    }
+
+    private static String conflictKey(LockConflict conflict) {
+        return conflict.packageId() + ":" + conflict.selectedVersion() + ":" + conflict.reason();
+    }
+
+    private static String policyEffectKey(LockPolicyEffect policyEffect) {
+        return policyEffect.kind()
+                + ":"
+                + policyEffect.packageId()
+                + ":"
+                + policyEffect.requestedVersion().orElse("")
+                + ":"
+                + policyEffect.source().orElse("")
+                + ":"
+                + policyEffect.policy();
+    }
+
+    private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {
+        Map<String, WorkspaceMember> members = new LinkedHashMap<>();
+        for (WorkspaceMember member : workspace.members()) {
+            members.put(member.path(), member);
+        }
+        return members;
+    }
+}

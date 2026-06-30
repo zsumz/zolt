@@ -7,7 +7,7 @@ import static com.zolt.build.incremental.IncrementalCompileInputHasher.relative;
 import com.zolt.build.BuildException;
 import com.zolt.build.abi.ClassFileAbi;
 import com.zolt.build.abi.ClassFileAbiReader;
-import com.zolt.build.SourceDiscoveryResult;
+import com.zolt.build.discovery.SourceDiscoveryResult;
 import com.zolt.classpath.Classpath;
 import com.zolt.classpath.ClasspathSet;
 import com.zolt.project.GeneratedSourceStep;

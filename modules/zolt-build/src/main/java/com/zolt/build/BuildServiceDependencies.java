@@ -1,9 +1,14 @@
 package com.zolt.build;
 
+import com.zolt.build.discovery.SourceDiscoverer;
+import com.zolt.build.compile.JavacRunner;
+import com.zolt.build.compile.MainCompileSourceExecutor;
 import com.zolt.build.fingerprint.BuildFingerprintService;
 import com.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import com.zolt.build.incremental.IncrementalCompilePlanner;
 import com.zolt.build.incremental.IncrementalCompileStateRecorder;
+import com.zolt.build.metadata.BuildMetadataGenerator;
+import com.zolt.build.resources.ResourceCopier;
 import com.zolt.build.springboot.SpringBootAotGenerationService;
 import com.zolt.classpath.ClasspathBuilder;
 import com.zolt.doctor.JdkChecker;
