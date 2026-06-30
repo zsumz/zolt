@@ -1,14 +1,53 @@
 package com.zolt.junit;
 
 import com.zolt.test.TestSelection;
-import com.zolt.test.TestSelectionCodec;
-import com.zolt.test.TestSelectionException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * The line-oriented wire protocol spoken between {@link JunitWorkerClient} (parent) and
+ * {@link JunitLauncherWorker} (forked worker JVM).
+ *
+ * <p>Each request and result is a single line of UTF-8 text. A line is a tab-delimited list of
+ * fields. The first field is always a bare verb ({@code RUN}, {@code QUIT}, or the result prefix);
+ * every field after it is a {@code name=value} pair — a self-describing, tagged field:
+ *
+ * <pre>
+ *   RUN  &lt;TAB&gt; v=1 &lt;TAB&gt; id=junit-1 &lt;TAB&gt; out=target/test-classes &lt;TAB&gt; classes=com.example.MainTest
+ *   QUIT &lt;TAB&gt; v=1 &lt;TAB&gt; id=junit-2
+ *   ZOLT_WORKER_RESULT &lt;TAB&gt; id=junit-1 &lt;TAB&gt; exit=0
+ * </pre>
+ *
+ * <p>The first tagged field of every request is {@code v=<schemaVersion>}, so both ends agree on the
+ * field vocabulary before reading anything else. Decoding parses the tagged fields into a name-keyed
+ * map and reads each value <em>by name</em> — it never counts fields or derives offsets from the
+ * field count. Absent optional fields are simply missing keys, so adding a field is backward-tolerant
+ * (older workers ignore unknown keys; a breaking change bumps {@link #SCHEMA_VERSION}). This keeps the
+ * format honest as it grows: a new field is one new key, never a new part-count special case.
+ *
+ * <p>Field values are percent-escaped on the wire (see {@link Frame}) so they can never contain a
+ * tab, newline, carriage return, the {@code =} that separates name from value, or the {@code %}
+ * escape marker itself. List-valued fields (selectors, patterns, tags, events) are first comma-joined
+ * by {@link com.zolt.test.TestSelectionCodec} (via {@link TestSelectionField}) and then escaped as a
+ * single value.
+ */
 public final class JunitWorkerProtocol {
     public static final String RESULT_PREFIX = "ZOLT_WORKER_RESULT";
+
+    /** The wire schema version. Bump only on a breaking change to the field vocabulary. */
+    public static final int SCHEMA_VERSION = 1;
+
+    private static final String RUN = "RUN";
+    private static final String QUIT = "QUIT";
+
+    private static final String FIELD_VERSION = "v";
+    private static final String FIELD_REQUEST_ID = "id";
+    private static final String FIELD_TEST_OUTPUT = "out";
+    private static final String FIELD_REPORTS = "reports";
+    private static final String FIELD_PROFILE = "profile";
+    private static final String FIELD_EVENTS = "events";
+    private static final String FIELD_EXIT_CODE = "exit";
 
     private JunitWorkerProtocol() {
     }
@@ -40,186 +79,104 @@ public final class JunitWorkerProtocol {
         if (testOutputDirectory == null) {
             throw new IllegalArgumentException("JUnit worker test output directory is required.");
         }
-        TestSelection selection = testSelection == null ? TestSelection.empty() : testSelection;
-        String path = testOutputDirectory.toString();
-        validateField("JUnit worker test output directory", path);
-        String prefix = "RUN\t" + validateRequestId(requestId) + "\t" + path;
-        Optional<Path> reportPath = reportsDirectory == null ? Optional.empty() : reportsDirectory;
-        Optional<Path> profilePath = profileDirectory == null ? Optional.empty() : profileDirectory;
-        List<String> requestedEvents = events == null ? List.of() : List.copyOf(events);
-        if (selection.emptySelection() && reportPath.isEmpty() && requestedEvents.isEmpty() && profilePath.isEmpty()) {
-            return prefix;
-        }
-        if (reportPath.isEmpty() && requestedEvents.isEmpty() && profilePath.isEmpty()) {
-            return prefix
-                    + "\t"
-                    + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
-                    + "\t"
-                    + selectionField("JUnit worker method selectors", TestSelectionCodec.encodeMethods(selection.methodSelectors()))
-                    + "\t"
-                    + selectionField("JUnit worker class-name patterns", TestSelectionCodec.encodeStrings(selection.classNamePatterns()))
-                    + "\t"
-                    + selectionField("JUnit worker included tags", TestSelectionCodec.encodeStrings(selection.includedTags()))
-                    + "\t"
-                    + selectionField("JUnit worker excluded tags", TestSelectionCodec.encodeStrings(selection.excludedTags()));
-        }
-        String extendedPrefix = prefix
-                + "\t"
-                + optionalPathField("JUnit worker reports directory", reportPath)
-                + "\t"
-                + selectionField("JUnit worker events", TestSelectionCodec.encodeStrings(requestedEvents));
-        if (profilePath.isPresent()) {
-            extendedPrefix = extendedPrefix
-                    + "\t"
-                    + optionalPathField("JUnit worker profile directory", profilePath);
-        }
-        return extendedPrefix
-                + "\t"
-                + selectionField("JUnit worker class selectors", TestSelectionCodec.encodeStrings(selection.classSelectors()))
-                + "\t"
-                + selectionField("JUnit worker method selectors", TestSelectionCodec.encodeMethods(selection.methodSelectors()))
-                + "\t"
-                + selectionField("JUnit worker class-name patterns", TestSelectionCodec.encodeStrings(selection.classNamePatterns()))
-                + "\t"
-                + selectionField("JUnit worker included tags", TestSelectionCodec.encodeStrings(selection.includedTags()))
-                + "\t"
-                + selectionField("JUnit worker excluded tags", TestSelectionCodec.encodeStrings(selection.excludedTags()));
+        Frame frame = Frame.command(RUN);
+        frame.put(FIELD_VERSION, Integer.toString(SCHEMA_VERSION));
+        frame.put(FIELD_REQUEST_ID, validateRequestId(requestId));
+        frame.put(FIELD_TEST_OUTPUT, requireField("JUnit worker test output directory", testOutputDirectory.toString()));
+        optionalPath(reportsDirectory).ifPresent(path -> frame.put(FIELD_REPORTS, path));
+        optionalPath(profileDirectory).ifPresent(path -> frame.put(FIELD_PROFILE, path));
+        TestSelectionField.encodeStrings(frame, FIELD_EVENTS, events);
+        TestSelectionField.encode(frame, testSelection == null ? TestSelection.empty() : testSelection);
+        return frame.render();
     }
 
     public static String quitRequest(String requestId) {
-        return "QUIT\t" + validateRequestId(requestId);
+        Frame frame = Frame.command(QUIT);
+        frame.put(FIELD_VERSION, Integer.toString(SCHEMA_VERSION));
+        frame.put(FIELD_REQUEST_ID, validateRequestId(requestId));
+        return frame.render();
     }
 
     public static WorkerRequest parseRequest(String line) {
-        String[] parts = line.split("\t", -1);
-        if (parts.length < 2 || parts[0].isBlank() || parts[1].isBlank()) {
-            throw new IllegalArgumentException(
-                    "Malformed JUnit worker request. Expected RUN<TAB>requestId<TAB>testOutputDirectory or QUIT<TAB>requestId.");
+        Frame frame = Frame.parse(line);
+        requireSchemaVersion(frame);
+        String requestId = validateRequestId(frame.require(FIELD_REQUEST_ID, "JUnit worker request id"));
+        if (QUIT.equals(frame.command())) {
+            frame.rejectUnexpected("JUnit worker quit request", List.of(FIELD_VERSION, FIELD_REQUEST_ID));
+            return WorkerRequest.quit(requestId);
         }
-        String command = parts[0];
-        String requestId = validateRequestId(parts[1]);
-        if ("QUIT".equals(command)) {
-            if (parts.length != 2) {
-                throw new IllegalArgumentException("Malformed JUnit worker quit request. Expected QUIT<TAB>requestId.");
-            }
-            return new WorkerRequest(
-                    WorkerCommand.QUIT,
-                    requestId,
-                    "",
-                    Optional.empty(),
-                    Optional.empty(),
-                    List.of(),
-                    TestSelection.empty());
-        }
-        if (!"RUN".equals(command)) {
-            throw new IllegalArgumentException("Unknown JUnit worker request command `" + command + "`.");
-        }
-        if ((parts.length != 3 && parts.length != 8 && parts.length != 10 && parts.length != 11) || parts[2].isBlank()) {
-            throw new IllegalArgumentException(
-                    "Malformed JUnit worker run request. Expected RUN<TAB>requestId<TAB>testOutputDirectory"
-                            + "<TAB>reportsDirectory<TAB>events<TAB>profileDirectory"
-                            + "<TAB>classSelectors<TAB>methodSelectors<TAB>classNamePatterns<TAB>includedTags<TAB>excludedTags.");
+        if (!RUN.equals(frame.command())) {
+            throw new IllegalArgumentException("Unknown JUnit worker request command `" + frame.command() + "`.");
         }
         return new WorkerRequest(
                 WorkerCommand.RUN,
                 requestId,
-                validateField("JUnit worker test output directory", parts[2]),
-                reportsDirectory(parts),
-                profileDirectory(parts),
-                events(parts),
-                testSelection(parts));
+                frame.require(FIELD_TEST_OUTPUT, "JUnit worker test output directory"),
+                frame.optional(FIELD_REPORTS),
+                frame.optional(FIELD_PROFILE),
+                TestSelectionField.events(frame, FIELD_EVENTS),
+                TestSelectionField.decode(frame));
     }
 
     public static String result(String requestId, int exitCode) {
-        return RESULT_PREFIX + "\t" + validateRequestId(requestId) + "\t" + exitCode;
+        Frame frame = Frame.command(RESULT_PREFIX);
+        frame.put(FIELD_REQUEST_ID, validateRequestId(requestId));
+        frame.put(FIELD_EXIT_CODE, Integer.toString(exitCode));
+        return frame.render();
     }
 
     public static WorkerResult parseResult(String line) {
-        String[] parts = line.split("\t", -1);
-        if (parts.length != 3 || !RESULT_PREFIX.equals(parts[0]) || parts[1].isBlank() || parts[2].isBlank()) {
+        Frame frame = Frame.parse(line);
+        if (!RESULT_PREFIX.equals(frame.command())) {
             throw new IllegalArgumentException(
-                    "Malformed JUnit worker result. Expected ZOLT_WORKER_RESULT<TAB>requestId<TAB>exitCode.");
+                    "Malformed JUnit worker result. Expected " + RESULT_PREFIX + "<TAB>id=<requestId><TAB>exit=<exitCode>.");
         }
+        String requestId = validateRequestId(frame.require(FIELD_REQUEST_ID, "JUnit worker request id"));
+        String exitCode = frame.require(FIELD_EXIT_CODE, "JUnit worker result exit code");
         try {
-            return new WorkerResult(validateRequestId(parts[1]), Integer.parseInt(parts[2]));
+            return new WorkerResult(requestId, Integer.parseInt(exitCode));
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(
-                    "Malformed JUnit worker result exit code `" + parts[2] + "`.",
+                    "Malformed JUnit worker result exit code `" + exitCode + "`.",
                     exception);
+        }
+    }
+
+    private static void requireSchemaVersion(Frame frame) {
+        String version = frame.require(FIELD_VERSION, "JUnit worker schema version");
+        int parsed;
+        try {
+            parsed = Integer.parseInt(version);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(
+                    "Malformed JUnit worker schema version `" + version + "`.",
+                    exception);
+        }
+        if (parsed != SCHEMA_VERSION) {
+            throw new IllegalArgumentException(
+                    "Unsupported JUnit worker schema version " + parsed + "; this build speaks version " + SCHEMA_VERSION + ".");
         }
     }
 
     private static String validateRequestId(String requestId) {
-        return validateField("JUnit worker request id", requestId);
-    }
-
-    private static String selectionField(String name, String value) {
-        if (value == null) {
-            return "";
-        }
+        String value = requireField("JUnit worker request id", requestId);
+        // The request id is a control token used to correlate a result with its request, never user
+        // data, so it must be a clean single-line token even though the frame would otherwise escape it.
         if (value.indexOf('\t') >= 0 || value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) {
-            throw new IllegalArgumentException(name + " must not contain tabs or newlines.");
+            throw new IllegalArgumentException("JUnit worker request id must not contain tabs or newlines.");
         }
         return value;
     }
 
-    private static String validateField(String name, String value) {
+    private static String requireField(String name, String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(name + " is required.");
         }
-        if (value.indexOf('\t') >= 0 || value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) {
-            throw new IllegalArgumentException(name + " must not contain tabs or newlines.");
-        }
         return value;
     }
 
-    private static TestSelection parseSelection(String[] parts) {
-        try {
-            int offset = parts.length == 11 ? 6 : parts.length == 10 ? 5 : 3;
-            List<String> classSelectors = TestSelectionCodec.decodeStrings("JUnit worker class selectors", parts[offset]);
-            List<TestSelection.MethodSelector> methodSelectors =
-                    TestSelectionCodec.decodeMethods("JUnit worker method selectors", parts[offset + 1]);
-            List<String> patterns = TestSelectionCodec.decodeStrings("JUnit worker class-name patterns", parts[offset + 2]);
-            List<String> includedTags = TestSelectionCodec.decodeStrings("JUnit worker included tags", parts[offset + 3]);
-            List<String> excludedTags = TestSelectionCodec.decodeStrings("JUnit worker excluded tags", parts[offset + 4]);
-            return TestSelection.fromFields(classSelectors, methodSelectors, patterns, includedTags, excludedTags);
-        } catch (IllegalArgumentException | TestSelectionException exception) {
-            throw new IllegalArgumentException(
-                    "Malformed JUnit worker test selection. " + exception.getMessage(),
-                    exception);
-        }
-    }
-
-    private static Optional<String> reportsDirectory(String[] parts) {
-        if ((parts.length != 10 && parts.length != 11) || parts[3].isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(validateField("JUnit worker reports directory", parts[3]));
-    }
-
-    private static Optional<String> profileDirectory(String[] parts) {
-        if (parts.length != 11 || parts[5].isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(validateField("JUnit worker profile directory", parts[5]));
-    }
-
-    private static List<String> events(String[] parts) {
-        if (parts.length != 10 && parts.length != 11) {
-            return List.of();
-        }
-        return TestSelectionCodec.decodeStrings("JUnit worker events", parts[4]);
-    }
-
-    private static TestSelection testSelection(String[] parts) {
-        return parts.length == 3 ? TestSelection.empty() : parseSelection(parts);
-    }
-
-    private static String optionalPathField(String name, Optional<Path> value) {
-        if (value == null || value.isEmpty()) {
-            return "";
-        }
-        return validateField(name, value.orElseThrow().toString());
+    private static Optional<String> optionalPath(Optional<Path> value) {
+        return value == null ? Optional.empty() : value.map(Path::toString).filter(path -> !path.isBlank());
     }
 
     public enum WorkerCommand {
@@ -239,6 +196,17 @@ public final class JunitWorkerProtocol {
             reportsDirectory = reportsDirectory == null ? Optional.empty() : reportsDirectory;
             profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
             events = events == null ? List.of() : List.copyOf(events);
+        }
+
+        static WorkerRequest quit(String requestId) {
+            return new WorkerRequest(
+                    WorkerCommand.QUIT,
+                    requestId,
+                    "",
+                    Optional.empty(),
+                    Optional.empty(),
+                    List.of(),
+                    TestSelection.empty());
         }
     }
 

@@ -40,13 +40,14 @@ final class JunitLauncherWorkerTest {
 
         int exitCode = new JunitLauncherWorker().run(
                 new String[] {"--server"},
-                new ByteArrayInputStream("QUIT\trequest-1\n".getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream(
+                        (JunitWorkerProtocol.quitRequest("request-1") + "\n").getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
         String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
-        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
     }
 
     @Test
@@ -55,13 +56,13 @@ final class JunitLauncherWorkerTest {
 
         int exitCode = new JunitLauncherWorker().run(
                 new String[] {"--server"},
-                new ByteArrayInputStream("RUN\trequest-1\n".getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream("RUN\tv=1\tid=request-1\n".getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
                 new PrintStream(stderr, true, StandardCharsets.UTF_8));
 
         assertEquals(2, exitCode);
         assertTrue(stderr.toString(StandardCharsets.UTF_8)
-                .contains("Malformed JUnit worker run request"));
+                .contains("test output directory"));
     }
 
     @Test
@@ -83,13 +84,13 @@ final class JunitLauncherWorkerTest {
 
         int exitCode = new JunitLauncherWorker().run(
                 new String[] {"--server"},
-                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
         String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
-        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
         try (Stream<Path> reportFiles = Files.walk(reports)) {
             assertTrue(reportFiles.anyMatch(path -> path.getFileName().toString().endsWith(".xml")));
         }
@@ -115,13 +116,13 @@ final class JunitLauncherWorkerTest {
 
         int exitCode = new JunitLauncherWorker().run(
                 new String[] {"--server"},
-                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
         String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
-        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t0"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
         String json = Files.readString(profile.resolve("profile.json"));
         assertTrue(json.contains("\"schemaVersion\": 1"), json);
         assertTrue(json.contains("\"runner\": \"zolt-junit-worker\""), json);
@@ -157,13 +158,13 @@ final class JunitLauncherWorkerTest {
 
         int exitCode = new JunitLauncherWorker().run(
                 new String[] {"--server"},
-                new ByteArrayInputStream((request + "\nQUIT\trequest-2\n").getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
         String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
-        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\trequest-1\t1"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=1"), workerOutput);
         String json = Files.readString(profile.resolve("profile.json"));
         assertTrue(json.contains("\"className\": \"com.zolt.junit.ProfileFailureFixture\""), json);
         assertTrue(json.contains("\"methodName\": \"failsForProfileEvidence\""), json);

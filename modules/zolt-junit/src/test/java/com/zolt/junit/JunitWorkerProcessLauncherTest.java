@@ -62,8 +62,8 @@ final class JunitWorkerProcessLauncherTest {
                         return new JunitWorkerProcessLauncher.StartedWorker(
                                 new StringReader("""
                                         Tests found: 1
-                                        ZOLT_WORKER_RESULT\tjunit-1\t0
-                                        ZOLT_WORKER_RESULT\tjunit-2\t0
+                                        ZOLT_WORKER_RESULT\tid=junit-1\texit=0
+                                        ZOLT_WORKER_RESULT\tid=junit-2\texit=0
                                         """),
                                 input,
                                 () -> closed.set(true));
@@ -85,8 +85,8 @@ final class JunitWorkerProcessLauncherTest {
         assertEquals(Path.of("/repo"), directories.getFirst());
         assertEquals(Map.of("TZ", "America/Chicago"), environments.getFirst());
         assertEquals("""
-                RUN\tjunit-1\t/repo/target/test-classes
-                QUIT\tjunit-2
+                RUN\tv=1\tid=junit-1\tout=/repo/target/test-classes
+                QUIT\tv=1\tid=junit-2
                 """, input.toString());
         assertTrue(closed.get());
     }
@@ -96,7 +96,7 @@ final class JunitWorkerProcessLauncherTest {
         AtomicBoolean closed = new AtomicBoolean();
         JunitWorkerProcess process = new JunitWorkerProcess(
                 new JunitWorkerClient(
-                        new StringReader("ZOLT_WORKER_RESULT\tother\t1\n"),
+                        new StringReader("ZOLT_WORKER_RESULT\tid=other\texit=1\n"),
                         new StringWriter()),
                 () -> closed.set(true));
 
@@ -123,7 +123,7 @@ final class JunitWorkerProcessLauncherTest {
                 Path.of("/jdk/bin/java"),
                 List.of(Path.of("/zolt/zolt.jar")),
                 (command, projectDirectory) -> new JunitWorkerProcessLauncher.StartedWorker(
-                        new StringReader("ZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                        new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
                         new StringWriter(),
                         () -> {
                         }));

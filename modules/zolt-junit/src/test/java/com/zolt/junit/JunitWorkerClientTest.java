@@ -17,12 +17,12 @@ final class JunitWorkerClientTest {
     void sendsRunRequestAndPreservesOutputBeforeResult() {
         StringWriter input = new StringWriter();
         JunitWorkerClient client = new JunitWorkerClient(
-                new StringReader("Tests found: 1\nTests succeeded: 1\nZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                new StringReader("Tests found: 1\nTests succeeded: 1\nZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
                 input);
 
         JunitWorkerClient.WorkerRunResult result = client.run(Path.of("target/test-classes"));
 
-        assertEquals("RUN\tjunit-1\ttarget/test-classes\n", input.toString());
+        assertEquals("RUN\tv=1\tid=junit-1\tout=target/test-classes\n", input.toString());
         assertEquals("Tests found: 1\nTests succeeded: 1\n", result.output());
         assertEquals(0, result.exitCode());
     }
@@ -31,19 +31,19 @@ final class JunitWorkerClientTest {
     void closeSendsQuitRequest() {
         StringWriter input = new StringWriter();
         JunitWorkerClient client = new JunitWorkerClient(
-                new StringReader("ZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
                 input);
 
         client.close();
 
-        assertEquals("QUIT\tjunit-1\n", input.toString());
+        assertEquals("QUIT\tv=1\tid=junit-1\n", input.toString());
     }
 
     @Test
     void sendsRunRequestWithReportsAndEvents() {
         StringWriter input = new StringWriter();
         JunitWorkerClient client = new JunitWorkerClient(
-                new StringReader("Tests found: 1\nZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                new StringReader("Tests found: 1\nZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
                 input);
 
         JunitWorkerClient.WorkerRunResult result = client.run(
@@ -53,7 +53,7 @@ final class JunitWorkerClientTest {
                 List.of("failed"));
 
         assertEquals("""
-                RUN\tjunit-1\ttarget/test-classes\ttarget/test-reports\tfailed\t\t\t\t\t
+                RUN\tv=1\tid=junit-1\tout=target/test-classes\treports=target/test-reports\tevents=failed
                 """, input.toString());
         assertEquals("Tests found: 1\n", result.output());
         assertEquals(0, result.exitCode());
@@ -62,7 +62,7 @@ final class JunitWorkerClientTest {
     @Test
     void rejectsRunAfterClose() {
         JunitWorkerClient client = new JunitWorkerClient(
-                new StringReader("ZOLT_WORKER_RESULT\tjunit-1\t0\n"),
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
                 new StringWriter());
 
         client.close();
@@ -84,7 +84,7 @@ final class JunitWorkerClientTest {
                 JunitWorkerClientException.class,
                 () -> client.run(Path.of("target/test-classes")));
 
-        assertEquals("RUN\tjunit-1\ttarget/test-classes\n", input.toString());
+        assertEquals("RUN\tv=1\tid=junit-1\tout=target/test-classes\n", input.toString());
         assertTrue(exception.getMessage().contains("exited before sending a result"));
         assertTrue(exception.getMessage().contains("junit-1"));
         assertTrue(exception.getMessage().contains("Tests found: 1"));
@@ -93,7 +93,7 @@ final class JunitWorkerClientTest {
     @Test
     void failsOnMismatchedResultRequestId() {
         JunitWorkerClient client = new JunitWorkerClient(
-                new StringReader("ZOLT_WORKER_RESULT\tjunit-2\t0\n"),
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-2\texit=0\n"),
                 new StringWriter());
 
         JunitWorkerClientException exception = assertThrows(
