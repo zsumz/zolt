@@ -37,6 +37,8 @@ final class WorkspaceBuildCommandTest {
         assertTrue(result.stdout().contains("Compiled 1 main source files in modules/core"));
         assertTrue(result.stdout().contains("Compiled 1 main source files in apps/api"));
         assertTrue(result.stdout().contains("Compiled 2 workspace main source files"));
+        assertTrue(Files.exists(fixture.workspaceDir().resolve("zolt.toml")));
+        assertFalse(Files.exists(fixture.workspaceDir().resolve("zolt-workspace.toml")));
         assertTrue(Files.exists(fixture.coreDir().resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(fixture.apiDir().resolve("target/classes/com/example/api/Api.class")));
     }
@@ -109,7 +111,7 @@ final class WorkspaceBuildCommandTest {
         WorkspaceApplicationFixture fixture = WorkspaceCommandFixture.create(tempDir, "workspace");
         Path workerDir = addMember(fixture.workspaceDir(), "apps/worker", "worker");
         Path adminDir = addMember(fixture.workspaceDir(), "apps/admin", "admin");
-        Files.writeString(fixture.workspaceDir().resolve("zolt-workspace.toml"), """
+        Files.writeString(fixture.workspaceDir().resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api", "modules/core", "apps/worker", "apps/admin"]
@@ -139,7 +141,7 @@ final class WorkspaceBuildCommandTest {
         Path workspaceDir = tempDir.resolve("workspace");
         Path apiDir = workspaceDir.resolve("apps/api");
         Files.createDirectories(apiDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api"]
@@ -170,7 +172,7 @@ final class WorkspaceBuildCommandTest {
                 public final class %s {
                 }
                 """.formatted(name, capitalized(name)));
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api", "modules/core", "%s"]
