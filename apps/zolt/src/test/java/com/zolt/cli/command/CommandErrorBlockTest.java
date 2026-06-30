@@ -19,6 +19,30 @@ final class CommandErrorBlockTest {
     }
 
     @Test
+    void structuredFactoryUsesRemediationVerbatimAndKeepsContextRows() {
+        CommandErrorBlock block = CommandErrorBlock.of(
+                "Could not read zolt.toml at /tmp/app/zolt.toml.",
+                "Add the file or pass --cwd to the project directory.");
+
+        assertEquals("Could not read zolt.toml at /tmp/app/zolt.toml.", block.summary());
+        assertEquals(1, block.contextRows().size());
+        assertEquals("File", block.contextRows().getFirst().label());
+        assertEquals("/tmp/app/zolt.toml", block.contextRows().getFirst().value());
+        assertEquals("Add the file or pass --cwd to the project directory.", block.next().orElseThrow());
+    }
+
+    @Test
+    void structuredFactoryMatchesHeuristicForMigratedReadFailure() {
+        CommandErrorBlock structured = CommandErrorBlock.of(
+                "Could not read zolt.toml at /tmp/app/zolt.toml.",
+                "Check that the file exists and is readable.");
+        CommandErrorBlock heuristic = CommandErrorBlock.from(
+                "Could not read zolt.toml at /tmp/app/zolt.toml. Check that the file exists and is readable.");
+
+        assertEquals(heuristic, structured);
+    }
+
+    @Test
     void keepsMultilineRunnerOutputOutOfContextRows() {
         CommandErrorBlock block = CommandErrorBlock.from("""
                 java exited with code 1. Check the application output and try again.

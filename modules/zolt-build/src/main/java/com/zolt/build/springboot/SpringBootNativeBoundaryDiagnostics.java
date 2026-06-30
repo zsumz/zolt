@@ -1,6 +1,7 @@
 package com.zolt.build.springboot;
 
 import com.zolt.build.nativeimage.NativeImageException;
+import com.zolt.error.ActionableError;
 import com.zolt.project.ProjectConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,11 +36,12 @@ public final class SpringBootNativeBoundaryDiagnostics {
 
     public static void rejectUnsupportedEcosystem(ProjectConfig config) {
         boundarySignal(config).ifPresent(signal -> {
-            throw new NativeImageException(
+            throw new NativeImageException(ActionableError.of(
                     signal.area()
                             + " are not part of Zolt's proven Spring Boot native fixture family yet. "
-                            + "Zolt currently proves Spring Boot 3.3 Java 21 native rows for WebMVC, Actuator, WebMVC contract behavior, and Spring JDBC/H2 data access. "
-                            + signal.nextStep());
+                            + "Zolt currently proves Spring Boot 3.3 Java 21 native rows for WebMVC, Actuator, "
+                            + "WebMVC contract behavior, and Spring JDBC/H2 data access.",
+                    signal.nextStep()));
         });
     }
 

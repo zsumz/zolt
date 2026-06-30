@@ -18,6 +18,15 @@ record CommandErrorBlock(String summary, List<ContextRow> contextRows, Optional<
         return new CommandErrorBlock(split.summary(), contextRows(split.summary()), split.next());
     }
 
+    static CommandErrorBlock of(String summary, String remediation) {
+        String trimmedSummary = summary == null ? "" : summary.trim();
+        String trimmedRemediation = remediation == null ? "" : remediation.trim();
+        return new CommandErrorBlock(
+                trimmedSummary,
+                contextRows(trimmedSummary),
+                trimmedRemediation.isBlank() ? Optional.empty() : Optional.of(trimmedRemediation));
+    }
+
     private static SplitMessage split(String message) {
         int index = remediationIndex(message);
         if (index < 0) {
