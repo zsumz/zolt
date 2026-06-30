@@ -143,6 +143,103 @@ final class UserGlobalConfigParserTest {
     }
 
     @Test
+    void mergesMultipleRepositoryOverlaysOverDefaults() {
+        UserGlobalConfig config = new UserGlobalConfigParser().parse("""
+                version = 1
+
+                [repositoryOverlays.mavenLocal]
+                kind = "maven-local"
+                enabled = true
+
+                [repositoryOverlays.corporate]
+                kind = "maven-local"
+                enabled = false
+                """, tempDir.resolve("config.toml"));
+
+        RepositoryOverlayConfig mavenLocal = config.repositoryOverlays().get("mavenLocal");
+        assertEquals("maven-local", mavenLocal.kind());
+        assertTrue(mavenLocal.enabled());
+
+        RepositoryOverlayConfig corporate = config.repositoryOverlays().get("corporate");
+        assertEquals("corporate", corporate.id());
+        assertEquals("maven-local", corporate.kind());
+        assertFalse(corporate.enabled());
+
+        assertEquals(
+                UserGlobalConfigSources.USER_GLOBAL_CONFIG,
+                config.sources().repositoryOverlays().get("corporate").enabled());
+    }
+
+    @Test
+    void rejectsInvalidOverlayKind() {
+        UserGlobalConfigException exception = assertThrows(
+                UserGlobalConfigException.class,
+                () -> new UserGlobalConfigParser().parse("""
+                        version = 1
+
+                        [repositoryOverlays.mavenLocal]
+                        kind = "bogus"
+                        """, tempDir.resolve("config.toml")));
+
+        assertTrue(exception.getMessage().contains("[repositoryOverlays.mavenLocal].kind"));
+        assertTrue(exception.getMessage().contains("Use one of"));
+        assertTrue(exception.getMessage().contains("maven-local"));
+    }
+
+    @Test
+    void rejectsUnknownKeyUnderOverlay() {
+        UserGlobalConfigException exception = assertThrows(
+                UserGlobalConfigException.class,
+                () -> new UserGlobalConfigParser().parse("""
+                        version = 1
+
+                        [repositoryOverlays.mavenLocal]
+                        enabled = true
+                        priority = 5
+                        """, tempDir.resolve("config.toml")));
+
+        assertTrue(exception.getMessage().contains("Unknown key `priority` in [repositoryOverlays.mavenLocal]"));
+    }
+
+    // NOTE: The "Use a table with kind and enabled keys" branch in
+    // UserGlobalConfigParser.repositoryOverlays() guards against table.getTable(id)
+    // returning null. With tomlj 1.1.1, a present overlay key of the wrong shape (scalar,
+    // array, etc.) makes getTable(...) throw TomlInvalidTypeException before that null check,
+    // and getTable only returns null for an ABSENT key (which never appears in keySet()).
+    // The branch is therefore unreachable from parse input today, so it is intentionally not
+    // asserted here rather than coercing the parser's visibility/behavior to cover dead code.
+
+    @Test
+    void rejectsPackageSectionWithCommittedTomlRemediation() {
+        UserGlobalConfigException exception = assertThrows(
+                UserGlobalConfigException.class,
+                () -> new UserGlobalConfigParser().parse("""
+                        version = 1
+
+                        [package]
+                        mode = "uber"
+                        """, tempDir.resolve("config.toml")));
+
+        assertTrue(exception.getMessage().contains("Global config section [package] is not supported"));
+        assertTrue(exception.getMessage().contains("committed zolt.toml"));
+    }
+
+    @Test
+    void rejectsDependenciesSectionWithCommittedTomlRemediation() {
+        UserGlobalConfigException exception = assertThrows(
+                UserGlobalConfigException.class,
+                () -> new UserGlobalConfigParser().parse("""
+                        version = 1
+
+                        [dependencies]
+                        "org.example:lib" = "1.0.0"
+                        """, tempDir.resolve("config.toml")));
+
+        assertTrue(exception.getMessage().contains("Global config section [dependencies] is not supported"));
+        assertTrue(exception.getMessage().contains("committed zolt.toml"));
+    }
+
+    @Test
     void expandsLeadingTildeAndRejectsInvalidValues() {
         UserGlobalConfig config = new UserGlobalConfigParser().parse("""
                 version = 1
