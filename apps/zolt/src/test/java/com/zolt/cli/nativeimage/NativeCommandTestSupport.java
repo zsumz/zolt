@@ -121,7 +121,7 @@ final class NativeCommandTestSupport {
         Path coreDir = workspaceDir.resolve("modules/core");
         Files.createDirectories(apiDir);
         Files.createDirectories(coreDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace-native"
                 members = ["apps/api", "modules/core"]

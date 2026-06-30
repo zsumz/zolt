@@ -21,6 +21,8 @@ final class NativeCommandWorkspaceTest {
         Path workspaceDir = tempDir.resolve("workspace-native");
         NativeCommandTestSupport.writeWorkspaceNativeFixture(workspaceDir);
         Path nativeImage = NativeCommandTestSupport.writeFakeNativeImage(tempDir.resolve("native-image"));
+        assertTrue(Files.exists(workspaceDir.resolve("zolt.toml")));
+        assertFalse(Files.exists(workspaceDir.resolve("zolt-workspace.toml")));
 
         CommandResult result = execute(
                 "--color=always",
