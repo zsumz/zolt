@@ -1,5 +1,6 @@
 package com.zolt.quarkus.bootstrap;
 
+import com.zolt.error.WorkerFailureDiagnostic;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptor;
 import com.zolt.quarkus.production.QuarkusProductionApplicationHandle;
@@ -66,7 +67,7 @@ public final class QuarkusBootstrapWorker {
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());
             if (exception.getCause() != null) {
-                exception.getCause().printStackTrace(err);
+                err.println(WorkerFailureDiagnostic.causeLine(exception.getCause()));
             }
             return 1;
         }

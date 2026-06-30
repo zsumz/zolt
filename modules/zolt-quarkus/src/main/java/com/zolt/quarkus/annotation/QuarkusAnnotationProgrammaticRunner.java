@@ -1,5 +1,6 @@
 package com.zolt.quarkus.annotation;
 
+import com.zolt.error.WorkerFailureDiagnostic;
 import com.zolt.quarkus.annotation.diagnostic.QuarkusAnnotationFailureDiagnostics;
 import java.io.PrintStream;
 import java.lang.reflect.Array;
@@ -36,7 +37,7 @@ public final class QuarkusAnnotationProgrammaticRunner {
         } catch (ReflectiveOperationException | LinkageError exception) {
             err.println("error: Could not run Quarkus annotation tests through Zolt's programmatic JUnit launcher. "
                     + "Check that JUnit Platform Launcher and Quarkus JUnit are on the test runtime classpath.");
-            exception.printStackTrace(err);
+            err.println(WorkerFailureDiagnostic.causeLine(exception));
             return 1;
         }
     }
@@ -221,6 +222,9 @@ public final class QuarkusAnnotationProgrammaticRunner {
                 failed.set(true);
                 Optional<?> throwable = (Optional<?>) result.getClass().getMethod("getThrowable").invoke(result);
                 throwable.ifPresent(value -> {
+                    // Per-test failure report to stdout: the parent test runner scans this trace for
+                    // hidden bootstrap failures (see QuarkusFrameworkTestRunner.failOnHiddenBootstrapFailure),
+                    // so it is a deliberate, allowlisted stdout report rather than an error diagnostic.
                     ((Throwable) value).printStackTrace(out);
                     diagnostics.writeFailure(testClasses, quarkusRuntimeClassLoader.get(), (Throwable) value);
                 });

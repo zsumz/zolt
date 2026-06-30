@@ -1,5 +1,6 @@
 package com.zolt.quarkus.annotation;
 
+import com.zolt.error.WorkerFailureDiagnostic;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -45,7 +46,7 @@ public final class QuarkusTestIndexProbe {
         } catch (ReflectiveOperationException | LinkageError exception) {
             err.println("error: Could not inspect Quarkus test class index. Check that quarkus-test-common, "
                     + "Jandex, Quarkus JUnit, and compiled tests are on the probe classpath.");
-            exception.printStackTrace(err);
+            err.println(WorkerFailureDiagnostic.causeLine(exception));
             return 1;
         }
     }

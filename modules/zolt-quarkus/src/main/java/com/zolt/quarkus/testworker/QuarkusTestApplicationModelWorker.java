@@ -1,5 +1,6 @@
 package com.zolt.quarkus.testworker;
 
+import com.zolt.error.WorkerFailureDiagnostic;
 import com.zolt.quarkus.QuarkusAugmentationException;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelFactory;
 import com.zolt.quarkus.bootstrap.QuarkusApplicationModelHandle;
@@ -84,7 +85,7 @@ public final class QuarkusTestApplicationModelWorker {
         } catch (QuarkusAugmentationException exception) {
             err.println("error: " + exception.getMessage());
             if (exception.getCause() != null) {
-                exception.getCause().printStackTrace(err);
+                err.println(WorkerFailureDiagnostic.causeLine(exception.getCause()));
             }
             return 1;
         }

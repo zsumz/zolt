@@ -1,0 +1,8 @@
+# Worker-output guardrail allowlist.
+# Format: path|followUp|owner|gate|reason
+#
+# Only deliberately-retained worker stdout reports belong here. Raw stack-trace dumps and direct
+# System.out/System.err writes in production code are otherwise forbidden by WorkerOutputGuardrailTest;
+# route worker failures through com.zolt.error.WorkerFailureDiagnostic.causeLine instead.
+# See docs/worker-output-guardrails.md.
+modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/QuarkusAnnotationProgrammaticRunner.java||quarkus annotation worker|PR|per-test failure trace printed to stdout; the parent test runner scans it via QuarkusFrameworkTestRunner.failOnHiddenBootstrapFailure, and it is paired with QuarkusAnnotationFailureDiagnostics.writeFailure

@@ -41,6 +41,7 @@ final class PublicApiSurfaceTest {
             "com.zolt.error.ActionableError",
             "com.zolt.error.ActionableException",
             "com.zolt.error.HasActionableError",
+            "com.zolt.error.WorkerFailureDiagnostic",
             "com.zolt.framework.FrameworkBuildAugmentationResult",
             "com.zolt.framework.FrameworkBuildAugmenter",
             "com.zolt.framework.FrameworkBuildException",

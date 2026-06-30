@@ -1,5 +1,6 @@
 package com.zolt.junit;
 
+import com.zolt.error.WorkerFailureDiagnostic;
 import com.zolt.test.TestSelection;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -72,7 +73,7 @@ public final class JunitLauncherWorker {
             return 0;
         } catch (IOException exception) {
             err.println("error: Could not read JUnit launcher worker server input.");
-            exception.printStackTrace(err);
+            err.println(WorkerFailureDiagnostic.causeLine(exception));
             return 1;
         } catch (IllegalArgumentException exception) {
             err.println("error: " + exception.getMessage());
@@ -109,7 +110,7 @@ public final class JunitLauncherWorker {
         } catch (ReflectiveOperationException | IOException | LinkageError exception) {
             err.println("error: Could not run tests through Zolt's JUnit launcher worker. "
                     + "Check that JUnit Platform Launcher and test engines are on the worker classpath.");
-            exception.printStackTrace(err);
+            err.println(WorkerFailureDiagnostic.causeLine(exception));
             return 1;
         }
     }

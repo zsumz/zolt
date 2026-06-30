@@ -33,6 +33,9 @@ central = "https://repo.maven.apache.org/maven2"
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
+[test.suites.worker-failure-diagnostic]
+includeClassname = ["com.zolt.error.WorkerFailureDiagnosticTest"]
+
 [test.suites.native-reflection-inventory]
 includeClassname = [
     "com.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
