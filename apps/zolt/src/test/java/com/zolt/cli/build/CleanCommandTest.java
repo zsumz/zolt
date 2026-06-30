@@ -317,7 +317,7 @@ final class CleanCommandTest {
 
     private static void writeWorkspaceConfig(Path workspaceDir, String content) throws IOException {
         Files.createDirectories(workspaceDir);
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), content);
+        Files.writeString(workspaceDir.resolve("zolt.toml"), content);
     }
 
     private static void writeWorkspaceMember(
