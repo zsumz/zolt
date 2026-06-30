@@ -172,6 +172,33 @@ final class NativeUpdateServiceTest {
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
+    @Test
+    void updatesWhenInstallRootIsReachedThroughSymlinkedAncestor() throws IOException {
+        // Reproduces the macOS /var -> /private/var case on any OS: the install tree is reached through a
+        // symlinked ancestor, so the realpath-resolved binRoot differs from the raw bin link prefix.
+        Path realHome = tempDir.resolve("real-home");
+        Files.createDirectories(realHome);
+        Path linkedHome = tempDir.resolve("linked-home");
+        Files.createSymbolicLink(linkedHome, realHome);
+
+        Path installRoot = linkedHome.resolve(".zolt");
+        writeFakeZolt(installRoot.resolve("versions").resolve("0.1.0").resolve("bin/zolt"), "0.1.0");
+        Path bin = installRoot.resolve("bin");
+        Files.createDirectories(bin);
+        Path binLink = bin.resolve("zolt");
+        Files.createSymbolicLink(binLink, Path.of("../versions", "0.1.0", "bin", "zolt"));
+        InstalledFixture installed = new InstalledFixture(installRoot, binLink);
+
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+
+        NativeUpdateResult result = service.update(request(installed, channel, tempDir.resolve("update-work-symlink")));
+
+        assertTrue(result.updated());
+        assertEquals("0.1.1", result.availableVersion());
+        assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(binLink).toString());
+    }
+
     private NativeUpdateRequest request(InstalledFixture installed, Path channel, Path workDirectory) {
         return new NativeUpdateRequest(
                 installed.installRoot(),

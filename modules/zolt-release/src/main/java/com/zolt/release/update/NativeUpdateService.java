@@ -73,7 +73,11 @@ public final class NativeUpdateService {
             smokeCandidate(installedBinary, manifest.version());
             Path nextTarget = Path.of("../versions", manifest.version(), "bin", artifact.binaryName());
             assertUnderRoot(versionsRoot, binRoot.resolve(nextTarget), "native update symlink target");
-            switchCurrent(binRoot, installed.binLink(), installed.linkTarget(), nextTarget);
+            // binRoot is realpath-resolved (ownedDirectory), so derive the bin symlink in the same canonical
+            // space; otherwise the containment guard's non-following comparison mismatches on hosts where the
+            // bin directory's ancestor is a symlink (e.g. macOS /var -> /private/var).
+            Path canonicalBinLink = binRoot.resolve(installed.binLink().getFileName());
+            switchCurrent(binRoot, canonicalBinLink, installed.linkTarget(), nextTarget);
 
             return new NativeUpdateResult(
                     manifest.channel(),
