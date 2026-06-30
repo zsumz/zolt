@@ -369,10 +369,12 @@ final class PublicReadinessDocumentationTest {
 
         assertTrue(readme.contains("Migration audit (`zolt explain`)"));
         assertTrue(readme.contains(
-                "Static Maven and Gradle project inspection with text/JSON output, `--scorecard`, and `--blockers` reports"));
+                "Static Maven and Gradle project inspection with text/JSON output and `--scorecard`, `--blockers`, "
+                        + "and `--emit-toml` (synthesizes a draft `zolt.toml` accepted by `zolt resolve`) reports"));
         assertTrue(readme.contains("It does not execute Maven or Gradle"));
         assertTrue(readme.contains(
-                "migration audit (`zolt explain`) for static Maven/Gradle inspection with text/JSON, scorecard, and blocker reports"));
+                "migration audit (`zolt explain`) for static Maven/Gradle inspection with text/JSON, scorecard, "
+                        + "blocker, and draft `zolt.toml` (`--emit-toml`) reports"));
     }
 
     @Test

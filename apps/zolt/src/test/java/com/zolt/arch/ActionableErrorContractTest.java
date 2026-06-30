@@ -11,13 +11,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
  * Enforces the actionable-error invariant: the carrier keeps its required non-blank remediation
- * field and its {@code summary + ' ' + remediation} message contract, and the migrated high-traffic
- * sites construct the carrier. The scan stays bounded to the carrier plus the migrated sites so it
- * never regresses on the still-unmigrated flat-string errors.
+ * field and its {@code summary + ' ' + remediation} message contract, the migrated high-traffic
+ * sites construct the carrier, and every domain exception that adopts the carrier is registered so
+ * carrier adoption stays explicit and growable (a user-facing exception cannot silently regress to a
+ * flat-string-only message, and a new carrier adopter must be registered deliberately).
  */
 final class ActionableErrorContractTest {
     private static final Path MODEL_ERROR_ROOT = RepositoryPaths.root()
@@ -26,6 +30,16 @@ final class ActionableErrorContractTest {
             RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/toml/ZoltTomlParser.java"),
             RepositoryPaths.root().resolve(
                     "modules/zolt-build/src/main/java/com/zolt/build/springboot/SpringBootNativeBoundaryDiagnostics.java"));
+
+    /**
+     * User-facing domain exceptions that carry an {@link HasActionableError} so the CLI renderer always
+     * emits a "Next:" remediation line for them. New user-facing exceptions should join this registry and
+     * implement {@code HasActionableError}; the discovery test below keeps the registry complete.
+     */
+    private static final List<Path> CARRIER_EXCEPTIONS = List.of(
+            RepositoryPaths.root().resolve("modules/zolt-toml/src/main/java/com/zolt/toml/ZoltConfigException.java"),
+            RepositoryPaths.root().resolve(
+                    "modules/zolt-build/src/main/java/com/zolt/build/nativeimage/NativeImageException.java"));
 
     @Test
     void carrierKeepsRequiredNonBlankRemediationField() throws IOException {
@@ -70,5 +84,55 @@ final class ActionableErrorContractTest {
                     source.contains("ActionableError.of("),
                     () -> RepositoryPaths.displayPath(site) + " must construct ActionableError for its user errors.");
         }
+    }
+
+    @Test
+    void registeredCarrierExceptionsImplementHasActionableError() throws IOException {
+        for (Path exception : CARRIER_EXCEPTIONS) {
+            assertTrue(Files.isRegularFile(exception), () -> "Expected user-facing exception at " + exception);
+            assertTrue(
+                    Files.readString(exception).contains("HasActionableError"),
+                    () -> RepositoryPaths.displayPath(exception)
+                            + " must implement HasActionableError so the CLI renders a remediation line for it.");
+        }
+    }
+
+    @Test
+    void everyDomainExceptionAdoptingTheCarrierIsRegistered() throws IOException {
+        Path root = RepositoryPaths.root();
+        Set<String> registered = new TreeSet<>();
+        for (Path exception : CARRIER_EXCEPTIONS) {
+            registered.add(relative(root, exception));
+        }
+        Set<String> discovered = new TreeSet<>();
+        for (String area : List.of("modules", "apps")) {
+            Path base = root.resolve(area);
+            if (!Files.isDirectory(base)) {
+                continue;
+            }
+            List<Path> candidates;
+            try (Stream<Path> files = Files.walk(base)) {
+                candidates = files
+                        .filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith("Exception.java"))
+                        .filter(path -> relative(root, path).contains("/src/main/"))
+                        .filter(path -> !relative(root, path).contains("/com/zolt/error/"))
+                        .toList();
+            }
+            for (Path file : candidates) {
+                if (Files.readString(file).contains("HasActionableError")) {
+                    discovered.add(relative(root, file));
+                }
+            }
+        }
+        assertEquals(
+                registered,
+                discovered,
+                "Every domain *Exception that implements HasActionableError must be listed in CARRIER_EXCEPTIONS "
+                        + "so carrier adoption stays explicit and a registered adopter cannot silently drop the carrier.");
+    }
+
+    private static String relative(Path root, Path path) {
+        return root.relativize(path).toString().replace('\\', '/');
     }
 }
