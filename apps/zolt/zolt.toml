@@ -33,6 +33,12 @@ central = "https://repo.maven.apache.org/maven2"
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
+[test.suites.native-reflection-inventory]
+includeClassname = [
+    "com.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
+    "com.zolt.cli.nativeimage.ReflectionInventoryTest",
+]
+
 [test.suites.cli-help-highlighting]
 includeClassname = [
     "com.zolt.cli.HelpOptionHighlighterTest",
