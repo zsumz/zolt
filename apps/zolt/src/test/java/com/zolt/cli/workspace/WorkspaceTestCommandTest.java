@@ -27,7 +27,7 @@ final class WorkspaceTestCommandTest {
         Files.createDirectories(coreDir);
         writeFakeConsoleJar(cacheRoot.resolve(
                 "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
-        Files.writeString(workspaceDir.resolve("zolt-workspace.toml"), """
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
                 [workspace]
                 name = "workspace"
                 members = ["apps/api", "modules/core"]
