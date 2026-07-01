@@ -16,6 +16,7 @@ import com.zolt.resolve.lockfile.persistence.ResolveLockfilePersistence;
 import com.zolt.resolve.materialization.session.RepositorySession;
 import com.zolt.resolve.metrics.ResolveMetrics;
 import com.zolt.resolve.metadata.DependencyMetadataSource;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.request.DependencyRequestPlanner;
 import com.zolt.resolve.traversal.DependencyGraphTraverser;
@@ -141,6 +142,7 @@ public final class ResolveService {
     public ResolveOutput resolveLockfile(ProjectConfig config, Path cacheRoot, ResolveOptions options) {
         RepositorySession context =
                 new RepositorySession(config, cacheRoot, options, coordinateParser, repositoryClient, rawPomParser);
+        Map<PackageId, ManagedVersion> managedVersionDetails = context.projectManagedVersionDetails();
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
         List<DependencyRequest> directRequests = dependencyRequestPlanner.plan(
                 config,
@@ -150,6 +152,7 @@ public final class ResolveService {
         DependencyGraphResolution initial = graphResolver.resolve(
                 context,
                 context.config().dependencyPolicy(),
+                managedVersionDetails,
                 directRequests,
                 context);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
@@ -166,6 +169,7 @@ public final class ResolveService {
                 : graphResolver.resolve(
                         context,
                         context.config().dependencyPolicy(),
+                        managedVersionDetails,
                         allRequests,
                         context);
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
@@ -191,7 +195,10 @@ public final class ResolveService {
 
     @FunctionalInterface
     interface DependencyGraphTraverserFactory {
-        DependencyGraphTraverser create(DependencyMetadataSource source, DependencyPolicySettings dependencyPolicy);
+        DependencyGraphTraverser create(
+                DependencyMetadataSource source,
+                DependencyPolicySettings dependencyPolicy,
+                Map<PackageId, ManagedVersion> managedVersions);
     }
 
 }

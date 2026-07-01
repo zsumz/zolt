@@ -41,6 +41,7 @@ final class DependencyGraphResolverTest {
         DependencyGraphResolution result = resolver.resolve(
                 coordinate -> poms.get(coordinate.toString()),
                 DependencyPolicySettings.defaults(),
+                Map.of(),
                 List.of(new DependencyRequest(
                         new PackageId("com.example", "app"),
                         "1.0.0",

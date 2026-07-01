@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
 import com.zolt.resolve.graph.ResolutionGraph;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSupport {
@@ -248,6 +250,30 @@ final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSup
                 "com.example:root:1.0.0->com.example:left:1.0.0",
                 "com.example:root:1.0.0->com.example:right:1.0.0",
                 "com.example:right:1.0.0->com.example:shared:1.0.0"), edgeStrings(graph));
+    }
+
+    @Test
+    void rootManagedVersionOverridesTransitiveRequestBeforeTraversal() {
+        PackageId library = new PackageId("com.example", "lib");
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependency("com.example", "lib", "1.0.0"))));
+        source.put("com.example:lib:2.0.0", pom("com.example", "lib", "2.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(
+                source,
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")))
+                .traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertEquals(List.of("com.example:root:1.0.0", "com.example:lib:2.0.0"), nodeStrings(graph));
+        assertEquals(List.of("com.example:root:1.0.0->com.example:lib:2.0.0"), edgeStrings(graph));
+        assertEquals(0, source.loadCount("com.example:lib:1.0.0"));
+        assertEquals(1, source.loadCount("com.example:lib:2.0.0"));
+        assertEquals(
+                List.of("managed-version: com.example:lib -> 2.0.0 from com.example:platform:1.0.0"),
+                graph.policyEffects().stream()
+                        .map(effect -> effect.policy())
+                        .toList());
     }
 
 }

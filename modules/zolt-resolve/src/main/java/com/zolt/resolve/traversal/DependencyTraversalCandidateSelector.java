@@ -9,6 +9,7 @@ import com.zolt.project.DependencyConstraint;
 import com.zolt.project.VersionPolicy;
 import com.zolt.resolve.DependencyPolicyEffect;
 import com.zolt.resolve.ResolveException;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.graph.PackageNode;
 import com.zolt.resolve.request.RequestOrigin;
@@ -22,16 +23,19 @@ final class DependencyTraversalCandidateSelector {
     private final DependencyTransitiveScopeSelector transitiveScopeSelector;
     private final List<DependencyGlobalExclusion> globalExclusions;
     private final Map<PackageId, DependencyConstraint> strictConstraints;
+    private final Map<PackageId, ManagedVersion> rootManagedVersions;
 
     DependencyTraversalCandidateSelector(
             DependencyTraversalPolicy traversalPolicy,
             DependencyTransitiveScopeSelector transitiveScopeSelector,
             List<DependencyGlobalExclusion> globalExclusions,
-            Map<PackageId, DependencyConstraint> strictConstraints) {
+            Map<PackageId, DependencyConstraint> strictConstraints,
+            Map<PackageId, ManagedVersion> rootManagedVersions) {
         this.traversalPolicy = traversalPolicy;
         this.transitiveScopeSelector = transitiveScopeSelector;
         this.globalExclusions = List.copyOf(globalExclusions);
         this.strictConstraints = Map.copyOf(strictConstraints);
+        this.rootManagedVersions = Map.copyOf(rootManagedVersions);
     }
 
     DependencyTraversalSelection select(DependencyTraversalCandidate candidate) {
@@ -57,8 +61,14 @@ final class DependencyTraversalCandidateSelector {
                 dependency.rawDependency().groupId(),
                 dependency.rawDependency().artifactId());
         DependencyConstraint constraint = strictConstraints.get(packageId);
+        ManagedVersion managedVersion = rootManagedVersions.get(packageId);
         Optional<String> originalRequestedVersion = dependency.rawDependency().version();
-        String requestedVersion = requestedVersion(candidate.source(), dependency, packageId, constraint);
+        String requestedVersion = requestedVersion(
+                candidate.source(),
+                dependency,
+                packageId,
+                constraint,
+                managedVersion);
         validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source());
         List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
         if (constraint != null) {
@@ -67,6 +77,12 @@ final class DependencyTraversalCandidateSelector {
                     originalRequestedVersion,
                     candidate.source(),
                     constraint));
+        } else if (managedVersion != null) {
+            policyEffects.add(managedVersionEffect(
+                    packageId,
+                    originalRequestedVersion,
+                    candidate.source(),
+                    managedVersion));
         }
         DependencyRequest request = new DependencyRequest(
                 packageId,
@@ -87,9 +103,13 @@ final class DependencyTraversalCandidateSelector {
             PackageNode source,
             NormalizedDependency dependency,
             PackageId packageId,
-            DependencyConstraint constraint) {
+            DependencyConstraint constraint,
+            ManagedVersion managedVersion) {
         if (constraint != null) {
             return constraint.version();
+        }
+        if (managedVersion != null) {
+            return managedVersion.version();
         }
         return dependency.rawDependency().version()
                 .orElseThrow(() -> new GraphTraversalException(
@@ -168,6 +188,25 @@ final class DependencyTraversalCandidateSelector {
                 constraint.reason()
                         .map(reason -> policy + " (" + reason + ")")
                         .orElse(policy));
+    }
+
+    private static DependencyPolicyEffect managedVersionEffect(
+            PackageId packageId,
+            Optional<String> requestedVersion,
+            PackageNode source,
+            ManagedVersion managedVersion) {
+        String policy = "managed-version: "
+                + packageId
+                + " -> "
+                + managedVersion.version()
+                + " from "
+                + managedVersion.platform();
+        return new DependencyPolicyEffect(
+                "managed-version",
+                packageId,
+                requestedVersion,
+                Optional.of(sourceCoordinate(source)),
+                policy);
     }
 
     private static Optional<ArtifactDescriptor> artifactDescriptor(

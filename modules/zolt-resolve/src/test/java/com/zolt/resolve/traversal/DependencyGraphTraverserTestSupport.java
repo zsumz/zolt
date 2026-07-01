@@ -13,6 +13,7 @@ import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.request.RequestOrigin;
 import com.zolt.resolve.graph.ResolutionGraph;
 import com.zolt.resolve.metadata.DependencyMetadataSource;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,15 @@ import java.util.Optional;
 abstract class DependencyGraphTraverserTestSupport {
     final DependencyGraphTraverser traverser(MapBackedMetadataSource source) {
         return new DependencyGraphTraverser(source);
+    }
+
+    final DependencyGraphTraverser traverser(
+            MapBackedMetadataSource source,
+            Map<PackageId, ManagedVersion> rootManagedVersions) {
+        return new DependencyGraphTraverser(
+                source,
+                com.zolt.project.DependencyPolicySettings.defaults(),
+                rootManagedVersions);
     }
 
     final DependencyRequest direct(String groupId, String artifactId, String version) {

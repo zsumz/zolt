@@ -12,6 +12,7 @@ import com.zolt.project.DependencyConstraintKind;
 import com.zolt.resolve.request.DependencyExclusion;
 import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.graph.PackageNode;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import com.zolt.resolve.request.RequestOrigin;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +143,78 @@ final class DependencyTraversalCandidateSelectorTest {
     }
 
     @Test
+    void rootManagedVersionOverridesRequestedVersionAndReturnsPolicyEffect() {
+        PackageId library = new PackageId("com.example", "lib");
+        DependencyTraversalCandidateSelector managed = selector(
+                List.of(),
+                Map.of(),
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")));
+
+        DependencyTraversalSelection selection = managed.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                dependency("com.example", "lib", "1.0.0", DependencyScope.COMPILE, false)));
+
+        assertEquals("2.0.0", selection.selectedItem().orElseThrow().request().requestedVersion());
+        assertEquals("managed-version", selection.policyEffects().getFirst().kind());
+        assertEquals(Optional.of("1.0.0"), selection.policyEffects().getFirst().requestedVersion());
+        assertEquals(Optional.of("com.example:root:1.0.0"), selection.policyEffects().getFirst().source());
+        assertEquals(
+                "managed-version: com.example:lib -> 2.0.0 from com.example:platform:1.0.0",
+                selection.policyEffects().getFirst().policy());
+    }
+
+    @Test
+    void strictConstraintWinsOverRootManagedVersion() {
+        PackageId library = new PackageId("com.example", "lib");
+        DependencyTraversalCandidateSelector managedAndStrict = selector(
+                List.of(),
+                Map.of(library, new DependencyConstraint(
+                        "com.example:lib",
+                        "3.0.0",
+                        DependencyConstraintKind.STRICT,
+                        Optional.of("baseline"))),
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")));
+
+        DependencyTraversalSelection selection = managedAndStrict.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                dependency("com.example", "lib", "1.0.0", DependencyScope.COMPILE, false)));
+
+        assertEquals("3.0.0", selection.selectedItem().orElseThrow().request().requestedVersion());
+        assertEquals(List.of("strict-version"), selection.policyEffects().stream()
+                .map(effect -> effect.kind())
+                .toList());
+    }
+
+    @Test
+    void rootManagedVersionSuppliesMissingTransitiveVersion() {
+        PackageId library = new PackageId("com.example", "missing-version");
+        DependencyTraversalCandidateSelector managed = selector(
+                List.of(),
+                Map.of(),
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")));
+
+        DependencyTraversalSelection selection = managed.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                new NormalizedDependency(
+                        new RawPomDependency(
+                                "com.example",
+                                "missing-version",
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                false,
+                                List.of()),
+                        DependencyScope.COMPILE,
+                        false,
+                        List.of())));
+
+        assertEquals("2.0.0", selection.selectedItem().orElseThrow().request().requestedVersion());
+        assertEquals("managed-version", selection.policyEffects().getFirst().kind());
+        assertTrue(selection.policyEffects().getFirst().requestedVersion().isEmpty());
+    }
+
+    @Test
     void versionlessDependencyWithoutConstraintKeepsDiagnosticShape() {
         GraphTraversalException exception = assertThrows(
                 GraphTraversalException.class,
@@ -169,11 +242,19 @@ final class DependencyTraversalCandidateSelectorTest {
     private static DependencyTraversalCandidateSelector selector(
             List<DependencyGlobalExclusion> exclusions,
             Map<PackageId, DependencyConstraint> constraints) {
+        return selector(exclusions, constraints, Map.of());
+    }
+
+    private static DependencyTraversalCandidateSelector selector(
+            List<DependencyGlobalExclusion> exclusions,
+            Map<PackageId, DependencyConstraint> constraints,
+            Map<PackageId, ManagedVersion> managedVersions) {
         return new DependencyTraversalCandidateSelector(
                 new DependencyTraversalPolicy(),
                 new DependencyTransitiveScopeSelector(),
                 exclusions,
-                constraints);
+                constraints,
+                managedVersions);
     }
 
     private static DependencyTraversalCandidate candidate(

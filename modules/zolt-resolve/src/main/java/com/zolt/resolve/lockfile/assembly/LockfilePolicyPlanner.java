@@ -45,9 +45,16 @@ final class LockfilePolicyPlanner {
         if (selectedScope.direct()) {
             return policies;
         }
+        policies.addAll(policyEffects.stream()
+                .filter(effect -> "managed-version".equals(effect.kind()))
+                .filter(effect -> effect.packageId().equals(node.packageId()))
+                .map(DependencyPolicyEffect::policy)
+                .distinct()
+                .sorted()
+                .toList());
         DependencyConstraint constraint = constraints.get(node.packageId().toString());
         if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
-            return policies;
+            return List.copyOf(policies);
         }
         List<String> strictPolicies = policyEffects.stream()
                 .filter(effect -> "strict-version".equals(effect.kind()))

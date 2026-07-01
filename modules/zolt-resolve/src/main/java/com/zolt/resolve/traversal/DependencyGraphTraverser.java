@@ -14,6 +14,7 @@ import com.zolt.resolve.graph.PackageNode;
 import com.zolt.resolve.graph.ResolutionEdge;
 import com.zolt.resolve.graph.ResolutionGraph;
 import com.zolt.resolve.metadata.DependencyMetadataSource;
+import com.zolt.resolve.metadata.platform.ManagedVersion;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,18 +34,26 @@ public final class DependencyGraphTraverser {
     private final DependencyRelocator relocator;
 
     public DependencyGraphTraverser(DependencyMetadataSource metadataSource) {
-        this(metadataSource, DependencyPolicySettings.defaults());
+        this(metadataSource, DependencyPolicySettings.defaults(), Map.of());
     }
 
     public DependencyGraphTraverser(
             DependencyMetadataSource metadataSource,
             DependencyPolicySettings dependencyPolicy) {
+        this(metadataSource, dependencyPolicy, Map.of());
+    }
+
+    public DependencyGraphTraverser(
+            DependencyMetadataSource metadataSource,
+            DependencyPolicySettings dependencyPolicy,
+            Map<PackageId, ManagedVersion> rootManagedVersions) {
         this(
                 metadataSource,
                 new PomDependencyManager(),
                 new DependencyNormalizer(),
                 new DependencyTraversalPolicy(),
-                dependencyPolicy);
+                dependencyPolicy,
+                rootManagedVersions);
     }
 
     DependencyGraphTraverser(
@@ -52,7 +61,8 @@ public final class DependencyGraphTraverser {
             PomDependencyManager dependencyManager,
             DependencyNormalizer normalizer,
             DependencyTraversalPolicy traversalPolicy,
-            DependencyPolicySettings dependencyPolicy) {
+            DependencyPolicySettings dependencyPolicy,
+            Map<PackageId, ManagedVersion> rootManagedVersions) {
         this.metadataSource = metadataSource;
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
@@ -61,7 +71,8 @@ public final class DependencyGraphTraverser {
                 traversalPolicy,
                 new DependencyTransitiveScopeSelector(),
                 globalExclusions(dependencyPolicy),
-                strictConstraints(dependencyPolicy));
+                strictConstraints(dependencyPolicy),
+                rootManagedVersions);
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
