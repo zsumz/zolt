@@ -196,5 +196,4 @@ final class MavenStaticProjectInspectorTest {
                 .anyMatch(signal -> signal.id().equals("maven.profile.detected")
                         && signal.category() == ExplainSignal.Category.NON_DETERMINISM));
     }
-
 }

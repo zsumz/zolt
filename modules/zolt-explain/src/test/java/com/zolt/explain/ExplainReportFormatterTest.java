@@ -24,6 +24,9 @@ final class ExplainReportFormatterTest {
                 List.of(new MavenProjectInspection(
                         Path.of("."),
                         "legacy",
+                        "com.example",
+                        "1.0.0",
+                        "Legacy",
                         "war",
                         "21",
                         List.of("app"),

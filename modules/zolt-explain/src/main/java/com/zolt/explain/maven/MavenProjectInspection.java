@@ -6,6 +6,9 @@ import java.util.List;
 public record MavenProjectInspection(
         Path path,
         String name,
+        String groupId,
+        String version,
+        String displayName,
         String packaging,
         String javaVersion,
         List<String> modules,
@@ -19,6 +22,9 @@ public record MavenProjectInspection(
         List<MavenPluginInspection> plugins,
         List<MavenProfileInspection> profiles) {
     public MavenProjectInspection {
+        groupId = groupId == null ? "" : groupId;
+        version = version == null ? "" : version;
+        displayName = displayName == null ? "" : displayName;
         modules = List.copyOf(modules);
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);

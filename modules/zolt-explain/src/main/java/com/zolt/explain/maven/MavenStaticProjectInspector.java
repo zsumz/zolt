@@ -105,6 +105,11 @@ public final class MavenStaticProjectInspector {
                     "Packaging `" + inspection.packaging() + "` needs an explicit Zolt packaging primitive."));
         }
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
+            // An unresolved ${...} is not a genuine dynamic/SNAPSHOT/range version; the emit path
+            // surfaces it as an honest review comment instead of a wrong non-determinism blocker.
+            if (dependency.version().contains("${")) {
+                continue;
+            }
             Optional<VersionPolicy.Violation> violation = unsupportedExternalVersion(dependency.version());
             if (violation.isPresent()) {
                 signals.add(ExplainSignals.MAVEN_DEPENDENCY_DYNAMIC_VERSION.signal(

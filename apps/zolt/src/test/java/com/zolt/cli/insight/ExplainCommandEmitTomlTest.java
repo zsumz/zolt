@@ -112,4 +112,103 @@ final class ExplainCommandEmitTomlTest {
         assertTrue(result.stderr().contains("--emit-toml"));
         assertTrue(result.stderr().contains("--blockers"));
     }
+
+    //  / 1553 / 1554 end-to-end -----------------------------------------------------
+
+    private static final String MAVEN_PROPERTY_POM = """
+            <project>
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>com.acme.widgets</groupId>
+              <artifactId>widget-catalog</artifactId>
+              <version>2.3.1</version>
+              <name>Widget Catalog</name>
+              <properties>
+                <maven.compiler.release>17</maven.compiler.release>
+                <jackson.version>2.17.1</jackson.version>
+                <guava.version>33.2.1-jre</guava.version>
+                <junit.version>5.10.2</junit.version>
+              </properties>
+              <dependencyManagement>
+                <dependencies>
+                  <dependency>
+                    <groupId>org.junit</groupId>
+                    <artifactId>junit-bom</artifactId>
+                    <version>${junit.version}</version>
+                    <type>pom</type>
+                    <scope>import</scope>
+                  </dependency>
+                </dependencies>
+              </dependencyManagement>
+              <dependencies>
+                <dependency>
+                  <groupId>com.fasterxml.jackson.core</groupId>
+                  <artifactId>jackson-databind</artifactId>
+                  <version>${jackson.version}</version>
+                </dependency>
+                <dependency>
+                  <groupId>com.google.guava</groupId>
+                  <artifactId>guava</artifactId>
+                  <version>${guava.version}</version>
+                  <exclusions>
+                    <exclusion>
+                      <groupId>com.google.code.findbugs</groupId>
+                      <artifactId>jsr305</artifactId>
+                    </exclusion>
+                    <exclusion>
+                      <groupId>org.checkerframework</groupId>
+                      <artifactId>checker-qual</artifactId>
+                    </exclusion>
+                  </exclusions>
+                </dependency>
+                <dependency>
+                  <groupId>org.junit.jupiter</groupId>
+                  <artifactId>junit-jupiter</artifactId>
+                  <scope>test</scope>
+                </dependency>
+              </dependencies>
+            </project>
+            """;
+
+    @Test
+    void emitTomlInterpolatesPropertyVersionsEmitsCoordsAndExclusions() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), MAVEN_PROPERTY_POM);
+
+        CommandResult result = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
+
+        assertEquals(0, result.exitCode());
+        assertEquals("", result.stderr());
+        String toml = result.stdout();
+
+        // : real project coordinates, no cannot-read comment.
+        assertTrue(toml.contains("group = \"com.acme.widgets\""), () -> toml);
+        assertTrue(toml.contains("version = \"2.3.1\""), () -> toml);
+        assertFalse(toml.contains("could not be read"), () -> toml);
+
+        // : interpolated concrete versions; no interpolation token survives.
+        assertTrue(toml.contains("\"com.fasterxml.jackson.core:jackson-databind\" = \"2.17.1\""), () -> toml);
+        assertTrue(toml.contains("\"org.junit:junit-bom\" = \"5.10.2\""), () -> toml);
+        assertFalse(toml.contains("${"), () -> "no interpolation token should survive:\n" + toml);
+
+        // : guava's exclusions carried in the draft.
+        assertTrue(
+                toml.contains("exclusions = [{ group = \"com.google.code.findbugs\", artifact = \"jsr305\" }"),
+                () -> toml);
+        assertTrue(toml.contains("artifact = \"checker-qual\""), () -> toml);
+    }
+
+    @Test
+    void emitTomlWithPropertyVersionsRoundTripsThroughParser() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), MAVEN_PROPERTY_POM);
+
+        CommandResult result = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
+        assertEquals(0, result.exitCode());
+
+        ProjectConfig parsed = new ZoltTomlParser().parse(result.stdout());
+
+        assertEquals("com.acme.widgets", parsed.project().group());
+        assertEquals("2.3.1", parsed.project().version());
+        assertEquals("2.17.1", parsed.dependencies().get("com.fasterxml.jackson.core:jackson-databind"));
+        assertEquals("33.2.1-jre", parsed.dependencies().get("com.google.guava:guava"));
+        assertEquals("5.10.2", parsed.platforms().get("org.junit:junit-bom"));
+    }
 }

@@ -2,12 +2,14 @@ package com.zolt.explain.emit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.explain.gradle.GradleInspectionResult;
 import com.zolt.explain.gradle.GradleStaticProjectInspector;
 import com.zolt.explain.maven.MavenInspectionResult;
 import com.zolt.explain.maven.MavenStaticProjectInspector;
+import com.zolt.project.DependencyMetadata;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -126,6 +128,228 @@ final class InspectionToProjectConfigTest {
                         note.contains("group and version are placeholders")
                                 && note.contains("could not read them")),
                 () -> "expected the cannot-read fallback note: " + draft.notes());
+    }
+
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void mavenDraftInterpolatesPropertyDrivenVersions() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                    <jackson.version>2.17.1</jackson.version>
+                    <junit.version>5.10.2</junit.version>
+                  </properties>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.junit</groupId>
+                        <artifactId>junit-bom</artifactId>
+                        <version>${junit.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.fasterxml.jackson.core</groupId>
+                      <artifactId>jackson-databind</artifactId>
+                      <version>${jackson.version}</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+        ProjectConfig config = draft.config();
+
+        assertEquals("2.17.1", config.dependencies().get("com.fasterxml.jackson.core:jackson-databind"));
+        assertEquals("5.10.2", config.platforms().get("org.junit:junit-bom"));
+        assertFalse(
+                config.dependencies().values().stream().anyMatch(version -> version.contains("${")),
+                () -> "no interpolation tokens should survive in dependency versions: " + config.dependencies());
+    }
+
+    @Test
+    void mavenDraftWithPropertyVersionsReadsAsDeterministic() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <properties>
+                    <guava.version>33.2.1-jre</guava.version>
+                  </properties>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.google.guava</groupId>
+                      <artifactId>guava</artifactId>
+                      <version>${guava.version}</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        MavenInspectionResult result = new MavenStaticProjectInspector().inspect(tempDir);
+
+        assertTrue(
+                result.signals().stream()
+                        .noneMatch(signal -> signal.id().equals("maven.dependency.dynamic-version")),
+                () -> "property-driven deterministic project must not be a SNAPSHOT/range blocker: "
+                        + result.signals());
+        DraftZoltToml draft = mapper.fromMaven(result);
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("SNAPSHOT") || note.contains("range")),
+                () -> "no false SNAPSHOT/range review copy: " + draft.notes());
+    }
+
+    @Test
+    void mavenDraftSurfacesUnresolvablePropertyAsReviewCommentNotBlocker() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>widget</artifactId>
+                      <version>${undeclared.version}</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+
+        assertFalse(
+                draft.config().dependencies().containsKey("com.example:widget"),
+                () -> "an unresolved-property dependency must not be emitted as a real version");
+        assertTrue(
+                draft.notes().stream().anyMatch(note ->
+                        note.contains("com.example:widget")
+                                && note.contains("property")
+                                && note.contains("could not resolve")),
+                () -> "expected an honest review comment for the unresolved property: " + draft.notes());
+    }
+
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void mavenDraftEmitsDependencyExclusions() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.google.guava</groupId>
+                      <artifactId>guava</artifactId>
+                      <version>33.2.1-jre</version>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>com.google.code.findbugs</groupId>
+                          <artifactId>jsr305</artifactId>
+                        </exclusion>
+                        <exclusion>
+                          <groupId>org.checkerframework</groupId>
+                          <artifactId>checker-qual</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+        ProjectConfig config = draft.config();
+
+        DependencyMetadata metadata =
+                config.dependencyMetadata().get(DependencyMetadata.key("dependencies", "com.google.guava:guava"));
+        assertNotNull(metadata, () -> "guava exclusions should be recorded: " + config.dependencyMetadata());
+        assertEquals(2, metadata.exclusions().size());
+        assertTrue(metadata.exclusions().stream()
+                .anyMatch(spec -> spec.group().equals("com.google.code.findbugs")
+                        && spec.artifact().equals("jsr305")));
+        assertTrue(metadata.exclusions().stream()
+                .anyMatch(spec -> spec.group().equals("org.checkerframework")
+                        && spec.artifact().equals("checker-qual")));
+    }
+
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void mavenDraftEmitsRealGroupAndVersionWithoutCannotReadNote() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.acme.widgets</groupId>
+                  <artifactId>widget-catalog</artifactId>
+                  <version>2.3.1</version>
+                  <name>Widget Catalog</name>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+        ProjectConfig config = draft.config();
+
+        assertEquals("com.acme.widgets", config.project().group());
+        assertEquals("2.3.1", config.project().version());
+        assertEquals("widget-catalog", config.project().name());
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("could not be read")),
+                () -> "no cannot-read note when group/version are present: " + draft.notes());
+    }
+
+    @Test
+    void mavenDraftInterpolatesProjectVersion() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.acme.widgets</groupId>
+                  <artifactId>widget-catalog</artifactId>
+                  <version>${revision}</version>
+                  <properties>
+                    <revision>4.5.6</revision>
+                  </properties>
+                </project>
+                """);
+
+        ProjectConfig config = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir)).config();
+
+        assertEquals("4.5.6", config.project().version());
+    }
+
+    @Test
+    void mavenDraftFallsBackAndCommentsWhenGroupVersionAbsent() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <artifactId>bare</artifactId>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+        ProjectConfig config = draft.config();
+
+        assertEquals("com.example", config.project().group());
+        assertEquals("0.1.0", config.project().version());
+        assertTrue(
+                draft.notes().stream().anyMatch(note -> note.contains("group could not be read")),
+                () -> "expected the cannot-read group note: " + draft.notes());
+        assertTrue(
+                draft.notes().stream().anyMatch(note -> note.contains("version could not be read")),
+                () -> "expected the cannot-read version note: " + draft.notes());
     }
 
     private static final class FakeRenderer implements ProjectConfigRenderer {

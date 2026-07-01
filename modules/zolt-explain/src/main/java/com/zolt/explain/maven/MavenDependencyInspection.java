@@ -1,5 +1,7 @@
 package com.zolt.explain.maven;
 
+import java.util.List;
+
 public record MavenDependencyInspection(
         String scope,
         String coordinate,
@@ -7,4 +9,9 @@ public record MavenDependencyInspection(
         String type,
         boolean optional,
         boolean managed,
-        boolean importedBom) {}
+        boolean importedBom,
+        List<MavenDependencyExclusion> exclusions) {
+    public MavenDependencyInspection {
+        exclusions = exclusions == null ? List.of() : List.copyOf(exclusions);
+    }
+}

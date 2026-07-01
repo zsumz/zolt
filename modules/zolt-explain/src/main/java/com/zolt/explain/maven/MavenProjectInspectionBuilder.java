@@ -1,5 +1,12 @@
 package com.zolt.explain.maven;
 
+import static com.zolt.explain.maven.MavenXml.child;
+import static com.zolt.explain.maven.MavenXml.children;
+import static com.zolt.explain.maven.MavenXml.hasName;
+import static com.zolt.explain.maven.MavenXml.name;
+import static com.zolt.explain.maven.MavenXml.text;
+import static com.zolt.explain.maven.MavenXml.texts;
+
 import com.zolt.explain.MigrationExplainException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -9,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 
 final class MavenProjectInspectionBuilder {
     private MavenProjectInspectionBuilder() {
@@ -25,12 +31,13 @@ final class MavenProjectInspectionBuilder {
                     "Could not inspect Maven project. Expected root <project> element in " + pom + ".");
         }
 
-        Map<String, String> properties = parseProperties(project);
+        MavenPomProperties properties = effectiveProperties(project, projectDirectory);
         List<String> modules = texts(child(project, "modules"), "module");
-        List<MavenDependencyInspection> dependencies = parseDependencies(child(project, "dependencies"), false);
+        List<MavenDependencyInspection> dependencies =
+                MavenDependencyParser.parseDependencies(child(project, "dependencies"), false, properties);
         List<MavenDependencyInspection> dependencyManagement = child(project, "dependencyManagement")
                 .flatMap(element -> child(element, "dependencies"))
-                .map(element -> parseDependencies(Optional.of(element), true))
+                .map(element -> MavenDependencyParser.parseDependencies(Optional.of(element), true, properties))
                 .orElseGet(List::of);
         List<MavenDependencyInspection> importedBoms = dependencyManagement.stream()
                 .filter(MavenDependencyInspection::importedBom)
@@ -41,7 +48,10 @@ final class MavenProjectInspectionBuilder {
 
         return new MavenProjectInspection(
                 relativePath,
-                text(project, "artifactId").orElse(projectDirectory.getFileName().toString()),
+                artifactId(project, projectDirectory),
+                groupId(project, properties),
+                projectVersion(project, properties),
+                projectName(project),
                 text(project, "packaging").orElse("jar"),
                 javaVersion(project, properties),
                 modules,
@@ -54,36 +64,6 @@ final class MavenProjectInspectionBuilder {
                 repositories,
                 plugins,
                 profiles);
-    }
-
-    private static List<MavenDependencyInspection> parseDependencies(
-            Optional<Element> dependenciesElement,
-            boolean managed) {
-        if (dependenciesElement.isEmpty()) {
-            return List.of();
-        }
-        List<MavenDependencyInspection> dependencies = new ArrayList<>();
-        for (Element dependency : children(dependenciesElement.orElseThrow(), "dependency")) {
-            String groupId = text(dependency, "groupId").orElse("unknown-group");
-            String artifactId = text(dependency, "artifactId").orElse("unknown-artifact");
-            String version = text(dependency, "version").orElse("");
-            String scope = text(dependency, "scope").orElse("compile");
-            String type = text(dependency, "type").orElse("jar");
-            boolean optional = text(dependency, "optional").map(Boolean::parseBoolean).orElse(false);
-            boolean importedBom = managed && "pom".equals(type) && "import".equals(scope);
-            dependencies.add(new MavenDependencyInspection(
-                    scope,
-                    groupId + ":" + artifactId + (version.isBlank() ? "" : ":" + version),
-                    version,
-                    type,
-                    optional,
-                    managed,
-                    importedBom));
-        }
-        dependencies.sort(Comparator
-                .comparing(MavenDependencyInspection::scope)
-                .thenComparing(MavenDependencyInspection::coordinate));
-        return dependencies;
     }
 
     private static List<MavenRepositoryInspection> repositories(Element project) {
@@ -196,11 +176,11 @@ final class MavenProjectInspectionBuilder {
         return hints;
     }
 
-    private static String javaVersion(Element project, Map<String, String> properties) {
+    private static String javaVersion(Element project, MavenPomProperties properties) {
         for (String key : List.of("maven.compiler.release", "maven.compiler.target", "maven.compiler.source", "java.version")) {
-            String value = properties.get(key);
+            String value = properties.values().get(key);
             if (value != null && !value.isBlank()) {
-                return value;
+                return properties.interpolate(value);
             }
         }
         Optional<Element> build = child(project, "build");
@@ -262,56 +242,76 @@ final class MavenProjectInspectionBuilder {
         return values;
     }
 
-    private static Optional<Element> child(Element parent, String childName) {
-        for (Element child : children(parent)) {
-            if (hasName(child, childName)) {
-                return Optional.of(child);
-            }
+    /**
+     * The properties used to interpolate {@code ${...}} references. Layers the POM's own
+     * {@code <properties>} over the standard project built-ins ({@code project.groupId},
+     * {@code project.version}, {@code project.artifactId}, and their {@code parent.*} forms) that
+     * Maven itself exposes, mirroring {@code PomPropertyInterpolator} in zolt-repository. Parent
+     * coordinates come from {@code <parent>} so a child that omits its own coordinate still resolves
+     * {@code ${project.version}} against the inherited value.
+     */
+    private static MavenPomProperties effectiveProperties(Element project, Path projectDirectory) {
+        Map<String, String> properties = new LinkedHashMap<>();
+        Optional<Element> parent = child(project, "parent");
+        String parentGroupId = parent.flatMap(element -> text(element, "groupId")).orElse(null);
+        String parentArtifactId = parent.flatMap(element -> text(element, "artifactId")).orElse(null);
+        String parentVersion = parent.flatMap(element -> text(element, "version")).orElse(null);
+
+        String groupId = text(project, "groupId").orElse(parentGroupId);
+        String artifactId = text(project, "artifactId").orElse(projectDirectory.getFileName().toString());
+        String version = text(project, "version").orElse(parentVersion);
+
+        putBuiltIn(properties, "project.groupId", groupId);
+        putBuiltIn(properties, "pom.groupId", groupId);
+        putBuiltIn(properties, "groupId", groupId);
+        putBuiltIn(properties, "project.artifactId", artifactId);
+        putBuiltIn(properties, "pom.artifactId", artifactId);
+        putBuiltIn(properties, "artifactId", artifactId);
+        putBuiltIn(properties, "project.version", version);
+        putBuiltIn(properties, "pom.version", version);
+        putBuiltIn(properties, "version", version);
+        putBuiltIn(properties, "project.parent.groupId", parentGroupId);
+        putBuiltIn(properties, "parent.groupId", parentGroupId);
+        putBuiltIn(properties, "project.parent.artifactId", parentArtifactId);
+        putBuiltIn(properties, "parent.artifactId", parentArtifactId);
+        putBuiltIn(properties, "project.parent.version", parentVersion);
+        putBuiltIn(properties, "parent.version", parentVersion);
+
+        // POM-declared properties win over the built-ins on key collisions.
+        properties.putAll(parseProperties(project));
+        return new MavenPomProperties(properties);
+    }
+
+    private static void putBuiltIn(Map<String, String> properties, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            properties.put(key, value);
         }
-        return Optional.empty();
     }
 
-    private static List<String> texts(Optional<Element> parent, String childName) {
-        if (parent.isEmpty()) {
-            return List.of();
-        }
-        return children(parent.orElseThrow(), childName).stream()
-                .map(Element::getTextContent)
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .toList();
+    private static String artifactId(Element project, Path projectDirectory) {
+        return text(project, "artifactId")
+                .orElseGet(() -> projectDirectory.getFileName().toString());
     }
 
-    private static Optional<String> text(Element parent, String childName) {
-        return child(parent, childName)
-                .map(Element::getTextContent)
-                .map(String::trim)
-                .filter(value -> !value.isBlank());
+    /** The project groupId, inheriting from {@code <parent>} when omitted; blank when unresolvable. */
+    private static String groupId(Element project, MavenPomProperties properties) {
+        return resolvedCoordinate(project, "groupId", properties);
     }
 
-    private static List<Element> children(Element parent, String childName) {
-        return children(parent).stream()
-                .filter(child -> hasName(child, childName))
-                .toList();
+    /** The project version, inheriting from {@code <parent>} when omitted; blank when unresolvable. */
+    private static String projectVersion(Element project, MavenPomProperties properties) {
+        return resolvedCoordinate(project, "version", properties);
     }
 
-    private static List<Element> children(Element parent) {
-        List<Element> elements = new ArrayList<>();
-        for (int index = 0; index < parent.getChildNodes().getLength(); index++) {
-            Node node = parent.getChildNodes().item(index);
-            if (node instanceof Element element) {
-                elements.add(element);
-            }
-        }
-        return elements;
+    private static String resolvedCoordinate(Element project, String field, MavenPomProperties properties) {
+        return text(project, field)
+                .or(() -> child(project, "parent").flatMap(parent -> text(parent, field)))
+                .map(properties::interpolate)
+                .filter(value -> !value.isBlank() && !value.contains("${"))
+                .orElse("");
     }
 
-    private static boolean hasName(Element element, String expected) {
-        return expected.equals(name(element));
-    }
-
-    private static String name(Element element) {
-        String localName = element.getLocalName();
-        return localName == null ? element.getNodeName() : localName;
+    private static String projectName(Element project) {
+        return text(project, "name").orElse("");
     }
 }
