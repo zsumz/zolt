@@ -133,6 +133,60 @@ final class ResolveServicePolicyConstraintTest extends ResolveServiceTestSupport
     }
 
     @Test
+    void failOnVersionConflictRejectsRecordedConflictsActionably() {
+        addArtifact("com.example", "lib", "2.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>lib</artifactId>
+                  <version>2.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project-fail-on-conflict");
+        Path cacheRoot = tempDir.resolve("cache-fail-on-conflict");
+        createDirectory(projectDir);
+        ProjectConfig config = configWithDependencies(Map.of(
+                        "com.example:app", "1.0.0",
+                        "com.example:lib", "2.0.0"))
+                .withDependencyPolicy(new DependencyPolicySettings(
+                        List.of(),
+                        Map.of(),
+                        true));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config, cacheRoot));
+
+        assertTrue(exception.getMessage().contains(
+                "Dependency version conflicts are disallowed by [dependencyPolicy].failOnVersionConflict"));
+        assertTrue(exception.getMessage().contains("com.example:lib selected 2.0.0"));
+        assertTrue(exception.getMessage().contains("direct dependency wins"));
+        assertTrue(exception.getMessage().contains("1.0.0 [transitive compile]"));
+        assertTrue(exception.getMessage().contains("2.0.0 [direct compile]"));
+        assertTrue(exception.getMessage().contains("Align the conflicting versions with a [platforms] BOM"));
+    }
+
+    @Test
+    void versionConflictPolicyDefaultsToRecordingConflicts() {
+        addArtifact("com.example", "lib", "2.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>lib</artifactId>
+                  <version>2.0.0</version>
+                </project>
+                """);
+        Path projectDir = tempDir.resolve("project-record-conflict");
+        Path cacheRoot = tempDir.resolve("cache-record-conflict");
+        createDirectory(projectDir);
+        ProjectConfig config = configWithDependencies(Map.of(
+                "com.example:app", "1.0.0",
+                "com.example:lib", "2.0.0"));
+
+        ResolveResult result = resolveService.resolve(projectDir, config, cacheRoot);
+
+        assertEquals(1, result.conflictCount());
+    }
+
+    @Test
     void dependencyPolicyRejectsExcludedDirectDependency() {
         Path projectDir = tempDir.resolve("project");
         Path cacheRoot = tempDir.resolve("cache");

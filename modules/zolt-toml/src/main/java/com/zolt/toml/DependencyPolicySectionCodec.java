@@ -19,7 +19,7 @@ import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class DependencyPolicySectionCodec {
-    private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude");
+    private static final Set<String> DEPENDENCY_POLICY_KEYS = Set.of("exclude", "failOnVersionConflict");
     private static final Set<String> DEPENDENCY_POLICY_EXCLUSION_KEYS = Set.of("group", "artifact", "reason");
     private static final Set<String> DEPENDENCY_CONSTRAINT_KEYS = Set.of("version", "versionRef", "kind", "reason");
 
@@ -31,27 +31,34 @@ final class DependencyPolicySectionCodec {
             TomlTable constraintsTable,
             Map<String, String> versionAliases) {
         List<DependencyPolicyExclusion> exclusions = dependencyPolicyExclusions(policyTable);
+        boolean failOnVersionConflict = failOnVersionConflict(policyTable);
         Map<String, DependencyConstraint> constraints = dependencyConstraints(constraintsTable, versionAliases);
-        if (exclusions.isEmpty() && constraints.isEmpty()) {
+        if (exclusions.isEmpty() && constraints.isEmpty() && !failOnVersionConflict) {
             return DependencyPolicySettings.defaults();
         }
-        return new DependencyPolicySettings(exclusions, constraints);
+        return new DependencyPolicySettings(exclusions, constraints, failOnVersionConflict);
     }
 
     static void write(StringBuilder toml, DependencyPolicySettings policy) {
         if (policy == null || policy.equals(DependencyPolicySettings.defaults())) {
             return;
         }
-        if (!policy.exclusions().isEmpty()) {
+        if (policy.failOnVersionConflict() || !policy.exclusions().isEmpty()) {
             toml.append("[dependencyPolicy]\n");
-            toml.append("exclude = [");
-            for (int index = 0; index < policy.exclusions().size(); index++) {
-                if (index > 0) {
-                    toml.append(", ");
-                }
-                toml.append(policyExclusion(policy.exclusions().get(index)));
+            if (policy.failOnVersionConflict()) {
+                toml.append("failOnVersionConflict = true\n");
             }
-            toml.append("]\n\n");
+            if (!policy.exclusions().isEmpty()) {
+                toml.append("exclude = [");
+                for (int index = 0; index < policy.exclusions().size(); index++) {
+                    if (index > 0) {
+                        toml.append(", ");
+                    }
+                    toml.append(policyExclusion(policy.exclusions().get(index)));
+                }
+                toml.append("]\n");
+            }
+            toml.append('\n');
         }
         if (!policy.constraints().isEmpty()) {
             toml.append("[dependencyConstraints]\n");
@@ -97,6 +104,17 @@ final class DependencyPolicySectionCodec {
                     TomlScalars.optionalString(exclusion, section, "reason")));
         }
         return List.copyOf(exclusions);
+    }
+
+    private static boolean failOnVersionConflict(TomlTable table) {
+        if (table == null) {
+            return false;
+        }
+        return TomlScalars.booleanOrDefault(
+                table,
+                "dependencyPolicy",
+                "failOnVersionConflict",
+                false);
     }
 
     private static Map<String, DependencyConstraint> dependencyConstraints(

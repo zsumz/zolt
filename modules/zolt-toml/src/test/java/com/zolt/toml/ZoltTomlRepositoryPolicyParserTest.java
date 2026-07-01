@@ -67,6 +67,7 @@ final class ZoltTomlRepositoryPolicyParserTest {
                 java = "17"
 
                 [dependencyPolicy]
+                failOnVersionConflict = true
                 exclude = [
                   { group = "commons-logging", artifact = "commons-logging", reason = "Use jcl-over-slf4j" },
                   { group = "log4j", artifact = "log4j" }
@@ -76,6 +77,7 @@ final class ZoltTomlRepositoryPolicyParserTest {
                 "org.apache.tomcat.embed:tomcat-embed-core" = { version = "10.1.40", kind = "strict", reason = "Container baseline" }
                 """);
 
+        assertTrue(config.dependencyPolicy().failOnVersionConflict());
         assertEquals(2, config.dependencyPolicy().exclusions().size());
         assertEquals("commons-logging", config.dependencyPolicy().exclusions().getFirst().group());
         assertEquals(

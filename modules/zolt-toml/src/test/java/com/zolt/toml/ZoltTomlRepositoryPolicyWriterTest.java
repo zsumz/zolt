@@ -67,12 +67,14 @@ final class ZoltTomlRepositoryPolicyWriterTest {
                                         "org.apache.tomcat.embed:tomcat-embed-core",
                                         "10.1.40",
                                         DependencyConstraintKind.STRICT,
-                                        Optional.of("Container baseline")))));
+                                        Optional.of("Container baseline"))),
+                        true));
 
         String toml = writer.write(config);
         ProjectConfig parsed = parser.parse(toml);
 
         assertTrue(toml.contains("[dependencyPolicy]"));
+        assertTrue(toml.contains("failOnVersionConflict = true"));
         assertTrue(toml.contains("exclude = [{ group = \"commons-logging\", artifact = \"commons-logging\", reason = \"Use jcl-over-slf4j\" }]"));
         assertTrue(toml.contains("[dependencyConstraints]"));
         assertTrue(toml.contains("\"org.apache.tomcat.embed:tomcat-embed-core\" = { version = \"10.1.40\", kind = \"strict\", reason = \"Container baseline\" }"));

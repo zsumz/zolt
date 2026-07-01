@@ -36,6 +36,9 @@ final class ProjectResolutionFingerprintTest {
                 new Case("dependency", baseToml().replace("33.4.0-jre", "33.4.1-jre")),
                 new Case("workspace member path", baseToml().replace("modules/shared", "modules/shared-v2")),
                 new Case("platform", baseToml().replace("3.3.6", "3.3.7")),
+                new Case("dependency conflict policy", baseToml().replace(
+                        "[dependencies]",
+                        "[dependencyPolicy]\nfailOnVersionConflict = true\n\n[dependencies]")),
                 new Case("processor", baseToml().replace("1.6.3", "1.6.4")),
                 new Case("generated source tool", baseToml().replace("7.11.0", "7.12.0")),
                 new Case("generated source required flag", baseToml().replace("required = true", "required = false")),

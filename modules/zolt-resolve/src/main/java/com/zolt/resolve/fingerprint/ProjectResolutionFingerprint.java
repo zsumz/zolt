@@ -67,7 +67,11 @@ public final class ProjectResolutionFingerprint {
         dependencyInputs(inputs, "testProcessor", config.testAnnotationProcessors(), config.managedTestAnnotationProcessors());
         mapInputs(inputs, "workspaceTestProcessor", config.workspaceTestAnnotationProcessors());
         dependencyMetadataInputs(inputs, config.dependencyMetadata());
-        dependencyPolicyInputs(inputs, config.dependencyPolicy().exclusions(), config.dependencyPolicy().constraints());
+        dependencyPolicyInputs(
+                inputs,
+                config.dependencyPolicy().exclusions(),
+                config.dependencyPolicy().constraints(),
+                config.dependencyPolicy().failOnVersionConflict());
         generatedSourceInputs(inputs, "generatedMain", config.build().generatedMainSources());
         generatedSourceInputs(inputs, "generatedTest", config.build().generatedTestSources());
         line(inputs, "package", "mode", config.packageSettings().mode().configValue());
@@ -143,7 +147,11 @@ public final class ProjectResolutionFingerprint {
     private static void dependencyPolicyInputs(
             List<String> inputs,
             List<DependencyPolicyExclusion> exclusions,
-            Map<String, DependencyConstraint> constraints) {
+            Map<String, DependencyConstraint> constraints,
+            boolean failOnVersionConflict) {
+        if (failOnVersionConflict) {
+            line(inputs, "dependencyPolicy.failOnVersionConflict", "true");
+        }
         exclusions.stream()
                 .sorted(Comparator
                         .comparing(DependencyPolicyExclusion::group)
@@ -196,7 +204,8 @@ public final class ProjectResolutionFingerprint {
             case "workspaceTest" -> "dependencies.test.workspace";
             case "managedDependency" -> parts.length > 1 ? "dependencies." + parts[1] : "dependencies";
             case "dependencyMetadata", "dependencyMetadata.exclusion" -> "dependencyMetadata";
-            case "dependencyPolicy.exclusion", "dependencyPolicy.constraint" -> "dependencyPolicy";
+            case "dependencyPolicy.failOnVersionConflict", "dependencyPolicy.exclusion", "dependencyPolicy.constraint" ->
+                    "dependencyPolicy";
             case "generatedMain", "generatedTest" -> "generatedSources";
             default -> category;
         };
