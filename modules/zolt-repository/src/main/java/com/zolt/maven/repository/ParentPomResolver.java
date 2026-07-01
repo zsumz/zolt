@@ -3,6 +3,7 @@ package com.zolt.maven.repository;
 import com.zolt.maven.Coordinate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +27,14 @@ final class ParentPomResolver {
 
     private List<RawPom> loadParents(RawPom child) {
         List<RawPom> nearestFirst = new ArrayList<>();
+        LinkedHashSet<String> visited = new LinkedHashSet<>();
+        if (child.groupId().isPresent() && child.version().isPresent()) {
+            visited.add(new Coordinate(
+                            child.groupId().orElseThrow(),
+                            child.artifactId(),
+                            child.version())
+                    .toString());
+        }
         RawPom current = child;
         while (current.parent().isPresent()) {
             RawPomParent parent = current.parent().orElseThrow();
@@ -33,6 +42,11 @@ final class ParentPomResolver {
                     parent.groupId(),
                     parent.artifactId(),
                     java.util.Optional.of(parent.version()));
+            String key = parentCoordinate.toString();
+            if (!visited.add(key)) {
+                throw new ParentPomException("Parent POM cycle detected: " + String.join(" -> ", visited) + " -> "
+                        + key + ". Remove the circular <parent> reference from one of these POMs.");
+            }
             RawPom parentPom = source.load(parentCoordinate);
             nearestFirst.add(parentPom);
             current = parentPom;

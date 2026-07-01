@@ -1,10 +1,13 @@
 package com.zolt.resolve.metadata.pom;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.repository.RawPom;
 import com.zolt.maven.repository.RawPomParent;
+import com.zolt.resolve.ResolveException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,42 @@ final class ParentPomChainLoaderTest {
                 new Coordinate("com.example", "nearest-parent", Optional.of("2.0.0")),
                 new Coordinate("com.example", "root-parent", Optional.of("1.0.0"))), requested);
         assertEquals(List.of(root, nearest), parents);
+    }
+
+    @Test
+    void detectsParentPomCycle() {
+        RawPom a = pom("a", parent("com.example", "b", "1.0.0"));
+        RawPom b = pom("b", parent("com.example", "a", "1.0.0"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> loader.load(a, coordinate -> {
+                    if (coordinate.artifactId().equals("a")) {
+                        return a;
+                    }
+                    if (coordinate.artifactId().equals("b")) {
+                        return b;
+                    }
+                    throw new AssertionError("unexpected parent coordinate " + coordinate);
+                }));
+
+        assertTrue(exception.getMessage().contains("Parent POM cycle detected"));
+    }
+
+    @Test
+    void detectsSelfParent() {
+        RawPom a = pom("a", parent("com.example", "a", "1.0.0"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> loader.load(a, coordinate -> {
+                    if (coordinate.artifactId().equals("a")) {
+                        return a;
+                    }
+                    throw new AssertionError("unexpected parent coordinate " + coordinate);
+                }));
+
+        assertTrue(exception.getMessage().contains("Parent POM cycle detected"));
     }
 
     @Test

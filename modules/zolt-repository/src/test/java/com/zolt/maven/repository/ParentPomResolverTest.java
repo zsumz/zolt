@@ -2,6 +2,7 @@ package com.zolt.maven.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.maven.Coordinate;
 import java.util.HashMap;
@@ -173,6 +174,49 @@ final class ParentPomResolverTest {
         assertEquals(List.of("grandparent", "parent"), effective.parents().stream().map(RawPom::artifactId).toList());
         assertEquals("com.example", effective.groupId());
         assertEquals("1.0.0", effective.version());
+    }
+
+    @Test
+    void detectsParentPomCycle() {
+        MapBackedSource source = new MapBackedSource();
+        source.put("com.example:a:1.0.0", pom("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>b</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>a</artifactId>
+                </project>
+                """));
+        source.put("com.example:b:1.0.0", pom("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>a</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>b</artifactId>
+                </project>
+                """));
+        RawPom child = pom("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>a</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        ParentPomException exception = assertThrows(
+                ParentPomException.class,
+                () -> new ParentPomResolver(source).resolve(child));
+
+        assertTrue(exception.getMessage().contains("Parent POM cycle detected"));
     }
 
     @Test
