@@ -12,6 +12,7 @@ import com.zolt.cli.command.CommandProjectDirectory;
 import com.zolt.cli.command.CommandResolveOutput;
 import com.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
 import com.zolt.cli.command.CommandTimings;
+import com.zolt.cli.console.ProgressPhase;
 import com.zolt.cli.console.ProgressWriter;
 import com.zolt.perf.TimingRecorder;
 import com.zolt.project.ProjectConfig;
@@ -108,15 +109,15 @@ public final class ResolveCommand implements Runnable {
                             "Repository overlay options are currently supported for single-project resolve only.",
                             "Run without --workspace or wait for workspace overlay policy support.");
                 }
-                progress.start("Resolving workspace dependencies");
-                ResolveResult result = timings.measure(
+                ProgressPhase phase = progress.phase("Resolving workspace dependencies");
+                ResolveResult result = resolveInPhase(phase, () -> timings.measure(
                         "resolve workspace",
                         () -> workspaceResolveService.resolve(
                                 projectRoot,
                                 cacheRoot,
                                 locked,
                                 offline),
-                        ResolveCommand::resolveAttributes);
+                        ResolveCommand::resolveAttributes));
                 CommandResolveOutput.print(spec, result, !locked);
                 CommandHumanOutput.of(spec).action("zolt build --workspace");
                 progress.result("Resolved " + result.resolvedCount() + " packages");
@@ -125,8 +126,8 @@ public final class ResolveCommand implements Runnable {
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
-            progress.start("Resolving dependencies");
-            ResolveResult result = timings.measure(
+            ProgressPhase phase = progress.phase("Resolving dependencies");
+            ResolveResult result = resolveInPhase(phase, () -> timings.measure(
                     "resolve graph",
                     () -> resolveService.resolve(
                             projectRoot,
@@ -134,7 +135,7 @@ public final class ResolveCommand implements Runnable {
                             cacheRoot,
                             locked,
                             resolveOptions()),
-                    ResolveCommand::resolveAttributes);
+                    ResolveCommand::resolveAttributes));
             CommandResolveOutput.print(spec, result, !locked);
             CommandHumanOutput.of(spec).action("zolt build");
             progress.result("Resolved " + result.resolvedCount() + " packages");
@@ -142,6 +143,17 @@ public final class ResolveCommand implements Runnable {
             throw CommandFailures.user(spec, exception);
         } finally {
             CommandTimings.print(spec, "resolve", projectRoot, timingOptions, timings);
+        }
+    }
+
+    private static ResolveResult resolveInPhase(ProgressPhase phase, java.util.function.Supplier<ResolveResult> work) {
+        try {
+            ResolveResult result = work.get();
+            phase.done();
+            return result;
+        } catch (RuntimeException failure) {
+            phase.fail();
+            throw failure;
         }
     }
 

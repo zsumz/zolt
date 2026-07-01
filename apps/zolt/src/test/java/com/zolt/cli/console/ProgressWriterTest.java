@@ -79,6 +79,32 @@ final class ProgressWriterTest {
     }
 
     @Test
+    void phaseFallbackMatchesStartLineOnNonInteractiveStderr() {
+        StringWriter viaPhase = new StringWriter();
+        StringWriter viaStart = new StringWriter();
+
+        writer(viaPhase, false).phase("Resolving dependencies").done();
+        writer(viaStart, false).start("Resolving dependencies");
+
+        assertEquals("Resolving dependencies...\n", viaPhase.toString());
+        assertEquals(viaStart.toString(), viaPhase.toString());
+    }
+
+    @Test
+    void animatedIsGatedOnInteractiveStderr() {
+        assertEquals(false, writer(new StringWriter(), false).animated());
+        assertEquals(true, writer(new StringWriter(), true).animated());
+    }
+
+    private static ProgressWriter writer(StringWriter stderr, boolean interactiveStderr) {
+        return new ProgressWriter(
+                new PrintWriter(stderr),
+                ProgressPolicy.of(ProgressMode.ALWAYS, false, interactiveStderr, Map.of()),
+                ConsoleStyle.disabled(),
+                ProgressOutputContract.HUMAN);
+    }
+
+    @Test
     void writerKeepsNoColorScopedToColorWhenProgressIsForced() {
         StringWriter stderr = new StringWriter();
         Map<String, String> environment = Map.of("NO_COLOR", "1");
