@@ -42,8 +42,11 @@ public final class DependencyJsonFormatter {
 
     public String why(ProjectConfig config, ZoltLockfile lockfile, PackageId target) {
         Optional<List<LockPackage>> path = pathTo(lockfile, target);
-        List<LockPolicyEffect> effects = exclusionEffects(lockfile, target);
-        if (path.isEmpty() && effects.isEmpty()) {
+        List<LockPolicyEffect> effects = path.isPresent()
+                ? policyEffects(lockfile, target)
+                : exclusionEffects(lockfile, target);
+        List<LockConflict> conflicts = conflicts(lockfile, target);
+        if (path.isEmpty() && effects.isEmpty() && conflicts.isEmpty()) {
             throw new DependencyWhyException(
                     "Package " + target + " is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id.");
         }
@@ -57,6 +60,8 @@ public final class DependencyJsonFormatter {
         stringField(json, 1, "target", target.toString(), true);
         stringField(json, 1, "status", path.isPresent() ? "present" : "excluded", true);
         path(json, path.orElse(List.of()));
+        comma(json);
+        conflicts(json, conflicts);
         comma(json);
         policyEffects(json, effects);
         json.append("\n}\n");
@@ -216,6 +221,20 @@ public final class DependencyJsonFormatter {
                 .filter(effect -> effect.packageId().equals(target))
                 .filter(DependencyJsonFormatter::exclusion)
                 .sorted(Comparator.comparing(DependencyJsonFormatter::policyEffectSortKey))
+                .toList();
+    }
+
+    private static List<LockPolicyEffect> policyEffects(ZoltLockfile lockfile, PackageId target) {
+        return lockfile.policyEffects().stream()
+                .filter(effect -> effect.packageId().equals(target))
+                .sorted(Comparator.comparing(DependencyJsonFormatter::policyEffectSortKey))
+                .toList();
+    }
+
+    private static List<LockConflict> conflicts(ZoltLockfile lockfile, PackageId target) {
+        return lockfile.conflicts().stream()
+                .filter(conflict -> conflict.packageId().equals(target))
+                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
                 .toList();
     }
 

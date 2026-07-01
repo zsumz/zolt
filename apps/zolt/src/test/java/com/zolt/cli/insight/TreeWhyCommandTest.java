@@ -94,6 +94,20 @@ final class TreeWhyCommandTest {
     }
 
     @Test
+    void whyPrintsConflictDetailsFromProjectLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("why-conflict");
+        writeProjectConfig(projectDir);
+        writeConflictedLockfile(projectDir);
+
+        CommandResult result = execute("why", "--cwd", projectDir.toString(), "com.example:lib");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "\\- com.example:lib:2.0.0 (conflict: selected 2.0.0; requested 1.0.0, 2.0.0; newest version wins)"));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void whyPrintsJsonForExcludedPackage() throws IOException {
         Path projectDir = tempDir.resolve("why-json");
         writeProjectConfig(projectDir);
@@ -180,6 +194,34 @@ final class TreeWhyCommandTest {
                 scope = "compile"
                 direct = false
                 dependencies = []
+                """);
+    }
+
+    private static void writeConflictedLockfile(Path projectDir) throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:app"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                dependencies = ["com.example:lib:2.0.0"]
+
+                [[package]]
+                id = "com.example:lib"
+                version = "2.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                dependencies = []
+
+                [[conflict]]
+                id = "com.example:lib"
+                selected = "2.0.0"
+                requested = ["1.0.0", "2.0.0"]
+                reason = "newest version wins"
                 """);
     }
 

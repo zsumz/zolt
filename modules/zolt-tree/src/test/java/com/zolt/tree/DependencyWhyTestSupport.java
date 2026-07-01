@@ -1,7 +1,9 @@
 package com.zolt.tree;
 
+import com.zolt.dependency.ConflictSelectionReason;
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
+import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
@@ -86,5 +88,39 @@ abstract class DependencyWhyTestSupport {
                         Optional.of("1.2"),
                         Optional.of("com.example:app:1.0.0"),
                         "[dependencyPolicy].exclude commons-logging:commons-logging (Use jcl-over-slf4j)")));
+    }
+
+    protected static ZoltLockfile conflictedLockfile() {
+        return new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(
+                        lockPackage("com.example", "app", "1.0.0", true, List.of("com.example:lib:2.0.0")),
+                        lockPackage("com.example", "lib", "2.0.0", false, List.of())),
+                List.of(new LockConflict(
+                        new PackageId("com.example", "lib"),
+                        "2.0.0",
+                        List.of("1.0.0", "2.0.0"),
+                        ConflictSelectionReason.NEWEST_VERSION)));
+    }
+
+    protected static ZoltLockfile strictPolicyLockfile() {
+        return new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(
+                        lockPackage("com.example", "app", "1.0.0", true, List.of("com.example:lib:2.0.0")),
+                        lockPackage(
+                                "com.example",
+                                "lib",
+                                "2.0.0",
+                                false,
+                                List.of(),
+                                List.of("strict-version: com.example:lib requested 1.0.0 -> 2.0.0 (baseline)"))),
+                List.of(),
+                List.of(new LockPolicyEffect(
+                        "strict-version",
+                        new PackageId("com.example", "lib"),
+                        Optional.of("1.0.0"),
+                        Optional.of("com.example:app:1.0.0"),
+                        "strict-version: com.example:lib requested 1.0.0 -> 2.0.0 (baseline)")));
     }
 }

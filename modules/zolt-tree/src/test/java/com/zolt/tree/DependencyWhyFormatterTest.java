@@ -60,6 +60,28 @@ final class DependencyWhyFormatterTest extends DependencyWhyTestSupport {
     }
 
     @Test
+    void showsStrictPoliciesOnPathPackages() {
+        String output = formatter.format(config(), strictPolicyLockfile(), new PackageId("com.example", "lib"));
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                   \\- com.example:lib:2.0.0 (policy: strict-version: com.example:lib requested 1.0.0 -> 2.0.0 (baseline))
+                """, output);
+    }
+
+    @Test
+    void showsConflictDetailsForTargetPackage() {
+        String output = formatter.format(config(), conflictedLockfile(), new PackageId("com.example", "lib"));
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                   \\- com.example:lib:2.0.0 (conflict: selected 2.0.0; requested 1.0.0, 2.0.0; newest version wins)
+                """, output);
+    }
+
+    @Test
     void missingPackageMessageExplainsNextStep() {
         DependencyWhyException exception = assertThrows(
                 DependencyWhyException.class,

@@ -1,5 +1,7 @@
 package com.zolt.tree;
 
+import com.zolt.dependency.ConflictSelectionReason;
+import com.zolt.lockfile.LockConflict;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.LockPolicyEffect;
 import com.zolt.lockfile.ZoltLockfile;
@@ -24,6 +26,7 @@ public final class DependencyWhyFormatter {
                     "Package " + target + " is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id.");
         }
         List<LockPackage> path = resolvedPath.orElseThrow();
+        Optional<LockConflict> targetConflict = conflictFor(lockfile, target);
         StringBuilder output = new StringBuilder();
         output.append(config.project().group())
                 .append(':')
@@ -37,6 +40,9 @@ public final class DependencyWhyFormatter {
                     .append(path.get(index).packageId())
                     .append(':')
                     .append(path.get(index).version());
+            if (path.get(index).packageId().equals(target)) {
+                targetConflict.ifPresent(conflict -> appendConflict(output, conflict));
+            }
             appendPolicies(output, path.get(index));
             output.append('\n');
         }
@@ -123,6 +129,22 @@ public final class DependencyWhyFormatter {
                 .append(')');
     }
 
+    private static Optional<LockConflict> conflictFor(ZoltLockfile lockfile, PackageId target) {
+        return lockfile.conflicts().stream()
+                .filter(conflict -> conflict.packageId().equals(target))
+                .findFirst();
+    }
+
+    private static void appendConflict(StringBuilder output, LockConflict conflict) {
+        output.append(" (conflict: selected ")
+                .append(conflict.selectedVersion())
+                .append("; requested ")
+                .append(String.join(", ", conflict.requestedVersions().stream().sorted().toList()))
+                .append("; ")
+                .append(reason(conflict.reason()))
+                .append(')');
+    }
+
     private static List<LockPolicyEffect> exclusionEffects(ZoltLockfile lockfile, PackageId target) {
         return lockfile.policyEffects().stream()
                 .filter(effect -> effect.packageId().equals(target))
@@ -154,6 +176,13 @@ public final class DependencyWhyFormatter {
                 + effect.source().orElse("")
                 + ":"
                 + effect.policy();
+    }
+
+    private static String reason(ConflictSelectionReason reason) {
+        return switch (reason) {
+            case DIRECT_DEPENDENCY -> "direct dependency wins";
+            case NEWEST_VERSION -> "newest version wins";
+        };
     }
 
     private record PathItem(LockPackage lockPackage, List<LockPackage> path) {
