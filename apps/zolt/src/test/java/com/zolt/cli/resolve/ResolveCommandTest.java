@@ -40,9 +40,9 @@ final class ResolveCommandTest {
 
             assertEquals(0, result.exitCode());
             assertTrue(result.stdout().contains("Resolved 1 packages"));
-            assertTrue(result.stdout().contains("Downloaded 2 artifacts"));
-            assertTrue(result.stdout().contains("Conflicts 0"));
-            assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
+            assertTrue(result.stdout().contains("2 downloaded"));
+            assertTrue(result.stdout().contains("0 conflicts"));
+            assertTrue(result.stdout().contains("wrote " + projectDir.resolve("zolt.lock")));
             assertEquals("", result.stderr());
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
@@ -67,7 +67,7 @@ final class ResolveCommandTest {
                     "--cache-root", tempDir.resolve("cache").toString());
 
             assertEquals(0, result.exitCode());
-            assertTrue(result.stdout().contains("Wrote " + projectDir.resolve("zolt.lock")));
+            assertTrue(result.stdout().contains("wrote " + projectDir.resolve("zolt.lock")));
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
     }
@@ -97,7 +97,7 @@ final class ResolveCommandTest {
 
             assertEquals(0, unlocked.exitCode());
             assertEquals(0, locked.exitCode());
-            assertTrue(locked.stdout().contains("Verified " + projectDir.resolve("zolt.lock")));
+            assertTrue(locked.stdout().contains("verified " + projectDir.resolve("zolt.lock")));
         }
     }
 

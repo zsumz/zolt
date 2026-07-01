@@ -14,13 +14,10 @@ public final class CommandResolveOutput {
 
     public static void print(CommandSpec spec, ResolveResult result, boolean wroteLockfile) {
         CommandHumanOutput output = CommandHumanOutput.of(spec);
-        output.success("Resolved " + result.resolvedCount() + " packages");
-        output.detail("Downloaded " + result.downloadCount() + " artifacts");
-        output.detail("Conflicts " + result.conflictCount());
-        if (wroteLockfile) {
-            output.detail("Wrote " + result.lockfilePath());
-        } else {
-            output.detail("Verified " + result.lockfilePath());
-        }
+        output.summary(
+                "Resolved " + result.resolvedCount() + " packages",
+                result.downloadCount() + " downloaded",
+                result.conflictCount() + " conflicts");
+        output.pointer(wroteLockfile ? "wrote" : "verified", result.lockfilePath().toString());
     }
 }

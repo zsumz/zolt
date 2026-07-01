@@ -52,6 +52,25 @@ public final class CommandHumanOutput {
         out.println(styledLead(message, LeadStyle.DETAIL));
     }
 
+    public void summary(String headline, String... facts) {
+        if (quiet) {
+            return;
+        }
+        StringBuilder line = new StringBuilder();
+        line.append(style.success("✔")).append(' ').append(headline);
+        for (String fact : facts) {
+            line.append(style.muted(" · " + fact));
+        }
+        out.println(line.toString());
+    }
+
+    public void pointer(String verb, String target) {
+        if (quiet) {
+            return;
+        }
+        out.println("  " + style.work("→") + " " + verb + " " + style.path(target));
+    }
+
     public void action(String command) {
         if (quiet) {
             return;

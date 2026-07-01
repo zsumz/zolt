@@ -51,7 +51,7 @@ final class PlatformCommandTest extends PlatformCommandTestSupport {
             assertEquals(0, result.exitCode());
             assertTrue(result.stdout().contains("Added platform com.example:enterprise-platform:2026.1.0 to [platforms]"));
             assertTrue(result.stdout().contains("Resolved 0 packages"));
-            assertTrue(result.stdout().contains("Downloaded 1 artifacts"));
+            assertTrue(result.stdout().contains("1 downloaded"));
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
     }

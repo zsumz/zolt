@@ -42,7 +42,7 @@ final class WorkspaceResolveCommandTest {
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved 0 packages"));
-        assertTrue(result.stdout().contains("Wrote " + workspaceDir.resolve("zolt.lock")));
+        assertTrue(result.stdout().contains("wrote " + workspaceDir.resolve("zolt.lock")));
         assertTrue(Files.readString(workspaceDir.resolve("zolt.lock"))
                 .contains("projectResolutionFingerprint = \"sha256:"));
         assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
@@ -74,7 +74,7 @@ final class WorkspaceResolveCommandTest {
         assertEquals(0, result.exitCode());
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved 0 packages"));
-        assertTrue(result.stdout().contains("Wrote " + workspaceDir.resolve("zolt.lock")));
+        assertTrue(result.stdout().contains("wrote " + workspaceDir.resolve("zolt.lock")));
         assertTrue(Files.readString(workspaceDir.resolve("zolt.lock"))
                 .contains("projectResolutionFingerprint = \"sha256:"));
         assertFalse(Files.exists(apiDir.resolve("zolt.lock")));

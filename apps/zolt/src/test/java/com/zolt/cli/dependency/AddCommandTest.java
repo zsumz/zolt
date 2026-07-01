@@ -41,7 +41,7 @@ final class AddCommandTest {
             assertEquals(0, result.exitCode());
             assertTrue(result.stdout().contains("Added dependency com.example:app:1.0.0 to [dependencies]"));
             assertTrue(result.stdout().contains("Resolved 1 packages"));
-            assertTrue(result.stdout().contains("Downloaded 2 artifacts"));
+            assertTrue(result.stdout().contains("2 downloaded"));
             assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         }
     }
