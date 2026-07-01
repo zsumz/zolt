@@ -40,8 +40,10 @@ final class ProjectConfigFixture {
     private Map<String, String> workspaceTestDependencies = Map.of();
     private Map<String, String> annotationProcessors = Map.of();
     private Set<String> managedAnnotationProcessors = Set.of();
+    private Map<String, String> workspaceAnnotationProcessors = Map.of();
     private Map<String, String> testAnnotationProcessors = Map.of();
     private Set<String> managedTestAnnotationProcessors = Set.of();
+    private Map<String, String> workspaceTestAnnotationProcessors = Map.of();
     private DependencyPolicySettings dependencyPolicy = DependencyPolicySettings.defaults();
     private BuildSettings build = BuildSettings.defaults();
     private NativeSettings nativeSettings = NativeSettings.defaults();
@@ -149,8 +151,10 @@ final class ProjectConfigFixture {
                 workspaceTestDependencies,
                 annotationProcessors,
                 managedAnnotationProcessors,
+                workspaceAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                workspaceTestAnnotationProcessors,
                 dependencyPolicy,
                 build,
                 nativeSettings,

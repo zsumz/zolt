@@ -132,6 +132,7 @@ final class ToolingDependencyContributor {
                 || !config.managedTestDependencies().isEmpty()
                 || !config.workspaceTestDependencies().isEmpty()
                 || !config.testAnnotationProcessors().isEmpty()
-                || !config.managedTestAnnotationProcessors().isEmpty();
+                || !config.managedTestAnnotationProcessors().isEmpty()
+                || !config.workspaceTestAnnotationProcessors().isEmpty();
     }
 }

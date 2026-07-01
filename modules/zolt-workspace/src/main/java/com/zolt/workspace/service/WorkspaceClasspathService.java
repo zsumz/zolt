@@ -2,6 +2,7 @@ package com.zolt.workspace.service;
 
 import com.zolt.build.classpath.ClasspathBuilder;
 import com.zolt.classpath.ClasspathSet;
+import com.zolt.dependency.DependencyScope;
 import com.zolt.lockfile.LockPackage;
 import com.zolt.lockfile.ZoltLockfile;
 import com.zolt.lockfile.toml.ZoltLockfileReader;
@@ -21,6 +22,7 @@ public final class WorkspaceClasspathService {
 
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
+    private final WorkspaceProcessorClasspathAssembler processorClasspathAssembler;
 
     public WorkspaceClasspathService() {
         this(new ZoltLockfileReader(), new ClasspathBuilder());
@@ -31,6 +33,7 @@ public final class WorkspaceClasspathService {
             ClasspathBuilder classpathBuilder) {
         this.lockfileReader = lockfileReader;
         this.classpathBuilder = classpathBuilder;
+        this.processorClasspathAssembler = new WorkspaceProcessorClasspathAssembler(classpathBuilder);
     }
 
     public ClasspathSet classpathsFor(
@@ -101,11 +104,20 @@ public final class WorkspaceClasspathService {
                 compileLockfile,
                 cacheRoot,
                 workspace.root()));
+        Classpath processor = processorClasspathAssembler.mergedProcessorClasspath(
+                workspace,
+                lockfile,
+                cacheRoot,
+                memberPath,
+                dependenciesByMember,
+                "processor",
+                DependencyScope.PROCESSOR,
+                compileClasspaths.processor());
         return new ClasspathSet(
                 compileClasspaths.compile(),
                 EMPTY_CLASSPATH,
                 EMPTY_CLASSPATH,
-                compileClasspaths.processor(),
+                processor,
                 EMPTY_CLASSPATH,
                 EMPTY_CLASSPATH);
     }
@@ -136,12 +148,30 @@ public final class WorkspaceClasspathService {
                 runtimeLockfile,
                 cacheRoot,
                 workspace.root()));
+        Classpath processor = processorClasspathAssembler.mergedProcessorClasspath(
+                workspace,
+                lockfile,
+                cacheRoot,
+                memberPath,
+                dependenciesByMember,
+                "processor",
+                DependencyScope.PROCESSOR,
+                compileClasspaths.processor());
+        Classpath testProcessor = processorClasspathAssembler.mergedProcessorClasspath(
+                workspace,
+                lockfile,
+                cacheRoot,
+                memberPath,
+                dependenciesByMember,
+                "test-processor",
+                DependencyScope.TEST_PROCESSOR,
+                compileClasspaths.testProcessor());
         return new ClasspathSet(
                 compileClasspaths.compile(),
                 runtimeClasspaths.runtime(),
                 runtimeClasspaths.test(),
-                compileClasspaths.processor(),
-                compileClasspaths.testProcessor(),
+                processor,
+                testProcessor,
                 runtimeClasspaths.quarkusDeployment());
     }
 
@@ -218,12 +248,21 @@ public final class WorkspaceClasspathService {
         }
     }
 
+    /**
+     * Compile/runtime dependency edges only. Processor ({@code processor}/{@code test-processor})
+     * edges are deliberately excluded so a workspace-member annotation processor and its transitive
+     * dependencies never enter the consumer's compile, runtime, or test classpaths — they are routed
+     * exclusively onto the processor path by {@link WorkspaceProcessorClasspathAssembler}.
+     */
     private static Map<String, List<String>> dependenciesByMember(Workspace workspace) {
         Map<String, List<String>> dependencies = new LinkedHashMap<>();
         for (WorkspaceMember member : workspace.members()) {
             dependencies.put(member.path(), new ArrayList<>());
         }
         for (WorkspaceProjectEdge edge : workspace.edges()) {
+            if (edge.scope().equals("processor") || edge.scope().equals("test-processor")) {
+                continue;
+            }
             dependencies.get(edge.from()).add(edge.to());
         }
         return dependencies;

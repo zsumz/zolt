@@ -210,6 +210,24 @@ public final class WorkspaceDiscoveryService {
                     member.config().workspaceTestDependencies(),
                     "[test.dependencies]",
                     false);
+            addWorkspaceProjectEdges(
+                    root,
+                    membersByPath,
+                    edges,
+                    member,
+                    "processor",
+                    member.config().workspaceAnnotationProcessors(),
+                    "[annotationProcessors]",
+                    false);
+            addWorkspaceProjectEdges(
+                    root,
+                    membersByPath,
+                    edges,
+                    member,
+                    "test-processor",
+                    member.config().workspaceTestAnnotationProcessors(),
+                    "[test.annotationProcessors]",
+                    false);
         }
         return List.copyOf(edges);
     }

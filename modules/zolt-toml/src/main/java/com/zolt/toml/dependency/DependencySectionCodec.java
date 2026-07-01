@@ -91,7 +91,7 @@ public final class DependencySectionCodec {
                 optionalTable(result, "annotationProcessors"),
                 "annotationProcessors",
                 dependencyMetadata,
-                false,
+                true,
                 versionAliases);
 
         TomlTable testTable = optionalTable(result, "test");
@@ -109,7 +109,7 @@ public final class DependencySectionCodec {
                     optionalTable(testTable, "annotationProcessors"),
                     "test.annotationProcessors",
                     dependencyMetadata,
-                    false,
+                    true,
                     versionAliases);
         }
 

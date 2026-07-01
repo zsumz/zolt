@@ -140,6 +140,8 @@ final class WorkspaceLockfileAggregator {
         return switch (value) {
             case "compile" -> DependencyScope.COMPILE;
             case "test" -> DependencyScope.TEST;
+            case "processor" -> DependencyScope.PROCESSOR;
+            case "test-processor" -> DependencyScope.TEST_PROCESSOR;
             default -> throw new ResolveException("Unsupported workspace dependency scope `" + value + "`.");
         };
     }

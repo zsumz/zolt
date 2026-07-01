@@ -32,9 +32,14 @@ record ProjectConfigDependencyState(
                         config.testDependencies(),
                         config.managedTestDependencies(),
                         config.workspaceTestDependencies()),
-                new DependencyBucket(config.annotationProcessors(), config.managedAnnotationProcessors(), Map.of()),
                 new DependencyBucket(
-                        config.testAnnotationProcessors(), config.managedTestAnnotationProcessors(), Map.of()));
+                        config.annotationProcessors(),
+                        config.managedAnnotationProcessors(),
+                        config.workspaceAnnotationProcessors()),
+                new DependencyBucket(
+                        config.testAnnotationProcessors(),
+                        config.managedTestAnnotationProcessors(),
+                        config.workspaceTestAnnotationProcessors()));
     }
 
     ProjectConfigDependencyState withPlatform(String coordinate, String version) {
@@ -95,8 +100,10 @@ record ProjectConfigDependencyState(
                 test.workspace(),
                 processors.versioned(),
                 processors.managed(),
+                processors.workspace(),
                 testProcessors.versioned(),
                 testProcessors.managed(),
+                testProcessors.workspace(),
                 config.dependencyPolicy(),
                 config.build(),
                 config.nativeSettings(),

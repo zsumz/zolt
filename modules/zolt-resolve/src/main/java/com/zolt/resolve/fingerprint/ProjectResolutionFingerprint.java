@@ -63,7 +63,9 @@ public final class ProjectResolutionFingerprint {
         dependencyInputs(inputs, "test", config.testDependencies(), config.managedTestDependencies());
         mapInputs(inputs, "workspaceTest", config.workspaceTestDependencies());
         dependencyInputs(inputs, "processor", config.annotationProcessors(), config.managedAnnotationProcessors());
+        mapInputs(inputs, "workspaceProcessor", config.workspaceAnnotationProcessors());
         dependencyInputs(inputs, "testProcessor", config.testAnnotationProcessors(), config.managedTestAnnotationProcessors());
+        mapInputs(inputs, "workspaceTestProcessor", config.workspaceTestAnnotationProcessors());
         dependencyMetadataInputs(inputs, config.dependencyMetadata());
         dependencyPolicyInputs(inputs, config.dependencyPolicy().exclusions(), config.dependencyPolicy().constraints());
         generatedSourceInputs(inputs, "generatedMain", config.build().generatedMainSources());

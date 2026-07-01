@@ -64,13 +64,13 @@ final class IdeDependencyModelBuilder {
                         "annotationProcessors",
                         config.annotationProcessors(),
                         config.managedAnnotationProcessors(),
-                        Map.of()),
+                        config.workspaceAnnotationProcessors()),
                 dependencyDeclarations(
                         config,
                         "test.annotationProcessors",
                         config.testAnnotationProcessors(),
                         config.managedTestAnnotationProcessors(),
-                        Map.of()));
+                        config.workspaceTestAnnotationProcessors()));
     }
 
     private static List<IdeModel.DependencyDeclaration> dependencyDeclarations(

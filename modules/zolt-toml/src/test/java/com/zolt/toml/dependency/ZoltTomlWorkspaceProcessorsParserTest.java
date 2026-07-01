@@ -103,6 +103,54 @@ final class ZoltTomlWorkspaceProcessorsParserTest {
 
 
     @Test
+    void parsesWorkspaceAnnotationProcessorDeclarations() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "consumer"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [annotationProcessors]
+                "com.example:shape-processor" = { workspace = "modules/shape-processor" }
+
+                [test.annotationProcessors]
+                "com.example:test-processor" = { workspace = "modules/test-processor" }
+                """);
+
+        assertEquals(
+                "modules/shape-processor",
+                config.workspaceAnnotationProcessors().get("com.example:shape-processor"));
+        assertEquals(
+                "modules/test-processor",
+                config.workspaceTestAnnotationProcessors().get("com.example:test-processor"));
+        assertTrue(config.annotationProcessors().isEmpty());
+        assertTrue(config.managedAnnotationProcessors().isEmpty());
+        assertTrue(config.testAnnotationProcessors().isEmpty());
+        assertTrue(config.managedTestAnnotationProcessors().isEmpty());
+    }
+
+    @Test
+    void rejectsWorkspaceAnnotationProcessorWithVersion() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "consumer"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [annotationProcessors]
+                        "com.example:shape-processor" = { version = "1.0.0", workspace = "modules/shape-processor" }
+                        """));
+
+        assertEquals(
+                "Invalid value for [annotationProcessors].com.example:shape-processor in zolt.toml. Use version, versionRef, or workspace; do not combine them.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsMalformedAnnotationProcessorDeclaration() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,
@@ -118,7 +166,7 @@ final class ZoltTomlWorkspaceProcessorsParserTest {
                         """));
 
         assertEquals(
-                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version, { versionRef = \"alias\" }, or {} for a platform-managed version. Inline tables may also include optional, publishOnly, and exclusions metadata.",
+                "Invalid value for [annotationProcessors].io.micronaut:micronaut-inject-java in zolt.toml. Use a non-empty string version, { versionRef = \"alias\" }, {} for a platform-managed version, or { workspace = \"path\" } for a workspace member. Inline tables may also include optional, publishOnly, and exclusions metadata.",
                 exception.getMessage());
     }
 

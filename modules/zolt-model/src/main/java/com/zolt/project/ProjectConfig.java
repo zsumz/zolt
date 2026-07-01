@@ -27,8 +27,10 @@ public record ProjectConfig(
         Map<String, String> workspaceTestDependencies,
         Map<String, String> annotationProcessors,
         Set<String> managedAnnotationProcessors,
+        Map<String, String> workspaceAnnotationProcessors,
         Map<String, String> testAnnotationProcessors,
         Set<String> managedTestAnnotationProcessors,
+        Map<String, String> workspaceTestAnnotationProcessors,
         DependencyPolicySettings dependencyPolicy,
         BuildSettings build,
         NativeSettings nativeSettings,
@@ -65,8 +67,10 @@ public record ProjectConfig(
         workspaceTestDependencies = ProjectConfigNormalizer.orderedMap(workspaceTestDependencies);
         annotationProcessors = ProjectConfigNormalizer.orderedMap(annotationProcessors);
         managedAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedAnnotationProcessors);
+        workspaceAnnotationProcessors = ProjectConfigNormalizer.orderedMap(workspaceAnnotationProcessors);
         testAnnotationProcessors = ProjectConfigNormalizer.orderedMap(testAnnotationProcessors);
         managedTestAnnotationProcessors = ProjectConfigNormalizer.orderedSet(managedTestAnnotationProcessors);
+        workspaceTestAnnotationProcessors = ProjectConfigNormalizer.orderedMap(workspaceTestAnnotationProcessors);
         dependencyPolicy = dependencyPolicy == null ? DependencyPolicySettings.defaults() : dependencyPolicy;
         nativeSettings = nativeSettings == null ? NativeSettings.defaults() : nativeSettings;
         compilerSettings = compilerSettings == null ? CompilerSettings.defaults() : compilerSettings;
@@ -100,8 +104,10 @@ public record ProjectConfig(
                 arguments.workspaceTestDependencies(),
                 arguments.annotationProcessors(),
                 arguments.managedAnnotationProcessors(),
+                arguments.workspaceAnnotationProcessors(),
                 arguments.testAnnotationProcessors(),
                 arguments.managedTestAnnotationProcessors(),
+                arguments.workspaceTestAnnotationProcessors(),
                 arguments.dependencyPolicy(),
                 arguments.build(),
                 arguments.nativeSettings(),
@@ -134,8 +140,10 @@ public record ProjectConfig(
             Map<String, String> workspaceTestDependencies,
             Map<String, String> annotationProcessors,
             Set<String> managedAnnotationProcessors,
+            Map<String, String> workspaceAnnotationProcessors,
             Map<String, String> testAnnotationProcessors,
             Set<String> managedTestAnnotationProcessors,
+            Map<String, String> workspaceTestAnnotationProcessors,
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings,
@@ -165,8 +173,10 @@ public record ProjectConfig(
                 workspaceTestDependencies,
                 annotationProcessors,
                 managedAnnotationProcessors,
+                workspaceAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                workspaceTestAnnotationProcessors,
                 build,
                 nativeSettings,
                 compilerSettings,
@@ -196,8 +206,10 @@ public record ProjectConfig(
             Map<String, String> workspaceTestDependencies,
             Map<String, String> annotationProcessors,
             Set<String> managedAnnotationProcessors,
+            Map<String, String> workspaceAnnotationProcessors,
             Map<String, String> testAnnotationProcessors,
             Set<String> managedTestAnnotationProcessors,
+            Map<String, String> workspaceTestAnnotationProcessors,
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
@@ -222,8 +234,10 @@ public record ProjectConfig(
                 workspaceTestDependencies,
                 annotationProcessors,
                 managedAnnotationProcessors,
+                workspaceAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                workspaceTestAnnotationProcessors,
                 build,
                 nativeSettings,
                 compilerSettings));
@@ -248,8 +262,10 @@ public record ProjectConfig(
             Map<String, String> workspaceTestDependencies,
             Map<String, String> annotationProcessors,
             Set<String> managedAnnotationProcessors,
+            Map<String, String> workspaceAnnotationProcessors,
             Map<String, String> testAnnotationProcessors,
             Set<String> managedTestAnnotationProcessors,
+            Map<String, String> workspaceTestAnnotationProcessors,
             BuildSettings build,
             NativeSettings nativeSettings,
             CompilerSettings compilerSettings) {
@@ -272,8 +288,10 @@ public record ProjectConfig(
                 workspaceTestDependencies,
                 annotationProcessors,
                 managedAnnotationProcessors,
+                workspaceAnnotationProcessors,
                 testAnnotationProcessors,
                 managedTestAnnotationProcessors,
+                workspaceTestAnnotationProcessors,
                 build,
                 nativeSettings,
                 compilerSettings));

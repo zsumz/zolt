@@ -126,6 +126,31 @@ final class ZoltTomlWorkspaceProcessorsWriterTest {
 
 
     @Test
+    void writesWorkspaceAnnotationProcessorsRoundTrip() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "consumer"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [annotationProcessors]
+                "com.example:shape-processor" = { workspace = "modules/shape-processor" }
+
+                [test.annotationProcessors]
+                "com.example:test-processor" = { workspace = "modules/test-processor" }
+                """);
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("\"com.example:shape-processor\" = { workspace = \"modules/shape-processor\" }"));
+        assertTrue(toml.contains("\"com.example:test-processor\" = { workspace = \"modules/test-processor\" }"));
+        assertEquals(config.workspaceAnnotationProcessors(), parsed.workspaceAnnotationProcessors());
+        assertEquals(config.workspaceTestAnnotationProcessors(), parsed.workspaceTestAnnotationProcessors());
+    }
+
+    @Test
     void editsAnnotationProcessorSectionsWithoutTouchingRuntimeDependencies() {
         ProjectConfig config = parser.parse("""
                 [project]

@@ -59,12 +59,14 @@ final class DependencySectionWriter {
                 "annotationProcessors",
                 config.annotationProcessors(),
                 config.managedAnnotationProcessors(),
+                config.workspaceAnnotationProcessors(),
                 config.dependencyMetadata());
         writeOptionalDependencies(
                 toml,
                 "test.annotationProcessors",
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
+                config.workspaceTestAnnotationProcessors(),
                 config.dependencyMetadata());
     }
 
