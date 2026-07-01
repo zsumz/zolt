@@ -6,7 +6,9 @@ import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
 import com.zolt.maven.repository.RawPomDependency;
 import com.zolt.project.DependencyConstraint;
+import com.zolt.project.VersionPolicy;
 import com.zolt.resolve.DependencyPolicyEffect;
+import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.graph.PackageNode;
 import com.zolt.resolve.request.RequestOrigin;
@@ -57,6 +59,7 @@ final class DependencyTraversalCandidateSelector {
         DependencyConstraint constraint = strictConstraints.get(packageId);
         Optional<String> originalRequestedVersion = dependency.rawDependency().version();
         String requestedVersion = requestedVersion(candidate.source(), dependency, packageId, constraint);
+        validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source());
         List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
         if (constraint != null) {
             policyEffects.add(strictVersionEffect(
@@ -181,6 +184,25 @@ final class DependencyTraversalCandidateSelector {
 
     private static Coordinate coordinate(RawPomDependency dependency) {
         return new Coordinate(dependency.groupId(), dependency.artifactId(), dependency.version());
+    }
+
+    private static void validateSupportedTransitiveVersion(
+            PackageId packageId,
+            String requestedVersion,
+            PackageNode source) {
+        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, requestedVersion).ifPresent(violation -> {
+            throw ResolveException.actionable(
+                    "Unsupported transitive dependency version `"
+                            + requestedVersion
+                            + "` for `"
+                            + packageId
+                            + "` required by `"
+                            + sourceCoordinate(source)
+                            + "`.",
+                    violation.guidance()
+                            + " Pin a fixed version via a [platforms] entry or a [dependencyPolicy]"
+                            + " constraint, then run `zolt resolve` again.");
+        });
     }
 
     private static String sourceCoordinate(PackageNode node) {
