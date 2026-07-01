@@ -2,6 +2,7 @@ package com.zolt.explain.emit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -64,18 +65,18 @@ final class InspectionToProjectConfigTest {
     }
 
     @Test
-    void mavenMultiModuleSurfacesReactorAsComment() {
+    void mavenMultiModuleEmitsWorkspaceWithMembers() {
         MavenInspectionResult result =
                 new MavenStaticProjectInspector().inspect(FIXTURE_ROOT.resolve("maven-multimodule"));
 
-        DraftZoltToml draft = mapper.fromMaven(result);
+        // : a reactor now maps to a workspace (root [workspace] + per-member drafts),
+        // not a single root draft with a "map each module by hand" comment.
+        DraftEmit emit = mapper.emitFromMaven(result);
 
-        assertTrue(
-                draft.notes().stream().anyMatch(note -> note.contains("Multi-module reactor detected")),
-                () -> "expected reactor note in " + draft.notes());
-        assertTrue(
-                draft.notes().stream().anyMatch(note -> note.contains("Maven profiles were detected")),
-                () -> "expected profile note in " + draft.notes());
+        DraftWorkspace workspace = assertInstanceOf(DraftWorkspace.class, emit, () -> "expected a workspace: " + emit);
+        assertEquals("maven-multimodule", workspace.workspace().name());
+        assertTrue(workspace.workspace().members().contains("app"),
+                () -> "the app module should be a workspace member: " + workspace.workspace().members());
     }
 
     //  -------------------------------------------------------------------------------

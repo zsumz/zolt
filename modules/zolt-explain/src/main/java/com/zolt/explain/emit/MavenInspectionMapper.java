@@ -31,17 +31,40 @@ final class MavenInspectionMapper {
 
     static DraftZoltToml map(MavenInspectionResult result) {
         List<String> notes = new ArrayList<>();
-        MavenProjectInspection primary = primaryProject(result, notes);
+        MavenProjectInspection primary = result.projects().get(0);
+        return mapProject(primary, null, notes);
+    }
 
+    /** Maps one reactor member, rewriting sibling deps to {@code { workspace = ... }} via the registry. */
+    static DraftZoltToml mapMember(MavenProjectInspection project, WorkspaceMemberRegistry registry) {
+        return mapProject(project, registry, new ArrayList<>());
+    }
+
+    private static DraftZoltToml mapProject(
+            MavenProjectInspection primary,
+            WorkspaceMemberRegistry registry,
+            List<String> notes) {
         Map<String, String> dependencies = new TreeMap<>();
         Map<String, String> runtime = new TreeMap<>();
         Map<String, String> provided = new TreeMap<>();
         Map<String, String> test = new TreeMap<>();
+        Map<String, String> workspaceDependencies = new TreeMap<>();
+        Map<String, String> workspaceTest = new TreeMap<>();
         Map<String, String> platforms = new TreeMap<>();
         Map<String, DependencyMetadata> dependencyMetadata = new TreeMap<>();
 
         for (MavenDependencyInspection dependency : primary.dependencies()) {
-            mapDependency(dependency, dependencies, runtime, provided, test, dependencyMetadata, notes);
+            mapDependency(
+                    dependency,
+                    registry,
+                    dependencies,
+                    runtime,
+                    provided,
+                    test,
+                    workspaceDependencies,
+                    workspaceTest,
+                    dependencyMetadata,
+                    notes);
         }
         for (MavenDependencyInspection bom : primary.importedBoms()) {
             mapPlatform(bom, platforms, notes);
@@ -67,7 +90,7 @@ final class MavenInspectionMapper {
                 Map.of(),
                 dependencies,
                 Set.of(),
-                Map.of(),
+                workspaceDependencies,
                 runtime,
                 Set.of(),
                 provided,
@@ -76,7 +99,7 @@ final class MavenInspectionMapper {
                 Set.of(),
                 test,
                 Set.of(),
-                Map.of(),
+                workspaceTest,
                 Map.of(),
                 Set.of(),
                 Map.of(),
@@ -91,27 +114,22 @@ final class MavenInspectionMapper {
         return new DraftZoltToml(config, notes);
     }
 
-    private static MavenProjectInspection primaryProject(MavenInspectionResult result, List<String> notes) {
-        List<MavenProjectInspection> projects = result.projects();
-        MavenProjectInspection root = projects.get(0);
-        if (projects.size() > 1 || "pom".equals(root.packaging()) || !root.modules().isEmpty()) {
-            notes.add(
-                    "Multi-module reactor detected (root packaging `" + root.packaging() + "`, modules "
-                            + root.modules() + "). This draft maps only the root pom; emit each module"
-                            + " separately and wire workspace deps by hand.");
-        }
-        return root;
-    }
-
     private static void mapDependency(
             MavenDependencyInspection dependency,
+            WorkspaceMemberRegistry registry,
             Map<String, String> dependencies,
             Map<String, String> runtime,
             Map<String, String> provided,
             Map<String, String> test,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> workspaceTest,
             Map<String, DependencyMetadata> dependencyMetadata,
             List<String> notes) {
         String coordinate = coordinateOf(dependency.coordinate());
+        if (mapWorkspaceDependency(
+                dependency, coordinate, registry, workspaceDependencies, workspaceTest, notes)) {
+            return;
+        }
         String version = dependency.version();
         if (version.isBlank()) {
             notes.add(
@@ -154,6 +172,35 @@ final class MavenInspectionMapper {
         if (section != null) {
             recordExclusions(section, coordinate, dependency, dependencyMetadata);
         }
+    }
+
+    /**
+     * Rewrites a dependency on a sibling reactor member to {@code { workspace = "<path>" }}. Returns
+     * true when the dependency was a member edge (and has been recorded or noted), false otherwise.
+     */
+    private static boolean mapWorkspaceDependency(
+            MavenDependencyInspection dependency,
+            String coordinate,
+            WorkspaceMemberRegistry registry,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> workspaceTest,
+            List<String> notes) {
+        if (registry == null) {
+            return false;
+        }
+        String memberPath = registry.pathFor(coordinate);
+        if (memberPath == null) {
+            return false;
+        }
+        switch (dependency.scope()) {
+            case "compile" -> workspaceDependencies.put(coordinate, memberPath);
+            case "test" -> workspaceTest.put(coordinate, memberPath);
+            default -> notes.add(
+                    "Dependency `" + coordinate + "` targets sibling module `" + memberPath
+                            + "` in Maven scope `" + dependency.scope() + "`, which Zolt cannot express"
+                            + " as a workspace edge; wire it under the matching section by hand.");
+        }
+        return true;
     }
 
     private static void recordExclusions(

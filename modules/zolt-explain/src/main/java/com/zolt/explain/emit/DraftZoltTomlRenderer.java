@@ -25,6 +25,16 @@ public final class DraftZoltTomlRenderer {
         for (String line : NOTICE) {
             out.append(line).append('\n');
         }
+        out.append(renderBody(draft, renderer));
+        return out.toString();
+    }
+
+    /**
+     * Renders the review-items comments and the config, without the standalone review-before-use
+     * notice. Used for member documents inside a workspace bundle, whose notice lives once at the top.
+     */
+    public String renderBody(DraftZoltToml draft, ProjectConfigRenderer renderer) {
+        StringBuilder out = new StringBuilder();
         if (!draft.notes().isEmpty()) {
             out.append('\n');
             out.append("# Review items:\n");

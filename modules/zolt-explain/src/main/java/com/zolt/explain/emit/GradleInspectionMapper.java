@@ -26,18 +26,40 @@ final class GradleInspectionMapper {
 
     static DraftZoltToml map(GradleInspectionResult result) {
         List<String> notes = new ArrayList<>();
-        GradleProjectInspection primary = primaryProject(result, notes);
+        GradleProjectInspection primary = result.projects().get(0);
+        return mapProject(primary, null, result.versionCatalogAliases(), notes);
+    }
 
+    /** Maps one subproject, rewriting {@code project(...)} edges to {@code { workspace = ... }}. */
+    static DraftZoltToml mapMember(
+            GradleProjectInspection project,
+            WorkspaceMemberRegistry registry,
+            List<GradleVersionCatalogAlias> aliases) {
+        return mapProject(project, registry, aliases, new ArrayList<>());
+    }
+
+    private static DraftZoltToml mapProject(
+            GradleProjectInspection primary,
+            WorkspaceMemberRegistry registry,
+            List<GradleVersionCatalogAlias> aliases,
+            List<String> notes) {
         Map<String, String> apiDependencies = new TreeMap<>();
         Map<String, String> dependencies = new TreeMap<>();
         Map<String, String> runtime = new TreeMap<>();
         Map<String, String> provided = new TreeMap<>();
         Map<String, String> test = new TreeMap<>();
+        Map<String, String> workspaceApi = new TreeMap<>();
+        Map<String, String> workspaceDependencies = new TreeMap<>();
+        Map<String, String> workspaceTest = new TreeMap<>();
 
         for (GradleDependencyInspection dependency : primary.dependencies()) {
+            if (mapWorkspaceDependency(
+                    dependency, registry, workspaceApi, workspaceDependencies, workspaceTest, notes)) {
+                continue;
+            }
             mapDependency(dependency, apiDependencies, dependencies, runtime, provided, test, notes);
         }
-        addCatalogNotes(result.versionCatalogAliases(), notes);
+        addCatalogNotes(aliases, notes);
         addRepositoryNotes(primary.repositories(), notes);
 
         String group = primary.group().filter(value -> !value.isBlank()).orElse("com.example");
@@ -70,10 +92,10 @@ final class GradleInspectionMapper {
                 Map.of(),
                 apiDependencies,
                 Set.of(),
-                Map.of(),
+                workspaceApi,
                 dependencies,
                 Set.of(),
-                Map.of(),
+                workspaceDependencies,
                 runtime,
                 Set.of(),
                 provided,
@@ -82,7 +104,7 @@ final class GradleInspectionMapper {
                 Set.of(),
                 test,
                 Set.of(),
-                Map.of(),
+                workspaceTest,
                 Map.of(),
                 Set.of(),
                 Map.of(),
@@ -94,15 +116,52 @@ final class GradleInspectionMapper {
         return new DraftZoltToml(config, notes);
     }
 
-    private static GradleProjectInspection primaryProject(GradleInspectionResult result, List<String> notes) {
-        List<GradleProjectInspection> projects = result.projects();
-        if (projects.size() > 1 || result.includedProjects().size() > 1) {
-            notes.add(
-                    "Multi-project Gradle build detected (included projects "
-                            + result.includedProjects() + "). This draft maps only the root project;"
-                            + " emit each subproject separately and wire workspace deps by hand.");
+    /**
+     * Rewrites a {@code project(":lib")} edge to {@code { workspace = "<path>" }}. Returns true when
+     * the dependency was a project edge (recorded or noted), false otherwise.
+     */
+    private static boolean mapWorkspaceDependency(
+            GradleDependencyInspection dependency,
+            WorkspaceMemberRegistry registry,
+            Map<String, String> workspaceApi,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> workspaceTest,
+            List<String> notes) {
+        String projectPath = projectPath(dependency.notation());
+        if (projectPath == null) {
+            return false;
         }
-        return projects.get(0);
+        String memberPath = registry == null ? null : registry.pathFor(projectPath);
+        if (memberPath == null) {
+            notes.add(
+                    "Gradle dependency `project(\"" + dependency.notation() + "\")` in `"
+                            + dependency.configuration() + "` targets a project outside this workspace;"
+                            + " wire it by hand.");
+            return true;
+        }
+        switch (dependency.configuration()) {
+            case "api", "compileOnlyApi" -> workspaceApi.put(memberPath, memberPath);
+            case "implementation", "compile" -> workspaceDependencies.put(memberPath, memberPath);
+            case "testImplementation", "testRuntimeOnly", "testCompile", "testCompileOnly" ->
+                    workspaceTest.put(memberPath, memberPath);
+            default -> notes.add(
+                    "Gradle dependency `project(\"" + dependency.notation() + "\")` in `"
+                            + dependency.configuration() + "` maps to sibling module `" + memberPath
+                            + "`, but that configuration has no direct workspace section; wire it by hand.");
+        }
+        return true;
+    }
+
+    /**
+     * The Gradle project path a {@code project(":a:b")} notation refers to, normalized to a workspace
+     * directory path ({@code a/b}); {@code null} when the notation is not a project reference.
+     */
+    private static String projectPath(String notation) {
+        if (notation == null || !notation.startsWith(":")) {
+            return null;
+        }
+        String path = notation.replaceFirst("^:+", "").replace(':', '/').strip();
+        return path.isBlank() ? null : path;
     }
 
     private static void mapDependency(

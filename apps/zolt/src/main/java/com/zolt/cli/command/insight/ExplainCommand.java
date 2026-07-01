@@ -12,14 +12,15 @@ import com.zolt.explain.MigrationBlockerReports;
 import com.zolt.explain.MigrationExplainException;
 import com.zolt.explain.MigrationReadinessScorecardFormatter;
 import com.zolt.explain.MigrationReadinessScorecards;
-import com.zolt.explain.emit.DraftZoltToml;
+import com.zolt.explain.emit.DraftWorkspaceRenderer;
 import com.zolt.explain.emit.DraftZoltTomlRenderer;
+import com.zolt.explain.emit.EmitRenderer;
 import com.zolt.explain.emit.InspectionToProjectConfig;
-import com.zolt.explain.emit.ProjectConfigRenderer;
 import com.zolt.explain.gradle.GradleExplainFormatter;
 import com.zolt.explain.gradle.GradleInspectionResult;
 import com.zolt.explain.gradle.GradleStaticProjectInspector;
 import com.zolt.toml.ZoltTomlWriter;
+import com.zolt.workspace.toml.WorkspaceTomlWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
@@ -51,9 +52,7 @@ public final class ExplainCommand implements Callable<Integer> {
     private final GradleExplainFormatter gradleExplainFormatter;
     private final MigrationBlockerReportFormatter blockerReportFormatter;
     private final MigrationReadinessScorecardFormatter scorecardFormatter;
-    private final InspectionToProjectConfig draftMapper;
-    private final DraftZoltTomlRenderer draftRenderer;
-    private final ProjectConfigRenderer configRenderer;
+    private final EmitRenderer emitRenderer;
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
@@ -84,9 +83,12 @@ public final class ExplainCommand implements Callable<Integer> {
                 new GradleExplainFormatter(),
                 new MigrationBlockerReportFormatter(),
                 new MigrationReadinessScorecardFormatter(),
-                new InspectionToProjectConfig(),
-                new DraftZoltTomlRenderer(),
-                new ZoltTomlWriter()::write);
+                new EmitRenderer(
+                        new InspectionToProjectConfig(),
+                        new DraftZoltTomlRenderer(),
+                        new DraftWorkspaceRenderer(),
+                        new ZoltTomlWriter()::write,
+                        new WorkspaceTomlWriter()::write));
     }
 
     ExplainCommand(
@@ -96,18 +98,14 @@ public final class ExplainCommand implements Callable<Integer> {
             GradleExplainFormatter gradleExplainFormatter,
             MigrationBlockerReportFormatter blockerReportFormatter,
             MigrationReadinessScorecardFormatter scorecardFormatter,
-            InspectionToProjectConfig draftMapper,
-            DraftZoltTomlRenderer draftRenderer,
-            ProjectConfigRenderer configRenderer) {
+            EmitRenderer emitRenderer) {
         this.mavenInspector = mavenInspector;
         this.gradleInspector = gradleInspector;
         this.mavenExplainFormatter = mavenExplainFormatter;
         this.gradleExplainFormatter = gradleExplainFormatter;
         this.blockerReportFormatter = blockerReportFormatter;
         this.scorecardFormatter = scorecardFormatter;
-        this.draftMapper = draftMapper;
-        this.draftRenderer = draftRenderer;
-        this.configRenderer = configRenderer;
+        this.emitRenderer = emitRenderer;
     }
 
     @Override
@@ -139,8 +137,7 @@ public final class ExplainCommand implements Callable<Integer> {
         try {
             MavenInspectionResult result = mavenInspector.inspect(root);
             if (emitToml) {
-                DraftZoltToml draft = draftMapper.fromMaven(result);
-                CommandOutput.printAndFlush(spec, draftRenderer.render(draft, configRenderer).stripTrailing());
+                CommandOutput.printAndFlush(spec, emitRenderer.renderMaven(result).stripTrailing());
                 return 0;
             }
             if (blockers) {
@@ -180,8 +177,7 @@ public final class ExplainCommand implements Callable<Integer> {
         try {
             GradleInspectionResult result = gradleInspector.inspect(root);
             if (emitToml) {
-                DraftZoltToml draft = draftMapper.fromGradle(result);
-                CommandOutput.printAndFlush(spec, draftRenderer.render(draft, configRenderer).stripTrailing());
+                CommandOutput.printAndFlush(spec, emitRenderer.renderGradle(result).stripTrailing());
                 return 0;
             }
             if (blockers) {
