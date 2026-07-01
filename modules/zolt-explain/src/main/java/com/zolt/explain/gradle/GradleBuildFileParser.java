@@ -1,5 +1,7 @@
 package com.zolt.explain.gradle;
 
+import com.zolt.explain.ExplainSignal;
+import com.zolt.explain.ExplainSignals;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -21,6 +23,8 @@ final class GradleBuildFileParser {
             "testAnnotationProcessor");
     private static final Pattern ID_PLUGIN_PATTERN = Pattern.compile("\\bid\\s*(?:\\(\\s*)?['\"]([^'\"]+)['\"]\\s*\\)?(?:\\s*version\\s*['\"]([^'\"]+)['\"])?");
     private static final Pattern GROOVY_PLUGIN_PATTERN = Pattern.compile("(?m)^\\s*([A-Za-z][A-Za-z0-9_-]*)\\s*$");
+    // Kotlin-DSL backtick accessor form, e.g. `java-library`, `application`, `java`.
+    private static final Pattern BACKTICK_PLUGIN_PATTERN = Pattern.compile("`([A-Za-z][A-Za-z0-9_.-]*)`");
     private static final Pattern REPOSITORY_URL_PATTERN = Pattern.compile("\\burl\\s*(?:=\\s*)?(?:uri\\s*\\(\\s*)?['\"]([^'\"]+)['\"]");
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
 
@@ -30,6 +34,13 @@ final class GradleBuildFileParser {
         Matcher idMatcher = ID_PLUGIN_PATTERN.matcher(block);
         while (idMatcher.find()) {
             plugins.add(new GradlePluginInspection(idMatcher.group(1), nullToEmpty(idMatcher.group(2))));
+        }
+        Matcher backtickMatcher = BACKTICK_PLUGIN_PATTERN.matcher(block);
+        while (backtickMatcher.find()) {
+            String id = backtickMatcher.group(1);
+            if (plugins.stream().noneMatch(plugin -> plugin.id().equals(id))) {
+                plugins.add(new GradlePluginInspection(id, ""));
+            }
         }
         Matcher groovyMatcher = GROOVY_PLUGIN_PATTERN.matcher(block);
         while (groovyMatcher.find()) {
@@ -64,7 +75,12 @@ final class GradleBuildFileParser {
         return repositories;
     }
 
-    List<GradleDependencyInspection> dependencies(String content, Map<String, String> versionCatalog) {
+    List<GradleDependencyInspection> dependencies(
+            String content,
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            String project,
+            List<ExplainSignal> signals) {
         String block = block(content, "dependencies").orElse("");
         List<GradleDependencyInspection> dependencies = new ArrayList<>();
         for (String configuration : DEPENDENCY_CONFIGURATIONS) {
@@ -77,7 +93,7 @@ final class GradleBuildFileParser {
             Matcher matcher = pattern.matcher(block);
             while (matcher.find()) {
                 String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();
-                dependencies.add(dependency(configuration, expression, versionCatalog));
+                dependencies.addAll(dependencies(configuration, expression, versionCatalog, catalogBundles, project, signals));
             }
         }
         dependencies.sort(Comparator
@@ -162,25 +178,59 @@ final class GradleBuildFileParser {
         return roots.isEmpty() ? List.of(defaultRoot) : roots.stream().distinct().sorted().toList();
     }
 
-    private static GradleDependencyInspection dependency(
+    private static List<GradleDependencyInspection> dependencies(
             String configuration,
             String expression,
-            Map<String, String> versionCatalog) {
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            String project,
+            List<ExplainSignal> signals) {
         String notation = expression.replaceAll("\\s+", " ").strip();
         Optional<String> mapNotation = mapNotation(notation);
         if (mapNotation.isPresent()) {
-            return new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), "");
+            return List.of(new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), ""));
         }
         Optional<String> quoted = firstQuoted(notation);
         if (quoted.isPresent()) {
-            return new GradleDependencyInspection(configuration, quoted.orElseThrow(), quoted.orElseThrow(), "");
+            return List.of(new GradleDependencyInspection(configuration, quoted.orElseThrow(), quoted.orElseThrow(), ""));
+        }
+        Optional<String> bundle = catalogBundleAlias(notation);
+        if (bundle.isPresent()) {
+            return bundleDependencies(configuration, notation, bundle.orElseThrow(), catalogBundles, project, signals);
         }
         Optional<String> alias = catalogAlias(notation);
         if (alias.isPresent()) {
             String key = alias.orElseThrow();
-            return new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key);
+            return List.of(new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key));
         }
-        return new GradleDependencyInspection(configuration, notation, "", "");
+        return List.of(new GradleDependencyInspection(configuration, notation, "", ""));
+    }
+
+    private static List<GradleDependencyInspection> bundleDependencies(
+            String configuration,
+            String notation,
+            String bundleName,
+            Map<String, List<String>> catalogBundles,
+            String project,
+            List<ExplainSignal> signals) {
+        List<String> members = catalogBundles.get(bundleName);
+        if (members == null) {
+            // Bundle referenced but absent from the catalog: keep an unresolved marker instead of
+            // silently dropping the dependency, so the mapper surfaces a review note.
+            signals.add(ExplainSignals.GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED.signal(
+                    project,
+                    "Gradle dependency references version-catalog bundle `" + bundleName
+                            + "`, which is not defined in gradle/libs.versions.toml."));
+            return List.of(new GradleDependencyInspection(configuration, notation, "", "bundles." + bundleName));
+        }
+        if (members.isEmpty()) {
+            return List.of(new GradleDependencyInspection(configuration, notation, "", "bundles." + bundleName));
+        }
+        List<GradleDependencyInspection> expanded = new ArrayList<>();
+        for (String coordinate : members) {
+            expanded.add(new GradleDependencyInspection(configuration, notation, coordinate, "bundles." + bundleName));
+        }
+        return expanded;
     }
 
     private static Optional<String> mapNotation(String value) {
@@ -200,6 +250,11 @@ final class GradleBuildFileParser {
 
     private static Optional<String> catalogAlias(String expression) {
         Matcher matcher = Pattern.compile("\\blibs\\.([A-Za-z0-9_.-]+)").matcher(expression);
+        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
+    }
+
+    private static Optional<String> catalogBundleAlias(String expression) {
+        Matcher matcher = Pattern.compile("\\blibs\\.bundles\\.([A-Za-z0-9_.-]+)").matcher(expression);
         return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
     }
 

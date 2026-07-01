@@ -178,6 +178,69 @@ final class GradleStaticProjectInspectorTest {
     }
 
     @Test
+    void expandsVersionCatalogBundlesToMemberCoordinates() throws IOException {
+        Files.createDirectories(tempDir.resolve("gradle"));
+        Files.writeString(tempDir.resolve("gradle/libs.versions.toml"), """
+                [versions]
+                jackson = "2.17.1"
+
+                [libraries]
+                jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson" }
+                jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+
+                [bundles]
+                jackson = ["jackson-core", "jackson-databind"]
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                dependencies {
+                    implementation libs.bundles.jackson
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertTrue(project.dependencies().stream()
+                .anyMatch(dependency -> dependency.configuration().equals("implementation")
+                        && dependency.versionCatalogAlias().equals("bundles.jackson")
+                        && dependency.resolvedCoordinate().equals("com.fasterxml.jackson.core:jackson-core:2.17.1")));
+        assertTrue(project.dependencies().stream()
+                .anyMatch(dependency -> dependency.configuration().equals("implementation")
+                        && dependency.versionCatalogAlias().equals("bundles.jackson")
+                        && dependency.resolvedCoordinate().equals("com.fasterxml.jackson.core:jackson-databind:2.17.1")));
+        assertTrue(result.signals().stream()
+                .noneMatch(signal -> signal.id().equals("gradle.version-catalog.bundle-unresolved")));
+    }
+
+    @Test
+    void signalsWhenBundleMemberIsUndefinedInsteadOfSilentlyDropping() throws IOException {
+        Files.createDirectories(tempDir.resolve("gradle"));
+        Files.writeString(tempDir.resolve("gradle/libs.versions.toml"), """
+                [libraries]
+                guava = { module = "com.google.guava:guava", version = "33.4.8-jre" }
+
+                [bundles]
+                core = ["guava", "missing-lib"]
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                dependencies {
+                    implementation libs.bundles.core
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertTrue(project.dependencies().stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("com.google.guava:guava:33.4.8-jre")));
+        assertTrue(result.signals().stream()
+                .anyMatch(signal -> signal.id().equals("gradle.version-catalog.bundle-unresolved")
+                        && signal.message().contains("missing-lib")));
+    }
+
+    @Test
     void reportsDynamicBuildLogicSignalsWithoutExecutingGradle() throws IOException {
         Files.createDirectories(tempDir.resolve("buildSrc"));
         Files.writeString(tempDir.resolve("settings.gradle"), """

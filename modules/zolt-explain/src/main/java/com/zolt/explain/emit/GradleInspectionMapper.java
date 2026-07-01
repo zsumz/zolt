@@ -28,13 +28,14 @@ final class GradleInspectionMapper {
         List<String> notes = new ArrayList<>();
         GradleProjectInspection primary = primaryProject(result, notes);
 
+        Map<String, String> apiDependencies = new TreeMap<>();
         Map<String, String> dependencies = new TreeMap<>();
         Map<String, String> runtime = new TreeMap<>();
         Map<String, String> provided = new TreeMap<>();
         Map<String, String> test = new TreeMap<>();
 
         for (GradleDependencyInspection dependency : primary.dependencies()) {
-            mapDependency(dependency, dependencies, runtime, provided, test, notes);
+            mapDependency(dependency, apiDependencies, dependencies, runtime, provided, test, notes);
         }
         addCatalogNotes(result.versionCatalogAliases(), notes);
         addRepositoryNotes(primary.repositories(), notes);
@@ -67,7 +68,7 @@ final class GradleInspectionMapper {
                 metadata,
                 ProjectConfig.defaultRepositories(),
                 Map.of(),
-                Map.of(),
+                apiDependencies,
                 Set.of(),
                 Map.of(),
                 dependencies,
@@ -106,6 +107,7 @@ final class GradleInspectionMapper {
 
     private static void mapDependency(
             GradleDependencyInspection dependency,
+            Map<String, String> apiDependencies,
             Map<String, String> dependencies,
             Map<String, String> runtime,
             Map<String, String> provided,
@@ -135,9 +137,10 @@ final class GradleInspectionMapper {
             return;
         }
         switch (dependency.configuration()) {
-            case "implementation", "api", "compile" -> dependencies.put(coordinate, version);
+            case "api", "compileOnlyApi" -> apiDependencies.put(coordinate, version);
+            case "implementation", "compile" -> dependencies.put(coordinate, version);
             case "runtimeOnly", "runtime" -> runtime.put(coordinate, version);
-            case "compileOnly", "compileOnlyApi", "providedCompile" -> provided.put(coordinate, version);
+            case "compileOnly", "providedCompile" -> provided.put(coordinate, version);
             case "testImplementation", "testRuntimeOnly", "testCompile", "testCompileOnly" ->
                     test.put(coordinate, version);
             default -> notes.add(

@@ -46,6 +46,25 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void parsesKotlinDslBacktickAccessorPlugins() {
+        String content = """
+                plugins {
+                    `java-library`
+                    `application`
+                    id("org.springframework.boot") version "3.3.6"
+                }
+                """;
+
+        var plugins = parser.plugins(content);
+
+        assertTrue(plugins.stream().anyMatch(plugin -> plugin.id().equals("java-library")),
+                () -> "backtick `java-library` should be detected: " + plugins);
+        assertTrue(plugins.stream().anyMatch(plugin -> plugin.id().equals("application")),
+                () -> "backtick `application` should be detected: " + plugins);
+        assertTrue(plugins.stream().anyMatch(plugin -> plugin.id().equals("org.springframework.boot")));
+    }
+
+    @Test
     void parsesDependencyNotationsAndCatalogAliases() {
         String content = """
                 dependencies {
@@ -59,7 +78,8 @@ final class GradleBuildFileParserTest {
 
         var dependencies = parser.dependencies(content, Map.of(
                 "guava", "com.google.guava:guava:33.4.8-jre",
-                "junit.jupiter", "org.junit.jupiter:junit-jupiter:5.11.4"));
+                "junit.jupiter", "org.junit.jupiter:junit-jupiter:5.11.4"),
+                Map.of(), ".", new java.util.ArrayList<>());
 
         assertTrue(dependencies.stream().anyMatch(dependency ->
                 dependency.configuration().equals("api")
@@ -88,7 +108,7 @@ final class GradleBuildFileParserTest {
                 }
                 """;
 
-        var dependencies = parser.dependencies(content, Map.of());
+        var dependencies = parser.dependencies(content, Map.of(), Map.of(), ".", new java.util.ArrayList<>());
 
         assertEquals(2, dependencies.size(), () -> "expected exactly two real dependencies, got " + dependencies);
         assertTrue(dependencies.stream().allMatch(dependency -> dependency.configuration().equals("implementation")),

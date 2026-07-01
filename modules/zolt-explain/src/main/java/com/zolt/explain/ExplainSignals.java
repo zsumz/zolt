@@ -90,6 +90,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Fix gradle/libs.versions.toml before relying on version catalog migration hints.");
+    public static final ExplainSignalDefinition GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED = new ExplainSignalDefinition(
+            "gradle.version-catalog.bundle-unresolved",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Define the missing bundle member libraries in gradle/libs.versions.toml and add them to the draft by hand.");
     public static final ExplainSignalDefinition GRADLE_ENTERPRISE_PLUGIN_MAPPED = new ExplainSignalDefinition(
             "gradle.enterprise-plugin.mapped",
             ExplainSignal.Severity.OK,
@@ -169,6 +174,7 @@ public final class ExplainSignals {
             GRADLE_CROSS_PROJECT_BUILD_LOGIC,
             GRADLE_CUSTOM_TASK_DETECTED,
             GRADLE_VERSION_CATALOG_MALFORMED,
+            GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED,
             GRADLE_ENTERPRISE_PLUGIN_MAPPED,
             GRADLE_REPOSITORY_CREDENTIALS,
             GRADLE_REPOSITORY_MAVEN_LOCAL,
