@@ -2,6 +2,7 @@ package com.zolt.explain.gradle;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 public record GradleProjectInspection(
         Path path,
@@ -9,12 +10,18 @@ public record GradleProjectInspection(
         String buildFile,
         String dsl,
         String javaVersion,
+        Optional<String> group,
+        Optional<String> version,
+        Optional<String> mainClass,
         List<GradlePluginInspection> plugins,
         List<GradleRepositoryInspection> repositories,
         List<GradleDependencyInspection> dependencies,
         List<String> sourceRoots,
         List<String> testSourceRoots) {
     public GradleProjectInspection {
+        group = group == null ? Optional.empty() : group;
+        version = version == null ? Optional.empty() : version;
+        mainClass = mainClass == null ? Optional.empty() : mainClass;
         plugins = List.copyOf(plugins);
         repositories = List.copyOf(repositories);
         dependencies = List.copyOf(dependencies);

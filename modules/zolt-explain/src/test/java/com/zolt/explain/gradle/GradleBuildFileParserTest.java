@@ -102,6 +102,49 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void parsesGroupVersionAndMainClassAssignments() {
+        String content = """
+                group = 'com.example'
+                version = '0.3.1'
+
+                application {
+                    mainClass = 'com.example.report.ReportApp'
+                }
+                """;
+
+        assertEquals("com.example", parser.group(content).orElseThrow());
+        assertEquals("0.3.1", parser.version(content).orElseThrow());
+        assertEquals("com.example.report.ReportApp", parser.mainClass(content).orElseThrow());
+    }
+
+    @Test
+    void parsesGroovySpaceCallAssignmentsAndMainClassName() {
+        String content = """
+                group "com.example.groovy"
+                version "1.2.3"
+                mainClassName = 'com.example.Legacy'
+                """;
+
+        assertEquals("com.example.groovy", parser.group(content).orElseThrow());
+        assertEquals("1.2.3", parser.version(content).orElseThrow());
+        assertEquals("com.example.Legacy", parser.mainClass(content).orElseThrow());
+    }
+
+    @Test
+    void ignoresInterpolatedGroupAndAbsentFields() {
+        String content = """
+                group "${applicationGroupId}"
+                dependencies {
+                    implementation 'com.example:lib:1.0'
+                }
+                """;
+
+        assertTrue(parser.group(content).isEmpty(), () -> "interpolated group must not be read as a literal");
+        assertTrue(parser.version(content).isEmpty());
+        assertTrue(parser.mainClass(content).isEmpty());
+    }
+
+    @Test
     void parsesSourceRootsWithDefaultsForAdditiveSourceDirs() {
         String content = """
                 sourceSets {

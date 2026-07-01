@@ -102,6 +102,45 @@ final class GradleBuildFileParser {
         return "unknown";
     }
 
+    Optional<String> group(String content) {
+        return stringAssignment(content, "group");
+    }
+
+    Optional<String> version(String content) {
+        return stringAssignment(content, "version");
+    }
+
+    Optional<String> mainClass(String content) {
+        return firstQuotedAfter(content, List.of(
+                Pattern.compile("\\bmainClass\\s*(?:=|\\.set\\s*\\(|\\.value\\s*\\()\\s*['\"]([^'\"]+)['\"]"),
+                Pattern.compile("\\bmainClassName\\s*=\\s*['\"]([^'\"]+)['\"]")));
+    }
+
+    /**
+     * Reads a Groovy/Kotlin-DSL string assignment such as {@code group = 'com.example'} or
+     * {@code version "0.3.1"}. Only literal single/double-quoted values are returned; interpolated
+     * or computed values (e.g. {@code group "${applicationGroupId}"}) are treated as absent so the
+     * draft falls back to a placeholder rather than emitting a broken coordinate.
+     */
+    private static Optional<String> stringAssignment(String content, String property) {
+        return firstQuotedAfter(content, List.of(
+                Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(property) + "\\s*=\\s*['\"]([^'\"$]+)['\"]"),
+                Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(property) + "\\s+['\"]([^'\"$]+)['\"]")));
+    }
+
+    private static Optional<String> firstQuotedAfter(String content, List<Pattern> patterns) {
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                String value = matcher.group(1).strip();
+                if (!value.isBlank()) {
+                    return Optional.of(value);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     List<String> sourceRoots(String content, String sourceSet, String defaultRoot) {
         Optional<String> sourceSets = block(content, "sourceSets");
         if (sourceSets.isEmpty()) {

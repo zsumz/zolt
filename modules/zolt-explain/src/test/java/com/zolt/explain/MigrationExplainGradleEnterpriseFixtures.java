@@ -17,7 +17,7 @@ final class MigrationExplainGradleEnterpriseFixtures {
                   Signals: 17
 
                 Projects
-                  - . (gradle-enterprise-spring, dsl=groovy, java=17)
+                  - . (enterprise-spring, dsl=groovy, java=17)
                     build file: build.gradle
                     plugins: 7
                     repositories: 2
@@ -79,7 +79,7 @@ final class MigrationExplainGradleEnterpriseFixtures {
                   "projects": [
                     {
                       "path": ".",
-                      "name": "gradle-enterprise-spring",
+                      "name": "enterprise-spring",
                       "buildFile": "build.gradle",
                       "dsl": "groovy",
                       "javaVersion": "17",

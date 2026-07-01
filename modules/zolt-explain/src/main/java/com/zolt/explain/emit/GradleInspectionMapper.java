@@ -39,15 +39,29 @@ final class GradleInspectionMapper {
         addCatalogNotes(result.versionCatalogAliases(), notes);
         addRepositoryNotes(primary.repositories(), notes);
 
+        String group = primary.group().filter(value -> !value.isBlank()).orElse("com.example");
+        String version = primary.version().filter(value -> !value.isBlank()).orElse("0.1.0");
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.name(),
-                "0.1.0",
-                "com.example",
+                version,
+                group,
                 primary.javaVersion(),
-                Optional.empty());
-        notes.add(
-                "Project group and version are placeholders; the static Gradle audit cannot read them."
-                        + " Set `group` and `version` to your real coordinates.");
+                primary.mainClass().filter(value -> !value.isBlank()));
+        boolean groupMissing = primary.group().filter(value -> !value.isBlank()).isEmpty();
+        boolean versionMissing = primary.version().filter(value -> !value.isBlank()).isEmpty();
+        if (groupMissing && versionMissing) {
+            notes.add(
+                    "Project group and version are placeholders; the static Gradle audit could not read them."
+                            + " Set `group` and `version` to your real coordinates.");
+        } else if (groupMissing) {
+            notes.add(
+                    "Project group is a placeholder; the static Gradle audit could not read it."
+                            + " Set `group` to your real coordinate.");
+        } else if (versionMissing) {
+            notes.add(
+                    "Project version is a placeholder; the static Gradle audit could not read it."
+                            + " Set `version` to your real coordinate.");
+        }
 
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
                 metadata,

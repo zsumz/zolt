@@ -22,6 +22,8 @@ import org.tomlj.TomlTable;
 public final class GradleStaticProjectInspector {
     private static final Pattern INCLUDE_PATTERN = Pattern.compile("\\binclude\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
     private static final Pattern INCLUDE_BUILD_PATTERN = Pattern.compile("\\bincludeBuild\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
+    private static final Pattern ROOT_PROJECT_NAME_PATTERN =
+            Pattern.compile("\\brootProject\\.name\\s*=\\s*['\"]([^'\"]+)['\"]");
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
     private final GradleBuildFileParser buildFileParser = new GradleBuildFileParser();
     private final GradleMigrationSignalDetector signalDetector = new GradleMigrationSignalDetector();
@@ -48,6 +50,7 @@ public final class GradleStaticProjectInspector {
         List<String> includedProjects = settingsFile
                 .map(path -> parseIncludedProjects(read(path)))
                 .orElseGet(List::of);
+        Optional<String> rootProjectName = settingsFile.flatMap(path -> rootProjectName(read(path)));
         settingsFile.ifPresent(path -> signals.addAll(settingsSignals(normalizedRoot, path, read(path))));
         if (Files.isDirectory(normalizedRoot.resolve("buildSrc"))) {
             signals.add(ExplainSignals.GRADLE_BUILD_SRC_DETECTED.signal(
@@ -60,13 +63,14 @@ public final class GradleStaticProjectInspector {
                 normalizedRoot,
                 normalizedRoot,
                 path,
+                rootProjectName,
                 versionCatalog,
                 signals)));
         for (String includedProject : includedProjects) {
             Path projectDirectory = normalizedRoot.resolve(includedProject).normalize();
             Optional<Path> includedBuildFile = buildFile(projectDirectory);
             if (includedBuildFile.isPresent()) {
-                projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), versionCatalog, signals));
+                projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), Optional.empty(), versionCatalog, signals));
             } else {
                 signals.add(ExplainSignals.GRADLE_PROJECT_MISSING_BUILD_FILE.signal(
                         projectLabel(normalizedRoot, projectDirectory),
@@ -89,6 +93,7 @@ public final class GradleStaticProjectInspector {
             Path root,
             Path projectDirectory,
             Path buildFile,
+            Optional<String> declaredName,
             Map<String, String> versionCatalog,
             List<ExplainSignal> signals) {
         String content = stripComments(read(buildFile));
@@ -99,15 +104,29 @@ public final class GradleStaticProjectInspector {
         signals.addAll(signalDetector.signals(project, content, dependencies, plugins));
         return new GradleProjectInspection(
                 relativePath,
-                relativePath.toString().equals(".") ? projectDirectory.getFileName().toString() : projectDirectory.getFileName().toString(),
+                declaredName.filter(name -> !name.isBlank()).orElseGet(() -> projectDirectory.getFileName().toString()),
                 buildFile.getFileName().toString(),
                 buildFile.getFileName().toString().endsWith(".kts") ? "kotlin" : "groovy",
                 buildFileParser.javaVersion(content),
+                buildFileParser.group(content),
+                buildFileParser.version(content),
+                buildFileParser.mainClass(content),
                 plugins,
                 buildFileParser.repositories(content),
                 dependencies,
                 buildFileParser.sourceRoots(content, "main", "src/main/java"),
                 buildFileParser.sourceRoots(content, "test", "src/test/java"));
+    }
+
+    private static Optional<String> rootProjectName(String content) {
+        Matcher matcher = ROOT_PROJECT_NAME_PATTERN.matcher(stripComments(content));
+        if (matcher.find()) {
+            String name = matcher.group(1).strip();
+            if (!name.isBlank()) {
+                return Optional.of(name);
+            }
+        }
+        return Optional.empty();
     }
 
     private static List<String> parseIncludedProjects(String content) {

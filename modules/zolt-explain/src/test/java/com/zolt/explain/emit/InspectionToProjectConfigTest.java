@@ -4,15 +4,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.explain.gradle.GradleInspectionResult;
+import com.zolt.explain.gradle.GradleStaticProjectInspector;
 import com.zolt.explain.maven.MavenInspectionResult;
 import com.zolt.explain.maven.MavenStaticProjectInspector;
 import com.zolt.project.ProjectConfig;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class InspectionToProjectConfigTest {
     private static final Path FIXTURE_ROOT =
             ExplainEmitTestPaths.repositoryRoot().resolve("examples/migration-explain").normalize();
+
+    @TempDir
+    private Path tempDir;
 
     private final InspectionToProjectConfig mapper = new InspectionToProjectConfig();
 
@@ -66,6 +74,58 @@ final class InspectionToProjectConfigTest {
         assertTrue(
                 draft.notes().stream().anyMatch(note -> note.contains("Maven profiles were detected")),
                 () -> "expected profile note in " + draft.notes());
+    }
+
+    @Test
+    void gradleDraftUsesRootProjectNameGroupVersionAndMainClass() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'sales-report'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java'\n    id 'application' }
+                group = 'com.example'
+                version = '0.3.1'
+                application { mainClass = 'com.example.report.ReportApp' }
+                dependencies {
+                    implementation 'org.slf4j:slf4j-api:2.0.16'
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals("sales-report", config.project().name());
+        assertEquals("com.example", config.project().group());
+        assertEquals("0.3.1", config.project().version());
+        assertEquals("com.example.report.ReportApp", config.project().main().orElseThrow());
+        assertEquals("2.0.16", config.dependencies().get("org.slf4j:slf4j-api"));
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("could not read")),
+                () -> "no cannot-read note expected when group/version are present: " + draft.notes());
+    }
+
+    @Test
+    void gradleDraftFallsBackAndCommentsWhenGroupVersionAbsent() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'bare'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                dependencies {
+                    implementation 'com.example:lib:1.0'
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals("bare", config.project().name());
+        assertEquals("com.example", config.project().group());
+        assertEquals("0.1.0", config.project().version());
+        assertTrue(config.project().main().isEmpty());
+        assertTrue(
+                draft.notes().stream().anyMatch(note ->
+                        note.contains("group and version are placeholders")
+                                && note.contains("could not read them")),
+                () -> "expected the cannot-read fallback note: " + draft.notes());
     }
 
     private static final class FakeRenderer implements ProjectConfigRenderer {

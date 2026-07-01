@@ -95,6 +95,9 @@ final class ExplainReportFormatterTest {
                         "build.gradle",
                         "groovy",
                         "21",
+                        java.util.Optional.empty(),
+                        java.util.Optional.empty(),
+                        java.util.Optional.empty(),
                         List.of(new GradlePluginInspection("java", "")),
                         List.of(new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2")),
                         List.of(new GradleDependencyInspection(

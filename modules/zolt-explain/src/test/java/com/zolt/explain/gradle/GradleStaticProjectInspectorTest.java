@@ -67,6 +67,59 @@ final class GradleStaticProjectInspectorTest {
     }
 
     @Test
+    void usesRootProjectNameAndExtractsGroupVersionAndMainClass() throws IOException {
+        Files.createDirectories(tempDir.resolve("dogfood-gradle"));
+        Path projectDir = tempDir.resolve("dogfood-gradle");
+        Files.writeString(projectDir.resolve("settings.gradle"), "rootProject.name = 'sales-report'\n");
+        Files.writeString(projectDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'application'
+                }
+
+                group = 'com.example'
+                version = '0.3.1'
+
+                application {
+                    mainClass = 'com.example.report.ReportApp'
+                }
+
+                dependencies {
+                    implementation 'org.slf4j:slf4j-api:2.0.16'
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(projectDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertEquals("sales-report", project.name());
+        assertEquals("com.example", project.group().orElseThrow());
+        assertEquals("0.3.1", project.version().orElseThrow());
+        assertEquals("com.example.report.ReportApp", project.mainClass().orElseThrow());
+    }
+
+    @Test
+    void fallsBackToDirectoryNameAndEmptyFieldsWhenAbsent() throws IOException {
+        Files.createDirectories(tempDir.resolve("bare-project"));
+        Path projectDir = tempDir.resolve("bare-project");
+        Files.writeString(projectDir.resolve("settings.gradle"), "include 'app'\n");
+        Files.writeString(projectDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                dependencies {
+                    implementation 'com.example:lib:1.0'
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(projectDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertEquals("bare-project", project.name());
+        assertTrue(project.group().isEmpty());
+        assertTrue(project.version().isEmpty());
+        assertTrue(project.mainClass().isEmpty());
+    }
+
+    @Test
     void reportsMultiProjectIncludesAndMissingBuildFiles() throws IOException {
         Files.writeString(tempDir.resolve("settings.gradle.kts"), """
                 rootProject.name = "multi"
