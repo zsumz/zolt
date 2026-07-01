@@ -215,6 +215,67 @@ final class DependencyTraversalCandidateSelectorTest {
     }
 
     @Test
+    void rootManagedVersionDoesNotOverrideClassifiedOrNonJarTransitive() {
+        PackageId library = new PackageId("com.example", "lib");
+        DependencyTraversalCandidateSelector managed = selector(
+                List.of(),
+                Map.of(),
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")));
+
+        DependencyTraversalSelection classified = managed.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                new NormalizedDependency(
+                        new RawPomDependency(
+                                "com.example",
+                                "lib",
+                                Optional.of("1.0.0"),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.of("linux-x86_64"),
+                                false,
+                                List.of()),
+                        DependencyScope.COMPILE,
+                        false,
+                        List.of())));
+        DependencyTraversalSelection nonJar = managed.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                new NormalizedDependency(
+                        new RawPomDependency(
+                                "com.example",
+                                "lib",
+                                Optional.of("1.0.0"),
+                                Optional.empty(),
+                                Optional.of("zip"),
+                                Optional.empty(),
+                                false,
+                                List.of()),
+                        DependencyScope.COMPILE,
+                        false,
+                        List.of())));
+
+        assertEquals("1.0.0", classified.selectedItem().orElseThrow().request().requestedVersion());
+        assertTrue(classified.policyEffects().isEmpty());
+        assertEquals("1.0.0", nonJar.selectedItem().orElseThrow().request().requestedVersion());
+        assertTrue(nonJar.policyEffects().isEmpty());
+    }
+
+    @Test
+    void rootManagedVersionOmitsEffectWhenTransitiveAlreadyDeclaresManagedVersion() {
+        PackageId library = new PackageId("com.example", "lib");
+        DependencyTraversalCandidateSelector managed = selector(
+                List.of(),
+                Map.of(),
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")));
+
+        DependencyTraversalSelection selection = managed.select(candidate(
+                DependencyTraversalItem.direct(request(DependencyScope.COMPILE)),
+                dependency("com.example", "lib", "2.0.0", DependencyScope.COMPILE, false)));
+
+        assertEquals("2.0.0", selection.selectedItem().orElseThrow().request().requestedVersion());
+        assertTrue(selection.policyEffects().isEmpty());
+    }
+
+    @Test
     void versionlessDependencyWithoutConstraintKeepsDiagnosticShape() {
         GraphTraversalException exception = assertThrows(
                 GraphTraversalException.class,

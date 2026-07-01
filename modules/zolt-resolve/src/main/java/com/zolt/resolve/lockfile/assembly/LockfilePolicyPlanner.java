@@ -45,13 +45,16 @@ final class LockfilePolicyPlanner {
         if (selectedScope.direct()) {
             return policies;
         }
-        policies.addAll(policyEffects.stream()
-                .filter(effect -> "managed-version".equals(effect.kind()))
-                .filter(effect -> effect.packageId().equals(node.packageId()))
-                .map(DependencyPolicyEffect::policy)
-                .distinct()
-                .sorted()
-                .toList());
+        ManagedVersion nodeManagedVersion = managedVersions.get(node.packageId());
+        if (nodeManagedVersion != null && nodeManagedVersion.version().equals(node.selectedVersion())) {
+            policies.addAll(policyEffects.stream()
+                    .filter(effect -> "managed-version".equals(effect.kind()))
+                    .filter(effect -> effect.packageId().equals(node.packageId()))
+                    .map(DependencyPolicyEffect::policy)
+                    .distinct()
+                    .sorted()
+                    .toList());
+        }
         DependencyConstraint constraint = constraints.get(node.packageId().toString());
         if (constraint == null || !constraint.version().equals(node.selectedVersion())) {
             return List.copyOf(policies);

@@ -82,6 +82,23 @@ final class ZoltTomlRepositoryPolicyWriterTest {
     }
 
     @Test
+    void writesFailOnVersionConflictWithoutExclusionsOrConstraints() {
+        ProjectConfig config = writer.defaultApplicationConfig("enterprise", "com.acme", "com.acme.Main")
+                .withDependencyPolicy(new DependencyPolicySettings(List.of(), Map.of(), true));
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[dependencyPolicy]"));
+        assertTrue(toml.contains("failOnVersionConflict = true"));
+        assertFalse(toml.contains("exclude ="));
+        assertTrue(parsed.dependencyPolicy().failOnVersionConflict());
+        assertTrue(parsed.dependencyPolicy().exclusions().isEmpty());
+        assertTrue(parsed.dependencyPolicy().constraints().isEmpty());
+        assertEquals(config.dependencyPolicy(), parsed.dependencyPolicy());
+    }
+
+    @Test
     void writesDependencyConstraintVersionRefsWhenPresent() {
         ProjectConfig config = parser.parse("""
                 [project]

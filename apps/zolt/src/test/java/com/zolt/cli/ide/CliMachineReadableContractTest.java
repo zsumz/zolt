@@ -127,6 +127,7 @@ final class CliMachineReadableContractTest {
         assertTrue(result.stdout().contains("\"target\": \"com.example:app\""));
         assertTrue(result.stdout().contains("\"status\": \"present\""));
         assertTrue(result.stdout().contains("\"coordinate\": \"com.example:app:1.0.0\""));
+        assertTrue(result.stdout().contains("\"conflicts\": []"));
         assertTrue(result.stdout().contains("\"policyEffects\": []"));
         assertFalse(result.stdout().contains("\\- com.example:app"));
     }

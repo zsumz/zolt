@@ -61,7 +61,9 @@ final class DependencyTraversalCandidateSelector {
                 dependency.rawDependency().groupId(),
                 dependency.rawDependency().artifactId());
         DependencyConstraint constraint = strictConstraints.get(packageId);
-        ManagedVersion managedVersion = rootManagedVersions.get(packageId);
+        ManagedVersion managedVersion = managedJarDependency(dependency.rawDependency())
+                ? rootManagedVersions.get(packageId)
+                : null;
         Optional<String> originalRequestedVersion = dependency.rawDependency().version();
         String requestedVersion = requestedVersion(
                 candidate.source(),
@@ -77,7 +79,7 @@ final class DependencyTraversalCandidateSelector {
                     originalRequestedVersion,
                     candidate.source(),
                     constraint));
-        } else if (managedVersion != null) {
+        } else if (managedVersion != null && managedVersionParticipates(originalRequestedVersion, managedVersion)) {
             policyEffects.add(managedVersionEffect(
                     packageId,
                     originalRequestedVersion,
@@ -223,6 +225,18 @@ final class DependencyTraversalCandidateSelector {
 
     private static Coordinate coordinate(RawPomDependency dependency) {
         return new Coordinate(dependency.groupId(), dependency.artifactId(), dependency.version());
+    }
+
+    private static boolean managedJarDependency(RawPomDependency dependency) {
+        return "jar".equals(dependency.type().orElse("jar")) && dependency.classifier().isEmpty();
+    }
+
+    private static boolean managedVersionParticipates(
+            Optional<String> originalRequestedVersion,
+            ManagedVersion managedVersion) {
+        return originalRequestedVersion
+                .map(version -> !version.equals(managedVersion.version()))
+                .orElse(true);
     }
 
     private static void validateSupportedTransitiveVersion(

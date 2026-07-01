@@ -276,4 +276,21 @@ final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSup
                         .toList());
     }
 
+    @Test
+    void rootManagedVersionBypassesUnsupportedTransitiveRange() {
+        PackageId library = new PackageId("com.example", "lib");
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependency("com.example", "lib", "[1.0,2.0)"))));
+        source.put("com.example:lib:2.0.0", pom("com.example", "lib", "2.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(
+                source,
+                Map.of(library, new ManagedVersion("2.0.0", "com.example:platform:1.0.0")))
+                .traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertEquals(List.of("com.example:root:1.0.0", "com.example:lib:2.0.0"), nodeStrings(graph));
+        assertEquals(0, source.loadCount("com.example:lib:[1.0,2.0)"));
+    }
+
 }
