@@ -114,6 +114,10 @@ final class PublicApiSurfaceTest {
             "com.zolt.project.TestSuiteSettings",
             "com.zolt.project.VersionAliasRules",
             "com.zolt.project.VersionPolicy",
+            "com.zolt.provenance.BuildProvenance",
+            "com.zolt.provenance.BuildProvenanceReader",
+            "com.zolt.provenance.GitProvenance",
+            "com.zolt.provenance.GitProvenanceReader",
             "com.zolt.workspace.WorkspaceConfig",
             "com.zolt.workspace.WorkspaceConfigException");
 
