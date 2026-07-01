@@ -1,5 +1,6 @@
 package com.zolt.toml;
 
+import com.zolt.error.ActionableError;
 import com.zolt.toml.support.TomlValidation;
 import com.zolt.toml.support.TomlScalars;
 import com.zolt.project.ProjectMetadata;
@@ -46,6 +47,12 @@ final class ProjectSectionCodec {
     private static TomlTable requiredTable(TomlParseResult result, String section) {
         TomlTable table = result.getTable(section);
         if (table == null) {
+            if ("project".equals(section) && result.getTable("workspace") != null) {
+                throw new ZoltConfigException(ActionableError.of(
+                        "This zolt.toml declares a [workspace], not a [project], so it cannot be built as a single "
+                                + "project.",
+                        "Re-run the command with --workspace to operate on the workspace and its members."));
+            }
             throw new ZoltConfigException("Missing required section [" + section + "] in zolt.toml.");
         }
         return table;

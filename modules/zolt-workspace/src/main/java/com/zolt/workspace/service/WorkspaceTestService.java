@@ -226,7 +226,12 @@ public final class WorkspaceTestService {
                         .map(result -> result.profileDirectory().map(path -> path.resolve("profile.json")))
                         .flatMap(Optional::stream)
                         .toList()));
-        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results, workspaceProfileDirectory);
+        return new WorkspaceTestResult(
+                buildResult.resolveResult(),
+                buildResult.members(),
+                results,
+                workspace.members().size(),
+                workspaceProfileDirectory);
     }
 
     public WorkspaceTestResult runIntegrationTests(
@@ -261,7 +266,11 @@ public final class WorkspaceTestService {
                             testReportSettings.forWorkspaceMember(member.path()),
                             cliEvents)));
         }
-        return new WorkspaceTestResult(buildResult.resolveResult(), buildResult.members(), results);
+        return new WorkspaceTestResult(
+                buildResult.resolveResult(),
+                buildResult.members(),
+                results,
+                workspace.members().size());
     }
 
     private static Map<String, WorkspaceMember> membersByPath(Workspace workspace) {

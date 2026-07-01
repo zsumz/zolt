@@ -129,4 +129,125 @@ final class WorkspaceTestCommandSelectionTest {
         assertTrue(Files.exists(apiDir.resolve("target/test-classes/com/example/api/ApiTest.class")));
         assertFalse(Files.exists(workerDir.resolve("target/classes/com/example/worker/Worker.class")));
     }
+
+    @Test
+    void testWorkspaceDefaultMembersSubsetReportsTestedVersusTotal() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-default-subset");
+        Path cacheRoot = tempDir.resolve("cache-default-subset");
+        writeApiCoreWorkspace(workspaceDir, cacheRoot, """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+
+        CommandResult result = execute(
+                "test",
+                "--workspace",
+                "--cwd", workspaceDir.resolve("apps/api").toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Tests passed in apps/api"));
+        assertFalse(result.stdout().contains("Tests passed in modules/core"));
+        assertTrue(result.stdout().contains("Tested 1 of 2 workspace members; use --all to test every member"));
+        assertFalse(result.stdout().contains("Tests passed for 1 workspace members"));
+    }
+
+    @Test
+    void testWorkspaceAllDoesNotReadAsPartialRun() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-all-run");
+        Path cacheRoot = tempDir.resolve("cache-all-run");
+        writeApiCoreWorkspace(workspaceDir, cacheRoot, """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+
+        CommandResult result = execute(
+                "test",
+                "--workspace",
+                "--all",
+                "--cwd", workspaceDir.resolve("apps/api").toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("Tests passed in apps/api"));
+        assertTrue(result.stdout().contains("Tests passed in modules/core"));
+        assertTrue(result.stdout().contains("Tests passed for 2 workspace members"));
+        assertFalse(result.stdout().contains(" of 2 workspace members"));
+    }
+
+    private static void writeApiCoreWorkspace(Path workspaceDir, Path cacheRoot, String workspaceToml)
+            throws IOException {
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        writeFakeConsoleJar(cacheRoot.resolve(
+                "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"));
+        Files.writeString(workspaceDir.resolve("zolt.toml"), workspaceToml);
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        Path coreSource = coreDir.resolve("src/main/java/com/example/core/Core.java");
+        Files.createDirectories(coreSource.getParent());
+        Files.writeString(coreSource, """
+                package com.example.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        Path coreTest = coreDir.resolve("src/test/java/com/example/core/CoreTest.java");
+        Files.createDirectories(coreTest.getParent());
+        Files.writeString(coreTest, """
+                package com.example.core;
+
+                public final class CoreTest {
+                    public String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api") + """
+
+                [dependencies]
+                "com.example:core" = { workspace = "modules/core" }
+                """);
+        Path apiSource = apiDir.resolve("src/main/java/com/example/api/Api.java");
+        Files.createDirectories(apiSource.getParent());
+        Files.writeString(apiSource, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return Core.message();
+                    }
+                }
+                """);
+        Path apiTest = apiDir.resolve("src/test/java/com/example/api/ApiTest.java");
+        Files.createDirectories(apiTest.getParent());
+        Files.writeString(apiTest, """
+                package com.example.api;
+
+                import com.example.core.Core;
+
+                public final class ApiTest {
+                    public String message() {
+                        return Api.message() + Core.message();
+                    }
+                }
+                """);
+        WorkspaceTestCommandTestSupport.writeWorkspaceTestLockfile(workspaceDir);
+    }
 }

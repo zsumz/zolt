@@ -80,4 +80,66 @@ final class WorkspaceResolveCommandTest {
         assertFalse(Files.exists(apiDir.resolve("zolt.lock")));
         assertFalse(Files.exists(coreDir.resolve("zolt.lock")));
     }
+
+    @Test
+    void resolveOnWorkspaceRootWithoutWorkspaceFlagHintsWorkspace() throws IOException {
+        Path workspaceDir = writeWorkspaceRootConfig("hint-resolve");
+
+        CommandResult result = execute(
+                "resolve",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache-hint-resolve").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: This zolt.toml declares a [workspace], not a [project]"));
+        assertTrue(result.stderr().contains("Next: Re-run the command with --workspace"));
+        assertFalse(result.stderr().contains("Missing required section [project]"));
+    }
+
+    @Test
+    void buildOnWorkspaceRootWithoutWorkspaceFlagHintsWorkspace() throws IOException {
+        Path workspaceDir = writeWorkspaceRootConfig("hint-build");
+
+        CommandResult result = execute(
+                "build",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache-hint-build").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: This zolt.toml declares a [workspace], not a [project]"));
+        assertTrue(result.stderr().contains("Next: Re-run the command with --workspace"));
+        assertFalse(result.stderr().contains("Missing required section [project]"));
+    }
+
+    @Test
+    void testOnWorkspaceRootWithoutWorkspaceFlagHintsWorkspace() throws IOException {
+        Path workspaceDir = writeWorkspaceRootConfig("hint-test");
+
+        CommandResult result = execute(
+                "test",
+                "--cwd", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache-hint-test").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("error: This zolt.toml declares a [workspace], not a [project]"));
+        assertTrue(result.stderr().contains("Next: Re-run the command with --workspace"));
+        assertFalse(result.stderr().contains("Missing required section [project]"));
+    }
+
+    private Path writeWorkspaceRootConfig(String name) throws IOException {
+        Path workspaceDir = tempDir.resolve(name);
+        Path apiDir = workspaceDir.resolve("apps/api");
+        Path coreDir = workspaceDir.resolve("modules/core");
+        Files.createDirectories(apiDir);
+        Files.createDirectories(coreDir);
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
+                [workspace]
+                name = "workspace"
+                members = ["apps/api", "modules/core"]
+                defaultMembers = ["apps/api"]
+                """);
+        Files.writeString(apiDir.resolve("zolt.toml"), memberConfig("api"));
+        Files.writeString(coreDir.resolve("zolt.toml"), memberConfig("core"));
+        return workspaceDir;
+    }
 }

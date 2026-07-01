@@ -259,10 +259,13 @@ public final class TestCommand implements Runnable {
         }
         result.profileDirectory().ifPresent(directory ->
                 CommandTestProfileOutput.print(output, directory, profileSettings));
-        output.summary(
-                "Tests passed for " + result.members().size() + " workspace members",
-                result.members().size() + " members");
-        progress.result("Tested " + result.members().size() + " workspace members");
+        int testedMembers = result.members().size();
+        String summary = testedMembers < result.totalMemberCount()
+                ? "Tested " + testedMembers + " of " + result.totalMemberCount()
+                        + " workspace members; use --all to test every member"
+                : "Tests passed for " + testedMembers + " workspace members";
+        output.summary(summary, testedMembers + " members");
+        progress.result("Tested " + testedMembers + " workspace members");
     }
 
     private void runSingleProjectTests(

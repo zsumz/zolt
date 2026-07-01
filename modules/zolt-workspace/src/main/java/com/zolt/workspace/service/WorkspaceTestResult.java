@@ -12,19 +12,29 @@ public record WorkspaceTestResult(
         Optional<ResolveResult> resolveResult,
         List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
         List<MemberTestRunResult> members,
+        int totalMemberCount,
         Optional<Path> profileDirectory) {
     public WorkspaceTestResult {
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
         builtMembers = List.copyOf(builtMembers);
         members = List.copyOf(members);
+        totalMemberCount = Math.max(totalMemberCount, members.size());
         profileDirectory = profileDirectory == null ? Optional.empty() : profileDirectory;
     }
 
     public WorkspaceTestResult(
             Optional<ResolveResult> resolveResult,
             List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
+            List<MemberTestRunResult> members,
+            int totalMemberCount) {
+        this(resolveResult, builtMembers, members, totalMemberCount, Optional.empty());
+    }
+
+    public WorkspaceTestResult(
+            Optional<ResolveResult> resolveResult,
+            List<WorkspaceBuildResult.MemberBuildResult> builtMembers,
             List<MemberTestRunResult> members) {
-        this(resolveResult, builtMembers, members, Optional.empty());
+        this(resolveResult, builtMembers, members, members.size(), Optional.empty());
     }
 
     public boolean resolvedLockfile() {
