@@ -87,6 +87,39 @@ final class DependencyTraversalCandidateSelectorTest {
     }
 
     @Test
+    void wildcardEdgeExclusionsMatchByMavenSegmentSemantics() {
+        assertEdgeExcluded("*", "*");
+        assertEdgeExcluded("com.example", "*");
+        assertEdgeExcluded("*", "edge-lib");
+
+        DependencyTraversalSelection nonMatching = selector.select(candidate(
+                DependencyTraversalItem.direct(new DependencyRequest(
+                        ROOT.packageId(),
+                        ROOT.selectedVersion(),
+                        DependencyScope.COMPILE,
+                        RequestOrigin.DIRECT,
+                        List.of(new DependencyExclusion("other", "x")))),
+                dependency("com.example", "edge-lib", "1.0.0", DependencyScope.COMPILE, false)));
+
+        assertTrue(nonMatching.selectedItem().isPresent());
+        assertEquals(List.of(), nonMatching.policyEffects());
+    }
+
+    private void assertEdgeExcluded(String excludedGroupId, String excludedArtifactId) {
+        DependencyTraversalSelection selection = selector.select(candidate(
+                DependencyTraversalItem.direct(new DependencyRequest(
+                        ROOT.packageId(),
+                        ROOT.selectedVersion(),
+                        DependencyScope.COMPILE,
+                        RequestOrigin.DIRECT,
+                        List.of(new DependencyExclusion(excludedGroupId, excludedArtifactId)))),
+                dependency("com.example", "edge-lib", "1.0.0", DependencyScope.COMPILE, false)));
+
+        assertTrue(selection.selectedItem().isEmpty());
+        assertEquals("edge-exclusion", selection.policyEffects().getFirst().kind());
+    }
+
+    @Test
     void strictConstraintOverridesRequestedVersionAndReturnsPolicyEffect() {
         PackageId library = new PackageId("com.example", "lib");
         DependencyTraversalCandidateSelector constrained = selector(

@@ -8,6 +8,7 @@ import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyPolicySettings;
 import com.zolt.resolve.request.DependencyExclusion;
 import com.zolt.resolve.DependencyPolicyEffect;
+import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.request.DependencyRequest;
 import com.zolt.resolve.graph.PackageNode;
 import com.zolt.resolve.graph.ResolutionEdge;
@@ -153,9 +154,20 @@ public final class DependencyGraphTraverser {
             return List.of();
         }
         return dependencyPolicy.exclusions().stream()
-                .map(exclusion -> new DependencyGlobalExclusion(
-                        new DependencyExclusion(exclusion.group(), exclusion.artifact()),
-                        exclusion.reason()))
+                .map(exclusion -> {
+                    if ("*".equals(exclusion.group()) || "*".equals(exclusion.artifact())) {
+                        throw ResolveException.actionable(
+                                "Wildcard dependency exclusions are not supported in [dependencyPolicy].exclude: "
+                                        + exclusion.group()
+                                        + ":"
+                                        + exclusion.artifact()
+                                        + ".",
+                                "Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
+                    }
+                    return new DependencyGlobalExclusion(
+                            new DependencyExclusion(exclusion.group(), exclusion.artifact()),
+                            exclusion.reason());
+                })
                 .toList();
     }
 

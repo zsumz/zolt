@@ -153,4 +153,25 @@ final class ResolveServicePolicyConstraintTest extends ResolveServiceTestSupport
         assertTrue(exception.getMessage().contains("Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry"));
         assertEquals(0, totalRequests.get());
     }
+
+    @Test
+    void dependencyPolicyRejectsWildcardExclusion() {
+        Path projectDir = tempDir.resolve("project");
+        Path cacheRoot = tempDir.resolve("cache");
+        createDirectory(projectDir);
+        ProjectConfig config = config().withDependencyPolicy(new DependencyPolicySettings(
+                List.of(new DependencyPolicyExclusion(
+                        "com.example",
+                        "*",
+                        Optional.empty())),
+                Map.of()));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> resolveService.resolve(projectDir, config, cacheRoot));
+
+        assertTrue(exception.getMessage().contains(
+                "Wildcard dependency exclusions are not supported in [dependencyPolicy].exclude: com.example:*"));
+        assertTrue(exception.getMessage().contains("Replace it with explicit group and artifact exclusions"));
+    }
 }

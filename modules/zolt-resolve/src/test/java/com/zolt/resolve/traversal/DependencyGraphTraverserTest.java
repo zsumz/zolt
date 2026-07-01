@@ -189,6 +189,45 @@ final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSup
     }
 
     @Test
+    void appliesUniversalWildcardExclusionThroughDeclaringEdge() {
+        assertWildcardExclusionPrunesSharedThroughLeftEdge("*", "*");
+    }
+
+    @Test
+    void appliesGroupWildcardExclusionThroughDeclaringEdge() {
+        assertWildcardExclusionPrunesSharedThroughLeftEdge("com.example", "*");
+    }
+
+    @Test
+    void appliesArtifactWildcardExclusionThroughDeclaringEdge() {
+        assertWildcardExclusionPrunesSharedThroughLeftEdge("*", "shared");
+    }
+
+    private void assertWildcardExclusionPrunesSharedThroughLeftEdge(
+            String excludedGroupId,
+            String excludedArtifactId) {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependencyWithExclusion("com.example", "left", "1.0.0", excludedGroupId, excludedArtifactId),
+                dependency("com.example", "right", "1.0.0"))));
+        source.put("com.example:left:1.0.0", pom("com.example", "left", "1.0.0", List.of(dependency("com.example", "shared", "1.0.0"))));
+        source.put("com.example:right:1.0.0", pom("com.example", "right", "1.0.0", List.of(dependency("com.example", "shared", "1.0.0"))));
+        source.put("com.example:shared:1.0.0", pom("com.example", "shared", "1.0.0", List.of()));
+
+        ResolutionGraph graph = traverser(source).traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertEquals(List.of(
+                "com.example:root:1.0.0",
+                "com.example:left:1.0.0",
+                "com.example:right:1.0.0",
+                "com.example:shared:1.0.0"), nodeStrings(graph));
+        assertEquals(List.of(
+                "com.example:root:1.0.0->com.example:left:1.0.0",
+                "com.example:root:1.0.0->com.example:right:1.0.0",
+                "com.example:right:1.0.0->com.example:shared:1.0.0"), edgeStrings(graph));
+    }
+
+    @Test
     void appliesExclusionOnlyThroughDeclaringEdge() {
         MapBackedMetadataSource source = new MapBackedMetadataSource();
         source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
