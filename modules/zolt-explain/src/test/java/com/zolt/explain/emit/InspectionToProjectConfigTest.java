@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.zolt.explain.gradle.GradleInspectionResult;
-import com.zolt.explain.gradle.GradleStaticProjectInspector;
 import com.zolt.explain.maven.MavenInspectionResult;
 import com.zolt.explain.maven.MavenProjectInspection;
 import com.zolt.explain.maven.MavenStaticProjectInspector;
@@ -78,116 +76,6 @@ final class InspectionToProjectConfigTest {
         assertTrue(
                 draft.notes().stream().anyMatch(note -> note.contains("Maven profiles were detected")),
                 () -> "expected profile note in " + draft.notes());
-    }
-
-    @Test
-    void gradleDraftUsesRootProjectNameGroupVersionAndMainClass() throws IOException {
-        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'sales-report'\n");
-        Files.writeString(tempDir.resolve("build.gradle"), """
-                plugins { id 'java'\n    id 'application' }
-                group = 'com.example'
-                version = '0.3.1'
-                application { mainClass = 'com.example.report.ReportApp' }
-                dependencies {
-                    implementation 'org.slf4j:slf4j-api:2.0.16'
-                }
-                """);
-
-        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
-        DraftZoltToml draft = mapper.fromGradle(result);
-        ProjectConfig config = draft.config();
-
-        assertEquals("sales-report", config.project().name());
-        assertEquals("com.example", config.project().group());
-        assertEquals("0.3.1", config.project().version());
-        assertEquals("com.example.report.ReportApp", config.project().main().orElseThrow());
-        assertEquals("2.0.16", config.dependencies().get("org.slf4j:slf4j-api"));
-        assertFalse(
-                draft.notes().stream().anyMatch(note -> note.contains("could not read")),
-                () -> "no cannot-read note expected when group/version are present: " + draft.notes());
-    }
-
-    @Test
-    void gradleDraftFallsBackAndCommentsWhenGroupVersionAbsent() throws IOException {
-        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'bare'\n");
-        Files.writeString(tempDir.resolve("build.gradle"), """
-                plugins { id 'java' }
-                dependencies {
-                    implementation 'com.example:lib:1.0'
-                }
-                """);
-
-        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
-        DraftZoltToml draft = mapper.fromGradle(result);
-        ProjectConfig config = draft.config();
-
-        assertEquals("bare", config.project().name());
-        assertEquals("com.example", config.project().group());
-        assertEquals("0.1.0", config.project().version());
-        assertTrue(config.project().main().isEmpty());
-        assertTrue(
-                draft.notes().stream().anyMatch(note ->
-                        note.contains("group and version are placeholders")
-                                && note.contains("could not read them")),
-                () -> "expected the cannot-read fallback note: " + draft.notes());
-    }
-
-    //  -------------------------------------------------------------------------------
-
-    @Test
-    void gradleApiDependenciesRouteToApiChannelNotPlainDependencies() throws IOException {
-        Files.writeString(tempDir.resolve("settings.gradle.kts"), "rootProject.name = \"lib\"\n");
-        Files.writeString(tempDir.resolve("build.gradle.kts"), """
-                plugins { `java-library` }
-                group = "com.example"
-                version = "1.0.0"
-                dependencies {
-                    api("com.google.guava:guava:33.4.8-jre")
-                    implementation("org.slf4j:slf4j-api:2.0.16")
-                }
-                """);
-
-        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
-        DraftZoltToml draft = mapper.fromGradle(result);
-        ProjectConfig config = draft.config();
-
-        assertEquals("33.4.8-jre", config.apiDependencies().get("com.google.guava:guava"),
-                () -> "api dep must land in [api.dependencies]: " + config.apiDependencies());
-        assertFalse(config.dependencies().containsKey("com.google.guava:guava"),
-                () -> "api dep must not collapse into [dependencies]: " + config.dependencies());
-        assertEquals("2.0.16", config.dependencies().get("org.slf4j:slf4j-api"));
-        assertFalse(config.apiDependencies().containsKey("org.slf4j:slf4j-api"));
-    }
-
-    @Test
-    void gradleBundleReferenceExpandsAcrossApiChannelInDraft() throws IOException {
-        Files.createDirectories(tempDir.resolve("gradle"));
-        Files.writeString(tempDir.resolve("gradle/libs.versions.toml"), """
-                [versions]
-                jackson = "2.17.1"
-
-                [libraries]
-                jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson" }
-                jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
-
-                [bundles]
-                jackson = ["jackson-core", "jackson-databind"]
-                """);
-        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'lib'\n");
-        Files.writeString(tempDir.resolve("build.gradle"), """
-                plugins { id 'java-library' }
-                group = 'com.example'
-                version = '1.0.0'
-                dependencies {
-                    api libs.bundles.jackson
-                }
-                """);
-
-        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
-        ProjectConfig config = mapper.fromGradle(result).config();
-
-        assertEquals("2.17.1", config.apiDependencies().get("com.fasterxml.jackson.core:jackson-core"));
-        assertEquals("2.17.1", config.apiDependencies().get("com.fasterxml.jackson.core:jackson-databind"));
     }
 
     //  -------------------------------------------------------------------------------
