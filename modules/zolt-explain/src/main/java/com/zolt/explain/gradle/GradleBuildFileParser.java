@@ -68,7 +68,12 @@ final class GradleBuildFileParser {
         String block = block(content, "dependencies").orElse("");
         List<GradleDependencyInspection> dependencies = new ArrayList<>();
         for (String configuration : DEPENDENCY_CONFIGURATIONS) {
-            Pattern pattern = Pattern.compile("\\b" + Pattern.quote(configuration) + "\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
+            // Anchor the configuration to a statement-leading token (start of line, or after `{`/`;`)
+            // and require the token to end, so a config name only matches when it is the leading
+            // identifier of a dependency statement. This stops the `api` inside `slf4j-api` (a regex
+            // word boundary at `-`/`:`) from spawning a phantom `api`-scope dependency.
+            Pattern pattern = Pattern.compile(
+                    "(?m)(?:^|[{;])[\\t ]*" + Pattern.quote(configuration) + "(?![A-Za-z0-9_])\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
             Matcher matcher = pattern.matcher(block);
             while (matcher.find()) {
                 String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();

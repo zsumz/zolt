@@ -80,6 +80,28 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void configurationNameSubstringInArtifactIdDoesNotSpawnPhantomDependency() {
+        String content = """
+                dependencies {
+                    implementation 'org.slf4j:slf4j-api:2.0.16'
+                    implementation 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+                }
+                """;
+
+        var dependencies = parser.dependencies(content, Map.of());
+
+        assertEquals(2, dependencies.size(), () -> "expected exactly two real dependencies, got " + dependencies);
+        assertTrue(dependencies.stream().allMatch(dependency -> dependency.configuration().equals("implementation")),
+                () -> "no dependency should be attributed to the `api` config from the `slf4j-api` substring: " + dependencies);
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.slf4j:slf4j-api:2.0.16")));
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("jakarta.annotation:jakarta.annotation-api:3.0.0")));
+        assertTrue(dependencies.stream().noneMatch(dependency -> dependency.configuration().equals("api")),
+                () -> "phantom api-config entry leaked from an artifact-id substring: " + dependencies);
+    }
+
+    @Test
     void parsesSourceRootsWithDefaultsForAdditiveSourceDirs() {
         String content = """
                 sourceSets {
