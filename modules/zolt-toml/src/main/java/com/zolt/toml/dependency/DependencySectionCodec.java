@@ -249,8 +249,7 @@ public final class DependencySectionCodec {
         }
         List<DependencyExclusionSpec> exclusions = new ArrayList<>();
         for (int index = 0; index < array.size(); index++) {
-            TomlTable exclusion = array.getTable(index);
-            if (exclusion == null) {
+            if (!(array.get(index) instanceof TomlTable exclusion)) {
                 throw new ZoltConfigException(
                         "Invalid value for [" + section + "].exclusions[" + index + "] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.");
             }

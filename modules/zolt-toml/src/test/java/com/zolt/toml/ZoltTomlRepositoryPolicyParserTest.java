@@ -109,6 +109,24 @@ final class ZoltTomlRepositoryPolicyParserTest {
     }
 
     @Test
+    void rejectsStringElementInDependencyPolicyExcludeArray() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [dependencyPolicy]
+                exclude = ["commons-logging:commons-logging"]
+                """));
+
+        assertEquals(
+                "Invalid value for [dependencyPolicy].exclude[0] in zolt.toml. Use { group = \"...\", artifact = \"...\" }.",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsUnsupportedDependencyConstraintKind() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]
