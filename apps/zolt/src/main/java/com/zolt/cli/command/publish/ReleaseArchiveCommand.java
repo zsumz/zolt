@@ -70,11 +70,15 @@ public final class ReleaseArchiveCommand implements Runnable {
                     nativeBinary,
                     outputDirectory);
             CommandHumanOutput output = CommandHumanOutput.of(spec);
-            output.success("Assembled " + result.target().id() + " release archive");
-            output.detail("Included " + result.fileCount() + " files under " + result.rootDirectory());
-            output.detail("Wrote archive to " + result.archivePath());
-            output.detail("Wrote checksum to " + result.checksumPath());
-            output.detail("Wrote manifest to " + result.manifestPath());
+            output.summary(
+                    "Assembled " + result.target().id() + " release archive",
+                    result.fileCount() + " files",
+                    "root " + result.rootDirectory());
+            output.pointers(
+                    "wrote",
+                    result.archivePath().toString(),
+                    result.checksumPath().toString(),
+                    result.manifestPath().toString());
             progress.result("Assembled " + result.target().id() + " release archive");
         } catch (ReleaseArchiveException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);

@@ -208,12 +208,11 @@ public final class IntegrationTestCommand implements Runnable {
             }
             output.success("Integration tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    output.detail("Wrote integration test reports for "
-                            + member.member()
-                            + " to "
-                            + directory));
+                    output.pointer("wrote", directory.toString()));
         }
-        output.success("Integration tests passed for " + result.members().size() + " workspace members");
+        output.summary(
+                "Integration tests passed for " + result.members().size() + " workspace members",
+                result.members().size() + " members");
     }
 
     private void runSingleProjectIntegrationTests(
@@ -275,9 +274,11 @@ public final class IntegrationTestCommand implements Runnable {
         if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
             output.blankLine();
         }
-        output.success("Integration tests passed");
+        output.summary(
+                "Integration tests passed",
+                result.compileResult().sourceCount() + " test source files");
         result.reportsDirectory().ifPresent(directory ->
-                output.detail("Wrote integration test reports to " + directory));
+                output.pointer("wrote", directory.toString()));
     }
 
     private Path integrationReportsDir(ProjectConfig config) {

@@ -39,8 +39,8 @@ final class TestCommandTest extends TestCommandTestSupport {
         Path report = projectDir.resolve("target/test-reports/TEST-fake-console.xml");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("Tests passed"));
-        assertTrue(result.stdout().contains("Wrote test reports to "
+        assertTrue(result.stdout().contains("✔ Tests passed"));
+        assertTrue(result.stdout().contains("→ wrote "
                 + projectDir.resolve("target/test-reports").toAbsolutePath().normalize()));
         assertTrue(result.stderr().contains("Testing project..."));
         assertTrue(result.stderr().contains("Tested project"));
@@ -90,9 +90,8 @@ final class TestCommandTest extends TestCommandTestSupport {
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("\u001B[36mTesting\u001B[0m color-demo"));
         assertFalse(result.stdout().contains("\u001B[36mTesting color-demo"));
-        assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 test source files"));
-        assertFalse(result.stdout().contains("\u001B[32mCompiled 1 test source files"));
-        assertTrue(result.stdout().contains("\u001B[32mTests\u001B[0m passed"));
+        assertTrue(result.stdout().contains("1 test source files\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Tests passed"));
         assertFalse(result.stdout().contains("\u001B[32mTests passed\u001B[0m"));
         assertTrue(result.stderr().contains("\u001B[36mTesting\u001B[0m project..."));
         assertTrue(result.stderr().contains("\u001B[32mTested\u001B[0m project"));

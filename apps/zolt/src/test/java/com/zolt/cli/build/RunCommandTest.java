@@ -83,7 +83,7 @@ final class RunCommandTest {
                 "--cache-root", tempDir.resolve("quiet-cache").toString());
 
         assertEquals(0, color.exitCode(), color.stderr());
-        assertTrue(color.stdout().contains("app output\n\u001B[32mRan\u001B[0m com.example.Main"));
+        assertTrue(color.stdout().contains("app output\n\u001B[32m✔\u001B[0m Ran com.example.Main"));
         assertFalse(color.stdout().contains("\u001B[32mRan com.example.Main"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("app output", quiet.stdout());

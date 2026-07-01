@@ -93,8 +93,8 @@ final class BuildCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Resolved dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("Compiled 1 main source files"));
-        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
+        assertTrue(result.stdout().contains("✔ Compiled 1 main source files"));
+        assertTrue(result.stdout().contains("→ wrote " + projectDir.resolve("target/classes")));
         assertTrue(result.stderr().contains("Building project..."));
         assertTrue(result.stderr().contains("Built 1 main source files"));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
@@ -175,9 +175,9 @@ final class BuildCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[36mBuilding\u001B[0m demo"));
         assertFalse(result.stdout().contains("\u001B[36mBuilding demo"));
-        assertTrue(result.stdout().contains("\u001B[32mCompiled\u001B[0m 1 main source files"));
-        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m classes to "
-                + projectDir.resolve("target/classes")));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Compiled 1 main source files"));
+        assertTrue(result.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m"
+                + projectDir.resolve("target/classes") + "\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[32mCompiled 1 main source files\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[32mWrote classes to "));
         assertTrue(result.stderr().contains("\u001B[36mBuilding\u001B[0m project..."));

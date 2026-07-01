@@ -187,12 +187,11 @@ public final class RunPackageCommand implements Runnable {
             if (!output.isEmpty() && !output.endsWith("\n")) {
                 humanOutput.blankLine();
             }
-            humanOutput.success("Ran packaged "
+            humanOutput.summary("Ran packaged "
                     + member.result().javaRunResult().mainClass()
                     + " in "
-                    + member.member()
-                    + " from "
-                    + member.result().packageResult().jarPath());
+                    + member.member());
+            humanOutput.pointer("from", member.result().packageResult().jarPath().toString());
         }
     }
 
@@ -220,9 +219,7 @@ public final class RunPackageCommand implements Runnable {
         if (!output.isEmpty() && !output.endsWith("\n")) {
             humanOutput.blankLine();
         }
-        humanOutput.success("Ran packaged "
-                + result.javaRunResult().mainClass()
-                + " from "
-                + result.packageResult().jarPath());
+        humanOutput.summary("Ran packaged " + result.javaRunResult().mainClass());
+        humanOutput.pointer("from", result.packageResult().jarPath().toString());
     }
 }

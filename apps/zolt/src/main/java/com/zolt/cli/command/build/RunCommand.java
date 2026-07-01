@@ -144,7 +144,7 @@ public final class RunCommand implements Runnable {
                     if (!processOutput.isEmpty() && !processOutput.endsWith("\n")) {
                         output.blankLine();
                     }
-                    output.success("Ran "
+                    output.summary("Ran "
                             + member.result().javaRunResult().mainClass()
                             + " in "
                             + member.member());
@@ -169,7 +169,7 @@ public final class RunCommand implements Runnable {
             if (!processOutput.isEmpty() && !processOutput.endsWith("\n")) {
                 output.blankLine();
             }
-            output.success("Ran " + result.javaRunResult().mainClass());
+            output.summary("Ran " + result.javaRunResult().mainClass());
         } catch (JavaRunException exception) {
             throw CommandFailures.user(spec, firstLine(exception.getMessage()), exception);
         } catch (BuildException

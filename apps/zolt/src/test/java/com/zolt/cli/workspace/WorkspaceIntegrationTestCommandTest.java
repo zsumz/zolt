@@ -67,7 +67,7 @@ final class WorkspaceIntegrationTestCommandTest {
         assertEquals(0, result.exitCode(), result.stderr());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Integration tests passed in apps/api"));
-        assertTrue(result.stdout().contains("Wrote integration test reports for apps/api to "));
+        assertTrue(result.stdout().contains("→ wrote "));
         assertTrue(result.stdout().contains("Integration tests passed for 1 workspace members"));
         assertTrue(Files.exists(coreDir.resolve("target/classes/com/example/core/Core.class")));
         assertTrue(Files.exists(apiDir.resolve("target/integration-test-classes/com/example/api/ApiIT.class")));

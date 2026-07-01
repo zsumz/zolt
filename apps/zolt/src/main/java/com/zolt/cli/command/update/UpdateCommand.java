@@ -80,15 +80,18 @@ public final class UpdateCommand implements Callable<Integer> {
     private void print(NativeUpdateResult result) {
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         if (result.updated()) {
-            output.success("Updated native Zolt to " + result.availableVersion());
+            output.summary(
+                    "Updated native Zolt to " + result.availableVersion(),
+                    "from " + result.previousVersion(),
+                    result.channel() + " channel",
+                    result.target().id());
         } else {
-            output.success("Zolt is already current at " + result.previousVersion());
+            output.summary(
+                    "Zolt is already current at " + result.previousVersion(),
+                    result.channel() + " channel",
+                    result.target().id());
         }
-        output.context("Channel", result.channel());
-        output.context("Target", result.target().id());
-        output.context("Current version", result.previousVersion());
-        output.context("Available version", result.availableVersion());
-        output.context("Executable", result.executable().toString());
+        output.pointer("wrote", result.executable().toString());
         if (result.updated()) {
             output.next("Run `zolt --version` to confirm the active native executable.");
         }

@@ -45,16 +45,14 @@ final class NativeCommandWorkspaceTest {
         assertEquals(0, result.exitCode(), result.stderr());
         assertTrue(result.stdout().contains("\u001B[32mResolved\u001B[0m workspace dependencies because zolt.lock was missing"));
         assertFalse(result.stdout().contains("\u001B[32mResolved workspace dependencies because zolt.lock was missing"));
-        assertTrue(result.stdout().contains("\u001B[32mBuilt\u001B[0m native binary at "
-                + workspaceDir.resolve("apps/api/target/native/api")
-                + " in apps/api"));
-        assertFalse(result.stdout().contains("\u001B[32mBuilt native binary at "));
-        assertTrue(result.stdout().contains("\u001B[32mPreserved\u001B[0m Native Image log at "
-                + workspaceDir.resolve("apps/api/target/native/native-image.log")
-                + " in apps/api"));
-        assertFalse(result.stdout().contains("\u001B[32mPreserved Native Image log at "));
-        assertTrue(result.stdout().contains("\u001B[32mBuilt\u001B[0m native binaries for 1 workspace members"));
-        assertFalse(result.stdout().contains("\u001B[32mBuilt native binaries for 1 workspace members"));
+        assertTrue(result.stdout().contains("\u001B[32mBuilt\u001B[0m native binary in apps/api"));
+        assertFalse(result.stdout().contains("\u001B[32mBuilt native binary in apps/api\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m"
+                + workspaceDir.resolve("apps/api/target/native/api") + "\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m→\u001B[0m logged \u001B[36m"
+                + workspaceDir.resolve("apps/api/target/native/native-image.log") + "\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Built native binaries for 1 workspace members"));
+        assertFalse(result.stdout().contains("\u001B[32mBuilt native binaries for 1 workspace members\u001B[0m"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(workspaceDir.resolve("apps/api/target/native/api")));

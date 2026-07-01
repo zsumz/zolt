@@ -109,7 +109,7 @@ final class BuildCommandDiagnosticsTest {
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stdout().contains("Compiled 0 main source files"));
-        assertTrue(result.stdout().contains("Wrote classes to " + projectDir.resolve("target/classes")));
+        assertTrue(result.stdout().contains("→ wrote " + projectDir.resolve("target/classes")));
         assertTrue(result.stderr().contains("No Quarkus deployment artifacts were found in zolt.lock"));
         assertTrue(result.stderr().contains("run `zolt resolve`"));
     }

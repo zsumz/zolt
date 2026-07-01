@@ -31,11 +31,12 @@ final class ReleaseCommandTest {
                 "--target", "linux-x64");
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Assembled linux-x64 release archive"));
-        assertTrue(result.stdout().contains("Included 3 files under demo-0.1.0-linux-x64"));
-        assertTrue(result.stdout().contains("Wrote archive to " + archive));
-        assertTrue(result.stdout().contains("Wrote checksum to " + archive + ".sha256"));
-        assertTrue(result.stdout().contains("Wrote manifest to " + projectDir.resolve("dist/release-manifest.json")));
+        assertTrue(result.stdout().contains("✔ Assembled linux-x64 release archive"));
+        assertTrue(result.stdout().contains("3 files"));
+        assertTrue(result.stdout().contains("root demo-0.1.0-linux-x64"));
+        assertTrue(result.stdout().contains("→ wrote " + archive));
+        assertTrue(result.stdout().contains("→ wrote " + archive + ".sha256"));
+        assertTrue(result.stdout().contains("→ wrote " + projectDir.resolve("dist/release-manifest.json")));
         assertTrue(result.stderr().contains("Assembling release archive..."));
         assertTrue(result.stderr().contains("Assembled linux-x64 release archive"));
         assertTrue(Files.exists(archive));
@@ -65,16 +66,16 @@ final class ReleaseCommandTest {
                 "--output", "dist-quiet");
         Path archive = projectDir.resolve("dist-color/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, color.exitCode(), color.stderr());
-        assertTrue(color.stdout().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));
-        assertFalse(color.stdout().contains("\u001B[32mAssembled linux-x64 release archive"));
-        assertTrue(color.stdout().contains("\u001B[32mIncluded\u001B[0m 2 files under demo-0.1.0-linux-x64"));
-        assertFalse(color.stdout().contains("\u001B[32mIncluded 2 files under demo-0.1.0-linux-x64"));
-        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + archive));
+        assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Assembled linux-x64 release archive"));
+        assertFalse(color.stdout().contains("\u001B[32mAssembled linux-x64 release archive\u001B[0m"));
+        assertTrue(color.stdout().contains("2 files\u001B[0m"));
+        assertTrue(color.stdout().contains("root demo-0.1.0-linux-x64\u001B[0m"));
+        assertTrue(color.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m" + archive + "\u001B[0m"));
         assertFalse(color.stdout().contains("\u001B[32mWrote archive to "));
-        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m checksum to " + archive + ".sha256"));
+        assertTrue(color.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m" + archive + ".sha256\u001B[0m"));
         assertFalse(color.stdout().contains("\u001B[32mWrote checksum to "));
-        assertTrue(color.stdout().contains("\u001B[32mWrote\u001B[0m manifest to "
-                + projectDir.resolve("dist-color/release-manifest.json")));
+        assertTrue(color.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m"
+                + projectDir.resolve("dist-color/release-manifest.json") + "\u001B[0m"));
         assertFalse(color.stdout().contains("\u001B[32mWrote manifest to "));
         assertTrue(color.stderr().contains("\u001B[36mAssembling\u001B[0m release archive..."));
         assertTrue(color.stderr().contains("\u001B[32mAssembled\u001B[0m linux-x64 release archive"));

@@ -86,7 +86,7 @@ final class PackageSpringBootJarCommandTest {
                 "--cache-root", cacheRoot.toString());
 
         assertEquals(0, result.exitCode(), result.stderr());
-        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as spring-boot jar"));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Packaged 1 compiled files as spring-boot jar"));
         assertTrue(result.stdout().contains("Run with: "));
         assertTrue(result.stdout().contains("Run with Zolt: "));
         assertFalse(result.stdout().contains("\u001B[32mRun with"));

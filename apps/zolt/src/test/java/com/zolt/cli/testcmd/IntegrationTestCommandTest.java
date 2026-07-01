@@ -70,10 +70,10 @@ final class IntegrationTestCommandTest extends TestCommandTestSupport {
 
         assertEquals(0, result.exitCode(), result.stderr());
         assertTrue(result.stdout().contains("fake console"));
-        assertTrue(result.stdout().contains("\u001B[32mIntegration\u001B[0m tests passed"));
-        assertFalse(result.stdout().contains("\u001B[32mIntegration tests passed"));
-        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m integration test reports to "
-                + projectDir.resolve(".zolt/build/integration-test-reports").toAbsolutePath().normalize()));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Integration tests passed"));
+        assertFalse(result.stdout().contains("\u001B[32mIntegration tests passed\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m"
+                + projectDir.resolve(".zolt/build/integration-test-reports").toAbsolutePath().normalize() + "\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[32mWrote integration test reports to "));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("fake console\n", quiet.stdout());

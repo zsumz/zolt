@@ -140,7 +140,9 @@ public final class BuildCommand implements Runnable {
                                     + " main source files in "
                                     + member.member());
                 }
-                output.success("Compiled " + result.sourceCount() + " workspace main source files");
+                output.summary(
+                        "Compiled " + result.sourceCount() + " workspace main source files",
+                        result.members().size() + " members");
                 progress.result("Built " + result.sourceCount() + " workspace main source files");
                 return;
             }
@@ -159,13 +161,14 @@ public final class BuildCommand implements Runnable {
             }
             if (result.mainCompilationSkipped()) {
                 output.detail("Skipped main compilation; inputs are unchanged");
+            } else if (result.resourceCount() > 0) {
+                output.summary(
+                        "Compiled " + result.sourceCount() + " main source files",
+                        result.resourceCount() + " resources");
             } else {
-                output.success("Compiled " + result.sourceCount() + " main source files");
+                output.summary("Compiled " + result.sourceCount() + " main source files");
             }
-            if (result.resourceCount() > 0) {
-                output.detail("Copied " + result.resourceCount() + " resources");
-            }
-            output.detail("Wrote classes to " + result.outputDirectory());
+            output.pointer("wrote", result.outputDirectory().toString());
             progress.result("Built " + result.sourceCount() + " main source files");
             Optional<FrameworkBuildAugmentationResult> augmentationResult =
                     timings.measure(

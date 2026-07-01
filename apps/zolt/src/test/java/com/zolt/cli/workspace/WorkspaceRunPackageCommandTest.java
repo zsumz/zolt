@@ -35,7 +35,8 @@ final class WorkspaceRunPackageCommandTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Resolved workspace dependencies because zolt.lock was missing"));
         assertTrue(result.stdout().contains("core:hello"));
-        assertTrue(result.stdout().contains("Ran packaged com.example.api.Api in apps/api from "));
+        assertTrue(result.stdout().contains("Ran packaged com.example.api.Api in apps/api"));
+        assertTrue(result.stdout().contains("→ from "));
         assertTrue(Files.exists(fixture.apiDir().resolve("target/api-0.1.0.jar")));
         assertFalse(Files.exists(fixture.coreDir().resolve("target/core-0.1.0.jar")));
     }

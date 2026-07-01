@@ -46,9 +46,9 @@ final class UpdateCommandTest {
         CommandResult result = update(installed, channel);
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Zolt is already current at 0.1.0"));
-        assertTrue(result.stdout().contains("Channel: stable"));
-        assertTrue(result.stdout().contains("Target: linux-x64"));
+        assertTrue(result.stdout().contains("✔ Zolt is already current at 0.1.0"));
+        assertTrue(result.stdout().contains("stable channel"));
+        assertTrue(result.stdout().contains("linux-x64"));
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
@@ -60,9 +60,8 @@ final class UpdateCommandTest {
         CommandResult result = update(installed, channel);
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Updated native Zolt to 0.1.1"));
-        assertTrue(result.stdout().contains("Current version: 0.1.0"));
-        assertTrue(result.stdout().contains("Available version: 0.1.1"));
+        assertTrue(result.stdout().contains("✔ Updated native Zolt to 0.1.1"));
+        assertTrue(result.stdout().contains("from 0.1.0"));
         assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
         assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
     }
@@ -87,8 +86,8 @@ final class UpdateCommandTest {
                 "--work-dir", tempDir.resolve("update-work").toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Updated native Zolt to 0.1.0-nightly.20260628.0123456"));
-        assertTrue(result.stdout().contains("Channel: nightly"));
+        assertTrue(result.stdout().contains("✔ Updated native Zolt to 0.1.0-nightly.20260628.0123456"));
+        assertTrue(result.stdout().contains("nightly channel"));
         assertEquals(
                 "../versions/0.1.0-nightly.20260628.0123456/bin/zolt",
                 Files.readSymbolicLink(installed.binLink()).toString());

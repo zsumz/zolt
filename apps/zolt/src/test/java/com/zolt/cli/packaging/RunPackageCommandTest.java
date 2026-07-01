@@ -43,8 +43,9 @@ final class RunPackageCommandTest {
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("packaged one two"));
-        assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
-        assertTrue(color.stdout().contains("packaged one two\n\u001B[32mRan\u001B[0m packaged com.example.Main"));
+        assertTrue(result.stdout().contains("Ran packaged com.example.Main"));
+        assertTrue(result.stdout().contains("→ from " + jarPath));
+        assertTrue(color.stdout().contains("packaged one two\n\u001B[32m✔\u001B[0m Ran packaged com.example.Main"));
         assertFalse(color.stdout().contains("\u001B[32mRan packaged com.example.Main"));
         assertEquals("packaged one two\n", quiet.stdout());
         assertTrue(Files.exists(jarPath));
@@ -74,7 +75,8 @@ final class RunPackageCommandTest {
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("packaged directory"));
-        assertTrue(result.stdout().contains("Ran packaged com.example.Main from " + jarPath));
+        assertTrue(result.stdout().contains("Ran packaged com.example.Main"));
+        assertTrue(result.stdout().contains("→ from " + jarPath));
         assertTrue(Files.exists(jarPath));
     }
 

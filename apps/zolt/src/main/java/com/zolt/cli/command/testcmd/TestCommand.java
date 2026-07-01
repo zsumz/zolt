@@ -255,17 +255,13 @@ public final class TestCommand implements Runnable {
             }
             output.success("Tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    output.detail("Wrote test reports for "
-                            + member.member()
-                            + " to "
-                            + directory));
+                    output.pointer("wrote", directory.toString()));
         }
         result.profileDirectory().ifPresent(directory ->
                 CommandTestProfileOutput.print(output, directory, profileSettings));
-        output.success(
-                "Tests passed for "
-                        + result.members().size()
-                        + " workspace members");
+        output.summary(
+                "Tests passed for " + result.members().size() + " workspace members",
+                result.members().size() + " members");
         progress.result("Tested " + result.members().size() + " workspace members");
     }
 
@@ -336,10 +332,11 @@ public final class TestCommand implements Runnable {
         if (!result.output().isEmpty() && !result.output().endsWith("\n")) {
             output.blankLine();
         }
-        output.detail("Compiled " + result.compileResult().sourceCount() + " test source files");
-        output.success("Tests passed");
+        output.summary(
+                "Tests passed",
+                result.compileResult().sourceCount() + " test source files");
         result.reportsDirectory().ifPresent(directory ->
-                output.detail("Wrote test reports to " + directory));
+                output.pointer("wrote", directory.toString()));
         CommandTestProfileOutput.print(output, result, profileSettings);
         progress.result("Tested project");
     }

@@ -96,9 +96,8 @@ final class WorkspaceTestCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("fake console"));
         assertTrue(result.stdout().contains("Tests passed in modules/core"));
-        assertTrue(result.stdout().contains("Wrote test reports for modules/core to "));
+        assertTrue(result.stdout().contains("→ wrote "));
         assertTrue(result.stdout().contains("Tests passed in apps/api"));
-        assertTrue(result.stdout().contains("Wrote test reports for apps/api to "));
         assertTrue(result.stdout().contains("Tests passed for 2 workspace members"));
         assertTrue(Files.exists(coreDir.resolve("target/test-reports/modules/core/TEST-fake-console.xml")));
         assertTrue(Files.exists(apiDir.resolve("target/test-reports/apps/api/TEST-fake-console.xml")));

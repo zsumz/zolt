@@ -47,9 +47,9 @@ final class PackageCommandTest extends PackageCommandTestSupport {
         assertTrue(result.stdout().contains("Run with dependencies: zolt run-package -- [args]"));
         assertTrue(result.stdout().contains("Thin jar: dependencies are not bundled."));
         assertTrue(result.stdout().contains(
-                "Wrote runtime classpath to " + projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
-        assertTrue(result.stdout().contains("Wrote archive to " + jarPath));
-        assertTrue(result.stdout().contains("Wrote package evidence to " + jarPath + ".zolt-package.json"));
+                "→ wrote " + projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
+        assertTrue(result.stdout().contains("→ wrote " + jarPath));
+        assertTrue(result.stdout().contains("→ wrote " + jarPath + ".zolt-package.json"));
         assertTrue(Files.exists(projectDir.resolve("zolt.lock")));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.runtime-classpath")));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.jar.zolt-package.json")));
@@ -138,7 +138,7 @@ final class PackageCommandTest extends PackageCommandTestSupport {
                 "--cache-root", tempDir.resolve("color-cache").toString());
 
         assertEquals(0, result.exitCode(), result.stderr());
-        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as uber jar"));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Packaged 1 compiled files as uber jar"));
         assertTrue(result.stdout().contains("Run as a self-contained jar: "));
         assertFalse(result.stdout().contains("\u001B[32mRun as"));
         assertFalse(result.stdout().contains("\u001B[36mRun as"));
@@ -212,7 +212,7 @@ final class PackageCommandTest extends PackageCommandTestSupport {
 
         Path jarPath = projectDir.resolve(".zolt/build/demo-0.1.0.jar");
         assertEquals(0, packageResult.exitCode(), packageResult.stderr());
-        assertTrue(packageResult.stdout().contains("Wrote archive to " + jarPath));
+        assertTrue(packageResult.stdout().contains("→ wrote " + jarPath));
         assertTrue(Files.exists(jarPath));
         assertTrue(Files.exists(projectDir.resolve(".zolt/build/classes/com/example/Main.class")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/MavenMain.class")));

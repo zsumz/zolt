@@ -69,8 +69,8 @@ final class PackageSpringBootWarCommandTest {
         assertEquals("", result.stderr());
         assertTrue(result.stdout().contains("Packaged"));
         assertTrue(result.stdout().contains("spring-boot-war"));
-        assertTrue(result.stdout().contains("Wrote archive to " + warPath));
-        assertTrue(result.stdout().contains("Wrote package evidence to " + warPath + ".zolt-package.json"));
+        assertTrue(result.stdout().contains("→ wrote " + warPath));
+        assertTrue(result.stdout().contains("→ wrote " + warPath + ".zolt-package.json"));
         assertTrue(Files.exists(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json")));
         assertFalse(result.stdout().contains("CONTAINER_DEPENDENCY_PACKAGED"));
         String evidence = Files.readString(projectDir.resolve("target/demo-0.1.0.war.zolt-package.json"));

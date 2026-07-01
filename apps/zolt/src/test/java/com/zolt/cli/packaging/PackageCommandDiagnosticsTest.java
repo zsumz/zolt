@@ -131,9 +131,9 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
 
         Path jarPath = projectDir.resolve("target/demo-0.1.0.jar");
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
+        assertTrue(result.stdout().contains("\u001B[32m✔\u001B[0m Packaged 1 compiled files as thin jar"));
         assertTrue(result.stdout().contains("\u001B[32mIncluded\u001B[0m Main-Class manifest entry"));
-        assertTrue(result.stdout().contains("\u001B[32mWrote\u001B[0m archive to " + jarPath));
+        assertTrue(result.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m" + jarPath + "\u001B[0m"));
         assertTrue(result.stdout().contains("Run with: "));
         assertTrue(result.stdout().contains("Run with dependencies: "));
         assertFalse(result.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar\u001B[0m"));
@@ -177,7 +177,7 @@ final class PackageCommandDiagnosticsTest extends PackageCommandTestSupport {
         assertTrue(color.stdout().contains(
                 "\u001B[32mResolved\u001B[0m dependencies because zolt.lock was missing"));
         assertFalse(color.stdout().contains("\u001B[32mResolved dependencies because zolt.lock was missing"));
-        assertTrue(color.stdout().contains("\u001B[32mPackaged\u001B[0m 1 compiled files as thin jar"));
+        assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Packaged 1 compiled files as thin jar"));
         assertFalse(color.stdout().contains("\u001B[32mPackaged 1 compiled files as thin jar"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());

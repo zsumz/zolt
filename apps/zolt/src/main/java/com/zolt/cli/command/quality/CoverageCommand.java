@@ -179,7 +179,7 @@ public final class CoverageCommand implements Runnable {
                 }
             }
             printCoverageReports(output, "Coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
-            result.testRunResult().reportsDirectory().ifPresent(path -> output.detail("Test reports: " + path));
+            result.testRunResult().reportsDirectory().ifPresent(path -> output.pointer("wrote", path.toString()));
         } catch (BuildException
                 | CoverageException
                 | JavacException
@@ -246,10 +246,7 @@ public final class CoverageCommand implements Runnable {
             }
             output.success("Coverage tests passed in " + member.member());
             member.result().reportsDirectory().ifPresent(directory ->
-                    output.detail("Wrote coverage test reports for "
-                            + member.member()
-                            + " to "
-                            + directory));
+                    output.pointer("wrote", directory.toString()));
         }
         if (!result.reportOutput().isBlank()) {
             CommandOutput.printAndFlush(spec, result.reportOutput());
@@ -258,7 +255,9 @@ public final class CoverageCommand implements Runnable {
             }
         }
         printCoverageReports(output, "Workspace coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
-        output.success("Coverage passed for " + result.members().size() + " workspace members");
+        output.summary(
+                "Coverage passed for " + result.members().size() + " workspace members",
+                result.members().size() + " members");
     }
 
     private static void printCoverageReports(
@@ -267,9 +266,10 @@ public final class CoverageCommand implements Runnable {
             Path execFile,
             Optional<Path> xmlReport,
             Optional<Path> htmlDirectory) {
-        output.success(summary);
-        output.detail("Execution data: " + execFile);
-        xmlReport.ifPresent(path -> output.detail("XML report: " + path));
-        htmlDirectory.ifPresent(path -> output.detail("HTML report: " + path));
+        int reportCount = 1 + (xmlReport.isPresent() ? 1 : 0) + (htmlDirectory.isPresent() ? 1 : 0);
+        output.summary(summary, reportCount + (reportCount == 1 ? " report" : " reports"));
+        output.pointer("wrote", execFile.toString());
+        xmlReport.ifPresent(path -> output.pointer("wrote", path.toString()));
+        htmlDirectory.ifPresent(path -> output.pointer("wrote", path.toString()));
     }
 }

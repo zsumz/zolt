@@ -29,15 +29,15 @@ final class CommandPackageResultWriterTest {
 
         assertEquals(
                 """
-                Packaged 2 compiled files as thin jar
-                Included Main-Class manifest entry
-                Run with: java -jar target/demo.jar
-                Run with dependencies: zolt run-package -- [args]
-                Thin jar: dependencies are not bundled.
-                Wrote runtime classpath to target/demo.runtime-classpath
-                Wrote archive to target/demo.jar
-                Wrote package evidence to target/demo.jar.zolt-package.json
-                Wrote sources jar to target/demo-sources.jar
+                SUMMARY Packaged 2 compiled files as thin jar
+                DETAIL Included Main-Class manifest entry
+                DETAIL Run with: java -jar target/demo.jar
+                DETAIL Run with dependencies: zolt run-package -- [args]
+                DETAIL Thin jar: dependencies are not bundled.
+                POINTER wrote target/demo.jar
+                POINTER wrote target/demo.runtime-classpath
+                POINTER wrote target/demo.jar.zolt-package.json
+                POINTER wrote target/demo-sources.jar
                 """,
                 print(result, ""));
     }
@@ -54,9 +54,9 @@ final class CommandPackageResultWriterTest {
 
         assertEquals(
                 """
-                Packaged 4 compiled files as uber jar in member
-                Included Main-Class manifest entry in member
-                Wrote archive to member/target/demo.jar
+                SUMMARY Packaged 4 compiled files as uber jar in member
+                DETAIL Included Main-Class manifest entry in member
+                POINTER wrote member/target/demo.jar
                 """,
                 print(result, " in member"));
     }
@@ -73,17 +73,23 @@ final class CommandPackageResultWriterTest {
 
         assertEquals(
                 """
-                Packaged 3 compiled files as war war
-                WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.
-                WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.
-                Wrote archive to target/demo.war
+                SUMMARY Packaged 3 compiled files as war war
+                DETAIL WAR is a servlet container deployment artifact; use `spring-boot-war` for java -jar.
+                DETAIL WAR: application classes are under WEB-INF/classes and runtime dependencies are under WEB-INF/lib.
+                POINTER wrote target/demo.war
                 """,
                 print(result, ""));
     }
 
     private String print(PackageResult result, String suffix) {
         return writer.lines(result, suffix).stream()
-                .map(CommandPackageResultWriter.OutputLine::message)
+                .map(line -> {
+                    String prefix = line.kind() + " ";
+                    return switch (line.kind()) {
+                        case POINTER -> prefix + line.verb() + " " + line.message();
+                        default -> prefix + line.message();
+                    };
+                })
                 .reduce("", (left, right) -> left + right + "\n");
     }
 

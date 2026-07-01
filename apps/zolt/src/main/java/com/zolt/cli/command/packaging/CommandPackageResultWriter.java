@@ -14,24 +14,28 @@ public final class CommandPackageResultWriter {
     void print(CommandHumanOutput output, PackageResult result, String suffix) {
         for (OutputLine line : lines(result, suffix)) {
             switch (line.kind()) {
+                case SUMMARY -> output.summary(line.message(), line.facts().toArray(new String[0]));
                 case SUCCESS -> output.success(line.message());
                 case DETAIL -> output.detail(line.message());
+                case POINTER -> output.pointer(line.verb(), line.message());
             }
         }
     }
 
     public List<OutputLine> lines(PackageResult result, String suffix) {
         List<OutputLine> lines = new ArrayList<>();
-        lines.add(OutputLine.success(PackageCommandModes.packageSummary(result) + suffix));
+        lines.add(OutputLine.summary(PackageCommandModes.packageSummary(result) + suffix, List.of()));
         appendRunnableDetails(lines, result, suffix);
         if (suffix.isBlank()) {
             appendPackageModeDetail(lines, result);
         }
-        lines.add(OutputLine.detail("Wrote archive to " + result.jarPath()));
+        lines.add(OutputLine.pointer("wrote", result.jarPath().toString()));
+        result.runtimeClasspathPath().ifPresent(path ->
+                lines.add(OutputLine.pointer("wrote", path.toString())));
         result.evidenceManifestPath().ifPresent(path ->
-                lines.add(OutputLine.detail("Wrote package evidence to " + path)));
+                lines.add(OutputLine.pointer("wrote", path.toString())));
         for (PackageArtifact artifact : result.artifacts()) {
-            lines.add(OutputLine.detail("Wrote " + artifact.classifier() + " jar to " + artifact.path()));
+            lines.add(OutputLine.pointer("wrote", artifact.path().toString()));
         }
         return List.copyOf(lines);
     }
@@ -56,21 +60,30 @@ public final class CommandPackageResultWriter {
     private static void appendPackageModeDetail(List<OutputLine> lines, PackageResult result) {
         PackageCommandModes.PackageModeDetail detail = PackageCommandModes.packageModeDetail(result);
         lines.add(OutputLine.detail(detail.message()));
-        detail.secondaryMessage().ifPresent(message -> lines.add(OutputLine.detail(message)));
     }
 
-    public record OutputLine(OutputLineKind kind, String message) {
+    public record OutputLine(OutputLineKind kind, String verb, String message, List<String> facts) {
+        static OutputLine summary(String message, List<String> facts) {
+            return new OutputLine(OutputLineKind.SUMMARY, "", message, List.copyOf(facts));
+        }
+
         static OutputLine success(String message) {
-            return new OutputLine(OutputLineKind.SUCCESS, message);
+            return new OutputLine(OutputLineKind.SUCCESS, "", message, List.of());
         }
 
         static OutputLine detail(String message) {
-            return new OutputLine(OutputLineKind.DETAIL, message);
+            return new OutputLine(OutputLineKind.DETAIL, "", message, List.of());
+        }
+
+        static OutputLine pointer(String verb, String target) {
+            return new OutputLine(OutputLineKind.POINTER, verb, target, List.of());
         }
     }
 
     public enum OutputLineKind {
+        SUMMARY,
         SUCCESS,
-        DETAIL
+        DETAIL,
+        POINTER
     }
 }

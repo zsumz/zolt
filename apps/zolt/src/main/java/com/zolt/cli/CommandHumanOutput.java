@@ -24,6 +24,10 @@ public final class CommandHumanOutput {
         return new CommandHumanOutput(commandLine.getOut(), style, quiet);
     }
 
+    static CommandHumanOutput forTesting(PrintWriter out, ConsoleStyle style, boolean quiet) {
+        return new CommandHumanOutput(out, style, quiet);
+    }
+
     public static CommandHumanOutput errors(CommandSpec spec) {
         CommandLine commandLine = spec.commandLine();
         ZoltCli root = root(commandLine);
@@ -69,6 +73,12 @@ public final class CommandHumanOutput {
             return;
         }
         out.println("  " + style.work("→") + " " + verb + " " + style.path(target));
+    }
+
+    public void pointers(String verb, String... targets) {
+        for (String target : targets) {
+            pointer(verb, target);
+        }
     }
 
     public void action(String command) {
