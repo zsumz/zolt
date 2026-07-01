@@ -32,7 +32,7 @@ final class AddCommandNoResolveProcessorTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "\u001B[32mAdded\u001B[0m dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
+                "\u001B[32m✔\u001B[0m Added dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]"));
         assertFalse(result.stdout().contains(
                 "\u001B[32mAdded dependency org.mapstruct:mapstruct-processor:1.6.3 to [annotationProcessors]\u001B[0m"));
         assertTrue(result.stdout().contains(

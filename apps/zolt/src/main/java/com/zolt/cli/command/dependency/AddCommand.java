@@ -192,18 +192,18 @@ public final class AddCommand implements Runnable {
                 output.detail("Dependency " + request.coordinate()
                         + " already uses a platform-managed version in [" + section + "]");
             } else if (existing != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from " + existing + " to platform-managed version in [" + section + "]");
             } else if (existingWorkspace != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from workspace member " + existingWorkspace
                         + " to platform-managed version in [" + section + "]");
             } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                         + " to platform-managed version in [" + section + "]");
             } else {
-                output.success("Added dependency " + request.coordinate()
+                output.summary("Added dependency " + request.coordinate()
                         + " with a platform-managed version to [" + section + "]");
             }
             return;
@@ -215,25 +215,25 @@ public final class AddCommand implements Runnable {
                 output.detail("Dependency " + request.coordinate()
                         + " already uses " + versionRefDescription + " in [" + section + "]");
             } else if (existingVersionRef != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from versionRef `" + existingVersionRef + "` to " + versionRefDescription
                         + " in [" + section + "]");
             } else if (existingManaged) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from managed version to " + versionRefDescription + " in [" + section + "]");
             } else if (existing != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from " + existing + " to " + versionRefDescription + " in [" + section + "]");
             } else if (existingWorkspace != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from workspace member " + existingWorkspace
                         + " to " + versionRefDescription + " in [" + section + "]");
             } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-                output.success("Updated dependency " + request.coordinate()
+                output.summary("Updated dependency " + request.coordinate()
                         + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                         + " to " + versionRefDescription + " in [" + section + "]");
             } else {
-                output.success("Added dependency " + request.coordinate()
+                output.summary("Added dependency " + request.coordinate()
                         + " with " + versionRefDescription + " to [" + section + "]");
             }
             return;
@@ -242,21 +242,21 @@ public final class AddCommand implements Runnable {
             output.detail("Dependency " + request.coordinate() + ":" + request.version()
                     + " already exists in [" + section + "]");
         } else if (existingManaged) {
-            output.success("Updated dependency " + request.coordinate()
+            output.summary("Updated dependency " + request.coordinate()
                     + " from managed version to " + request.version() + " in [" + section + "]");
         } else if (existing != null) {
-            output.success("Updated dependency " + request.coordinate()
+            output.summary("Updated dependency " + request.coordinate()
                     + " from " + existing + " to " + request.version() + " in [" + section + "]");
         } else if (existingWorkspace != null) {
-            output.success("Updated dependency " + request.coordinate()
+            output.summary("Updated dependency " + request.coordinate()
                     + " from workspace member " + existingWorkspace
                     + " to " + request.version() + " in [" + section + "]");
         } else if (conflicting != null || conflictingManaged || conflictingWorkspace != null) {
-            output.success("Updated dependency " + request.coordinate()
+            output.summary("Updated dependency " + request.coordinate()
                     + " from " + DependencyEditCommands.existingDescription(conflicting, conflictingManaged, conflictingWorkspace)
                     + " to " + request.version() + " in [" + section + "]");
         } else {
-            output.success("Added dependency " + request.coordinate() + ":" + request.version()
+            output.summary("Added dependency " + request.coordinate() + ":" + request.version()
                     + " to [" + section + "]");
         }
     }

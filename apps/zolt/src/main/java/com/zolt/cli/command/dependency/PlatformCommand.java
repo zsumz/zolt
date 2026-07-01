@@ -176,29 +176,29 @@ public final class PlatformCommand implements Runnable {
                     output.detail("Platform " + platform + " already uses "
                             + versionRefDescription + " in [platforms]");
                 } else if (existingVersionRef != null) {
-                    output.success("Updated platform " + platform
+                    output.summary("Updated platform " + platform
                             + " from versionRef `" + existingVersionRef + "` to "
                             + versionRefDescription + " in [platforms]");
                 } else if (existing != null) {
-                    output.success("Updated platform " + platform
+                    output.summary("Updated platform " + platform
                             + " from " + existing + " to " + versionRefDescription + " in [platforms]");
                 } else {
-                    output.success("Added platform " + platform
+                    output.summary("Added platform " + platform
                             + " with " + versionRefDescription + " to [platforms]");
                 }
                 return;
             }
             if (existingVersionRef != null) {
-                output.success("Updated platform " + platform
+                output.summary("Updated platform " + platform
                         + " from versionRef `" + existingVersionRef + "` to " + version + " in [platforms]");
             } else if (version.equals(existing)) {
                 output.detail("Platform " + platform + ":" + version
                         + " already exists in [platforms]");
             } else if (existing != null) {
-                output.success("Updated platform " + platform
+                output.summary("Updated platform " + platform
                         + " from " + existing + " to " + version + " in [platforms]");
             } else {
-                output.success("Added platform " + platform + ":" + version
+                output.summary("Added platform " + platform + ":" + version
                         + " to [platforms]");
             }
         }
@@ -275,7 +275,7 @@ public final class PlatformCommand implements Runnable {
                 }
                 ProjectConfig updated = tomlWriter.removePlatform(config, platform);
                 tomlWriter.write(configPath, updated);
-                output.success("Removed platform " + platform + " from [platforms]");
+                output.summary("Removed platform " + platform + " from [platforms]");
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));
             } catch (PlatformCommandException
                     | ArtifactCacheException

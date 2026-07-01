@@ -48,7 +48,7 @@ final class AddCommandNoResolveVersionRefTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "\u001B[32mAdded\u001B[0m dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]"));
+                "\u001B[32m✔\u001B[0m Added dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]"));
         assertFalse(result.stdout().contains(
                 "\u001B[32mAdded dependency com.google.guava:guava with versionRef `guava` = 33.4.8-jre to [dependencies]\u001B[0m"));
         assertTrue(result.stdout().contains(

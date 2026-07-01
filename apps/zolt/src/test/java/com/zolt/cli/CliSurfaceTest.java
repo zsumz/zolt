@@ -112,7 +112,7 @@ final class CliSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Created Zolt project at"));
-        assertTrue(result.stdout().contains("Next: cd hello"));
+        assertTrue(result.stdout().contains("→ cd hello"));
         assertTrue(Files.exists(tempDir.resolve("hello/zolt.toml")));
     }
 
@@ -122,7 +122,7 @@ final class CliSurfaceTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Created Zolt workspace at"));
-        assertTrue(result.stdout().contains("Next: cd platform"));
+        assertTrue(result.stdout().contains("→ cd platform"));
         assertTrue(Files.exists(tempDir.resolve("platform/zolt.toml")));
         assertTrue(Files.exists(tempDir.resolve("platform/apps/platform/zolt.toml")));
         assertTrue(Files.exists(tempDir.resolve("platform/apps/platform/src/main/java/com/example/Main.java")));
@@ -133,14 +133,16 @@ final class CliSurfaceTest {
         CommandResult color = execute("--color=always", "init", "--directory", tempDir.toString(), "color-hello");
         CommandResult quiet = execute("--quiet", "init", "--directory", tempDir.toString(), "quiet-hello");
 
-        String createdLead = "\u001B[32mCreated\u001B[0m";
-        String nextCommand = "\u001B[36mcd color-hello\u001B[0m";
+        String createdLead = "\u001B[32m✔\u001B[0m";
+        String pointerArrow = "\u001B[36m→\u001B[0m";
+        String pointerPath = "\u001B[36mcolor-hello\u001B[0m";
         assertEquals(0, color.exitCode());
-        assertTrue(color.stdout().contains(createdLead + " Zolt project at"));
-        assertTrue(color.stdout().contains("Next: " + nextCommand));
+        assertTrue(color.stdout().contains(createdLead + " Created Zolt project at"));
+        assertTrue(color.stdout().contains("  " + pointerArrow + " cd " + pointerPath));
         assertFalse(color.stdout()
-                .replace(createdLead, "Created")
-                .replace(nextCommand, "cd color-hello")
+                .replace(createdLead, "✔")
+                .replace(pointerArrow, "→")
+                .replace(pointerPath, "color-hello")
                 .contains("\u001B["));
         assertEquals(0, quiet.exitCode());
         assertEquals("", quiet.stdout());

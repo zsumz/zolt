@@ -51,7 +51,7 @@ final class AddCommandNoResolveSectionsTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains(
-                "\u001B[32mUpdated\u001B[0m dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]"));
+                "\u001B[32m✔\u001B[0m Updated dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]"));
         assertFalse(result.stdout().contains(
                 "\u001B[32mUpdated dependency com.example:contract from 1.0.0 to 2.0.0 in [api.dependencies]\u001B[0m"));
         assertTrue(result.stdout().contains(

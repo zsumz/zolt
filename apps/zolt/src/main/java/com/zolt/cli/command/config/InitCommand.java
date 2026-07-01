@@ -80,8 +80,8 @@ public final class InitCommand implements Runnable {
                     ? projectInitializer.initWorkspace(projectDirectory.path(), name, group, javaVersion)
                     : projectInitializer.init(projectDirectory.path(), name, group, javaVersion);
             CommandHumanOutput output = CommandHumanOutput.of(spec);
-            output.success("Created Zolt " + (workspace ? "workspace" : "project") + " at " + result.projectDirectory());
-            output.action("cd " + result.projectDirectory().getFileName());
+            output.summary("Created Zolt " + (workspace ? "workspace" : "project") + " at " + result.projectDirectory());
+            output.pointer("cd", result.projectDirectory().getFileName().toString());
         } catch (ProjectInitException exception) {
             throw CommandFailures.user(spec, exception);
         }

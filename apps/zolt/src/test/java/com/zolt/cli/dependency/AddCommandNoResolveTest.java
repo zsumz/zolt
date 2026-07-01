@@ -58,7 +58,7 @@ final class AddCommandNoResolveTest {
                 "com.google.guava:guava:33.4.0-jre");
 
         assertEquals(0, color.exitCode());
-        assertTrue(color.stdout().contains("\u001B[32mAdded\u001B[0m dependency "
+        assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Added dependency "
                 + "com.google.guava:guava:33.4.0-jre to [dependencies]"));
         assertFalse(color.stdout().contains(
                 "\u001B[32mAdded dependency com.google.guava:guava:33.4.0-jre to [dependencies]\u001B[0m"));

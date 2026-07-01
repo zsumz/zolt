@@ -105,7 +105,7 @@ final class RemoveCommandTest {
                     "com.example:missing");
 
             assertEquals(0, color.exitCode(), color.stderr());
-            assertTrue(color.stdout().contains("\u001B[32mRemoved\u001B[0m dependency com.example:app from [dependencies]"));
+            assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Removed dependency com.example:app from [dependencies]"));
             assertFalse(
                     color.stdout().contains("\u001B[32mRemoved dependency com.example:app from [dependencies]\u001B[0m"));
             assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Resolved 0 packages"));
