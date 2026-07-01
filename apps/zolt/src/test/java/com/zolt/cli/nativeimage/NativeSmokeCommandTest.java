@@ -57,12 +57,12 @@ final class NativeSmokeCommandTest {
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("Native smoke status: \u001B[32mok\u001B[0m"));
         assertFalse(color.stdout().contains("\u001B[32mNative\u001B[0m smoke status"));
-        assertTrue(color.stdout().contains("\u001B[32mSmoked\u001B[0m binary"));
-        assertFalse(color.stdout().contains("\u001B[32mSmoked binary"));
-        assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m release archive"));
-        assertFalse(color.stdout().contains("\u001B[32mVerified release archive"));
-        assertTrue(color.stdout().contains("\u001B[32mRan\u001B[0m generated project"));
-        assertFalse(color.stdout().contains("\u001B[32mRan generated project"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Smoked binary"));
+        assertFalse(color.stdout().contains("\u001B[32mok: Smoked binary"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Verified release archive"));
+        assertFalse(color.stdout().contains("\u001B[32mok: Verified release archive"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Ran generated project"));
+        assertFalse(color.stdout().contains("\u001B[32mok: Ran generated project"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
         assertTrue(Files.exists(colorProject.resolve("target/native-smoke/release/demo-0.1.0-linux-x64.tar.gz")));

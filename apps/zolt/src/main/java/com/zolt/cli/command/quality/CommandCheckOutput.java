@@ -19,7 +19,9 @@ final class CommandCheckOutput {
                 output.line("  next: " + check.nextStep());
             }
         }
-        output.success(summary(report));
+        String marker = report.ok() ? "ok" : "error";
+        output.status("Check status", marker);
+        output.statusDetail(marker, summary(report));
     }
 
     private static String checkLine(QualityCheckResult check) {

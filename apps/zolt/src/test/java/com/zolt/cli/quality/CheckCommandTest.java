@@ -27,7 +27,8 @@ final class CheckCommandTest extends CheckCommandTestSupport {
                 """
                 Checking project
                 ok command-surface check-demo zolt check uses typed Zolt project data; no Maven, Gradle, or shell hooks are run.
-                Checked 1 quality checks: 1 passed, 0 warnings, 0 failed, 0 skipped
+                Check status: ok
+                ok: Checked 1 quality checks: 1 passed, 0 warnings, 0 failed, 0 skipped
                 """,
                 result.stdout());
         assertEquals("", result.stderr());
@@ -54,10 +55,11 @@ final class CheckCommandTest extends CheckCommandTestSupport {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("\u001B[36mChecking\u001B[0m project"));
         assertTrue(result.stdout().contains("\u001B[32mok\u001B[0m command-surface check-color"));
-        assertTrue(result.stdout().contains("\u001B[32mChecked\u001B[0m 1 quality checks: 1 passed, 0 warnings"));
+        assertTrue(result.stdout().contains("Check status: \u001B[32mok\u001B[0m"));
+        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m Checked 1 quality checks: 1 passed, 0 warnings"));
         assertFalse(result.stdout().contains("\u001B[36mChecking project"));
         assertFalse(result.stdout().contains("\u001B[32mok command-surface check-color\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[32mChecked 1 quality checks: 1 passed, 0 warnings"));
+        assertFalse(result.stdout().contains("\u001B[32mok: Checked 1 quality checks: 1 passed, 0 warnings"));
         assertEquals("", result.stderr());
     }
 

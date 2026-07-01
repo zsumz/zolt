@@ -63,12 +63,13 @@ public final class ReleaseVerifyCommand implements Runnable {
                     projectRoot.resolve(effectiveWorkDirectory(config)).normalize(),
                     config.project().version());
             CommandHumanOutput output = CommandHumanOutput.of(spec);
+            output.status("Release verify status", "ok");
             for (ReleaseVerificationResult.VerifiedArchive archive : result.archives()) {
-                output.success("Verified release archive " + archive.archivePath());
-                output.detail("Unpacked to " + archive.unpackDirectory());
-                output.success("Ran smoke binary " + archive.binaryPath());
+                output.statusDetail("ok", "Verified release archive " + archive.archivePath());
+                output.context("Unpacked to", archive.unpackDirectory().toString());
+                output.statusDetail("ok", "Ran smoke binary " + archive.binaryPath());
             }
-            output.success("Verified " + result.verifiedCount() + " release archives");
+            output.context("Archives verified", Integer.toString(result.verifiedCount()));
             progress.result("Verified " + result.verifiedCount() + " release archives");
         } catch (ReleaseVerificationException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);

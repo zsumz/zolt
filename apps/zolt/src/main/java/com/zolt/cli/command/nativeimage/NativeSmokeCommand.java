@@ -58,9 +58,9 @@ public final class NativeSmokeCommand implements Runnable {
                     effectiveWorkDirectory(config));
             CommandHumanOutput output = CommandHumanOutput.of(spec);
             output.status("Native smoke status", "ok");
-            output.success("Smoked binary " + result.binary());
-            output.success("Verified release archive " + result.archive());
-            output.success("Ran generated project " + result.projectDirectory());
+            output.statusDetail("ok", "Smoked binary " + result.binary());
+            output.statusDetail("ok", "Verified release archive " + result.archive());
+            output.statusDetail("ok", "Ran generated project " + result.projectDirectory());
         } catch (NativeSmokeException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }

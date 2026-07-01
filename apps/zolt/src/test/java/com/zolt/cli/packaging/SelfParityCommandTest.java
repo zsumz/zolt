@@ -110,8 +110,8 @@ final class SelfParityCommandTest extends PackageCommandTestSupport {
         assertFalse(color.stdout().contains("\u001B[32mSelf-hosting\u001B[0m parity status"));
         assertTrue(color.stdout().contains("Bootstrap jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
         assertTrue(color.stdout().contains("Zolt-built jar: " + colorProject.resolve("target/demo-0.1.0.jar")));
-        assertTrue(color.stdout().contains("\u001B[32mJar\u001B[0m entries match"));
-        assertFalse(color.stdout().contains("\u001B[32mJar entries match"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Jar entries match"));
+        assertFalse(color.stdout().contains("\u001B[32mok: Jar entries match"));
         assertEquals(0, quiet.exitCode(), quiet.stderr());
         assertEquals("", quiet.stdout());
     }

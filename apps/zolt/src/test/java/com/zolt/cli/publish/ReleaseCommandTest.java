@@ -140,14 +140,16 @@ final class ReleaseCommandTest {
                 "--work-dir", "target/release-verify-quiet",
                 "dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, color.exitCode(), color.stderr());
-        assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m release archive " + archive));
-        assertFalse(color.stdout().contains("\u001B[32mVerified release archive"));
-        assertTrue(color.stdout().contains("\u001B[32mUnpacked\u001B[0m to "));
+        assertTrue(color.stdout().contains("Release verify status: \u001B[32mok\u001B[0m"));
+        assertFalse(color.stdout().contains("\u001B[32mRelease\u001B[0m verify status"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Verified release archive " + archive));
+        assertFalse(color.stdout().contains("\u001B[32mok: Verified release archive"));
+        assertTrue(color.stdout().contains("Unpacked to: "));
         assertFalse(color.stdout().contains("\u001B[32mUnpacked to "));
-        assertTrue(color.stdout().contains("\u001B[32mRan\u001B[0m smoke binary"));
-        assertFalse(color.stdout().contains("\u001B[32mRan smoke binary"));
-        assertTrue(color.stdout().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
-        assertFalse(color.stdout().contains("\u001B[32mVerified 1 release archives"));
+        assertTrue(color.stdout().contains("\u001B[32mok:\u001B[0m Ran smoke binary"));
+        assertFalse(color.stdout().contains("\u001B[32mok: Ran smoke binary"));
+        assertTrue(color.stdout().contains("Archives verified: 1"));
+        assertFalse(color.stdout().contains("\u001B[32mArchives verified"));
         assertTrue(color.stderr().contains("\u001B[36mVerifying\u001B[0m release archives..."));
         assertTrue(color.stderr().contains("\u001B[32mVerified\u001B[0m 1 release archives"));
         assertFalse(color.stderr().contains("\u001B[36mVerifying release archives...")

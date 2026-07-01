@@ -25,14 +25,32 @@ final class DoctorCommandTest {
         CommandResult quiet = execute("--quiet", "doctor", "--directory", projectDir.toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("JDK status: \u001B[32mok\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[32mJDK\u001B[0m status"));
+        assertTrue(result.stdout().contains("JDK: \u001B[32mok\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mJDK\u001B[0m"));
+        assertFalse(result.stdout().contains("JDK status:"));
+        assertFalse(result.stdout().contains("java: "));
+        assertFalse(result.stdout().contains("javac: "));
+        assertFalse(result.stdout().contains("jar: "));
+        assertFalse(result.stdout().contains("version: "));
+        assertEquals(0, quiet.exitCode(), quiet.stderr());
+        assertEquals("", quiet.stdout());
+    }
+
+    @Test
+    void doctorShowsJdkDetailRowsWhenSomethingIsWrong() throws IOException {
+        Path projectDir = tempDir.resolve("version-detail");
+        writeProjectConfig(projectDir, "999");
+
+        CommandResult result = execute("--color=always", "doctor", "--directory", projectDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("JDK status: \u001B[31merror\u001B[0m"));
+        assertFalse(result.stdout().contains("JDK: \u001B[32mok\u001B[0m"));
+        assertTrue(result.stdout().contains("JAVA_HOME: "));
         assertTrue(result.stdout().contains("java: "));
         assertTrue(result.stdout().contains("javac: "));
         assertTrue(result.stdout().contains("jar: "));
         assertTrue(result.stdout().contains("version: " + currentJavaMajorVersion()));
-        assertEquals(0, quiet.exitCode(), quiet.stderr());
-        assertEquals("", quiet.stdout());
     }
 
     @Test
@@ -60,14 +78,13 @@ final class DoctorCommandTest {
         CommandResult result = execute("--color=always", "doctor", "--self-hosting", "--cwd", projectDir.toString());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.stdout().contains("Self-hosting status: \u001B[32mok\u001B[0m"));
-        assertFalse(result.stdout().contains("\u001B[32mSelf-hosting\u001B[0m status"));
-        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m main class - project main is com.example.Main"));
-        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m JUnit Platform Console"));
-        assertTrue(result.stdout().contains("\u001B[32mok:\u001B[0m native no-fallback"));
-        assertFalse(result.stdout().contains("\u001B[32mok: main class"));
-        assertFalse(result.stdout().contains("\u001B[32mok: JUnit Platform Console"));
-        assertFalse(result.stdout().contains("\u001B[32mok: native no-fallback"));
+        assertTrue(result.stdout().contains("JDK: \u001B[32mok\u001B[0m"));
+        assertTrue(result.stdout().contains("Self-hosting: \u001B[32mok\u001B[0m"));
+        assertFalse(result.stdout().contains("\u001B[32mSelf-hosting\u001B[0m"));
+        assertFalse(result.stdout().contains("Self-hosting status:"));
+        assertFalse(result.stdout().contains("main class - project main is com.example.Main"));
+        assertFalse(result.stdout().contains("JUnit Platform Console"));
+        assertFalse(result.stdout().contains("native no-fallback"));
     }
 
     @Test
@@ -81,6 +98,7 @@ final class DoctorCommandTest {
         CommandResult result = execute("--color=always", "doctor", "--self-hosting", "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
+        assertTrue(result.stdout().contains("JDK: \u001B[32mok\u001B[0m"));
         assertTrue(result.stdout().contains("Self-hosting status: \u001B[31merror\u001B[0m"));
         assertFalse(result.stdout().contains("\u001B[31mSelf-hosting\u001B[0m status"));
         assertTrue(result.stdout().contains("\u001B[31merror:\u001B[0m JUnit Platform Console - add org.junit.platform:junit-platform-console-standalone to [test.dependencies]"));

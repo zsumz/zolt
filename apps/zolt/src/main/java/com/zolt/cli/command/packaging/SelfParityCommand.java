@@ -70,7 +70,7 @@ public final class SelfParityCommand implements Runnable {
             output.status("Self-hosting parity status", "ok");
             output.context("Bootstrap jar", result.bootstrapJar().toString());
             output.context("Zolt-built jar", result.zoltJar().toString());
-            output.success("Jar entries match");
+            output.statusDetail("ok", "Jar entries match");
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException

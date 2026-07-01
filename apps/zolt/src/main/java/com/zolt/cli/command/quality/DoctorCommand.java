@@ -69,7 +69,11 @@ public final class DoctorCommand implements Runnable {
 
     private void printJdkStatus(JdkStatus status) {
         CommandHumanOutput output = CommandHumanOutput.of(spec);
-        output.status("JDK status", status.ok() ? "ok" : "error");
+        if (status.ok()) {
+            output.status("JDK", "ok");
+            return;
+        }
+        output.status("JDK status", "error");
         output.context("JAVA_HOME", status.javaHome().map(Path::toString).orElse("not set"));
         output.context("java", status.java().map(Path::toString).orElse("missing"));
         output.context("javac", status.javac().map(Path::toString).orElse("missing"));
@@ -83,7 +87,11 @@ public final class DoctorCommand implements Runnable {
 
     private void printSelfHostingStatus(SelfHostingCheckResult result) {
         CommandHumanOutput output = CommandHumanOutput.of(spec);
-        output.status("Self-hosting status", result.ok() ? "ok" : "error");
+        if (result.ok()) {
+            output.status("Self-hosting", "ok");
+            return;
+        }
+        output.status("Self-hosting status", "error");
         for (SelfHostingCheckResult.SelfHostingCheck check : result.checks()) {
             String marker = check.ok() ? "ok" : "error";
             output.statusDetail(marker, check.name() + " - " + check.message());
