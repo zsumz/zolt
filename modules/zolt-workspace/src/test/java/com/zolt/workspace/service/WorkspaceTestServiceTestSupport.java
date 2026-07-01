@@ -40,6 +40,15 @@ final class WorkspaceTestServiceTestSupport {
     }
 
     static void createFakeConsoleJar(Path tempDir, Path jar) throws IOException {
+        createFakeConsoleJar(tempDir, jar, "fake console");
+    }
+
+    /**
+     * Builds a fake {@code ConsoleLauncher} whose {@code main} prints the given output verbatim.
+     * Use a JUnit-style summary such as {@code [ 0 tests found ]} to exercise the runner's
+     * discovery/false-green guards without downloading a real JUnit Platform.
+     */
+    static void createFakeConsoleJar(Path tempDir, Path jar, String consoleOutput) throws IOException {
         Path source = tempDir.resolve("fake-console-src/org/junit/platform/console/ConsoleLauncher.java");
         Files.createDirectories(source.getParent());
         Files.writeString(source, """
@@ -50,10 +59,10 @@ final class WorkspaceTestServiceTestSupport {
                     }
 
                     public static void main(String[] args) {
-                        System.out.println("fake console");
+                        System.out.println(%s);
                     }
                 }
-                """);
+                """.formatted(quote(consoleOutput)));
         Path classes = tempDir.resolve("fake-console-classes");
         new JavacRunner().compile(
                 currentJavac(),
@@ -68,6 +77,39 @@ final class WorkspaceTestServiceTestSupport {
             output.write(Files.readAllBytes(classes.resolve("org/junit/platform/console/ConsoleLauncher.class")));
             output.closeEntry();
         }
+    }
+
+    static String zeroTestsFoundSummary() {
+        return String.join("\n",
+                "Test run finished after 5 ms",
+                "[         1 containers found      ]",
+                "[         0 tests found           ]",
+                "[         0 tests successful      ]",
+                "[         0 tests failed          ]");
+    }
+
+    static String oneTestSuccessfulSummary() {
+        return String.join("\n",
+                "Test run finished after 5 ms",
+                "[         1 containers found      ]",
+                "[         1 tests found           ]",
+                "[         1 tests successful      ]",
+                "[         0 tests failed          ]");
+    }
+
+    private static String quote(String value) {
+        StringBuilder builder = new StringBuilder("\"");
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '"' -> builder.append("\\\"");
+                case '\\' -> builder.append("\\\\");
+                case '\n' -> builder.append("\\n");
+                case '\r' -> builder.append("\\r");
+                default -> builder.append(character);
+            }
+        }
+        return builder.append('"').toString();
     }
 
     static String currentJavaMajorVersion() {
