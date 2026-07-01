@@ -8,12 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.explain.gradle.GradleInspectionResult;
 import com.zolt.explain.gradle.GradleStaticProjectInspector;
 import com.zolt.explain.maven.MavenInspectionResult;
+import com.zolt.explain.maven.MavenProjectInspection;
 import com.zolt.explain.maven.MavenStaticProjectInspector;
 import com.zolt.project.DependencyMetadata;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -350,6 +352,90 @@ final class InspectionToProjectConfigTest {
         assertTrue(
                 draft.notes().stream().anyMatch(note -> note.contains("version could not be read")),
                 () -> "expected the cannot-read version note: " + draft.notes());
+    }
+
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void mavenChildInheritingParentManagementEmitsConcreteVersions() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>root</artifactId>
+                  <version>2.0.0</version>
+                  <packaging>pom</packaging>
+                  <modules>
+                    <module>service</module>
+                  </modules>
+                  <properties>
+                    <maven.compiler.release>17</maven.compiler.release>
+                    <jackson.version>2.17.1</jackson.version>
+                  </properties>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.fasterxml.jackson.core</groupId>
+                        <artifactId>jackson-databind</artifactId>
+                        <version>${jackson.version}</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.junit.jupiter</groupId>
+                        <artifactId>junit-jupiter</artifactId>
+                        <version>5.11.4</version>
+                        <scope>test</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+        Path service = tempDir.resolve("service");
+        Files.createDirectories(service);
+        Files.writeString(service.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>root</artifactId>
+                    <version>2.0.0</version>
+                  </parent>
+                  <artifactId>service</artifactId>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.fasterxml.jackson.core</groupId>
+                      <artifactId>jackson-databind</artifactId>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.junit.jupiter</groupId>
+                      <artifactId>junit-jupiter</artifactId>
+                      <scope>test</scope>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        MavenInspectionResult reactor = new MavenStaticProjectInspector().inspect(tempDir);
+        // Emit the child module on its own (mirrors per-module emit): the mapper reads projects.get(0).
+        MavenProjectInspection child = reactor.projects().stream()
+                .filter(project -> project.name().equals("service"))
+                .findFirst()
+                .orElseThrow();
+        DraftZoltToml draft = mapper.fromMaven(
+                new MavenInspectionResult(service, List.of(child), List.of()));
+        ProjectConfig config = draft.config();
+
+        assertEquals("17", config.project().java(), "child inherits the parent java version");
+        assertEquals("2.0.0", config.project().version());
+        assertEquals("com.example", config.project().group());
+        assertEquals("2.17.1", config.dependencies().get("com.fasterxml.jackson.core:jackson-databind"),
+                () -> "[dependencies] must carry the inherited concrete version: " + config.dependencies());
+        assertEquals("5.11.4", config.testDependencies().get("org.junit.jupiter:junit-jupiter"),
+                () -> "[test.dependencies] must carry the inherited concrete version: " + config.testDependencies());
+        assertFalse(config.dependencies().isEmpty(), "[dependencies] must not be empty");
+        assertFalse(config.testDependencies().isEmpty(), "[test.dependencies] must not be empty");
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("no static version")),
+                () -> "no false version-less review comments for parent-managed deps: " + draft.notes());
     }
 
     private static final class FakeRenderer implements ProjectConfigRenderer {

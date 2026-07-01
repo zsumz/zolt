@@ -10,6 +10,7 @@ import static com.zolt.explain.maven.MavenXml.texts;
 import com.zolt.explain.MigrationExplainException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,16 +26,23 @@ final class MavenProjectInspectionBuilder {
             Path pom,
             Path relativePath,
             Path projectDirectory,
-            Element project) {
+            Element project,
+            MavenReactorPoms reactor) {
         if (project == null || !hasName(project, "project")) {
             throw new MigrationExplainException(
                     "Could not inspect Maven project. Expected root <project> element in " + pom + ".");
         }
 
-        MavenPomProperties properties = effectiveProperties(project, projectDirectory);
+        // The parent chain within the reactor, nearest parent first (empty for the root or an external
+        // parent). Effective properties and dependencyManagement inherit root-first with child override.
+        List<Element> ancestors = reactor.ancestors(project);
+        MavenPomProperties properties = effectiveProperties(project, projectDirectory, ancestors);
         List<String> modules = texts(child(project, "modules"), "module");
-        List<MavenDependencyInspection> dependencies =
-                MavenDependencyParser.parseDependencies(child(project, "dependencies"), false, properties);
+        // A module's own dependencyManagement layered over its inherited (parent-chain) management, so a
+        // version-less dependency can pick up a version managed by a reactor parent.
+        MavenManagedVersions managedVersions = MavenManagedVersions.resolve(project, ancestors, properties);
+        List<MavenDependencyInspection> dependencies = managedVersions.applyTo(
+                MavenDependencyParser.parseDependencies(child(project, "dependencies"), false, properties));
         List<MavenDependencyInspection> dependencyManagement = child(project, "dependencyManagement")
                 .flatMap(element -> child(element, "dependencies"))
                 .map(element -> MavenDependencyParser.parseDependencies(Optional.of(element), true, properties))
@@ -249,8 +257,16 @@ final class MavenProjectInspectionBuilder {
      * Maven itself exposes, mirroring {@code PomPropertyInterpolator} in zolt-repository. Parent
      * coordinates come from {@code <parent>} so a child that omits its own coordinate still resolves
      * {@code ${project.version}} against the inherited value.
+     *
+     * <p>{@code <properties>} declared by reactor ancestors are layered root-first so a nearer POM's
+     * value overrides a farther one and the module's own {@code <properties>} win last, mirroring Maven's
+     * inheritance. This lets a child resolve a version property (or Java version) declared only by its
+     * reactor parent.
      */
-    private static MavenPomProperties effectiveProperties(Element project, Path projectDirectory) {
+    private static MavenPomProperties effectiveProperties(
+            Element project,
+            Path projectDirectory,
+            List<Element> ancestors) {
         Map<String, String> properties = new LinkedHashMap<>();
         Optional<Element> parent = child(project, "parent");
         String parentGroupId = parent.flatMap(element -> text(element, "groupId")).orElse(null);
@@ -277,8 +293,14 @@ final class MavenProjectInspectionBuilder {
         putBuiltIn(properties, "project.parent.version", parentVersion);
         putBuiltIn(properties, "parent.version", parentVersion);
 
-        // POM-declared properties win over the built-ins on key collisions.
-        properties.putAll(parseProperties(project));
+        // Inherited <properties>, farthest ancestor first, then the module itself: nearer wins on
+        // collision and POM-declared properties win over the built-ins.
+        List<Element> rootFirst = new ArrayList<>(ancestors);
+        Collections.reverse(rootFirst);
+        rootFirst.add(project);
+        for (Element pom : rootFirst) {
+            properties.putAll(parseProperties(pom));
+        }
         return new MavenPomProperties(properties);
     }
 

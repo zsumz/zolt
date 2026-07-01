@@ -38,7 +38,10 @@ public final class MavenStaticProjectInspector {
 
         List<MavenProjectInspection> projects = new ArrayList<>();
         List<ExplainSignal> signals = new ArrayList<>();
-        inspectPom(normalizedRoot, normalizedRoot, projects, signals);
+        // Root-first recursion registers each ancestor before its children, so a module's parent chain
+        // is already on disk in the reactor by the time the module is inspected.
+        MavenReactorPoms reactor = new MavenReactorPoms();
+        inspectPom(normalizedRoot, normalizedRoot, projects, signals, reactor);
         projects.sort(Comparator.comparing(project -> project.path().toString()));
         return new MavenInspectionResult(normalizedRoot, projects, ExplainSignals.sorted(signals));
     }
@@ -47,14 +50,17 @@ public final class MavenStaticProjectInspector {
             Path root,
             Path projectDirectory,
             List<MavenProjectInspection> projects,
-            List<ExplainSignal> signals) {
+            List<ExplainSignal> signals,
+            MavenReactorPoms reactor) {
         Path pom = projectDirectory.resolve("pom.xml");
         Document document = document(pom);
         Element project = document.getDocumentElement();
+        reactor.register(project);
 
         Path relativePath = relativePath(root, projectDirectory);
         String projectLabel = relativePath.toString().isBlank() ? "." : relativePath.toString();
-        MavenProjectInspection inspection = MavenProjectInspectionBuilder.build(pom, relativePath, projectDirectory, project);
+        MavenProjectInspection inspection =
+                MavenProjectInspectionBuilder.build(pom, relativePath, projectDirectory, project, reactor);
         projects.add(inspection);
         signals.addAll(signalsFor(projectLabel, inspection));
 
@@ -62,7 +68,7 @@ public final class MavenStaticProjectInspector {
             Path moduleDirectory = projectDirectory.resolve(module).normalize();
             Path modulePom = moduleDirectory.resolve("pom.xml");
             if (Files.isRegularFile(modulePom)) {
-                inspectPom(root, moduleDirectory, projects, signals);
+                inspectPom(root, moduleDirectory, projects, signals, reactor);
             } else {
                 signals.add(ExplainSignals.MAVEN_MODULE_MISSING_POM.signal(
                         projectLabel,
