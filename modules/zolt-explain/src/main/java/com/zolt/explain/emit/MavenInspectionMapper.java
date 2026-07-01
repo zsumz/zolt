@@ -75,7 +75,7 @@ final class MavenInspectionMapper {
         String group = group(primary, notes);
         String version = version(primary, notes);
         ProjectMetadata metadata = new ProjectMetadata(
-                primary.name(),
+                primary.artifactId(),
                 version,
                 group,
                 primary.javaVersion(),

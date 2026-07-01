@@ -44,6 +44,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Do not execute Maven framework-native plugins; migrate supported cases to typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`.");
+    public static final ExplainSignalDefinition MAVEN_REACTOR_DETECTED = new ExplainSignalDefinition(
+            "maven.reactor.detected",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Run zolt explain --emit-toml to generate the Zolt workspace, then verify each member draft.");
 
     public static final ExplainSignalDefinition GRADLE_BUILD_SRC_DETECTED = new ExplainSignalDefinition(
             "gradle.build-src.detected",
@@ -165,6 +170,7 @@ public final class ExplainSignals {
             MAVEN_PROFILE_DETECTED,
             MAVEN_LANGUAGE_UNSUPPORTED,
             MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED,
+            MAVEN_REACTOR_DETECTED,
             GRADLE_BUILD_SRC_DETECTED,
             GRADLE_PROJECT_MISSING_BUILD_FILE,
             GRADLE_PLUGIN_CONVENTION,

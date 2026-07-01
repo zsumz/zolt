@@ -51,6 +51,14 @@ public final class MavenMigrationReadinessFindings {
                     "explicit Zolt test/package/generation settings",
                     "",
                     signal.nextStep());
+            case "maven.reactor.detected" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "multi-module reactor (pom aggregator with <modules>)",
+                    "[workspace] with one member draft per module",
+                    "",
+                    signal.nextStep());
             case "maven.profile.detected" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.NON_DETERMINISTIC,

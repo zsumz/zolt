@@ -57,6 +57,8 @@ final class ExplainReportFormatterTest {
 
                 Projects
                   - . (legacy, packaging=war, java=21)
+                    name: Legacy
+                    coordinates: com.example:legacy:1.0.0
                     modules: app
                     dependencies: 0
                     managed dependencies: 0

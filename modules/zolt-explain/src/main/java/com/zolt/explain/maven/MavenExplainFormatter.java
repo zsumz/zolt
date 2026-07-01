@@ -16,10 +16,18 @@ public final class MavenExplainFormatter {
         output.append("\nProjects\n");
         for (MavenProjectInspection project : result.projects()) {
             output.append("  - ").append(path(project.path()))
-                    .append(" (").append(project.name())
+                    .append(" (").append(project.artifactId())
                     .append(", packaging=").append(project.packaging())
                     .append(", java=").append(project.javaVersion())
                     .append(")\n");
+            if (!project.name().isBlank()) {
+                output.append("    name: ").append(project.name()).append('\n');
+            }
+            output.append("    coordinates: ")
+                    .append(coordinate(project.groupId()))
+                    .append(':').append(project.artifactId())
+                    .append(':').append(coordinate(project.version()))
+                    .append('\n');
             if (!project.modules().isEmpty()) {
                 output.append("    modules: ").append(String.join(", ", project.modules())).append('\n');
             }
@@ -92,6 +100,10 @@ public final class MavenExplainFormatter {
 
     private static String path(Path path) {
         return path.toString().replace('\\', '/');
+    }
+
+    private static String coordinate(String value) {
+        return value == null || value.isBlank() ? "(unknown)" : value;
     }
 
 }

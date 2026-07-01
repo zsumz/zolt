@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+// MavenExplainFormatter and MavenInspectionResult are in this package (no import needed).
+
 /**
  * Covers the M51 migration-fidelity fixes on the static Maven inspector: {@code ${...}} property
  * interpolation, {@code <exclusions>} parsing, and reading
@@ -283,8 +285,8 @@ final class MavenInspectionInterpolationTest {
 
         assertEquals("com.acme.widgets", project.groupId());
         assertEquals("2.3.1", project.version());
-        assertEquals("widget-catalog", project.name());
-        assertEquals("Widget Catalog", project.displayName());
+        assertEquals("widget-catalog", project.artifactId());
+        assertEquals("Widget Catalog", project.name());
     }
 
     @Test
@@ -324,7 +326,7 @@ final class MavenInspectionInterpolationTest {
 
         assertEquals("com.acme.platform", project.groupId());
         assertEquals("9.9.9", project.version());
-        assertEquals("child-module", project.name());
+        assertEquals("child-module", project.artifactId());
     }
 
     @Test
@@ -340,6 +342,37 @@ final class MavenInspectionInterpolationTest {
 
         assertEquals("", project.groupId());
         assertEquals("", project.version());
-        assertEquals("", project.displayName());
+        assertEquals("", project.name());
+    }
+
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void explainReportsSurfaceCoordinatesAndHumanName() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.acme.orders</groupId>
+                  <artifactId>orders-api</artifactId>
+                  <version>3.2.1</version>
+                  <name>Acme Orders API</name>
+                </project>
+                """);
+
+        MavenInspectionResult result = inspector.inspect(tempDir);
+        MavenExplainFormatter formatter = new MavenExplainFormatter();
+        String text = formatter.text(result);
+        String json = formatter.json(result);
+
+        // Text report: artifactId in the header, plus explicit human name and coordinates lines.
+        assertTrue(text.contains("- . (orders-api, packaging=jar, java=unknown)"), () -> text);
+        assertTrue(text.contains("name: Acme Orders API"), () -> text);
+        assertTrue(text.contains("coordinates: com.acme.orders:orders-api:3.2.1"), () -> text);
+
+        // JSON: additive groupId/version/displayName; name stays the artifactId for schema stability.
+        assertTrue(json.contains("\"name\": \"orders-api\""), () -> json);
+        assertTrue(json.contains("\"groupId\": \"com.acme.orders\""), () -> json);
+        assertTrue(json.contains("\"version\": \"3.2.1\""), () -> json);
+        assertTrue(json.contains("\"displayName\": \"Acme Orders API\""), () -> json);
     }
 }

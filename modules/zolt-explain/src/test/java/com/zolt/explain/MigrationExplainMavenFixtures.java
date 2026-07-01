@@ -15,6 +15,7 @@ final class MigrationExplainMavenFixtures {
 
                 Projects
                   - . (maven-simple, packaging=jar, java=21)
+                    coordinates: dev.zolt.examples:maven-simple:1.0.0
                     dependencies: 2
                     managed dependencies: 0
                     imported BOMs: 0
@@ -58,6 +59,9 @@ final class MigrationExplainMavenFixtures {
                     {
                       "path": ".",
                       "name": "maven-simple",
+                      "groupId": "dev.zolt.examples",
+                      "version": "1.0.0",
+                      "displayName": "",
                       "packaging": "jar",
                       "javaVersion": "21",
                       "modules": [],

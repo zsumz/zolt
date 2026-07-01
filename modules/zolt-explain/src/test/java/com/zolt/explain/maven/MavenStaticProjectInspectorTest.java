@@ -50,7 +50,7 @@ final class MavenStaticProjectInspectorTest {
         assertEquals(1, result.projects().size());
         MavenProjectInspection project = result.projects().getFirst();
         assertEquals(Path.of("."), project.path());
-        assertEquals("demo", project.name());
+        assertEquals("demo", project.artifactId());
         assertEquals("jar", project.packaging());
         assertEquals("21", project.javaVersion());
         assertEquals("src/main/java", project.sourceRoots().getFirst());
@@ -96,7 +96,7 @@ final class MavenStaticProjectInspectorTest {
         assertEquals(2, result.projects().size());
         assertEquals(Path.of("."), result.projects().get(0).path());
         assertEquals(Path.of("app"), result.projects().get(1).path());
-        assertEquals("app", result.projects().get(1).name());
+        assertEquals("app", result.projects().get(1).artifactId());
         assertTrue(result.projects().getFirst().modules().contains("app"));
         assertTrue(result.projects().getFirst().modules().contains("missing"));
         assertTrue(result.signals().stream()
@@ -432,7 +432,7 @@ final class MavenStaticProjectInspectorTest {
 
     private static MavenProjectInspection childProject(MavenInspectionResult result, String artifactId) {
         return result.projects().stream()
-                .filter(project -> project.name().equals(artifactId))
+                .filter(project -> project.artifactId().equals(artifactId))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no module named " + artifactId + " in " + result.projects()));
     }

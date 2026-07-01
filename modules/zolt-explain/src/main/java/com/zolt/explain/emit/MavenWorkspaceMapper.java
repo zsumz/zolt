@@ -51,7 +51,7 @@ final class MavenWorkspaceMapper {
                             + " the member(s) that need them, or into a shared module.");
         }
         WorkspaceConfig workspace = new WorkspaceConfig(
-                root.name(),
+                root.artifactId(),
                 memberPaths,
                 List.copyOf(memberPaths),
                 Map.of(),
@@ -68,7 +68,7 @@ final class MavenWorkspaceMapper {
 
     private static String memberKey(MavenProjectInspection project) {
         String group = project.groupId();
-        String artifact = project.name();
+        String artifact = project.artifactId();
         if (group == null || group.isBlank() || artifact == null || artifact.isBlank()) {
             return null;
         }

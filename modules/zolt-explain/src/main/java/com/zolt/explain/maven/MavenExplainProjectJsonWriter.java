@@ -17,7 +17,12 @@ final class MavenExplainProjectJsonWriter {
                 MavenProjectInspection project = projects.get(index);
                 indent(json, 2).append("{\n");
                 stringField(json, 3, "path", path(project.path()), true);
-                stringField(json, 3, "name", project.name(), true);
+                // "name" stays the Maven artifactId (also the emitted Zolt project name) for schema
+                // compatibility; the human <name> element is surfaced additively as "displayName".
+                stringField(json, 3, "name", project.artifactId(), true);
+                stringField(json, 3, "groupId", project.groupId(), true);
+                stringField(json, 3, "version", project.version(), true);
+                stringField(json, 3, "displayName", project.name(), true);
                 stringField(json, 3, "packaging", project.packaging(), true);
                 stringField(json, 3, "javaVersion", project.javaVersion(), true);
                 stringArrayField(json, 3, "modules", project.modules(), true);

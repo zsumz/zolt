@@ -105,6 +105,13 @@ public final class MavenStaticProjectInspector {
 
     private List<ExplainSignal> signalsFor(String project, MavenProjectInspection inspection) {
         List<ExplainSignal> signals = new ArrayList<>();
+        if ("pom".equals(inspection.packaging()) && !inspection.modules().isEmpty()) {
+            int members = inspection.modules().size();
+            signals.add(ExplainSignals.MAVEN_REACTOR_DETECTED.signal(
+                    project,
+                    "Multi-module reactor with " + members + " module(s); `zolt explain --emit-toml`"
+                            + " emits a Zolt workspace with a root [workspace] plus one member draft per module."));
+        }
         if (unsupportedPackaging(inspection.packaging())) {
             signals.add(ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
                     project,

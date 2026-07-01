@@ -104,6 +104,30 @@ final class MigrationReadinessFixtureTest {
         assertTrue(json.contains("\"sourcePattern\": \"dependencies and dependencyManagement\""));
     }
 
+    @Test
+    void mavenMultiModuleReactorSurfacesReactorConcernInScorecardAndBlockers() {
+        Path fixture = fixture("maven-multimodule");
+        MavenInspectionResult result = new MavenStaticProjectInspector().inspect(fixture);
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(result);
+
+        String scorecardText = new MigrationReadinessScorecardFormatter().text(scorecard);
+        assertTrue(scorecardText.contains("multi-module reactor (pom aggregator with <modules>)"));
+        assertTrue(scorecardText.contains("[workspace] with one member draft per module"));
+        assertTrue(scorecardText.contains("signal: maven.reactor.detected"));
+
+        String blockerText = new MigrationBlockerReportFormatter()
+                .text(MigrationBlockerReports.from(scorecard));
+        assertTrue(blockerText.contains("multi-module reactor (pom aggregator with <modules>)"));
+        assertTrue(blockerText.contains("[workspace] with one member draft per module"));
+        assertTrue(blockerText.contains("signal: maven.reactor.detected"));
+        assertTrue(blockerText.contains("Run zolt explain --emit-toml to generate the Zolt workspace"));
+
+        String blockerJson = new MigrationBlockerReportFormatter()
+                .json(MigrationBlockerReports.from(scorecard));
+        assertTrue(blockerJson.contains("\"signalId\": \"maven.reactor.detected\""));
+        assertTrue(blockerJson.contains("\"followUp\": \"\""));
+    }
+
     private static Path fixture(String name) {
         return FIXTURE_ROOT.resolve(name);
     }

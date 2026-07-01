@@ -364,7 +364,7 @@ final class InspectionToProjectConfigTest {
         MavenInspectionResult reactor = new MavenStaticProjectInspector().inspect(tempDir);
         // Emit the child module on its own (mirrors per-module emit): the mapper reads projects.get(0).
         MavenProjectInspection child = reactor.projects().stream()
-                .filter(project -> project.name().equals("service"))
+                .filter(project -> project.artifactId().equals("service"))
                 .findFirst()
                 .orElseThrow();
         DraftZoltToml draft = mapper.fromMaven(

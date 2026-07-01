@@ -3,12 +3,20 @@ package com.zolt.explain.maven;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * A statically inspected Maven project.
+ *
+ * <p>The coordinate fields are named to match Maven's own vocabulary and remove the historical
+ * confusion where {@code name} held the artifactId. {@code artifactId} is the Maven
+ * {@code <artifactId>} (also the Zolt project name in emitted config); {@code name} is the human
+ * {@code <name>} element (empty when the POM declares none).
+ */
 public record MavenProjectInspection(
         Path path,
-        String name,
+        String artifactId,
         String groupId,
         String version,
-        String displayName,
+        String name,
         String packaging,
         String javaVersion,
         List<String> modules,
@@ -24,7 +32,7 @@ public record MavenProjectInspection(
     public MavenProjectInspection {
         groupId = groupId == null ? "" : groupId;
         version = version == null ? "" : version;
-        displayName = displayName == null ? "" : displayName;
+        name = name == null ? "" : name;
         modules = List.copyOf(modules);
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);
