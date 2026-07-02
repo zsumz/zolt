@@ -38,12 +38,13 @@ public final class UberJarLayoutAssembler {
     }
 
     public PackageResult assemble(
+            Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
             Path outputDirectory,
             Path jarPath,
             List<PackageRuntimeJar> runtimeJars) {
-        GeneratedManifest manifest = manifestGenerator.generate(config);
+        GeneratedManifest manifest = manifestGenerator.generate(projectDirectory, config);
         Set<String> entries = new HashSet<>();
         int entryCount = 0;
         try {

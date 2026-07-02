@@ -1,5 +1,6 @@
 package com.zolt.build.packaging.layout;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class ThinJarLayoutAssemblerTest {
+    private static final String COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
+
     private final ThinJarLayoutAssembler assembler = new ThinJarLayoutAssembler(
             new ManifestGenerator(),
             new ZoltLockfileReader(),
@@ -72,7 +75,49 @@ final class ThinJarLayoutAssemblerTest {
         }
     }
 
+    @Test
+    void reproducibleThinJarCarriesProvenanceAndIsByteStable() throws IOException {
+        writeGitMetadata(projectDir, COMMIT_SHA);
+        Path outputDirectory = projectDir.resolve("target/classes");
+        Path mainClass = outputDirectory.resolve("com/example/Main.class");
+        Files.createDirectories(mainClass.getParent());
+        Files.write(mainClass, new byte[] {1});
+        ProjectConfig config = config(true);
+        Path firstJar = projectDir.resolve("target/demo-0.1.0-first.jar");
+        Path secondJar = projectDir.resolve("target/demo-0.1.0-second.jar");
+
+        assembler.assemble(
+                projectDir,
+                config,
+                new BuildResult(Optional.empty(), 1, 0, outputDirectory, ""),
+                firstJar,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+        assembler.assemble(
+                projectDir,
+                config,
+                new BuildResult(Optional.empty(), 1, 0, outputDirectory, ""),
+                secondJar,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+
+        assertArrayEquals(Files.readAllBytes(firstJar), Files.readAllBytes(secondJar));
+        try (JarFile jar = new JarFile(firstJar.toFile())) {
+            Attributes attributes = jar.getManifest().getMainAttributes();
+            assertEquals("0.1.0", attributes.getValue("Implementation-Version"));
+            assertEquals(COMMIT_SHA, attributes.getValue("SCM-Revision"));
+            assertEquals("1970-01-01T00:00:00Z", attributes.getValue("Build-Timestamp"));
+            assertNotNull(attributes.getValue("Build-Jdk"));
+        }
+    }
+
     private ProjectConfig config() {
+        return config(false);
+    }
+
+    private ProjectConfig config(boolean reproducible) {
         return new ZoltTomlParser().parse("""
                 [project]
                 name = "demo"
@@ -80,7 +125,10 @@ final class ThinJarLayoutAssemblerTest {
                 group = "com.example"
                 java = "21"
                 main = "com.example.Main"
-                """);
+
+                [build.metadata]
+                reproducible = %s
+                """.formatted(reproducible));
     }
 
     private ResolvedClasspathPackage packageWithScope(String groupId, String artifactId, DependencyScope scope) {
@@ -96,7 +144,15 @@ final class ThinJarLayoutAssemblerTest {
                         projectDir.resolve("cache/%s/%s/1.0.0/%s-1.0.0.jar".formatted(
                                 groupId.replace('.', '/'),
                                 artifactId,
-                                artifactId))),
+                        artifactId))),
                 scope);
+    }
+
+    private static void writeGitMetadata(Path projectDir, String sha) throws IOException {
+        Path head = projectDir.resolve(".git/HEAD");
+        Path branch = projectDir.resolve(".git/refs/heads/main");
+        Files.createDirectories(branch.getParent());
+        Files.writeString(head, "ref: refs/heads/main\n");
+        Files.writeString(branch, sha + "\n");
     }
 }

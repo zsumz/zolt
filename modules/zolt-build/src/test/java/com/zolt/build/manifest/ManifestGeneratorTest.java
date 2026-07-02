@@ -7,19 +7,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.ManifestGenerationException;
+import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.toml.ZoltTomlParser;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class ManifestGeneratorTest {
+    private static final String COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
+
     private final ManifestGenerator generator = new ManifestGenerator();
+
+    @TempDir
+    private Path projectDir;
 
     @Test
     void manifestIncludesMainClassWhenProjectMainIsConfigured() throws IOException {
@@ -62,6 +75,46 @@ final class ManifestGeneratorTest {
     }
 
     @Test
+    void includesProvenanceAttributesForPackagedArtifacts() throws IOException {
+        writeGitMetadata(projectDir, COMMIT_SHA);
+        ManifestGenerator generator = new ManifestGenerator(
+                Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC),
+                Map.of("SOURCE_DATE_EPOCH", "1700000000"));
+
+        GeneratedManifest generated = generator.generate(projectDir, config(true));
+        Attributes attributes = parse(generated).getMainAttributes();
+
+        assertEquals("0.1.0", attributes.getValue("Implementation-Version"));
+        assertEquals(COMMIT_SHA, attributes.getValue("SCM-Revision"));
+        assertEquals("2023-11-14T22:13:20Z", attributes.getValue("Build-Timestamp"));
+        assertFalse(attributes.getValue("Build-Jdk").isBlank());
+    }
+
+    @Test
+    void reproducibleManifestFallsBackToEpochWhenSourceDateEpochIsMissing() throws IOException {
+        ManifestGenerator generator = new ManifestGenerator(
+                Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC),
+                Map.of());
+
+        GeneratedManifest generated = generator.generate(projectDir, config(true));
+        Attributes attributes = parse(generated).getMainAttributes();
+
+        assertEquals("1970-01-01T00:00:00Z", attributes.getValue("Build-Timestamp"));
+    }
+
+    @Test
+    void nonReproducibleManifestUsesClockEvenWhenSourceDateEpochIsPresent() throws IOException {
+        ManifestGenerator generator = new ManifestGenerator(
+                Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC),
+                Map.of("SOURCE_DATE_EPOCH", "1700000000"));
+
+        GeneratedManifest generated = generator.generate(projectDir, config(false));
+        Attributes attributes = parse(generated).getMainAttributes();
+
+        assertEquals("2026-06-08T00:00:00Z", attributes.getValue("Build-Timestamp"));
+    }
+
+    @Test
     void foldsLongManifestAttributeValuesDeterministically() throws IOException {
         GeneratedManifest generated = generator.generate(
                 project(Optional.empty()),
@@ -83,6 +136,15 @@ final class ManifestGeneratorTest {
                 () -> generator.generate(project(Optional.empty()), Map.of("Main-Class", "com.example.Other")));
 
         assertTrue(exception.getMessage().contains("Zolt owns Manifest-Version and Main-Class"));
+    }
+
+    @Test
+    void rejectsProvenanceAttributesAsCustomAttributes() {
+        ManifestGenerationException exception = assertThrows(
+                ManifestGenerationException.class,
+                () -> generator.generate(project(Optional.empty()), Map.of("SCM-Revision", COMMIT_SHA)));
+
+        assertTrue(exception.getMessage().contains("Zolt owns Implementation-Version"));
     }
 
     @Test
@@ -127,6 +189,28 @@ final class ManifestGeneratorTest {
 
     private static ProjectMetadata project(Optional<String> mainClass) {
         return new ProjectMetadata("demo", "0.1.0", "com.example", "21", mainClass);
+    }
+
+    private static ProjectConfig config(boolean reproducible) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                main = "com.example.Main"
+
+                [build.metadata]
+                reproducible = %s
+                """.formatted(reproducible));
+    }
+
+    private static void writeGitMetadata(Path projectDir, String sha) throws IOException {
+        Path head = projectDir.resolve(".git/HEAD");
+        Path branch = projectDir.resolve(".git/refs/heads/main");
+        Files.createDirectories(branch.getParent());
+        Files.writeString(head, "ref: refs/heads/main\n");
+        Files.writeString(branch, sha + "\n");
     }
 
     private static Manifest parse(GeneratedManifest generated) throws IOException {

@@ -45,6 +45,7 @@ final class WarLayoutAssemblerTest {
         Path warPath = projectDir.resolve("target/demo-0.1.0.war");
 
         PackageResult result = assembler.assemble(
+                projectDir,
                 config(),
                 new BuildResult(Optional.empty(), 1, 1, outputDirectory, ""),
                 outputDirectory,
@@ -80,6 +81,7 @@ final class WarLayoutAssemblerTest {
         PackageException exception = assertThrows(
                 PackageException.class,
                 () -> assembler.assemble(
+                        projectDir,
                         config(),
                         new BuildResult(Optional.empty(), 0, 0, outputDirectory, ""),
                         outputDirectory,

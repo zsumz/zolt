@@ -57,6 +57,7 @@ final class UberJarLayoutAssemblerTest {
                         "runtime.properties", "merged=true\n"));
 
         PackageResult result = assembler.assemble(
+                projectDir,
                 PackageServiceTestSupport.config(Optional.of("com.example.Main"))
                         .withPackageSettings(new PackageSettings(PackageMode.UBER)),
                 new BuildResult(Optional.empty(), 1, 1, outputDirectory, ""),
@@ -125,6 +126,7 @@ final class UberJarLayoutAssemblerTest {
         createJarWithEntries(second, Map.of("shared.txt", "two"));
 
         PackageException exception = assertThrows(PackageException.class, () -> assembler.assemble(
+                projectDir,
                 PackageServiceTestSupport.config(Optional.empty())
                         .withPackageSettings(new PackageSettings(PackageMode.UBER)),
                 new BuildResult(Optional.empty(), 0, 0, outputDirectory, ""),
@@ -164,6 +166,7 @@ final class UberJarLayoutAssemblerTest {
                         """));
 
         PackageResult result = assembler.assemble(
+                projectDir,
                 PackageServiceTestSupport.config(Optional.empty())
                         .withPackageSettings(new PackageSettings(PackageMode.UBER)),
                 new BuildResult(Optional.empty(), 0, 0, outputDirectory, ""),

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.zolt.build.BuildResult;
 import com.zolt.build.packageevidence.PackageEvidenceManifestWriter;
 import com.zolt.build.packageplan.PackagePlan;
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.GeneratedSourceStep;
@@ -74,6 +75,7 @@ final class PackageServiceEvidenceManifestTest {
                                 true,
                                 false)),
                         List.of());
+        build = withMetadata(build, new BuildMetadataSettings(false, false, true));
         ProjectConfig config = config(Optional.of("com.example.Main"))
                 .withBuildSettings(build);
 
@@ -99,6 +101,30 @@ final class PackageServiceEvidenceManifestTest {
         assertTrue(firstEvidence.contains("\"freshness\": \"fresh\""));
         assertTrue(firstEvidence.contains("\"toolVersionRef\": null"));
         assertFalse(firstEvidence.contains("super-secret-value"));
+    }
+
+    private static BuildSettings withMetadata(
+            BuildSettings build,
+            BuildMetadataSettings metadata) {
+        return new BuildSettings(
+                build.source(),
+                build.test(),
+                build.outputRoot(),
+                build.output(),
+                build.testOutput(),
+                build.testSources(),
+                build.groovyTestSources(),
+                build.integrationTestOutput(),
+                build.integrationTestSources(),
+                build.integrationTestResourceRoots(),
+                build.resourceRoots(),
+                build.testResourceRoots(),
+                build.resourceFiltering(),
+                build.testRuntime(),
+                build.testSuites(),
+                metadata,
+                build.generatedMainSources(),
+                build.generatedTestSources());
     }
 
     @Test

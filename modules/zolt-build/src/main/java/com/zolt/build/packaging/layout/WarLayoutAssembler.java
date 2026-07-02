@@ -37,12 +37,13 @@ public final class WarLayoutAssembler {
     }
 
     public PackageResult assemble(
+            Path projectDirectory,
             ProjectConfig config,
             BuildResult buildResult,
             Path outputDirectory,
             Path warPath,
             List<PackageRuntimeJar> runtimeJars) {
-        GeneratedManifest manifest = manifestGenerator.generateWithoutMain(config);
+        GeneratedManifest manifest = manifestGenerator.generateWithoutMain(projectDirectory, config);
 
         try {
             Files.createDirectories(warPath.getParent());

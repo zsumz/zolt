@@ -74,7 +74,7 @@ final class PackageArchiveModePackager {
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
         List<PackageRuntimeJar> runtimeJars = runtimeJarSelector.runtimeJarsWithoutProvidedDuplicates(resolvedPackages);
-        return warLayoutAssembler.assemble(config, buildResult, outputDirectory, warPath, runtimeJars);
+        return warLayoutAssembler.assemble(projectDirectory, config, buildResult, outputDirectory, warPath, runtimeJars);
     }
 
     PackageResult packageUberJar(
@@ -90,7 +90,7 @@ final class PackageArchiveModePackager {
                 .orElseGet(() -> runtimeJarSelector.runtimeJars(
                         lockfileReader.read(projectDirectory.resolve("zolt.lock")),
                         cacheRoot));
-        return uberJarLayoutAssembler.assemble(config, buildResult, outputDirectory, jarPath, runtimeJars);
+        return uberJarLayoutAssembler.assemble(projectDirectory, config, buildResult, outputDirectory, jarPath, runtimeJars);
     }
 
     PackageResult packageSpringBootWar(

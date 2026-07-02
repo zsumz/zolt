@@ -3,22 +3,70 @@ package com.zolt.build.manifest;
 import com.zolt.build.ManifestGenerationException;
 import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectMetadata;
+import com.zolt.provenance.BuildProvenance;
+import com.zolt.provenance.BuildProvenanceReader;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.jar.Attributes;
 
 public final class ManifestGenerator {
     private static final int MAX_MANIFEST_LINE_BYTES = 72;
     private static final String CONTINUATION_PREFIX = " ";
+    private static final String SOURCE_DATE_EPOCH = "SOURCE_DATE_EPOCH";
+    private static final String IMPLEMENTATION_VERSION = "Implementation-Version";
+    private static final String SCM_REVISION = "SCM-Revision";
+    private static final String BUILD_JDK = "Build-Jdk";
+    private static final String BUILD_TIMESTAMP = "Build-Timestamp";
+
+    private final Clock clock;
+    private final BuildProvenanceReader provenanceReader;
+    private final Map<String, String> environment;
+
+    public ManifestGenerator() {
+        this(Clock.systemUTC(), new BuildProvenanceReader(), System.getenv());
+    }
+
+    ManifestGenerator(Clock clock, Map<String, String> environment) {
+        this(clock, new BuildProvenanceReader(), environment);
+    }
+
+    ManifestGenerator(
+            Clock clock,
+            BuildProvenanceReader provenanceReader,
+            Map<String, String> environment) {
+        this.clock = clock;
+        this.provenanceReader = provenanceReader;
+        this.environment = environment == null ? Map.of() : Map.copyOf(environment);
+    }
 
     public GeneratedManifest generate(ProjectConfig config) {
         return generate(config.project(), config.packageSettings().manifestAttributes());
     }
 
+    public GeneratedManifest generate(Path projectDirectory, ProjectConfig config) {
+        return generate(
+                config.project(),
+                config.packageSettings().manifestAttributes(),
+                true,
+                Optional.of(readProvenance(projectDirectory, config)));
+    }
+
     public GeneratedManifest generateWithoutMain(ProjectConfig config) {
         return generate(config.project(), config.packageSettings().manifestAttributes(), false);
+    }
+
+    public GeneratedManifest generateWithoutMain(Path projectDirectory, ProjectConfig config) {
+        return generate(
+                config.project(),
+                config.packageSettings().manifestAttributes(),
+                false,
+                Optional.of(readProvenance(projectDirectory, config)));
     }
 
     public GeneratedManifest generate(ProjectMetadata project) {
@@ -33,12 +81,21 @@ public final class ManifestGenerator {
             ProjectMetadata project,
             Map<String, String> manifestAttributes,
             boolean includeMainClass) {
+        return generate(project, manifestAttributes, includeMainClass, Optional.empty());
+    }
+
+    private GeneratedManifest generate(
+            ProjectMetadata project,
+            Map<String, String> manifestAttributes,
+            boolean includeMainClass,
+            Optional<BuildProvenance> provenance) {
         Map<String, String> attributes = validateAttributes(manifestAttributes);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         writeAttribute(output, Attributes.Name.MANIFEST_VERSION.toString(), "1.0");
         if (includeMainClass) {
             project.main().ifPresent(mainClass -> writeAttribute(output, Attributes.Name.MAIN_CLASS.toString(), mainClass));
         }
+        provenance.ifPresent(buildProvenance -> writeProvenanceAttributes(output, project, buildProvenance));
         attributes.forEach((name, value) -> writeAttribute(output, name, value));
         output.write('\r');
         output.write('\n');
@@ -47,6 +104,54 @@ public final class ManifestGenerator {
                 GeneratedManifest.DEFAULT_PATH,
                 output.toByteArray(),
                 includeMainClass ? project.main() : java.util.Optional.empty());
+    }
+
+    private BuildProvenance readProvenance(Path projectDirectory, ProjectConfig config) {
+        return provenanceReader.read(
+                projectDirectory,
+                "",
+                Optional.empty(),
+                effectiveEnvironment(config.build().metadata().reproducible()),
+                clock);
+    }
+
+    private Map<String, String> effectiveEnvironment(boolean reproducible) {
+        if (!reproducible) {
+            Map<String, String> effective = new TreeMap<>(environment);
+            effective.remove(SOURCE_DATE_EPOCH);
+            return effective;
+        }
+        if (hasValidSourceDateEpoch(environment)) {
+            return environment;
+        }
+        Map<String, String> effective = new TreeMap<>(environment);
+        effective.put(SOURCE_DATE_EPOCH, "0");
+        return effective;
+    }
+
+    private static boolean hasValidSourceDateEpoch(Map<String, String> environment) {
+        String value = environment.get(SOURCE_DATE_EPOCH);
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            Long.parseLong(value.trim());
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private static void writeProvenanceAttributes(
+            ByteArrayOutputStream output,
+            ProjectMetadata project,
+            BuildProvenance provenance) {
+        writeAttribute(output, IMPLEMENTATION_VERSION, project.version());
+        provenance.git().commitSha().ifPresent(commit -> writeAttribute(output, SCM_REVISION, commit));
+        if (!provenance.jdkVersion().isBlank()) {
+            writeAttribute(output, BUILD_JDK, provenance.jdkVersion());
+        }
+        writeAttribute(output, BUILD_TIMESTAMP, DateTimeFormatter.ISO_INSTANT.format(provenance.buildTimestamp()));
     }
 
     private static Map<String, String> validateAttributes(Map<String, String> manifestAttributes) {
@@ -81,6 +186,15 @@ public final class ManifestGenerator {
                     "Invalid [package.manifest]."
                             + name
                             + " in zolt.toml. Zolt owns Manifest-Version and Main-Class; use [project].main for Main-Class.");
+        }
+        if (name.equalsIgnoreCase(IMPLEMENTATION_VERSION)
+                || name.equalsIgnoreCase(SCM_REVISION)
+                || name.equalsIgnoreCase(BUILD_JDK)
+                || name.equalsIgnoreCase(BUILD_TIMESTAMP)) {
+            throw new ManifestGenerationException(
+                    "Invalid [package.manifest]."
+                            + name
+                            + " in zolt.toml. Zolt owns Implementation-Version, SCM-Revision, Build-Jdk, and Build-Timestamp; use project metadata and build provenance instead.");
         }
         try {
             new Attributes.Name(name);

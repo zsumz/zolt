@@ -55,7 +55,7 @@ public final class ThinJarLayoutAssembler {
             Optional<ClasspathSet> classpaths) {
         Path outputDirectory = requireOutputDirectory(buildResult);
         Path runtimeClasspathPath = runtimeClasspathPath(jarPath);
-        GeneratedManifest manifest = manifestGenerator.generate(config);
+        GeneratedManifest manifest = manifestGenerator.generate(projectDirectory, config);
 
         try {
             Files.createDirectories(jarPath.getParent());

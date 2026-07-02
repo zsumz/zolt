@@ -1,8 +1,6 @@
 package com.zolt.build.metadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.BuildSettings;
@@ -10,7 +8,6 @@ import com.zolt.project.ProjectConfig;
 import com.zolt.project.ProjectConfigs;
 import com.zolt.project.ProjectMetadata;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -19,40 +16,76 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class BuildMetadataGeneratorTest {
-    private static final Pattern COMMIT_ID = Pattern.compile("[0-9a-f]{40}");
+    private static final String COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
+    private static final Instant FIXED_TIME = Instant.parse("2026-06-08T00:00:00Z");
 
     @TempDir
     private Path projectDir;
 
     @Test
     void generatesGitPropertiesWhenRepositoryMetadataIsAvailable() throws Exception {
-        assumeTrue(gitAvailable());
-        git(projectDir, "init");
-        git(projectDir, "config", "user.email", "zolt@example.test");
-        git(projectDir, "config", "user.name", "Zolt Test");
-        Files.writeString(projectDir.resolve("README.md"), "demo\n");
-        git(projectDir, "add", "README.md");
-        git(projectDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial");
-        Files.createDirectories(projectDir.resolve("target/classes"));
-        Files.writeString(projectDir.resolve("target/classes/stale-output.txt"), "ignored\n");
+        writeGitMetadata(projectDir, COMMIT_SHA);
         ProjectConfig config = configWithMetadata(new BuildMetadataSettings(false, true, true));
 
-        BuildMetadataResult result = generator().generate(
+        BuildMetadataResult result = generator(Map.of()).generate(
                 projectDir,
                 config,
                 projectDir.resolve("target/classes"));
 
         String properties = Files.readString(projectDir.resolve("target/classes/git.properties"));
         assertEquals(1, result.generatedCount());
-        assertTrue(properties.contains("git.branch="));
-        assertTrue(properties.contains("git.dirty=false\n"));
-        assertTrue(COMMIT_ID.matcher(value(properties, "git.commit.id")).matches());
-        assertEquals(12, value(properties, "git.commit.id.abbrev").length());
+        assertEquals("""
+                git.branch=main
+                git.commit.id=0123456789abcdef0123456789abcdef01234567
+                git.commit.id.abbrev=0123456789ab
+                """, properties);
+    }
+
+    @Test
+    void reproducibleBuildInfoUsesSourceDateEpochWhenPresent() throws IOException {
+        ProjectConfig config = configWithMetadata(new BuildMetadataSettings(true, false, true));
+
+        BuildMetadataResult result = generator(Map.of("SOURCE_DATE_EPOCH", "1700000000")).generate(
+                projectDir,
+                config,
+                projectDir.resolve("target/classes"));
+
+        assertEquals(1, result.generatedCount());
+        assertEquals("2023-11-14T22:13:20Z", value(
+                Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")),
+                "build.time"));
+    }
+
+    @Test
+    void reproducibleBuildInfoFallsBackToEpochWhenSourceDateEpochIsMissing() throws IOException {
+        ProjectConfig config = configWithMetadata(new BuildMetadataSettings(true, false, true));
+
+        generator(Map.of()).generate(
+                projectDir,
+                config,
+                projectDir.resolve("target/classes"));
+
+        assertEquals("1970-01-01T00:00:00Z", value(
+                Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")),
+                "build.time"));
+    }
+
+    @Test
+    void nonReproducibleBuildInfoUsesClockEvenWhenSourceDateEpochIsPresent() throws IOException {
+        ProjectConfig config = configWithMetadata(new BuildMetadataSettings(true, false, false));
+
+        generator(Map.of("SOURCE_DATE_EPOCH", "1700000000")).generate(
+                projectDir,
+                config,
+                projectDir.resolve("target/classes"));
+
+        assertEquals("2026-06-08T00:00:00Z", value(
+                Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties")),
+                "build.time"));
     }
 
     private static ProjectConfig configWithMetadata(BuildMetadataSettings metadataSettings) {
@@ -70,37 +103,18 @@ final class BuildMetadataGeneratorTest {
                         metadataSettings));
     }
 
-    private static BuildMetadataGenerator generator() {
+    private static BuildMetadataGenerator generator(Map<String, String> environment) {
         return new BuildMetadataGenerator(
-                Clock.fixed(Instant.parse("2026-06-08T00:00:00Z"), ZoneOffset.UTC),
-                new BuildMetadataGenerator.GitMetadataReader());
+                Clock.fixed(FIXED_TIME, ZoneOffset.UTC),
+                environment);
     }
 
-    private static boolean gitAvailable() {
-        try {
-            Process process = new ProcessBuilder("git", "--version")
-                    .redirectErrorStream(true)
-                    .start();
-            return process.waitFor() == 0;
-        } catch (IOException exception) {
-            return false;
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
-
-    private static void git(Path projectDirectory, String... arguments) throws IOException, InterruptedException {
-        List<String> command = new java.util.ArrayList<>();
-        command.add("git");
-        command.add("-C");
-        command.add(projectDirectory.toString());
-        command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start();
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals(0, process.waitFor(), output);
+    private static void writeGitMetadata(Path projectDir, String sha) throws IOException {
+        Path head = projectDir.resolve(".git/HEAD");
+        Path branch = projectDir.resolve(".git/refs/heads/main");
+        Files.createDirectories(branch.getParent());
+        Files.writeString(head, "ref: refs/heads/main\n");
+        Files.writeString(branch, sha + "\n");
     }
 
     private static String value(String properties, String key) {

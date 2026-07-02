@@ -1,6 +1,7 @@
 package com.zolt.build.packaging;
 
 import static com.zolt.build.packaging.PackageServiceTestSupport.config;
+import static com.zolt.build.packaging.PackageServiceTestSupport.buildSettingsWithMetadata;
 import static com.zolt.build.packaging.PackageServiceTestSupport.readEntry;
 import static com.zolt.build.packaging.PackageServiceTestSupport.source;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.build.PackageException;
+import com.zolt.project.BuildMetadataSettings;
 import com.zolt.project.PackageMode;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -146,6 +148,7 @@ final class PackageServiceUberTest {
 
     private static ProjectConfig uberConfig() {
         return config(Optional.of("com.example.Main"))
+                .withBuildSettings(buildSettingsWithMetadata(new BuildMetadataSettings(false, false, true)))
                 .withPackageSettings(new PackageSettings(PackageMode.UBER));
     }
 
