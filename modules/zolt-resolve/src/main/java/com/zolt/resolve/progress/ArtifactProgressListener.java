@@ -20,6 +20,9 @@ public interface ArtifactProgressListener {
     default void onComplete(ArtifactDescriptor descriptor, long bytes) {
     }
 
+    default void onBytes(ArtifactDescriptor descriptor, long received, long total) {
+    }
+
     default void onFailure(ArtifactDescriptor descriptor, Throwable failure) {
     }
 }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.maven.Coordinate;
+import com.zolt.resolve.progress.ArtifactProgressListener;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Map;
@@ -141,10 +142,11 @@ final class LiveProgressRendererTest {
     void interactiveArtifactProgressRendersLiveStartAndCommitsCompletionLine() {
         StringWriter stderr = new StringWriter();
         ProgressWriter writer = interactiveWriter(stderr);
+        ArtifactProgressListener listener = writer.artifactProgressListener();
 
         ProgressPhase phase = writer.phase("Resolving dependencies");
-        writer.artifactProgressListener().onStart(ArtifactDescriptor.jar(APP));
-        writer.artifactProgressListener().onComplete(ArtifactDescriptor.jar(APP), 1536L);
+        listener.onStart(ArtifactDescriptor.jar(APP));
+        listener.onComplete(ArtifactDescriptor.jar(APP), 1536L);
         phase.done();
 
         String output = stderr.toString();
@@ -154,6 +156,66 @@ final class LiveProgressRendererTest {
                 "complete event commits artifact row: " + escape(output));
         assertTrue(output.contains("✔ Resolving dependencies"), "phase summary still commits after artifact rows");
         assertTrue(output.endsWith(SHOW_CURSOR), "cursor must be restored after artifact progress: " + escape(output));
+    }
+
+    @Test
+    void interactiveArtifactProgressRendersByteBarForLargeKnownDownloads() {
+        StringWriter stderr = new StringWriter();
+        ProgressWriter writer = interactiveWriter(stderr);
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(APP);
+        ArtifactProgressListener listener = writer.artifactProgressListener();
+
+        ProgressPhase phase = writer.phase("Resolving dependencies");
+        listener.onStart(descriptor);
+        listener.onBytes(descriptor, 64L * 1024L, 128L * 1024L);
+        listener.onComplete(descriptor, 128L * 1024L);
+        phase.done();
+
+        String output = stderr.toString();
+        assertTrue(
+                output.contains("▓▓▓▓▓▒▒▒▒▒ com.example:app:1.0.0 64.0 KiB / 128.0 KiB"),
+                "known large downloads render a byte bar: " + escape(output));
+        assertTrue(
+                output.contains("✔ com.example:app:1.0.0 128.0 KiB"),
+                "completion still commits the final byte count: " + escape(output));
+    }
+
+    @Test
+    void interactiveArtifactProgressKeepsSmallDownloadsOnSpinnerPath() {
+        StringWriter stderr = new StringWriter();
+        ProgressWriter writer = interactiveWriter(stderr);
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(APP);
+        ArtifactProgressListener listener = writer.artifactProgressListener();
+
+        ProgressPhase phase = writer.phase("Resolving dependencies");
+        listener.onStart(descriptor);
+        listener.onBytes(descriptor, 512L, 1024L);
+        listener.onComplete(descriptor, 1024L);
+        phase.done();
+
+        String output = stderr.toString();
+        assertFalse(output.contains("▓"), "small downloads stay spinner to check: " + escape(output));
+        assertTrue(output.contains("✔ com.example:app:1.0.0 1.0 KiB"));
+    }
+
+    @Test
+    void interactiveArtifactByteProgressIsThrottled() {
+        StringWriter stderr = new StringWriter();
+        ProgressWriter writer = interactiveWriter(stderr);
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(APP);
+        ArtifactProgressListener listener = writer.artifactProgressListener();
+
+        ProgressPhase phase = writer.phase("Resolving dependencies");
+        listener.onStart(descriptor);
+        for (int i = 0; i < 20; i++) {
+            listener.onBytes(descriptor, (512L * 1024L) + i, 1024L * 1024L);
+        }
+        phase.done();
+
+        String output = stderr.toString();
+        int barFrames = occurrences(output, " / 1.0 MiB");
+        assertTrue(barFrames >= 1, "first byte event should render a bar: " + escape(output));
+        assertTrue(barFrames < 20, "rapid byte events should be coalesced: " + escape(output));
     }
 
     @Test
@@ -167,6 +229,7 @@ final class LiveProgressRendererTest {
 
         ProgressPhase phase = writer.phase("Resolving dependencies");
         writer.artifactProgressListener().onStart(ArtifactDescriptor.jar(APP));
+        writer.artifactProgressListener().onBytes(ArtifactDescriptor.jar(APP), 64L * 1024L, 128L * 1024L);
         writer.artifactProgressListener().onComplete(ArtifactDescriptor.jar(APP), 1536L);
         phase.done();
 
@@ -183,5 +246,18 @@ final class LiveProgressRendererTest {
 
     private static String escape(String value) {
         return value.replace("", "\\u001B").replace("\r", "\\r");
+    }
+
+    private static int occurrences(String value, String token) {
+        int count = 0;
+        int index = 0;
+        while (true) {
+            int next = value.indexOf(token, index);
+            if (next < 0) {
+                return count;
+            }
+            count++;
+            index = next + token.length();
+        }
     }
 }

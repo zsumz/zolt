@@ -44,7 +44,20 @@ public final class MavenRepositoryClient {
             URI repositoryBaseUri,
             Coordinate coordinate,
             Optional<RepositoryAuthentication> authentication) {
-        return fetch(repositoryBaseUri, coordinate, pathBuilder.pomPath(coordinate), authentication);
+        return fetchPom(repositoryBaseUri, coordinate, authentication, RepositoryDownloadListener.NOOP);
+    }
+
+    public RepositoryArtifact fetchPom(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            Optional<RepositoryAuthentication> authentication,
+            RepositoryDownloadListener downloadListener) {
+        return fetch(
+                repositoryBaseUri,
+                new ArtifactDescriptor(coordinate, Optional.empty(), "pom"),
+                pathBuilder.pomPath(coordinate),
+                authentication,
+                downloadListener);
     }
 
     public RepositoryArtifact fetchJar(URI repositoryBaseUri, Coordinate coordinate) {
@@ -55,7 +68,15 @@ public final class MavenRepositoryClient {
             URI repositoryBaseUri,
             Coordinate coordinate,
             Optional<RepositoryAuthentication> authentication) {
-        return fetchArtifact(repositoryBaseUri, ArtifactDescriptor.jar(coordinate), authentication);
+        return fetchJar(repositoryBaseUri, coordinate, authentication, RepositoryDownloadListener.NOOP);
+    }
+
+    public RepositoryArtifact fetchJar(
+            URI repositoryBaseUri,
+            Coordinate coordinate,
+            Optional<RepositoryAuthentication> authentication,
+            RepositoryDownloadListener downloadListener) {
+        return fetchArtifact(repositoryBaseUri, ArtifactDescriptor.jar(coordinate), authentication, downloadListener);
     }
 
     public RepositoryArtifact fetchArtifact(URI repositoryBaseUri, ArtifactDescriptor descriptor) {
@@ -66,7 +87,20 @@ public final class MavenRepositoryClient {
             URI repositoryBaseUri,
             ArtifactDescriptor descriptor,
             Optional<RepositoryAuthentication> authentication) {
-        return fetch(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor), authentication);
+        return fetchArtifact(repositoryBaseUri, descriptor, authentication, RepositoryDownloadListener.NOOP);
+    }
+
+    public RepositoryArtifact fetchArtifact(
+            URI repositoryBaseUri,
+            ArtifactDescriptor descriptor,
+            Optional<RepositoryAuthentication> authentication,
+            RepositoryDownloadListener downloadListener) {
+        return fetch(
+                repositoryBaseUri,
+                descriptor,
+                pathBuilder.artifactPath(descriptor),
+                authentication,
+                downloadListener);
     }
 
     public void uploadPom(URI repositoryBaseUri, Coordinate coordinate, Path source) {
@@ -95,9 +129,11 @@ public final class MavenRepositoryClient {
 
     private RepositoryArtifact fetch(
             URI repositoryBaseUri,
-            Coordinate coordinate,
+            ArtifactDescriptor descriptor,
             String path,
-            Optional<RepositoryAuthentication> authentication) {
+            Optional<RepositoryAuthentication> authentication,
+            RepositoryDownloadListener downloadListener) {
+        Coordinate coordinate = descriptor.coordinate();
         URI artifactUri = artifactUri(repositoryBaseUri, path);
         HttpRequest request = fetchRequest(artifactUri, authentication, httpPolicy);
 
@@ -105,7 +141,7 @@ public final class MavenRepositoryClient {
         for (int attempt = 1; attempt <= httpPolicy.maxAttempts(); attempt++) {
             HttpResponse<byte[]> response;
             try {
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                response = httpClient.send(request, new CountingByteArrayBodyHandler(descriptor, downloadListener));
             } catch (IOException exception) {
                 lastIoException = exception;
                 if (!hasAttemptsRemaining(attempt)) {

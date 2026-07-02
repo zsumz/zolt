@@ -10,6 +10,7 @@ import com.zolt.maven.repository.EffectiveRawPom;
 import com.zolt.maven.repository.MavenRepositoryClient;
 import com.zolt.maven.repository.RawPom;
 import com.zolt.maven.repository.RawPomParser;
+import com.zolt.maven.repository.RepositoryDownloadListener;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.lockfile.assembly.LockfileAssemblyContext;
@@ -38,6 +39,7 @@ public final class RepositorySession implements DependencyMetadataSource, Resolv
     private final RepositoryAccessPlanner repositoryAccessPlanner = new RepositoryAccessPlanner();
     private final RepositoryFetchCoordinator repositoryFetchCoordinator = new RepositoryFetchCoordinator();
     private final MavenRepositoryClient repositoryClient;
+    private final RepositoryDownloadListener downloadProgressListener;
     private final ArtifactMaterializer artifactMaterializer;
     private final ArtifactBatchMaterializer artifactBatchMaterializer = new ArtifactBatchMaterializer();
     private final PomMetadataPreloader pomMetadataPreloader = new PomMetadataPreloader();
@@ -66,6 +68,7 @@ public final class RepositorySession implements DependencyMetadataSource, Resolv
         this.config = config;
         this.cache = new LocalArtifactCache(cacheRoot);
         this.repositoryClient = repositoryClient;
+        this.downloadProgressListener = options.artifactProgressListener()::onBytes;
         this.projectPlatformMetadataPlanner = new ProjectPlatformMetadataPlanner(coordinateParser);
         this.rawPomMetadataLoader = new RawPomMetadataLoader(rawPomParser);
         LocalOverlayMaterializer localOverlayMaterializer = new LocalOverlayMaterializer(cache, artifactSources);
@@ -171,17 +174,17 @@ public final class RepositorySession implements DependencyMetadataSource, Resolv
 
     private com.zolt.maven.repository.RepositoryArtifact fetchPom(Coordinate coordinate) {
         return fetchFromRepositories(access ->
-                repositoryClient.fetchPom(access.uri(), coordinate, access.authentication()));
+                repositoryClient.fetchPom(access.uri(), coordinate, access.authentication(), downloadProgressListener));
     }
 
     private com.zolt.maven.repository.RepositoryArtifact fetchJar(Coordinate coordinate) {
         return fetchFromRepositories(access ->
-                repositoryClient.fetchJar(access.uri(), coordinate, access.authentication()));
+                repositoryClient.fetchJar(access.uri(), coordinate, access.authentication(), downloadProgressListener));
     }
 
     private com.zolt.maven.repository.RepositoryArtifact fetchArtifact(ArtifactDescriptor descriptor) {
         return fetchFromRepositories(access ->
-                repositoryClient.fetchArtifact(access.uri(), descriptor, access.authentication()));
+                repositoryClient.fetchArtifact(access.uri(), descriptor, access.authentication(), downloadProgressListener));
     }
 
     private com.zolt.maven.repository.RepositoryArtifact fetchFromRepositories(RepositoryFetchAction action) {

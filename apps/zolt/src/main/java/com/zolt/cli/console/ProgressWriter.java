@@ -4,6 +4,8 @@ import com.zolt.maven.ArtifactDescriptor;
 import com.zolt.resolve.progress.ArtifactProgressListener;
 import java.io.PrintWriter;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class ProgressWriter {
     private final PrintWriter err;
@@ -120,9 +122,13 @@ public final class ProgressWriter {
         private static final String SPINNER_GLYPH = "⠋";
         private static final String SUCCESS_GLYPH = "✔";
         private static final String FAILURE_GLYPH = "✗";
+        private static final int BAR_WIDTH = 10;
+        private static final long LARGE_ARTIFACT_BYTES = 64L * 1024L;
+        private static final long BYTE_RENDER_MIN_INTERVAL_NANOS = 90_000_000L;
 
         private final LiveRegion region;
         private final ConsoleStyle style;
+        private final Map<ArtifactDescriptor, Long> lastByteRenderNanos = new ConcurrentHashMap<>();
 
         private LiveArtifactProgressListener(LiveRegion region, ConsoleStyle style) {
             this.region = region;
@@ -136,12 +142,49 @@ public final class ProgressWriter {
 
         @Override
         public void onComplete(ArtifactDescriptor descriptor, long bytes) {
+            lastByteRenderNanos.remove(descriptor);
             region.commit(style.success(SUCCESS_GLYPH) + " " + label(descriptor) + " " + byteCount(bytes));
         }
 
         @Override
+        public void onBytes(ArtifactDescriptor descriptor, long received, long total) {
+            if (total < LARGE_ARTIFACT_BYTES || received <= 0L) {
+                return;
+            }
+            long displayReceived = Math.min(received, total);
+            if (displayReceived < total && !shouldRenderByteProgress(descriptor)) {
+                return;
+            }
+            region.render(
+                    style.work(bar(displayReceived, total))
+                            + " "
+                            + label(descriptor)
+                            + " "
+                            + byteCount(displayReceived)
+                            + " / "
+                            + byteCount(total));
+        }
+
+        @Override
         public void onFailure(ArtifactDescriptor descriptor, Throwable failure) {
+            lastByteRenderNanos.remove(descriptor);
             region.commit(style.error(FAILURE_GLYPH) + " " + label(descriptor));
+        }
+
+        private boolean shouldRenderByteProgress(ArtifactDescriptor descriptor) {
+            long now = System.nanoTime();
+            Long previous = lastByteRenderNanos.get(descriptor);
+            if (previous != null && now - previous < BYTE_RENDER_MIN_INTERVAL_NANOS) {
+                return false;
+            }
+            lastByteRenderNanos.put(descriptor, now);
+            return true;
+        }
+
+        private static String bar(long received, long total) {
+            int filled = (int) Math.floor((double) received / (double) total * BAR_WIDTH);
+            filled = Math.max(0, Math.min(BAR_WIDTH, filled));
+            return "▓".repeat(filled) + "▒".repeat(BAR_WIDTH - filled);
         }
 
         private static String label(ArtifactDescriptor descriptor) {

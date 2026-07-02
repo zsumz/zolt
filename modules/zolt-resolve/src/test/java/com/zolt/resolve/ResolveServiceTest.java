@@ -77,10 +77,18 @@ final class ResolveServiceTest extends ResolveServiceTestSupport {
                 Files.readString(withListener.lockfilePath()));
         assertTrue(listener.events().contains("start com.example:app:1.0.0::pom"));
         assertTrue(listener.events().contains("complete com.example:app:1.0.0::jar"));
+        assertTrue(listener.byteEvents().stream().allMatch(event ->
+                event.received() > 0L
+                        && event.total() > 0L
+                        && event.received() <= event.total()));
+        assertTrue(listener.byteEvents().stream().anyMatch(event ->
+                event.key().equals("com.example:app:1.0.0::jar")
+                        && event.received() == event.total()));
     }
 
     private static final class RecordingArtifactProgressListener implements ArtifactProgressListener {
         private final CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<ByteEvent> byteEvents = new CopyOnWriteArrayList<>();
 
         @Override
         public void onStart(ArtifactDescriptor descriptor) {
@@ -92,8 +100,17 @@ final class ResolveServiceTest extends ResolveServiceTestSupport {
             events.add("complete " + key(descriptor));
         }
 
+        @Override
+        public void onBytes(ArtifactDescriptor descriptor, long received, long total) {
+            byteEvents.add(new ByteEvent(key(descriptor), received, total));
+        }
+
         private List<String> events() {
             return List.copyOf(events);
+        }
+
+        private List<ByteEvent> byteEvents() {
+            return List.copyOf(byteEvents);
         }
 
         private static String key(ArtifactDescriptor descriptor) {
@@ -103,5 +120,8 @@ final class ResolveServiceTest extends ResolveServiceTestSupport {
                     + ":"
                     + descriptor.extension();
         }
+    }
+
+    private record ByteEvent(String key, long received, long total) {
     }
 }
