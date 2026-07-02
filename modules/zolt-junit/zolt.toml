@@ -1,15 +1,15 @@
 [project]
 name = "zolt-junit"
 version = "0.1.0-SNAPSHOT"
-group = "com.zolt"
+group = "sh.zolt"
 java = "21"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"com.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
+"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"sh.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"

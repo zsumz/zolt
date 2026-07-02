@@ -1,3 +1,0 @@
-# rootPattern|maxImports|maxPublicMethods|maxConstructorParameters|maxNestedTypes
-apps/*/src/main/java|45|30|10|20
-modules/*/src/main/java|45|30|10|20

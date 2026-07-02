@@ -1,39 +1,39 @@
 [project]
 name = "zolt-test-runtime"
 version = "0.1.0-SNAPSHOT"
-group = "com.zolt"
+group = "sh.zolt"
 java = "21"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
-"com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
-"com.zolt:zolt-junit" = { workspace = "modules/zolt-junit" }
-"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
-"com.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
-"com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
+"sh.zolt:zolt-build" = { workspace = "modules/zolt-build" }
+"sh.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
+"sh.zolt:zolt-junit" = { workspace = "modules/zolt-junit" }
+"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"sh.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
+"sh.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
+"sh.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
 [test.suites.test-execution]
 includeClassname = [
-    "com.zolt.build.coverage.CoverageServiceTest",
-    "com.zolt.build.coverage.CoverageServiceValidationTest",
-    "com.zolt.build.testruntime.execution.CurrentWorkerClasspathTest",
-    "com.zolt.build.testruntime.execution.FrameworkTestSelectionMapperTest",
-    "com.zolt.build.testruntime.execution.JunitConsoleArgumentsTest",
-    "com.zolt.build.testruntime.execution.JunitLauncherClasspathTest",
-    "com.zolt.build.testruntime.execution.TestConsoleFailureHandlerTest",
-    "com.zolt.build.testruntime.execution.TestRuntimeInputBuilderTest",
-    "com.zolt.build.testruntime.TestRunServiceFailureTest",
-    "com.zolt.build.testruntime.TestRunServiceFrameworkRunnerTest",
-    "com.zolt.build.testruntime.TestRunServiceRuntimeOptionsTest",
-    "com.zolt.build.testruntime.TestRunServiceSelectionTest",
-    "com.zolt.build.testruntime.TestRunServiceTest",
+    "sh.zolt.build.coverage.CoverageServiceTest",
+    "sh.zolt.build.coverage.CoverageServiceValidationTest",
+    "sh.zolt.build.testruntime.execution.CurrentWorkerClasspathTest",
+    "sh.zolt.build.testruntime.execution.FrameworkTestSelectionMapperTest",
+    "sh.zolt.build.testruntime.execution.JunitConsoleArgumentsTest",
+    "sh.zolt.build.testruntime.execution.JunitLauncherClasspathTest",
+    "sh.zolt.build.testruntime.execution.TestConsoleFailureHandlerTest",
+    "sh.zolt.build.testruntime.execution.TestRuntimeInputBuilderTest",
+    "sh.zolt.build.testruntime.TestRunServiceFailureTest",
+    "sh.zolt.build.testruntime.TestRunServiceFrameworkRunnerTest",
+    "sh.zolt.build.testruntime.TestRunServiceRuntimeOptionsTest",
+    "sh.zolt.build.testruntime.TestRunServiceSelectionTest",
+    "sh.zolt.build.testruntime.TestRunServiceTest",
 ]
 
 [build]

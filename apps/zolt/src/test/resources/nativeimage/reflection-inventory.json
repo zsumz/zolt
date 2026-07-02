@@ -1,125 +1,125 @@
 [
   {
-    "file": "modules/zolt-junit/src/main/java/com/zolt/junit/JunitLauncherWorker.java",
+    "file": "modules/zolt-junit/src/main/java/sh/zolt/junit/JunitLauncherWorker.java",
     "disposition": "WORKER_JVM",
     "note": "Reflects over org.junit.platform.* in the forked JUnit worker JVM launched by JunitWorkerProcessLauncher; targets are absent from the native binary."
   },
   {
-    "file": "modules/zolt-junit/src/main/java/com/zolt/junit/JunitTestProfileCollector.java",
+    "file": "modules/zolt-junit/src/main/java/sh/zolt/junit/JunitTestProfileCollector.java",
     "disposition": "WORKER_JVM",
     "note": "Reflects over org.junit.platform.* test descriptors in the forked JUnit worker JVM; targets are absent from the native binary."
   },
   {
-    "file": "modules/zolt-explain/src/main/java/com/zolt/explain/maven/MavenStaticProjectInspector.java",
+    "file": "modules/zolt-explain/src/main/java/sh/zolt/explain/maven/MavenStaticProjectInspector.java",
     "disposition": "JAXP_FACTORY",
     "note": "DocumentBuilderFactory.newInstance() JAXP lookup handled by GraalVM built-in JAXP support; exercised by native resolve/build POM parsing."
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/QuarkusAnnotationApiProbe.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/QuarkusAnnotationApiProbe.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/QuarkusAnnotationProgrammaticRunner.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/QuarkusAnnotationProgrammaticRunner.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/QuarkusTestIndexProbe.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/QuarkusTestIndexProbe.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/QuarkusTestIndexWriter.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/QuarkusTestIndexWriter.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/ZoltQuarkusTestClassBeanCustomizer.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/ZoltQuarkusTestClassBeanCustomizer.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/bridge/QuarkusAdditionalApplicationArchiveBuildItemBridge.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/bridge/QuarkusAdditionalApplicationArchiveBuildItemBridge.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/bridge/QuarkusAdditionalBeanBuildItemBridge.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/bridge/QuarkusAdditionalBeanBuildItemBridge.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/bridge/QuarkusApplicationArchivesBuildItemClass.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/bridge/QuarkusApplicationArchivesBuildItemClass.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/bridge/QuarkusCombinedIndexBuildItemClass.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/bridge/QuarkusCombinedIndexBuildItemClass.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/bridge/QuarkusOptionalBuildItemConsumes.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/bridge/QuarkusOptionalBuildItemConsumes.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusAnnotationFailureDiagnostics.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusAnnotationFailureDiagnostics.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusApplicationArchivesDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusApplicationArchivesDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusArcBeanInputDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusArcBeanInputDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusBuildChainDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusBuildChainDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusContextClassLoaderDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusContextClassLoaderDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusResourceElementDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusResourceElementDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/annotation/diagnostic/QuarkusSelectedTestIndexDiagnostic.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/diagnostic/QuarkusSelectedTestIndexDiagnostic.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusApplicationModelFactory.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusApplicationModelFactory.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusBootstrapApiProbe.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusBootstrapApiProbe.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusBootstrapPreparer.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusBootstrapPreparer.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusClassLoadingArtifactsConfigurer.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusClassLoadingArtifactsConfigurer.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusCuratedApplicationInvoker.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusCuratedApplicationInvoker.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusSerializedApplicationModelWriter.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusSerializedApplicationModelWriter.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/bootstrap/QuarkusWorkspaceModuleConfigurer.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/bootstrap/QuarkusWorkspaceModuleConfigurer.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/production/QuarkusProductionApplicationCreator.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/production/QuarkusProductionApplicationCreator.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-quarkus/src/main/java/com/zolt/quarkus/production/QuarkusProductionApplicationSummarizer.java",
+    "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/production/QuarkusProductionApplicationSummarizer.java",
     "disposition": "WORKER_JVM"
   },
   {
-    "file": "modules/zolt-repository/src/main/java/com/zolt/maven/repository/RawPomParser.java",
+    "file": "modules/zolt-repository/src/main/java/sh/zolt/maven/repository/RawPomParser.java",
     "disposition": "JAXP_FACTORY",
     "note": "DocumentBuilderFactory.newInstance() JAXP lookup handled by GraalVM built-in JAXP support; exercised by native resolve/build POM parsing."
   }

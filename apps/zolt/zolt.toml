@@ -1,55 +1,55 @@
 [project]
 name = "zolt"
 version = "0.1.0-SNAPSHOT"
-group = "com.zolt"
+group = "sh.zolt"
 java = "21"
-main = "com.zolt.cli.ZoltCli"
+main = "sh.zolt.cli.ZoltCli"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"com.zolt:zolt-build" = { workspace = "modules/zolt-build" }
-"com.zolt:zolt-config" = { workspace = "modules/zolt-config" }
-"com.zolt:zolt-explain" = { workspace = "modules/zolt-explain" }
-"com.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
-"com.zolt:zolt-ide" = { workspace = "modules/zolt-ide" }
-"com.zolt:zolt-init" = { workspace = "modules/zolt-init" }
-"com.zolt:zolt-native-image" = { workspace = "modules/zolt-native-image" }
-"com.zolt:zolt-policy" = { workspace = "modules/zolt-policy" }
-"com.zolt:zolt-plan" = { workspace = "modules/zolt-plan" }
-"com.zolt:zolt-publish" = { workspace = "modules/zolt-publish" }
-"com.zolt:zolt-quality" = { workspace = "modules/zolt-quality" }
-"com.zolt:zolt-quarkus" = { workspace = "modules/zolt-quarkus" }
-"com.zolt:zolt-release" = { workspace = "modules/zolt-release" }
-"com.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
-"com.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
-"com.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
-"com.zolt:zolt-test-runtime" = { workspace = "modules/zolt-test-runtime" }
-"com.zolt:zolt-selfhost" = { workspace = "modules/zolt-selfhost" }
-"com.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
-"com.zolt:zolt-tree" = { workspace = "modules/zolt-tree" }
-"com.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
+"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"sh.zolt:zolt-build" = { workspace = "modules/zolt-build" }
+"sh.zolt:zolt-config" = { workspace = "modules/zolt-config" }
+"sh.zolt:zolt-explain" = { workspace = "modules/zolt-explain" }
+"sh.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
+"sh.zolt:zolt-ide" = { workspace = "modules/zolt-ide" }
+"sh.zolt:zolt-init" = { workspace = "modules/zolt-init" }
+"sh.zolt:zolt-native-image" = { workspace = "modules/zolt-native-image" }
+"sh.zolt:zolt-policy" = { workspace = "modules/zolt-policy" }
+"sh.zolt:zolt-plan" = { workspace = "modules/zolt-plan" }
+"sh.zolt:zolt-publish" = { workspace = "modules/zolt-publish" }
+"sh.zolt:zolt-quality" = { workspace = "modules/zolt-quality" }
+"sh.zolt:zolt-quarkus" = { workspace = "modules/zolt-quarkus" }
+"sh.zolt:zolt-release" = { workspace = "modules/zolt-release" }
+"sh.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
+"sh.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
+"sh.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
+"sh.zolt:zolt-test-runtime" = { workspace = "modules/zolt-test-runtime" }
+"sh.zolt:zolt-selfhost" = { workspace = "modules/zolt-selfhost" }
+"sh.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
+"sh.zolt:zolt-tree" = { workspace = "modules/zolt-tree" }
+"sh.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
 "info.picocli:picocli" = "4.7.6"
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
 
 [test.suites.worker-failure-diagnostic]
-includeClassname = ["com.zolt.error.WorkerFailureDiagnosticTest"]
+includeClassname = ["sh.zolt.error.WorkerFailureDiagnosticTest"]
 
 [test.suites.native-reflection-inventory]
 includeClassname = [
-    "com.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
-    "com.zolt.cli.nativeimage.ReflectionInventoryTest",
+    "sh.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
+    "sh.zolt.cli.nativeimage.ReflectionInventoryTest",
 ]
 
 [test.suites.cli-help-highlighting]
 includeClassname = [
-    "com.zolt.cli.HelpOptionHighlighterTest",
-    "com.zolt.cli.HelpParameterHighlighterTest",
-    "com.zolt.cli.HelpSynopsisHighlighterTest",
+    "sh.zolt.cli.HelpOptionHighlighterTest",
+    "sh.zolt.cli.HelpParameterHighlighterTest",
+    "sh.zolt.cli.HelpSynopsisHighlighterTest",
 ]
 parallelSafe = true
 maxWorkers = 2

@@ -1,7 +1,7 @@
 [project]
 name = "zolt-config"
 version = "0.1.0-SNAPSHOT"
-group = "com.zolt"
+group = "sh.zolt"
 java = "21"
 
 [repositories]

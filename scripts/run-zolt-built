@@ -58,7 +58,7 @@ else
 fi
 
 if [[ "${#java_opts[@]}" -gt 0 ]]; then
-  exec java "${java_opts[@]}" -cp "$classpath" com.zolt.cli.ZoltCli "$@"
+  exec java "${java_opts[@]}" -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
 else
-  exec java -cp "$classpath" com.zolt.cli.ZoltCli "$@"
+  exec java -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
 fi

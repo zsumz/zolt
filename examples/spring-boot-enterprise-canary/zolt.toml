@@ -111,11 +111,11 @@ mode = "spring-boot-war"
 [package.metadata]
 name = "Spring Boot Enterprise Canary"
 description = "Public-safe enterprise Spring Boot canary for Zolt."
-url = "https://example.com/zolt-enterprise-canary"
+url = "https://example.sh/zolt-enterprise-canary"
 license = "Apache-2.0"
 developers = ["Zolt maintainers"]
-scm = "https://example.com/zolt-enterprise-canary.git"
-issues = "https://example.com/zolt-enterprise-canary/issues"
+scm = "https://example.sh/zolt-enterprise-canary.git"
+issues = "https://example.sh/zolt-enterprise-canary/issues"
 
 [publish]
 releaseRepository = "company-releases"

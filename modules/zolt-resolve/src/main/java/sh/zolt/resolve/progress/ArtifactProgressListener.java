@@ -1,0 +1,28 @@
+package sh.zolt.resolve.progress;
+
+import sh.zolt.maven.ArtifactDescriptor;
+
+/**
+ * Receives artifact download lifecycle events from the resolver without coupling resolver or
+ * repository code to the CLI.
+ *
+ * <p>Callbacks may run on repository worker threads. Implementations that collect state or render
+ * output must be thread-safe. Cached, offline, and local-overlay artifacts do not emit download
+ * lifecycle events.
+ */
+public interface ArtifactProgressListener {
+    ArtifactProgressListener NOOP = new ArtifactProgressListener() {
+    };
+
+    default void onStart(ArtifactDescriptor descriptor) {
+    }
+
+    default void onComplete(ArtifactDescriptor descriptor, long bytes) {
+    }
+
+    default void onBytes(ArtifactDescriptor descriptor, long received, long total) {
+    }
+
+    default void onFailure(ArtifactDescriptor descriptor, Throwable failure) {
+    }
+}

@@ -1,0 +1,151 @@
+package sh.zolt.cli.command;
+
+import sh.zolt.build.BuildService;
+import sh.zolt.build.coverage.CoverageService;
+import sh.zolt.build.nativeimage.NativeBuildService;
+import sh.zolt.build.packageplan.PackagePlanService;
+import sh.zolt.build.packaging.PackageService;
+import sh.zolt.build.run.RunPackageService;
+import sh.zolt.build.run.RunService;
+import sh.zolt.build.testruntime.TestRunService;
+import sh.zolt.framework.FrameworkBuildAugmenter;
+import sh.zolt.maven.CoordinateParser;
+import sh.zolt.resolve.ResolveService;
+import sh.zolt.toml.ZoltTomlParser;
+import sh.zolt.toml.ZoltTomlWriter;
+import sh.zolt.workspace.service.WorkspaceBuildService;
+import sh.zolt.workspace.coverage.WorkspaceCoverageService;
+import sh.zolt.workspace.packaging.WorkspaceNativeBuildService;
+import sh.zolt.workspace.packaging.WorkspacePackageService;
+import sh.zolt.workspace.resolve.WorkspaceResolveService;
+import sh.zolt.workspace.packaging.WorkspaceRunPackageService;
+import sh.zolt.workspace.run.WorkspaceRunService;
+import sh.zolt.workspace.service.WorkspaceTestService;
+import java.util.Objects;
+
+public final class CommandServiceBundles {
+    private CommandServiceBundles() {
+    }
+
+    public record CommandCoverageServices(
+            ZoltTomlParser tomlParser,
+            CoverageService coverageService,
+            WorkspaceCoverageService workspaceCoverageService) {
+        public CommandCoverageServices {
+            Objects.requireNonNull(tomlParser, "tomlParser");
+            Objects.requireNonNull(coverageService, "coverageService");
+            Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
+        }
+    }
+
+    public record CommandNativeServices(
+            ZoltTomlParser tomlParser,
+            NativeBuildService nativeBuildService,
+            WorkspaceNativeBuildService workspaceNativeBuildService) {
+        public CommandNativeServices {
+            Objects.requireNonNull(tomlParser, "tomlParser");
+            Objects.requireNonNull(nativeBuildService, "nativeBuildService");
+            Objects.requireNonNull(workspaceNativeBuildService, "workspaceNativeBuildService");
+        }
+    }
+
+    public record CommandVersionAliasServices(
+            CommandServiceClusters.CommandConfigEditServices configEditServices) {
+        public CommandVersionAliasServices {
+            Objects.requireNonNull(configEditServices, "configEditServices");
+        }
+
+        public ZoltTomlParser tomlParser() {
+            return configEditServices.tomlParser();
+        }
+
+        public ZoltTomlWriter tomlWriter() {
+            return configEditServices.tomlWriter();
+        }
+
+        public ResolveService resolveService() {
+            return configEditServices.resolveService();
+        }
+    }
+
+    public record CommandDependencyEditServices(
+            CoordinateParser coordinateParser,
+            CommandServiceClusters.CommandConfigEditServices configEditServices) {
+        public CommandDependencyEditServices {
+            Objects.requireNonNull(coordinateParser, "coordinateParser");
+            Objects.requireNonNull(configEditServices, "configEditServices");
+        }
+
+        public ZoltTomlParser tomlParser() {
+            return configEditServices.tomlParser();
+        }
+
+        public ZoltTomlWriter tomlWriter() {
+            return configEditServices.tomlWriter();
+        }
+
+        public ResolveService resolveService() {
+            return configEditServices.resolveService();
+        }
+    }
+
+    public record CommandResolveServices(
+            ResolveService resolveService,
+            WorkspaceResolveService workspaceResolveService) {
+        public CommandResolveServices {
+            Objects.requireNonNull(resolveService, "resolveService");
+            Objects.requireNonNull(workspaceResolveService, "workspaceResolveService");
+        }
+    }
+
+    public record CommandBuildServices(
+            BuildService buildService,
+            WorkspaceBuildService workspaceBuildService,
+            FrameworkBuildAugmenter frameworkBuildAugmenter) {
+        public CommandBuildServices {
+            Objects.requireNonNull(buildService, "buildService");
+            Objects.requireNonNull(workspaceBuildService, "workspaceBuildService");
+            Objects.requireNonNull(frameworkBuildAugmenter, "frameworkBuildAugmenter");
+        }
+    }
+
+    public record CommandPackageServices(
+            PackagePlanService packagePlanService,
+            PackageService packageService,
+            BuildService buildService,
+            WorkspacePackageService workspacePackageService) {
+        public CommandPackageServices {
+            Objects.requireNonNull(packagePlanService, "packagePlanService");
+            Objects.requireNonNull(packageService, "packageService");
+            Objects.requireNonNull(buildService, "buildService");
+            Objects.requireNonNull(workspacePackageService, "workspacePackageService");
+        }
+    }
+
+    public record CommandRunPackageServices(
+            RunPackageService runPackageService,
+            WorkspaceRunPackageService workspaceRunPackageService) {
+        public CommandRunPackageServices {
+            Objects.requireNonNull(runPackageService, "runPackageService");
+            Objects.requireNonNull(workspaceRunPackageService, "workspaceRunPackageService");
+        }
+    }
+
+    public record CommandRunServices(
+            RunService runService,
+            WorkspaceRunService workspaceRunService) {
+        public CommandRunServices {
+            Objects.requireNonNull(runService, "runService");
+            Objects.requireNonNull(workspaceRunService, "workspaceRunService");
+        }
+    }
+
+    public record CommandTestServices(
+            TestRunService testRunService,
+            WorkspaceTestService workspaceTestService) {
+        public CommandTestServices {
+            Objects.requireNonNull(testRunService, "testRunService");
+            Objects.requireNonNull(workspaceTestService, "workspaceTestService");
+        }
+    }
+}

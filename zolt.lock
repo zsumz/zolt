@@ -1,259 +1,6 @@
 version = 1
-projectResolutionFingerprint = "sha256:6dfa92c750952e2334489e68900b044d21345bcdb4bc6825c2e527f01874b503"
-projectResolutionInputFingerprints = ["dependencies.api=sha256:5d078c1157f8a36510629d77544b4d16b59c51d53cec04aaa2d6667d8ac252f8", "dependencies.compile.workspace=sha256:48a5543884f2132c0a058b6da9f020e3a7bed09f773cd93439f9592ed2e5995d", "dependencies.compile=sha256:10cada147aac4e2a88fe8de4d3f6fd2ebdc0d3a64f308e652f50d577d0911ce9", "dependencies.provided=sha256:dc90c887515fcf8c8a599af07b9c83dd11489937d35292fd461bb9ab4a1d464d", "dependencies.test=sha256:1cf2e7ad27414c102558d3824cbeaec9bae61beba9d45b1dff044d1134657444", "framework.quarkus=sha256:25901f1702f14fffea99c796e0f0ae5992702f19971c34649fcc5eb5cef07a1c", "framework.springBoot.native=sha256:6197e23157768d461cf4e0edf165ead4532607150432a46992269c409d5bef48", "java=sha256:f83dbe2c1b7af9c3db7fe08da1f0ad8261db988769cf8d0e697a62e4d0546866", "package=sha256:4e991e82a9c5d9578ba91822bd49879a09d4fb4a14f1f1e2c13fc0e98e4ab147", "repositories=sha256:4f70872e523454447835b7a6e64a31c15cd8e262bf17606177002c16a30b75e1", "schema=sha256:51a122454387ff33bccb8f2c6c06761b81248691d3376bac87ac282bf30defb6"]
-
-[[package]]
-id = "com.zolt:zolt-build"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-build"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-ide", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-config"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-config"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-explain"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-explain"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-framework-api"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-framework-api"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-quarkus", "modules/zolt-test-runtime", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-ide"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-ide"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-quarkus"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-init"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-init"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-junit"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-junit"
-workspaceOutput = "target/classes"
-members = ["modules/zolt-build", "modules/zolt-test-runtime"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-model"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-model"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-native-image"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-native-image"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-selfhost", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-plan"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-plan"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-policy"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-policy"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-quality"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-publish"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-publish"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-quality"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-quality"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-quality"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-quarkus"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-quarkus"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-release"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-release"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-repository"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-repository"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-resolve"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-resolve"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-selfhost"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-selfhost"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-test-model"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-test-model"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-junit", "modules/zolt-quarkus", "modules/zolt-test-runtime", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-test-runtime"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-test-runtime"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-selfhost", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-toml"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-toml"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-tree"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-tree"
-workspaceOutput = "target/classes"
-members = ["apps/zolt"]
-dependencies = []
-
-[[package]]
-id = "com.zolt:zolt-workspace"
-version = "0.1.0-SNAPSHOT"
-source = "workspace"
-scope = "compile"
-direct = true
-workspace = "modules/zolt-workspace"
-workspaceOutput = "target/classes"
-members = ["apps/zolt", "modules/zolt-ide", "modules/zolt-quality", "modules/zolt-selfhost"]
-dependencies = []
+projectResolutionFingerprint = "sha256:ce632599af9c5115341bc1e3b57b990ac494f7322d4b60e55676af8514843b26"
+projectResolutionInputFingerprints = ["dependencies.api=sha256:5d078c1157f8a36510629d77544b4d16b59c51d53cec04aaa2d6667d8ac252f8", "dependencies.compile.workspace=sha256:a8b4c4a5a6648a17ad4fb54d8f9264df01ad70087695b68f23c1ff21eed69ecc", "dependencies.compile=sha256:10cada147aac4e2a88fe8de4d3f6fd2ebdc0d3a64f308e652f50d577d0911ce9", "dependencies.provided=sha256:dc90c887515fcf8c8a599af07b9c83dd11489937d35292fd461bb9ab4a1d464d", "dependencies.test=sha256:1cf2e7ad27414c102558d3824cbeaec9bae61beba9d45b1dff044d1134657444", "framework.quarkus=sha256:25901f1702f14fffea99c796e0f0ae5992702f19971c34649fcc5eb5cef07a1c", "framework.springBoot.native=sha256:6197e23157768d461cf4e0edf165ead4532607150432a46992269c409d5bef48", "java=sha256:f83dbe2c1b7af9c3db7fe08da1f0ad8261db988769cf8d0e697a62e4d0546866", "package=sha256:4e991e82a9c5d9578ba91822bd49879a09d4fb4a14f1f1e2c13fc0e98e4ab147", "repositories=sha256:4f70872e523454447835b7a6e64a31c15cd8e262bf17606177002c16a30b75e1", "schema=sha256:51a122454387ff33bccb8f2c6c06761b81248691d3376bac87ac282bf30defb6"]
 
 [[package]]
 id = "info.picocli:picocli"
@@ -372,4 +119,257 @@ pomSha256 = "1393089af1f9260c004c22313197cae9db1385ccbb30499a82d5a931d1762f66"
 members = ["modules/zolt-config", "modules/zolt-explain", "modules/zolt-toml"]
 exportedBy = ["modules/zolt-toml"]
 dependencies = ["org.antlr:antlr4-runtime:4.11.1", "org.checkerframework:checker-qual:3.21.2"]
+
+[[package]]
+id = "sh.zolt:zolt-build"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-build"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-ide", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-config"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-config"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-explain"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-explain"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-framework-api"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-framework-api"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-quarkus", "modules/zolt-test-runtime", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-ide"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-ide"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-quarkus"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-init"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-init"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-junit"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-junit"
+workspaceOutput = "target/classes"
+members = ["modules/zolt-build", "modules/zolt-test-runtime"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-model"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-model"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-tree", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-native-image"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-native-image"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-selfhost", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-plan"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-plan"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-policy"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-policy"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-quality"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-publish"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-publish"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-quality"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-quality"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-quality"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-quarkus"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-quarkus"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-release"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-release"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-repository"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-repository"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-resolve"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-resolve"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-selfhost"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-selfhost"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-test-model"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-test-model"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-junit", "modules/zolt-quarkus", "modules/zolt-test-runtime", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-test-runtime"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-test-runtime"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-selfhost", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-toml"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-toml"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-build", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-resolve", "modules/zolt-selfhost", "modules/zolt-test-runtime", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-tree"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-tree"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-workspace"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-workspace"
+workspaceOutput = "target/classes"
+members = ["apps/zolt", "modules/zolt-ide", "modules/zolt-quality", "modules/zolt-selfhost"]
+dependencies = []
 

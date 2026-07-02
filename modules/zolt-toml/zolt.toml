@@ -1,14 +1,14 @@
 [project]
 name = "zolt-toml"
 version = "0.1.0-SNAPSHOT"
-group = "com.zolt"
+group = "sh.zolt"
 java = "21"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 
 [api.dependencies]
 "org.tomlj:tomlj" = "1.1.1"
