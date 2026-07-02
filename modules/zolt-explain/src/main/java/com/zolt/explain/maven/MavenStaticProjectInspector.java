@@ -137,6 +137,9 @@ public final class MavenStaticProjectInspector {
             }
         }
         for (MavenPluginInspection plugin : inspection.plugins()) {
+            if (plugin.pluginManagement()) {
+                continue;
+            }
             if (unsupportedLanguagePlugin(plugin.coordinate())) {
                 signals.add(ExplainSignals.MAVEN_LANGUAGE_UNSUPPORTED.signal(
                         project,
@@ -145,10 +148,15 @@ public final class MavenStaticProjectInspector {
                 signals.add(ExplainSignals.MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` declares framework AOT/native behavior that Zolt does not execute as Maven lifecycle behavior; migrate supported cases to typed Zolt framework settings."));
-            } else if (!plugin.phases().isEmpty() && !plugin.pluginManagement()) {
+            } else if (knownPlugin(plugin.coordinate()) && (!plugin.phases().isEmpty() || !plugin.goals().isEmpty())) {
+                signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
+                        project,
+                        "Plugin `" + plugin.coordinate() + "` declares statically visible Maven behavior"
+                                + phaseSuffix(plugin) + "."));
+            } else if (!plugin.phases().isEmpty()) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_LIFECYCLE_BINDING.signal(
                         project,
-                        "Plugin `" + plugin.coordinate() + "` runs in lifecycle phase(s) " + plugin.phases() + "."));
+                        "Plugin `" + plugin.coordinate() + "` runs in effective lifecycle phase(s) " + plugin.phases() + "."));
             } else if (!knownPlugin(plugin.coordinate())) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,
@@ -193,6 +201,13 @@ public final class MavenStaticProjectInspector {
                 || coordinate.contains(":maven-surefire-plugin")
                 || coordinate.contains(":maven-failsafe-plugin")
                 || coordinate.contains(":spring-boot-maven-plugin");
+    }
+
+    private static String phaseSuffix(MavenPluginInspection plugin) {
+        if (plugin.phases().isEmpty()) {
+            return "";
+        }
+        return " in effective lifecycle phase(s) " + plugin.phases();
     }
 
     private static boolean unsupportedLanguagePlugin(String coordinate) {

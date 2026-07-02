@@ -57,7 +57,7 @@ final class MavenPluginInterpolationTest {
         assertEquals("org.antlr:antlr4-maven-plugin:4.13.2", project.plugins().getFirst().coordinate());
         assertTrue(text.contains("name: com.example.tools:parser"), () -> text);
         assertTrue(
-                text.contains("Plugin `org.antlr:antlr4-maven-plugin:4.13.2` runs in lifecycle phase(s)"),
+                text.contains("Plugin `org.antlr:antlr4-maven-plugin:4.13.2` runs in effective lifecycle phase(s)"),
                 () -> text);
         assertTrue(json.contains("\"displayName\": \"com.example.tools:parser\""), () -> json);
         assertTrue(json.contains("\"coordinate\": \"org.antlr:antlr4-maven-plugin:4.13.2\""), () -> json);

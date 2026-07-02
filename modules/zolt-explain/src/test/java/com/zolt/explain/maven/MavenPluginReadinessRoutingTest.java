@@ -116,7 +116,7 @@ final class MavenPluginReadinessRoutingTest {
         String text = new MigrationReadinessScorecardFormatter().text(scorecard);
 
         assertConcern(text, "generated-sources", "blocked", "Maven generated-source plugin", "[generatedSources]");
-        assertConcern(text, "tests", "blocked", "Maven test execution plugin", "[test] and integration-test settings");
+        assertConcern(text, "tests", "planned", "Maven test execution plugin", "[test] and integration-test settings");
     }
 
     private static void assertConcern(

@@ -123,6 +123,8 @@ final class MavenExplainProjectJsonWriter {
                 indent(json, level + 1).append("{\n");
                 stringField(json, level + 2, "coordinate", plugin.coordinate(), true);
                 stringArrayField(json, level + 2, "phases", plugin.phases(), true);
+                stringArrayField(json, level + 2, "goals", plugin.goals(), true);
+                stringArrayField(json, level + 2, "disabledExecutions", plugin.disabledExecutions(), true);
                 booleanField(json, level + 2, "pluginManagement", plugin.pluginManagement(), false);
                 indent(json, level + 1).append("}");
                 if (index < plugins.size() - 1) {

@@ -47,7 +47,20 @@ public final class MavenExplainFormatter {
                         .append(processor.coordinate())
                         .append('\n');
             }
-            output.append("    plugins: ").append(project.plugins().size()).append('\n');
+            output.append("    plugins: ").append(boundPluginCount(project.plugins())).append('\n');
+            long pluginManagementCount = pluginManagementCount(project.plugins());
+            if (pluginManagementCount > 0) {
+                output.append("    plugin management plugins: ").append(pluginManagementCount).append('\n');
+            }
+            for (MavenPluginInspection plugin : project.plugins()) {
+                if (!plugin.disabledExecutions().isEmpty()) {
+                    output.append("      - ")
+                            .append(plugin.coordinate())
+                            .append(" disabled executions: ")
+                            .append(String.join(", ", plugin.disabledExecutions()))
+                            .append('\n');
+                }
+            }
             output.append("    profiles: ").append(project.profiles().size()).append('\n');
         }
 
@@ -113,6 +126,14 @@ public final class MavenExplainFormatter {
 
     private static String path(Path path) {
         return path.toString().replace('\\', '/');
+    }
+
+    private static long boundPluginCount(List<MavenPluginInspection> plugins) {
+        return plugins.stream().filter(plugin -> !plugin.pluginManagement()).count();
+    }
+
+    private static long pluginManagementCount(List<MavenPluginInspection> plugins) {
+        return plugins.stream().filter(MavenPluginInspection::pluginManagement).count();
     }
 
     private static String coordinate(String value) {

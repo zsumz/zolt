@@ -132,6 +132,18 @@ public final class MavenMigrationReadinessFindings {
                     "Map Maven test execution settings to explicit Zolt test runtime configuration.");
         }
         if (matchesAny(coordinate,
+                "maven-compiler-plugin",
+                "build-helper-maven-plugin")) {
+            return MigrationReadinessFindings.finding(
+                    "tests",
+                    category,
+                    signal,
+                    "Maven compiler or source-root plugin",
+                    "Java compile/test-compile settings",
+                    "",
+                    "Map Maven compiler and source-root settings to explicit Zolt Java and test source configuration.");
+        }
+        if (matchesAny(coordinate,
                 "antlr4-maven-plugin",
                 "javacc-maven-plugin",
                 "ph-javacc-maven-plugin",
@@ -139,8 +151,7 @@ public final class MavenMigrationReadinessFindings {
                 "protobuf-maven-plugin",
                 "jaxb2-maven-plugin",
                 "jaxb-maven-plugin",
-                "jooq-codegen-maven",
-                "build-helper-maven-plugin")) {
+                "jooq-codegen-maven")) {
             return MigrationReadinessFindings.finding(
                     "generated-sources",
                     category,
