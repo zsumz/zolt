@@ -85,6 +85,45 @@ final class ZoltTomlParserValidationTest {
     }
 
     @Test
+    void rejectsEmptyMainSourceRoots() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [build]
+                        sources = []
+                        """));
+
+        assertTrue(exception.getMessage().contains("[build].sources"));
+        assertTrue(exception.getMessage().contains("non-empty array"));
+    }
+
+    @Test
+    void rejectsMismatchedPrimaryMainSourceRoot() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "demo"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [build]
+                        source = "src/main/java"
+                        sources = ["src/generated/java", "src/main/java"]
+                        """));
+
+        assertTrue(exception.getMessage().contains("[build].source"));
+        assertTrue(exception.getMessage().contains("first [build].sources entry"));
+    }
+
+    @Test
     void rejectsUnsafeOutputRoot() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -44,13 +45,17 @@ public final class PackageSupplementalArtifactAssembler {
     }
 
     private static PackageArtifact packageSourcesJar(Path projectDirectory, ProjectConfig config) {
-        Path sourceRoot = ProjectPaths.existingRoot(projectDirectory, "[build].source", config.build().source());
+        List<MainSourceRoot> sourceRoots = mainSourceRoots(projectDirectory, config);
         Path jarPath = classifierJarPath(projectDirectory, config, "sources");
         try {
             Files.createDirectories(jarPath.getParent());
-            List<Path> files = PackageSupplementalArtifactFiles.sourceFiles(sourceRoot);
-            PackageArchiveWriter.writeJarFromFiles(jarPath, sourceRoot, files);
-            return new PackageArtifact("sources", jarPath, files.size());
+            List<SourceJarEntry> entries = sourceJarEntries(sourceRoots);
+            try (PackageArchiveWriter archive = PackageArchiveWriter.open(jarPath)) {
+                for (SourceJarEntry entry : entries) {
+                    archive.writeFile(entry.name(), entry.file());
+                }
+            }
+            return new PackageArtifact("sources", jarPath, entries.size());
         } catch (IOException exception) {
             throw new PackageException(
                     "Could not package sources jar at "
@@ -66,7 +71,7 @@ public final class PackageSupplementalArtifactAssembler {
             BuildResult buildResult,
             Optional<List<ResolvedClasspathPackage>> classpathPackages,
             Optional<ClasspathSet> classpaths) {
-        Path sourceRoot = ProjectPaths.existingRoot(projectDirectory, "[build].source", config.build().source());
+        List<MainSourceRoot> sourceRoots = mainSourceRoots(projectDirectory, config);
         Path javadocDirectory = ProjectPaths.output(
                 projectDirectory,
                 "package javadoc output",
@@ -76,11 +81,11 @@ public final class PackageSupplementalArtifactAssembler {
             Files.createDirectories(jarPath.getParent());
             PackageSupplementalArtifactFiles.deleteDirectory(javadocDirectory);
             Files.createDirectories(javadocDirectory);
-            List<Path> sources = PackageSupplementalArtifactFiles.sourceFiles(sourceRoot);
+            List<Path> sources = sourceFiles(sourceRoots);
             if (!sources.isEmpty()) {
                 runJavadoc(
                         projectDirectory,
-                        sourceRoot,
+                        sourceRoots.stream().map(MainSourceRoot::path).toList(),
                         javadocDirectory,
                         sources,
                         javadocClasspath(buildResult, classpathPackages, classpaths));
@@ -138,7 +143,7 @@ public final class PackageSupplementalArtifactAssembler {
 
     private static void runJavadoc(
             Path projectDirectory,
-            Path sourceRoot,
+            List<Path> sourceRoots,
             Path outputDirectory,
             List<Path> sources,
             List<Path> classpath) {
@@ -148,7 +153,9 @@ public final class PackageSupplementalArtifactAssembler {
         command.add("-d");
         command.add(outputDirectory.toString());
         command.add("-sourcepath");
-        command.add(sourceRoot.toString());
+        command.add(sourceRoots.stream()
+                .map(Path::toString)
+                .collect(Collectors.joining(java.io.File.pathSeparator)));
         if (!classpath.isEmpty()) {
             command.add("-classpath");
             command.add(classpath.stream()
@@ -201,4 +208,46 @@ public final class PackageSupplementalArtifactAssembler {
                 + ProjectPaths.filenameComponent("[project].version", config.project().version());
     }
 
+    private static List<MainSourceRoot> mainSourceRoots(Path projectDirectory, ProjectConfig config) {
+        List<MainSourceRoot> roots = new ArrayList<>();
+        for (String configuredRoot : config.build().sourceRoots()) {
+            roots.add(new MainSourceRoot(
+                    configuredRoot,
+                    ProjectPaths.existingRoot(projectDirectory, "[build].sources", configuredRoot)));
+        }
+        return List.copyOf(roots);
+    }
+
+    private static List<SourceJarEntry> sourceJarEntries(List<MainSourceRoot> sourceRoots) throws IOException {
+        List<SourceJarEntry> entries = new ArrayList<>();
+        for (MainSourceRoot root : sourceRoots) {
+            for (Path file : PackageSupplementalArtifactFiles.sourceFiles(root.path())) {
+                entries.add(new SourceJarEntry(entryName(root.path(), file), file));
+            }
+        }
+        return entries.stream()
+                .sorted(Comparator.comparing(SourceJarEntry::name)
+                        .thenComparing(entry -> entry.file().toString()))
+                .toList();
+    }
+
+    private static List<Path> sourceFiles(List<MainSourceRoot> sourceRoots) throws IOException {
+        List<Path> sources = new ArrayList<>();
+        for (MainSourceRoot root : sourceRoots) {
+            sources.addAll(PackageSupplementalArtifactFiles.sourceFiles(root.path()));
+        }
+        return sources.stream()
+                .sorted()
+                .toList();
+    }
+
+    private static String entryName(Path root, Path file) {
+        return root.relativize(file).normalize().toString().replace('\\', '/');
+    }
+
+    private record MainSourceRoot(String configuredPath, Path path) {
+    }
+
+    private record SourceJarEntry(String name, Path file) {
+    }
 }

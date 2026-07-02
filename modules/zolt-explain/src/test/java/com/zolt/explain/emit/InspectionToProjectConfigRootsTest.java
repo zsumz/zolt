@@ -39,6 +39,24 @@ final class InspectionToProjectConfigRootsTest {
                         <directory>test-config</directory>
                       </testResource>
                     </testResources>
+                    <plugins>
+                      <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                          <execution>
+                            <goals>
+                              <goal>add-source</goal>
+                            </goals>
+                            <configuration>
+                              <sources>
+                                <source>src/gen</source>
+                              </sources>
+                            </configuration>
+                          </execution>
+                        </executions>
+                      </plugin>
+                    </plugins>
                   </build>
                 </project>
                 """);
@@ -46,6 +64,7 @@ final class InspectionToProjectConfigRootsTest {
         ProjectConfig config = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir)).config();
 
         assertEquals("src/java", config.build().source());
+        assertEquals(List.of("src/java", "src/gen"), config.build().sourceRoots());
         assertEquals("src/tests", config.build().test());
         assertEquals(List.of("src/tests"), config.build().testSources());
         assertEquals(List.of("config"), config.build().resourceRoots());
@@ -84,7 +103,7 @@ final class InspectionToProjectConfigRootsTest {
                 sourceSets {
                     main {
                         java {
-                            srcDirs = ['src/java']
+                            srcDirs = ['src/java', 'src/generated/java']
                         }
                     }
                     test {
@@ -98,7 +117,8 @@ final class InspectionToProjectConfigRootsTest {
         ProjectConfig config = mapper.fromGradle(new GradleStaticProjectInspector().inspect(tempDir)).config();
 
         assertEquals("src/java", config.build().source());
-        assertEquals("src/fixtures", config.build().test());
-        assertEquals(List.of("src/fixtures", "src/tests"), config.build().testSources());
+        assertEquals(List.of("src/java", "src/generated/java"), config.build().sourceRoots());
+        assertEquals("src/tests", config.build().test());
+        assertEquals(List.of("src/tests", "src/fixtures"), config.build().testSources());
     }
 }

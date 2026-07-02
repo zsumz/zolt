@@ -126,6 +126,21 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void preservesExplicitMainSourceRootsWhenEditingDependencies() {
+        ProjectConfig config = config()
+                .build(buildSettingsWithSourceRoots(List.of("src/main/java", "src/generated/java")))
+                .build();
+        config = writer.addDependency(config, DependencySection.MAIN, "com.example:app", "1.0.0");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("sources = [\"src/main/java\", \"src/generated/java\"]"));
+        assertEquals(config.build().sourceRoots(), parsed.build().sourceRoots());
+        assertEquals("1.0.0", parsed.dependencies().get("com.example:app"));
+    }
+
+    @Test
     void writesOutputRootAndDerivedOutputs() {
         ProjectConfig config = config()
                 .build(new BuildSettings(
@@ -207,5 +222,21 @@ final class ZoltTomlWriterTest {
                         List.of("-Xlint:deprecation", "-parameters"),
                         List.of("-Xlint:unchecked")))
                 .build();
+    }
+
+    private static BuildSettings buildSettingsWithSourceRoots(List<String> sourceRoots) {
+        BuildSettings defaults = BuildSettings.defaults();
+        return new BuildSettings(
+                defaults.source(),
+                sourceRoots,
+                defaults.test(),
+                defaults.outputRoot(),
+                defaults.output(),
+                defaults.testOutput(),
+                defaults.testSources(),
+                defaults.groovyTestSources(),
+                defaults.resourceRoots(),
+                defaults.testResourceRoots(),
+                defaults.metadata());
     }
 }

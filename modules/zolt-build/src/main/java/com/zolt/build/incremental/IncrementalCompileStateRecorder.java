@@ -73,7 +73,7 @@ public final class IncrementalCompileStateRecorder {
                 projectDirectory,
                 config,
                 sources.mainSources(),
-                List.of(config.build().source()),
+                config.build().sourceRoots(),
                 config.build().generatedMainSources(),
                 classpaths.compile(),
                 classpaths.processor(),

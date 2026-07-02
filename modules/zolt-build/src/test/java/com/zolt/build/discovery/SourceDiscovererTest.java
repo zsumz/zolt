@@ -33,6 +33,18 @@ final class SourceDiscovererTest {
     }
 
     @Test
+    void findsMainJavaSourcesFromMultipleRootsDeterministically() throws IOException {
+        Path generated = source("src/generated/java/com/example/Generated.java");
+        Path main = source("src/main/java/com/example/Main.java");
+
+        SourceDiscoveryResult result = discoverer.discover(
+                projectDir,
+                buildSettingsWithSourceRoots(List.of("src/generated/java", "src/main/java")));
+
+        assertEquals(List.of(generated, main), result.mainSources());
+    }
+
+    @Test
     void findsJavaTestsFromMultipleRootsDeterministically() throws IOException {
         Path unit = source("src/test/java/com/example/MainTest.java");
         Path integration = source("src/integration-test/java/com/example/MainIT.java");
@@ -174,5 +186,21 @@ final class SourceDiscovererTest {
         Files.createDirectories(source.getParent());
         Files.writeString(source, "final class Example {}\n");
         return source.normalize();
+    }
+
+    private static BuildSettings buildSettingsWithSourceRoots(List<String> sourceRoots) {
+        BuildSettings defaults = BuildSettings.defaults();
+        return new BuildSettings(
+                defaults.source(),
+                sourceRoots,
+                defaults.test(),
+                defaults.outputRoot(),
+                defaults.output(),
+                defaults.testOutput(),
+                defaults.testSources(),
+                defaults.groovyTestSources(),
+                defaults.resourceRoots(),
+                defaults.testResourceRoots(),
+                defaults.metadata());
     }
 }

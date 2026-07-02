@@ -126,6 +126,7 @@ final class ProjectModelQualityCheck {
         List<PathField> fields = new ArrayList<>();
         BuildSettings build = config.build();
         fields.add(new PathField("[build].source", build.source()));
+        addPathFields(fields, "[build].sources", build.sourceRoots());
         fields.add(new PathField("[build].test", build.test()));
         fields.add(new PathField("[build].output", build.output()));
         fields.add(new PathField("[build].testOutput", build.testOutput()));

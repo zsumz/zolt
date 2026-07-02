@@ -126,7 +126,7 @@ public final class BuildPlanService {
                 "Compile main Java sources with Zolt-owned javac inputs.",
                 mainCompileInputs(build),
                 List.of(build.output()),
-                List.of("source: " + build.source()),
+                List.of("sources: " + build.sourceRoots()),
                 List.of()));
     }
 
@@ -264,7 +264,7 @@ public final class BuildPlanService {
 
     private static List<String> mainCompileInputs(BuildSettings build) {
         List<String> inputs = new ArrayList<>();
-        inputs.add(build.source());
+        inputs.addAll(build.sourceRoots());
         for (GeneratedSourceStep step : build.generatedMainSources()) {
             inputs.add(step.output());
         }

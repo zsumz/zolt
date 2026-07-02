@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.cli.CliTestRepository;
 import com.zolt.cli.CliTestSupport.CommandResult;
+import com.zolt.dependency.PackageId;
+import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +52,10 @@ final class ExplainCommandEmitWorkspaceMavenBomTest {
                     "--cache-root",
                     tempDir.resolve("cache").toString());
             assertEquals(0, resolve.exitCode(), () -> resolve.stdout() + resolve.stderr());
-            assertTrue(Files.readString(tempDir.resolve("zolt.lock")).contains("com.google.code.gson:gson:2.10.1"));
+            ZoltLockfile lockfile = new ZoltLockfileReader().read(tempDir.resolve("zolt.lock"));
+            assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
+                    lockPackage.packageId().equals(new PackageId("com.google.code.gson", "gson"))
+                            && lockPackage.version().equals("2.10.1")));
         }
     }
 

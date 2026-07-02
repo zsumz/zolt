@@ -39,9 +39,9 @@ public final class SelfHostingCheckService {
                 "zolt.lock exists",
                 "run zolt resolve to create zolt.lock");
         add(checks, "main sources",
-                Files.isDirectory(root.resolve(config.build().source())),
-                config.build().source() + " exists",
-                "create " + config.build().source() + " or update [build].source");
+                config.build().sourceRoots().stream().anyMatch(source -> Files.isDirectory(root.resolve(source))),
+                "at least one configured main source root exists",
+                "create a configured main source root or update [build].sources");
         add(checks, "test sources",
                 testSourceRoots(config).stream().anyMatch(testSource -> Files.isDirectory(root.resolve(testSource))),
                 "at least one configured test source root exists",

@@ -32,6 +32,11 @@ final class ExplainCommandEmitTomlGradleInterpolationTest {
                     "junit-jupiter",
                     "5.10.2",
                     pom("org.junit.jupiter", "junit-jupiter", "5.10.2"));
+            repository.addArtifact(
+                    "org.junit.platform",
+                    "junit-platform-console",
+                    "1.11.4",
+                    pom("org.junit.platform", "junit-platform-console", "1.11.4"));
             Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'interpolated'\n");
             Files.writeString(tempDir.resolve("gradle.properties"), """
                     group=com.acme

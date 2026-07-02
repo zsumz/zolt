@@ -198,7 +198,7 @@ final class GradleBuildFileParser {
             String value = srcDirs.group(1) == null ? srcDirs.group(2) : srcDirs.group(1);
             roots.addAll(quotedValues(value));
         }
-        return roots.isEmpty() ? defaultRoots(defaultRoot, includeDefaultRoot) : roots.stream().distinct().sorted().toList();
+        return roots.isEmpty() ? defaultRoots(defaultRoot, includeDefaultRoot) : roots.stream().distinct().toList();
     }
 
     private static List<String> defaultRoots(String defaultRoot, boolean includeDefaultRoot) {

@@ -14,7 +14,8 @@ import java.util.Set;
 import org.tomlj.TomlTable;
 
 final class BuildSectionCodec {
-    private static final Set<String> BUILD_KEYS = Set.of("source", "test", "outputRoot", "output", "testOutput", "metadata");
+    private static final Set<String> BUILD_KEYS =
+            Set.of("source", "sources", "test", "outputRoot", "output", "testOutput", "metadata");
     private static final Set<String> INTEGRATION_TEST_KEYS =
             Set.of("source", "sources", "resources", "output");
     private static final Set<String> BUILD_METADATA_KEYS = Set.of("buildInfo", "git", "reproducible");
@@ -31,13 +32,24 @@ final class BuildSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("build", table, BUILD_KEYS);
         BuildMetadataSettings metadata = parseBuildMetadata(optionalTable(table, "metadata"));
         String source = TomlScalars.stringOrDefault(table, "build", "source", defaults.source());
+        List<String> sourceRoots = TomlScalars.stringListOrDefault(table, "build", "sources", List.of(source));
+        if (sourceRoots.isEmpty()) {
+            throw new ZoltConfigException(
+                    "Invalid value for [build].sources in zolt.toml. Use a non-empty array of source root strings.");
+        }
+        if (table.contains("source") && table.contains("sources") && !source.equals(sourceRoots.getFirst())) {
+            throw new ZoltConfigException(
+                    "Invalid [build] source roots in zolt.toml. When both [build].source and [build].sources are set, [build].source must match the first [build].sources entry.");
+        }
+        source = sourceRoots.getFirst();
         String test = TomlScalars.stringOrDefault(table, "build", "test", defaults.test());
         String outputRoot = TomlScalars.nonBlankStringOrDefault(table, "build", "outputRoot", defaults.outputRoot());
         validateOutputRoot(outputRoot);
-        validateSupportedSourceRoot("[build].source", source);
+        validateSupportedSourceRoots("[build].sources", sourceRoots);
         validateSupportedSourceRoot("[build].test", test);
         return new BuildSettings(
                 source,
+                sourceRoots,
                 test,
                 outputRoot,
                 TomlScalars.stringOrDefault(table, "build", "output", outputRoot + "/classes"),
@@ -95,6 +107,9 @@ final class BuildSectionCodec {
     static void writeBuild(StringBuilder toml, BuildSettings build) {
         toml.append("[build]\n");
         writeAssignment(toml, "source", build.source());
+        if (!build.sourceRoots().equals(List.of(build.source()))) {
+            writeStringArray(toml, "sources", build.sourceRoots());
+        }
         writeAssignment(toml, "test", build.test());
         writeAssignment(toml, "outputRoot", build.outputRoot());
         writeAssignment(toml, "output", build.output());
@@ -213,6 +228,17 @@ final class BuildSectionCodec {
 
     private static void writeAssignment(StringBuilder toml, String key, String value) {
         toml.append(key).append(" = ").append(quote(value)).append('\n');
+    }
+
+    private static void writeStringArray(StringBuilder toml, String key, List<String> values) {
+        toml.append(key).append(" = [");
+        for (int index = 0; index < values.size(); index++) {
+            if (index > 0) {
+                toml.append(", ");
+            }
+            toml.append(quote(values.get(index)));
+        }
+        toml.append("]\n");
     }
 
     private static String quote(String value) {

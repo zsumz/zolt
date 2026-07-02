@@ -108,6 +108,7 @@ final class PackageServiceEvidenceManifestTest {
             BuildMetadataSettings metadata) {
         return new BuildSettings(
                 build.source(),
+                build.sourceRoots(),
                 build.test(),
                 build.outputRoot(),
                 build.output(),

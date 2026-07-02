@@ -21,8 +21,9 @@ public final class SourceDiscoverer {
         Path projectRoot = ProjectPaths.root(projectDirectory);
         Path output = outputPath(projectRoot, "[build].output", settings.output());
         Path testOutput = outputPath(projectRoot, "[build].testOutput", settings.testOutput());
-        List<SourceRoot> mainRoots = new ArrayList<>();
-        mainRoots.add(inputRoot(projectRoot, "[build].source", settings.source()));
+        List<SourceRoot> mainRoots = new ArrayList<>(settings.sourceRoots().stream()
+                .map(root -> inputRoot(projectRoot, "[build].sources", root))
+                .toList());
         mainRoots.addAll(generatedRoots(projectRoot, settings.generatedMainSources(), "main"));
         List<SourceRoot> testRoots = new ArrayList<>(settings.testSources().stream()
                 .map(root -> inputRoot(projectRoot, "[build].testSources", root))

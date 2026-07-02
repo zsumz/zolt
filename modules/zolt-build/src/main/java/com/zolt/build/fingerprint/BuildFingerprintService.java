@@ -138,7 +138,7 @@ public final class BuildFingerprintService {
 
     private static List<String> mainSourceRoots(BuildSettings settings) {
         List<String> roots = new ArrayList<>();
-        roots.add(settings.source());
+        roots.addAll(settings.sourceRoots());
         roots.addAll(settings.generatedMainSources().stream()
                 .map(GeneratedSourceStep::output)
                 .toList());

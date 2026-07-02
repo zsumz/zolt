@@ -271,6 +271,9 @@ final class ExplainCommandEmitTomlTest {
               <groupId>com.example</groupId>
               <artifactId>managed-demo</artifactId>
               <version>1.0.0</version>
+              <properties>
+                <maven.compiler.release>21</maven.compiler.release>
+              </properties>
               <dependencyManagement>
                 <dependencies>
                   <dependency>

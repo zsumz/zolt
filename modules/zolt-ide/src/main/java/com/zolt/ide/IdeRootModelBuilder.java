@@ -27,13 +27,15 @@ final class IdeRootModelBuilder {
         }
         BuildSettings settings = config.build();
         List<IdeModel.SourceRoot> roots = new ArrayList<>();
-        addSourceRoot(
-                roots,
-                "main-java",
-                "main",
-                "java",
-                inputRoot(root, "[build].source", settings.source(), diagnostics),
-                false);
+        for (int index = 0; index < settings.sourceRoots().size(); index++) {
+            addSourceRoot(
+                    roots,
+                    index == 0 ? "main-java" : "main-java-" + (index + 1),
+                    "main",
+                    "java",
+                    inputRoot(root, "[build].sources", settings.sourceRoots().get(index), diagnostics),
+                    false);
+        }
         addSourceRoot(
                 roots,
                 "main-generated-java",

@@ -89,7 +89,8 @@ public final class WorkspaceCoverageService {
                 .map(member -> member.directory().resolve(member.config().build().output()).toAbsolutePath().normalize())
                 .toList();
         List<Path> sourceRoots = reportMembers.stream()
-                .map(member -> member.directory().resolve(member.config().build().source()).toAbsolutePath().normalize())
+                .flatMap(member -> member.config().build().sourceRoots().stream()
+                        .map(root -> member.directory().resolve(root).toAbsolutePath().normalize()))
                 .toList();
         JavaRunResult reportResult = coverageReporter.runReport(
                 workspaceRoot,

@@ -31,7 +31,9 @@ public final class ResourceSectionCodec {
         TomlValidation.validateKeysWithVersionRefHint("resources", table, RESOURCES_KEYS);
         return new BuildSettings(
                 build.source(),
+                build.sourceRoots(),
                 build.test(),
+                build.outputRoot(),
                 build.output(),
                 build.testOutput(),
                 build.testSources(),
@@ -45,6 +47,7 @@ public final class ResourceSectionCodec {
                         optionalTable(table, "filtering"),
                         optionalTable(table, "tokens")),
                 build.testRuntime(),
+                build.testSuites(),
                 build.metadata(),
                 build.generatedMainSources(),
                 build.generatedTestSources());

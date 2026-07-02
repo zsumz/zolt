@@ -53,7 +53,7 @@ public final class PackageQualityCheck {
                     "Library package metadata is enabled, but sources jar generation is disabled.",
                     "Set [package].sources = true for library projects.");
         }
-        if (hasSourceFiles(projectRoot, List.of(config.build().source())) && !settings.javadoc()) {
+        if (hasSourceFiles(projectRoot, config.build().sourceRoots()) && !settings.javadoc()) {
             return QualityCheckResult.failed(
                     PACKAGE_METADATA,
                     member,

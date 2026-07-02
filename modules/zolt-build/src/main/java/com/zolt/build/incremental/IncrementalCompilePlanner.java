@@ -46,7 +46,7 @@ public final class IncrementalCompilePlanner {
                 projectDirectory,
                 config,
                 sources,
-                List.of(config.build().source()),
+                config.build().sourceRoots(),
                 config.build().generatedMainSources(),
                 compileClasspath,
                 processorClasspath,

@@ -128,6 +128,26 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void parsesExplicitMainSourceRoots() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [build]
+                source = "src/main/java"
+                sources = ["src/main/java", "src/generated/java"]
+                """);
+
+        assertEquals("src/main/java", config.build().source());
+        assertEquals(
+                List.of("src/main/java", "src/generated/java"),
+                config.build().sourceRoots());
+    }
+
+    @Test
     void derivesBuildOutputsFromOutputRootWhenExplicitOutputsAreOmitted() {
         ProjectConfig config = parser.parse("""
                 [project]

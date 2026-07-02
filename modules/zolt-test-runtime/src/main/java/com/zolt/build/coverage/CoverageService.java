@@ -157,7 +157,9 @@ public final class CoverageService {
                 execFile,
                 cliClasspath,
                 List.of(projectRoot.resolve(config.build().output()).normalize()),
-                List.of(projectRoot.resolve(config.build().source()).normalize()));
+                config.build().sourceRoots().stream()
+                        .map(root -> projectRoot.resolve(root).normalize())
+                        .toList());
     }
 
     public JavaRunResult runReport(

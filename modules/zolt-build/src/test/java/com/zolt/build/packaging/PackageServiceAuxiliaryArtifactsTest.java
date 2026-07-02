@@ -98,6 +98,38 @@ final class PackageServiceAuxiliaryArtifactsTest {
     }
 
     @Test
+    void packagesSourcesJarFromAllMainSourceRoots() throws IOException {
+        writeLockfile(projectDir);
+        source(projectDir, "src/main/java/com/example/Calculator.java", """
+                package com.example;
+
+                public final class Calculator {
+                }
+                """);
+        source(projectDir, "src/generated/java/com/example/generated/GeneratedApi.java", """
+                package com.example.generated;
+
+                public interface GeneratedApi {
+                }
+                """);
+        ProjectConfig config = config(Optional.empty())
+                .withBuildSettings(buildSettingsWithSourceRoots(List.of(
+                        "src/main/java",
+                        "src/generated/java")))
+                .withPackageSettings(new PackageSettings(PackageMode.THIN, true, false, false, null));
+
+        PackageResult result = packageService.packageJar(projectDir, config, projectDir.resolve("cache"));
+
+        assertEquals(List.of("sources"), result.artifacts().stream()
+                .map(PackageArtifact::classifier)
+                .toList());
+        try (JarFile sources = new JarFile(projectDir.resolve("target/demo-0.1.0-sources.jar").toFile())) {
+            assertNotNull(sources.getEntry("com/example/Calculator.java"));
+            assertNotNull(sources.getEntry("com/example/generated/GeneratedApi.java"));
+        }
+    }
+
+    @Test
     void packagesSupplementalArtifactsUnderOutputRoot() throws IOException {
         writeLockfile(projectDir);
         source(projectDir, "src/main/java/com/example/Calculator.java", """
@@ -234,5 +266,21 @@ final class PackageServiceAuxiliaryArtifactsTest {
         assertTrue(exception.getMessage().contains("javadoc failed with exit code"));
         assertTrue(exception.getMessage().contains("disable [package].javadoc"));
         assertTrue(exception.getMessage().contains("missing"));
+    }
+
+    private static BuildSettings buildSettingsWithSourceRoots(List<String> sourceRoots) {
+        BuildSettings defaults = BuildSettings.defaults();
+        return new BuildSettings(
+                defaults.source(),
+                sourceRoots,
+                defaults.test(),
+                defaults.outputRoot(),
+                defaults.output(),
+                defaults.testOutput(),
+                defaults.testSources(),
+                defaults.groovyTestSources(),
+                defaults.resourceRoots(),
+                defaults.testResourceRoots(),
+                defaults.metadata());
     }
 }

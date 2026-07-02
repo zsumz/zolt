@@ -6,7 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Maps audited migration roots into the Zolt build settings shape currently expressible in TOML. */
+/** Maps audited migration roots into the Zolt build settings shape expressible in TOML. */
 final class InspectionBuildSettingsMapper {
     private InspectionBuildSettingsMapper() {
     }
@@ -22,15 +22,6 @@ final class InspectionBuildSettingsMapper {
         List<String> testRoots = distinct(testSourceRoots);
         String source = mainRoots.isEmpty() ? defaults.source() : mainRoots.getFirst();
         String test = testRoots.isEmpty() ? defaults.test() : testRoots.getFirst();
-        if (mainRoots.size() > 1) {
-            notes.add(
-                    "Multiple main source roots were audited (`"
-                            + String.join("`, `", mainRoots)
-                            + "`), but zolt.toml currently supports one main root in [build].source."
-                            + " The draft uses `"
-                            + source
-                            + "`; model the remaining roots by hand before building.");
-        }
         if (mainRoots.isEmpty()) {
             notes.add(
                     "No main source root was found by the static audit; [build].source keeps the Zolt"
@@ -38,6 +29,7 @@ final class InspectionBuildSettingsMapper {
         }
         return new BuildSettings(
                 source,
+                mainRoots.isEmpty() ? List.of(source) : mainRoots,
                 test,
                 defaults.outputRoot(),
                 defaults.output(),

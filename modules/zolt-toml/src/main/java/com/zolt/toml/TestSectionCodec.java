@@ -31,6 +31,7 @@ final class TestSectionCodec {
         BuildSectionCodec.validateSupportedSourceRoots("[test.sources].java", javaSources);
         return new BuildSettings(
                 build.source(),
+                build.sourceRoots(),
                 build.test(),
                 build.outputRoot(),
                 build.output(),

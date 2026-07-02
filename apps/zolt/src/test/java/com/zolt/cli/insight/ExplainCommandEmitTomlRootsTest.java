@@ -42,6 +42,24 @@ final class ExplainCommandEmitTomlRootsTest {
                         <directory>test-config</directory>
                       </testResource>
                     </testResources>
+                    <plugins>
+                      <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                          <execution>
+                            <goals>
+                              <goal>add-source</goal>
+                            </goals>
+                            <configuration>
+                              <sources>
+                                <source>src/gen</source>
+                              </sources>
+                            </configuration>
+                          </execution>
+                        </executions>
+                      </plugin>
+                    </plugins>
                   </build>
                 </project>
                 """);
@@ -50,10 +68,12 @@ final class ExplainCommandEmitTomlRootsTest {
 
         assertEquals(0, result.exitCode(), () -> result.stderr());
         assertTrue(result.stdout().contains("source = \"src/java\""), () -> result.stdout());
+        assertTrue(result.stdout().contains("sources = [\"src/java\", \"src/gen\"]"), () -> result.stdout());
         assertTrue(result.stdout().contains("test = \"src/tests\""), () -> result.stdout());
         assertTrue(result.stdout().contains("[resources]"), () -> result.stdout());
         ProjectConfig parsed = new ZoltTomlParser().parse(result.stdout());
         assertEquals("src/java", parsed.build().source());
+        assertEquals(List.of("src/java", "src/gen"), parsed.build().sourceRoots());
         assertEquals("src/tests", parsed.build().test());
         assertEquals(List.of("config"), parsed.build().resourceRoots());
         assertEquals(List.of("test-config"), parsed.build().testResourceRoots());

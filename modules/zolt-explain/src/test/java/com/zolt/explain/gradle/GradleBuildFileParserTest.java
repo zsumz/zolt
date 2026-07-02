@@ -357,10 +357,10 @@ final class GradleBuildFileParserTest {
                 """;
 
         assertEquals(
-                java.util.List.of("build/generated/sources/openapi", "src/main/java"),
+                java.util.List.of("src/main/java", "build/generated/sources/openapi"),
                 parser.sourceRoots(content, "main", "src/main/java"));
         assertEquals(
-                java.util.List.of("src/integrationTest/java", "src/test/java"),
+                java.util.List.of("src/test/java", "src/integrationTest/java"),
                 parser.sourceRoots(content, "test", "src/test/java"));
         assertEquals(
                 java.util.List.of("src/fixtures/java"),
