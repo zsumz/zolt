@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * Maps a Gradle multi-project build to a {@link DraftWorkspace}: the root project becomes the
  * {@code [workspace]} document; every included subproject becomes a member draft. A
- * {@code project(":lib")} edge is rewritten to {@code { workspace = "lib" }}.
+ * {@code project(":lib")} edge is rewritten to {@code "group:name" = { workspace = "lib" }}.
  */
 final class GradleWorkspaceMapper {
     private static final String ROOT_PATH = ".";
@@ -31,7 +31,7 @@ final class GradleWorkspaceMapper {
         for (GradleProjectInspection project : projects) {
             String path = project.path().toString();
             if (!ROOT_PATH.equals(path)) {
-                registry.register(path, path);
+                registry.register(path, path, GradleInspectionMapper.emittedCoordinate(project));
             }
         }
 

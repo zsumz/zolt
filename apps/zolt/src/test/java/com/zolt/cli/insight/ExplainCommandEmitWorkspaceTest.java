@@ -9,6 +9,9 @@ import com.zolt.cli.CliTestSupport.CommandResult;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
 import com.zolt.workspace.WorkspaceConfig;
+import com.zolt.workspace.discovery.WorkspaceDiscoveryService;
+import com.zolt.workspace.service.Workspace;
+import com.zolt.workspace.service.WorkspaceProjectEdge;
 import com.zolt.workspace.toml.WorkspaceConfigParser;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -220,7 +223,7 @@ final class ExplainCommandEmitWorkspaceTest {
         assertTrue(toml.contains("members = [\"app\", \"core\"]"), () -> toml);
         assertTrue(toml.contains("# --- app/zolt.toml ---"), () -> toml);
         assertTrue(toml.contains("# --- core/zolt.toml ---"), () -> toml);
-        assertTrue(toml.contains("\"core\" = { workspace = \"core\" }"), () -> toml);
+        assertTrue(toml.contains("\"com.example:core\" = { workspace = \"core\" }"), () -> toml);
         assertTrue(toml.contains("\"com.google.guava:guava\" = \"33.4.8-jre\""), () -> toml);
         assertTrue(toml.contains("\"org.apache.commons:commons-lang3\" = \"3.17.0\""), () -> toml);
     }
@@ -239,12 +242,51 @@ final class ExplainCommandEmitWorkspaceTest {
 
         ProjectConfig app = new ZoltTomlParser().parse(documents.get("app"));
         assertEquals("33.4.8-jre", app.dependencies().get("com.google.guava:guava"));
-        String edge = app.workspaceDependencies().get("core");
+        String edge = app.workspaceDependencies().get("com.example:core");
         assertEquals("core", edge);
         assertTrue(workspace.members().contains(edge), () -> "edge target must be a member: " + edge);
 
         ProjectConfig core = new ZoltTomlParser().parse(documents.get("core"));
         assertEquals("3.17.0", core.apiDependencies().get("org.apache.commons:commons-lang3"));
+
+        writeDocuments(tempDir, documents);
+        Workspace discovered = new WorkspaceDiscoveryService().load(tempDir);
+        assertTrue(discovered.edges().stream().anyMatch(ExplainCommandEmitWorkspaceTest::isGradleCoreEdge),
+                () -> "emitted Gradle workspace must discover without coordinate mismatch: "
+                        + discovered.edges());
+    }
+
+    @Test
+    void gradleWorkspaceBundleResolvesWhenSplitOut() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), """
+                rootProject.name = 'sales'
+                include 'app', 'core'
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }\n");
+        writeGradleModule("app", """
+                plugins { id 'java-library' }
+                sourceCompatibility = JavaVersion.VERSION_21
+                dependencies {
+                    implementation project(':core')
+                }
+                """);
+        writeGradleModule("core", """
+                plugins { id 'java-library' }
+                sourceCompatibility = JavaVersion.VERSION_21
+                """);
+
+        CommandResult explain = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "gradle");
+        assertEquals(0, explain.exitCode(), () -> explain.stderr());
+        writeDocuments(tempDir, splitDocuments(explain.stdout()));
+
+        CommandResult resolve = execute(
+                "resolve",
+                "--workspace",
+                "--cwd",
+                tempDir.toString(),
+                "--cache-root",
+                tempDir.resolve("cache").toString());
+        assertEquals(0, resolve.exitCode(), () -> resolve.stdout() + resolve.stderr());
     }
 
     // --- helpers -----------------------------------------------------------------------------
@@ -277,6 +319,18 @@ final class ExplainCommandEmitWorkspaceTest {
         return documents;
     }
 
+    private static void writeDocuments(Path root, Map<String, String> documents) throws IOException {
+        Files.writeString(root.resolve("zolt.toml"), documents.get("workspace"));
+        for (Map.Entry<String, String> document : documents.entrySet()) {
+            if ("workspace".equals(document.getKey())) {
+                continue;
+            }
+            Path member = root.resolve(document.getKey());
+            Files.createDirectories(member);
+            Files.writeString(member.resolve("zolt.toml"), document.getValue());
+        }
+    }
+
     private static String documentKey(String line) {
         String trimmed = line.strip();
         if (!trimmed.startsWith("# ---") || !trimmed.endsWith("---")) {
@@ -287,5 +341,11 @@ final class ExplainCommandEmitWorkspaceTest {
         }
         String inner = trimmed.substring("# ---".length(), trimmed.length() - "---".length()).strip();
         return inner.endsWith("/zolt.toml") ? inner.substring(0, inner.length() - "/zolt.toml".length()) : inner;
+    }
+
+    private static boolean isGradleCoreEdge(WorkspaceProjectEdge edge) {
+        return edge.from().equals("app")
+                && edge.to().equals("core")
+                && edge.coordinate().equals("com.example:core");
     }
 }

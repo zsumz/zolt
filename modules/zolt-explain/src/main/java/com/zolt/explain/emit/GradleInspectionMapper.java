@@ -57,6 +57,10 @@ final class GradleInspectionMapper {
                         + ". These members are not emitted in this draft; review the explain signals before use."));
     }
 
+    static String emittedCoordinate(GradleProjectInspection project) {
+        return emittedGroup(project) + ":" + project.name();
+    }
+
     private static DraftZoltToml mapProject(
             GradleProjectInspection primary,
             WorkspaceMemberRegistry registry,
@@ -82,7 +86,7 @@ final class GradleInspectionMapper {
         addCatalogNotes(aliases, notes);
         addRepositoryNotes(primary.repositories(), notes);
 
-        String group = primary.group().filter(value -> !value.isBlank()).orElse("com.example");
+        String group = emittedGroup(primary);
         String version = primary.version().filter(value -> !value.isBlank()).orElse("0.1.0");
         String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
         ProjectMetadata metadata = new ProjectMetadata(
@@ -137,6 +141,10 @@ final class GradleInspectionMapper {
         return new DraftZoltToml(config, notes, List.copyOf(commentedProjectKeys));
     }
 
+    private static String emittedGroup(GradleProjectInspection project) {
+        return project.group().filter(value -> !value.isBlank()).orElse("com.example");
+    }
+
     private static String javaVersion(
             String inspected,
             List<String> notes,
@@ -169,19 +177,21 @@ final class GradleInspectionMapper {
         if (projectPath == null) {
             return false;
         }
-        String memberPath = registry == null ? null : registry.pathFor(projectPath);
-        if (memberPath == null) {
+        WorkspaceMemberRegistry.Member member = registry == null ? null : registry.memberFor(projectPath);
+        if (member == null) {
             notes.add(
                     "Gradle dependency `project(\"" + dependency.notation() + "\")` in `"
                             + dependency.configuration() + "` targets a project outside this workspace;"
                             + " wire it by hand.");
             return true;
         }
+        String coordinate = member.coordinate();
+        String memberPath = member.path();
         switch (dependency.configuration()) {
-            case "api", "compileOnlyApi" -> workspaceApi.put(memberPath, memberPath);
-            case "implementation", "compile" -> workspaceDependencies.put(memberPath, memberPath);
+            case "api", "compileOnlyApi" -> workspaceApi.put(coordinate, memberPath);
+            case "implementation", "compile" -> workspaceDependencies.put(coordinate, memberPath);
             case "testImplementation", "testRuntimeOnly", "testCompile", "testCompileOnly" ->
-                    workspaceTest.put(memberPath, memberPath);
+                    workspaceTest.put(coordinate, memberPath);
             default -> notes.add(
                     "Gradle dependency `project(\"" + dependency.notation() + "\")` in `"
                             + dependency.configuration() + "` maps to sibling module `" + memberPath
