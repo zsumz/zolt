@@ -14,7 +14,7 @@ final class MigrationExplainGradleEnterpriseFixtures {
                   Included projects: 0
                   Projects: 1
                   Version catalog aliases: 0
-                  Signals: 17
+                  Signals: 18
 
                 Projects
                   - . (enterprise-spring, dsl=groovy, java=17)
@@ -40,6 +40,7 @@ final class MigrationExplainGradleEnterpriseFixtures {
                   warn  Gradle processResources performs token/resource filtering.
 
                 Non-determinism
+                  block  Gradle build reads environment variables in executable build logic.
                   warn  Gradle repository credentials are resolved inside the build script.
                   warn  Gradle build can read Maven-local artifacts through mavenLocal().
 
@@ -49,9 +50,10 @@ final class MigrationExplainGradleEnterpriseFixtures {
                   block  Gradle bootWar package content is changed with archive excludes.
 
                 Next steps
-                  1. Replace global Gradle excludes and forced versions with explicit Zolt dependency policy constraints.
-                  2. Replace imperative Gradle logic with explicit Zolt dependencies, platforms, processors, and source roots.
-                  3. Replace package archive mutation with Zolt dependency scopes and package placement diagnostics.
+                  1. Move environment-selected build behavior into explicit Zolt configuration or local/CI command settings.
+                  2. Replace global Gradle excludes and forced versions with explicit Zolt dependency policy constraints.
+                  3. Replace imperative Gradle logic with explicit Zolt dependencies, platforms, processors, and source roots.
+                  4. Replace package archive mutation with Zolt dependency scopes and package placement diagnostics.
 
                 This command inspected Gradle metadata statically and did not execute Gradle.
                 """;

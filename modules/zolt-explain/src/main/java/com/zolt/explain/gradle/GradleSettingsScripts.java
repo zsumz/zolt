@@ -32,8 +32,14 @@ final class GradleSettingsScripts {
 
     static List<String> includedProjects(String content) {
         List<String> projects = new ArrayList<>();
-        Matcher matcher = INCLUDE_PATTERN.matcher(GradleSourceComments.stripComments(content));
+        String stripped = GradleSourceComments.stripComments(content);
+        List<GradleSignalPatterns.Range> environmentConditionalRanges =
+                GradleSignalPatterns.environmentConditionalBlockRanges(stripped);
+        Matcher matcher = INCLUDE_PATTERN.matcher(stripped);
         while (matcher.find()) {
+            if (GradleSignalPatterns.isInsideAny(matcher.start(), environmentConditionalRanges)) {
+                continue;
+            }
             String arguments = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
             for (String value : quotedValues(arguments)) {
                 String path = value.replaceFirst("^:+", "").replace(':', '/');
@@ -47,13 +53,28 @@ final class GradleSettingsScripts {
 
     static List<ExplainSignal> signals(Path root, Path settingsFile, String content) {
         List<ExplainSignal> signals = new ArrayList<>();
-        Matcher matcher = INCLUDE_BUILD_PATTERN.matcher(GradleSourceComments.stripComments(content));
+        String stripped = GradleSourceComments.stripComments(content);
+        Matcher matcher = INCLUDE_BUILD_PATTERN.matcher(stripped);
         while (matcher.find()) {
             String arguments = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
             for (String value : quotedValues(arguments)) {
                 signals.add(ExplainSignals.GRADLE_INCLUDED_BUILD_DETECTED.signal(
                         ".",
                         "Included Gradle build `" + value + "` is declared in " + root.relativize(settingsFile) + "."));
+            }
+        }
+        Matcher includeMatcher = INCLUDE_PATTERN.matcher(stripped);
+        List<GradleSignalPatterns.Range> environmentConditionalRanges =
+                GradleSignalPatterns.environmentConditionalBlockRanges(stripped);
+        while (includeMatcher.find()) {
+            if (!GradleSignalPatterns.isInsideAny(includeMatcher.start(), environmentConditionalRanges)) {
+                continue;
+            }
+            String arguments = includeMatcher.group(1) == null ? includeMatcher.group(2) : includeMatcher.group(1);
+            for (String value : quotedValues(arguments)) {
+                signals.add(ExplainSignals.GRADLE_SETTINGS_INCLUDE_CONDITIONAL.signal(
+                        ".",
+                        "Gradle settings conditionally includes project `" + value + "` based on environment-driven logic in " + root.relativize(settingsFile) + "."));
             }
         }
         return signals;

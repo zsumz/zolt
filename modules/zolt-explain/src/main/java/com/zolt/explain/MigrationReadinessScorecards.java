@@ -45,7 +45,11 @@ public final class MigrationReadinessScorecards {
             "gradle.project.missing-build-file",
             "gradle.project.build-file-name-unresolved",
             "gradle.plugin.convention",
-            "gradle.script-plugin.apply-from");
+            "gradle.script-plugin.apply-from",
+            "gradle.plugin.conditional-apply",
+            "gradle.settings.include-conditional",
+            "gradle.start-parameter.mutation",
+            "gradle.task-mutation.detected");
 
     private MigrationReadinessScorecards() {
     }

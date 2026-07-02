@@ -44,7 +44,8 @@ final class MigrationReadinessFixtureTest {
         assertTrue(text.contains("coverage: supported"));
         assertTrue(text.contains("package: blocked"));
         assertTrue(text.contains("publish: planned"));
-        assertTrue(text.contains("ci: planned"));
+        assertTrue(text.contains("ci: non-deterministic"));
+        assertTrue(text.contains("environment variable read in Gradle build logic -> explicit Zolt project, runtime, or CI settings"));
         assertTrue(text.contains("mavenLocal() property switch -> local repository overlays"));
         assertTrue(text.contains("bootWar archive mutation -> package placement policy"));
         assertTrue(text.contains("This scorecard inspected build metadata statically and did not execute Maven or Gradle."));
@@ -131,6 +132,33 @@ final class MigrationReadinessFixtureTest {
         assertTrue(text.contains("apply from script plugin -> explicit Zolt project model"), () -> text);
         assertTrue(json.contains("\"signalId\": \"gradle.script-plugin.apply-from\""), () -> json);
         assertTrue(json.contains("\"category\": \"unknown\""), () -> json);
+    }
+
+    @Test
+    void gradleEnvironmentDrivenLogicDoesNotReportSupportedReadiness() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'env-driven'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                }
+
+                version = System.getenv('BUILD_TAG') ?: 'local'
+
+                tasks.named('test', Test) {
+                    environment 'CI', System.getenv('CI') ?: ''
+                }
+                """);
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new GradleStaticProjectInspector().inspect(tempDir));
+        String text = new MigrationReadinessScorecardFormatter().text(scorecard);
+        String json = new MigrationReadinessScorecardFormatter().json(scorecard);
+
+        assertEquals("non-deterministic", scorecard.status());
+        assertEquals("non-deterministic", concern(scorecard, "ci").status());
+        assertTrue(text.contains("environment variable read in Gradle build logic"), () -> text);
+        assertTrue(json.contains("\"signalId\": \"gradle.environment-variable.read\""), () -> json);
+        assertFalse(text.contains("Status: supported"), () -> text);
     }
 
     @Test

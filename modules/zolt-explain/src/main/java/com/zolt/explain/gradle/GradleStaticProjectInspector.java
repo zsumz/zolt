@@ -116,6 +116,11 @@ public final class GradleStaticProjectInspector {
         List<GradleDependencyInspection> dependencies =
                 buildFileParser.dependencies(content, versionCatalog, catalogBundles, project, signals);
         signals.addAll(signalDetector.signals(project, content, dependencies, plugins));
+        if (hasGroovyMainSources(projectDirectory, content)) {
+            signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(
+                    project,
+                    "Gradle project has Groovy main sources, which are outside the Zolt public beta."));
+        }
         return new GradleProjectInspection(
                 relativePath,
                 declaredName.filter(name -> !name.isBlank()).orElseGet(() -> projectDirectory.getFileName().toString()),
@@ -297,6 +302,11 @@ public final class GradleStaticProjectInspector {
 
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private static boolean hasGroovyMainSources(Path projectDirectory, String content) {
+        return Files.isDirectory(projectDirectory.resolve("src/main/groovy"))
+                || content.contains("src/main/groovy");
     }
 
 }

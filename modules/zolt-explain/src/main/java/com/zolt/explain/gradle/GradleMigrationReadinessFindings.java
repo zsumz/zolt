@@ -51,6 +51,30 @@ public final class GradleMigrationReadinessFindings {
                     "explicit Zolt project model",
                     "",
                     signal.nextStep());
+            case "gradle.plugin.conditional-apply" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "conditional apply plugin",
+                    "explicit Zolt project model",
+                    "",
+                    signal.nextStep());
+            case "gradle.environment-variable.read" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "environment variable read in Gradle build logic",
+                    "explicit Zolt project, runtime, or CI settings",
+                    "",
+                    signal.nextStep());
+            case "gradle.settings.include-conditional" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "environment-conditional settings include",
+                    "explicit workspace members",
+                    "",
+                    signal.nextStep());
             case "gradle.included-build.detected" -> MigrationReadinessFindings.finding(
                     "dependencies",
                     MigrationReadinessCategory.BLOCKED,
@@ -89,6 +113,22 @@ public final class GradleMigrationReadinessFindings {
                     signal,
                     "tasks.register(...) or task callbacks",
                     "typed Zolt command primitives",
+                    "",
+                    signal.nextStep());
+            case "gradle.start-parameter.mutation" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "Gradle startParameter task selection",
+                    "explicit Zolt command selection",
+                    "",
+                    signal.nextStep());
+            case "gradle.task-mutation.detected" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "existing Gradle task mutation",
+                    "typed Zolt build, test, package, or CI primitives",
                     "",
                     signal.nextStep());
             case "gradle.version-catalog.malformed" -> MigrationReadinessFindings.finding(

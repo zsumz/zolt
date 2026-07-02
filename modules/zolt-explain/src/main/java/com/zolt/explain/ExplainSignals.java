@@ -80,6 +80,21 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Review the applied Gradle script plugin and model its effects explicitly in Zolt before migrating.");
+    public static final ExplainSignalDefinition GRADLE_PLUGIN_CONDITIONAL_APPLY = new ExplainSignalDefinition(
+            "gradle.plugin.conditional-apply",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Review the conditional plugin path and model the plugin effects explicitly in Zolt before migrating.");
+    public static final ExplainSignalDefinition GRADLE_ENVIRONMENT_VARIABLE_READ = new ExplainSignalDefinition(
+            "gradle.environment-variable.read",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Move environment-selected build behavior into explicit Zolt configuration or local/CI command settings.");
+    public static final ExplainSignalDefinition GRADLE_SETTINGS_INCLUDE_CONDITIONAL = new ExplainSignalDefinition(
+            "gradle.settings.include-conditional",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Choose the workspace members explicitly before generating Zolt metadata.");
     public static final ExplainSignalDefinition GRADLE_INCLUDED_BUILD_DETECTED = new ExplainSignalDefinition(
             "gradle.included-build.detected",
             ExplainSignal.Severity.BLOCK,
@@ -105,6 +120,16 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Review whether custom tasks generate sources, resources, tests, package outputs, or runtime assets.");
+    public static final ExplainSignalDefinition GRADLE_START_PARAMETER_MUTATION = new ExplainSignalDefinition(
+            "gradle.start-parameter.mutation",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Replace Gradle startParameter task selection with explicit Zolt command selection before relying on migration readiness.");
+    public static final ExplainSignalDefinition GRADLE_TASK_MUTATION_DETECTED = new ExplainSignalDefinition(
+            "gradle.task-mutation.detected",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Review mutated Gradle task behavior and model required compile, test, package, or CI behavior explicitly in Zolt.");
     public static final ExplainSignalDefinition GRADLE_VERSION_CATALOG_MALFORMED = new ExplainSignalDefinition(
             "gradle.version-catalog.malformed",
             ExplainSignal.Severity.WARN,
@@ -164,7 +189,7 @@ public final class ExplainSignals {
             "gradle.language.unsupported",
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
-            "Keep Kotlin and Scala modules outside the public beta or migrate a plain Java module first.");
+            "Keep Kotlin, Scala, and Groovy main-source modules outside the public beta or migrate a plain Java module first.");
     public static final ExplainSignalDefinition GRADLE_ANDROID_UNSUPPORTED = new ExplainSignalDefinition(
             "gradle.android.unsupported",
             ExplainSignal.Severity.BLOCK,
@@ -192,11 +217,16 @@ public final class ExplainSignals {
             GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED,
             GRADLE_PLUGIN_CONVENTION,
             GRADLE_SCRIPT_PLUGIN_APPLY_FROM,
+            GRADLE_PLUGIN_CONDITIONAL_APPLY,
+            GRADLE_ENVIRONMENT_VARIABLE_READ,
+            GRADLE_SETTINGS_INCLUDE_CONDITIONAL,
             GRADLE_INCLUDED_BUILD_DETECTED,
             GRADLE_IMPERATIVE_DEPENDENCY_LOGIC,
             GRADLE_DEPENDENCY_DYNAMIC_VERSION,
             GRADLE_CROSS_PROJECT_BUILD_LOGIC,
             GRADLE_CUSTOM_TASK_DETECTED,
+            GRADLE_START_PARAMETER_MUTATION,
+            GRADLE_TASK_MUTATION_DETECTED,
             GRADLE_VERSION_CATALOG_MALFORMED,
             GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED,
             GRADLE_ENTERPRISE_PLUGIN_MAPPED,

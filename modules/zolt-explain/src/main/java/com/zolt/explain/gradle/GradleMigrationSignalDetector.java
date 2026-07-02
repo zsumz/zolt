@@ -28,7 +28,7 @@ final class GradleMigrationSignalDetector {
     private static List<ExplainSignal> conventionPluginSignals(String project, List<GradlePluginInspection> plugins) {
         List<ExplainSignal> signals = new ArrayList<>();
         for (GradlePluginInspection plugin : plugins) {
-            if (isConventionPlugin(plugin.id())) {
+            if (GradleSignalPatterns.isConventionPlugin(plugin)) {
                 signals.add(ExplainSignals.GRADLE_PLUGIN_CONVENTION.signal(
                         project,
                         "Plugin `" + plugin.id() + "` looks like a convention plugin."));
@@ -49,7 +49,7 @@ final class GradleMigrationSignalDetector {
                         project,
                         "Gradle plugin `" + plugin.id() + "` declares an Android project, which is outside the Zolt public beta."));
             }
-            if (id.startsWith("org.jetbrains.kotlin") || id.equals("kotlin") || id.equals("scala")) {
+            if (id.startsWith("org.jetbrains.kotlin") || id.equals("kotlin") || id.equals("scala") || id.equals("groovy")) {
                 signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(
                         project,
                         "Gradle plugin `" + plugin.id() + "` declares an unsupported public-beta language."));
@@ -71,6 +71,11 @@ final class GradleMigrationSignalDetector {
 
     private static List<ExplainSignal> dynamicSignals(String project, String content) {
         List<ExplainSignal> signals = new ArrayList<>();
+        if (GradleSignalPatterns.usesEnvironmentVariable(content)) {
+            signals.add(ExplainSignals.GRADLE_ENVIRONMENT_VARIABLE_READ.signal(
+                    project,
+                    "Gradle build reads environment variables in executable build logic."));
+        }
         if (containsAny(content, "dependencies.add(", "configurations.all", "resolutionStrategy", "afterEvaluate")) {
             signals.add(ExplainSignals.GRADLE_IMPERATIVE_DEPENDENCY_LOGIC.signal(
                     project,
@@ -86,10 +91,25 @@ final class GradleMigrationSignalDetector {
                     project,
                     "Gradle build declares custom tasks."));
         }
-        if (Pattern.compile("(?m)^\\s*apply\\s+(?:from\\s*:|\\(\\s*from\\s*=)").matcher(content).find()) {
+        if (GradleSignalPatterns.appliesScriptPlugin(content)) {
             signals.add(ExplainSignals.GRADLE_SCRIPT_PLUGIN_APPLY_FROM.signal(
                     project,
                     "Gradle build applies an external script plugin with apply from."));
+        }
+        if (GradleSignalPatterns.hasConditionalPluginApply(content)) {
+            signals.add(ExplainSignals.GRADLE_PLUGIN_CONDITIONAL_APPLY.signal(
+                    project,
+                    "Gradle build conditionally applies a plugin in executable build logic."));
+        }
+        if (GradleSignalPatterns.hasStartParameterSelection(content)) {
+            signals.add(ExplainSignals.GRADLE_START_PARAMETER_MUTATION.signal(
+                    project,
+                    "Gradle build reads or mutates startParameter task selection."));
+        }
+        if (GradleSignalPatterns.hasTaskMutation(content)) {
+            signals.add(ExplainSignals.GRADLE_TASK_MUTATION_DETECTED.signal(
+                    project,
+                    "Gradle build mutates existing task behavior with configure blocks or enabled=false."));
         }
         return signals;
     }
@@ -188,8 +208,7 @@ final class GradleMigrationSignalDetector {
                     project,
                     "Gradle processResources performs token/resource filtering."));
         }
-        if (containsAny(content, "tasks.named('test')", "tasks.named(\"test\")", "test {")
-                && containsAny(content, "systemProperty", "environment", "jvmArgs", "testLogging")) {
+        if (GradleSignalPatterns.hasTestRuntimeSettings(content)) {
             signals.add(ExplainSignals.GRADLE_TEST_RUNTIME_SETTINGS.signal(
                     project,
                     "Gradle test task declares runtime properties, environment, JVM args, or event logging."));
@@ -200,8 +219,7 @@ final class GradleMigrationSignalDetector {
                     project,
                     "Gradle bootWar package content is changed with archive excludes."));
         }
-        if (containsAny(content, "publishing", "MavenPublication", "publications {", "repositories {")
-                && content.contains("mavenJava")) {
+        if (GradleSignalPatterns.hasPublicationConfiguration(content)) {
             signals.add(ExplainSignals.GRADLE_PUBLICATION_DETECTED.signal(
                     project,
                     "Gradle Maven Publish configuration selects artifacts and repositories."));
@@ -228,11 +246,6 @@ final class GradleMigrationSignalDetector {
             }
         }
         return Optional.of(content.substring(openBrace + 1));
-    }
-
-    private static boolean isConventionPlugin(String id) {
-        String lower = id.toLowerCase();
-        return lower.contains("convention") || lower.contains("build-logic");
     }
 
     private static boolean containsAny(String content, String... values) {
