@@ -17,6 +17,8 @@ final class MigrationExplainMavenFixtures {
                   - . (maven-simple, packaging=jar, java=21)
                     coordinates: dev.zolt.examples:maven-simple:1.0.0
                     dependencies: 2
+                      - compile com.google.guava:guava:33.4.8-jre
+                      - test org.junit.jupiter:junit-jupiter:5.11.4
                     managed dependencies: 0
                     imported BOMs: 0
                     plugins: 0

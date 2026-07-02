@@ -31,7 +31,8 @@ final class MavenDependencyParser {
             String groupId = properties.interpolate(text(dependency, "groupId").orElse("unknown-group"));
             String artifactId = properties.interpolate(text(dependency, "artifactId").orElse("unknown-artifact"));
             String version = properties.interpolate(text(dependency, "version").orElse(""));
-            String scope = text(dependency, "scope").orElse("compile");
+            Optional<String> declaredScope = text(dependency, "scope");
+            String scope = declaredScope.orElse("compile");
             String type = text(dependency, "type").orElse("jar");
             boolean optional = text(dependency, "optional").map(Boolean::parseBoolean).orElse(false);
             boolean importedBom = managed && "pom".equals(type) && "import".equals(scope);
@@ -43,6 +44,7 @@ final class MavenDependencyParser {
                     optional,
                     managed,
                     importedBom,
+                    declaredScope.isPresent(),
                     parseExclusions(dependency, properties)));
         }
         dependencies.sort(Comparator

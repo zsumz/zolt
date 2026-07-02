@@ -13,18 +13,20 @@ import org.w3c.dom.Element;
 /**
  * Resolves the effective Maven {@code <dependencyManagement>} for a module by accumulating its reactor
  * parent chain root-first (a nearer POM overrides a farther one, mirroring Maven's inheritance), then
- * fills a version onto the module's version-less {@code <dependencies>}. This is what lets a child pick
- * up a version managed only by its reactor parent instead of emitting an empty version.
+ * fills managed facts onto the module's {@code <dependencies>}. This is what lets a child pick up a
+ * version or scope managed only by its reactor parent instead of emitting an empty version or the wrong
+ * default scope.
  *
  * <p>Managed entries whose version is blank or still contains an unresolved {@code ${...}} are dropped
- * so they cannot mask a version-less dependency with a non-version; an external/unresolved parent simply
- * contributes nothing and the child keeps its honest version-less dependency.
+ * as version sources so they cannot mask a version-less dependency with a non-version. A declared managed
+ * scope can still apply without a usable managed version; an external/unresolved parent simply contributes
+ * nothing and the child keeps its honest version-less dependency.
  */
 final class MavenManagedVersions {
-    private final Map<String, String> versionsByKey;
+    private final Map<String, ManagedDependency> managedByKey;
 
-    private MavenManagedVersions(Map<String, String> versionsByKey) {
-        this.versionsByKey = versionsByKey;
+    private MavenManagedVersions(Map<String, ManagedDependency> managedByKey) {
+        this.managedByKey = managedByKey;
     }
 
     /**
@@ -35,42 +37,63 @@ final class MavenManagedVersions {
             Element project,
             List<Element> ancestors,
             MavenPomProperties properties) {
-        Map<String, String> managed = new LinkedHashMap<>();
+        Map<String, ManagedDependency> managed = new LinkedHashMap<>();
         List<Element> rootFirst = new ArrayList<>(ancestors);
         Collections.reverse(rootFirst);
         rootFirst.add(project);
         for (Element pom : rootFirst) {
             for (MavenDependencyInspection managedDependency : managedDependencies(pom, properties)) {
-                String version = managedDependency.version();
-                if (version.isBlank() || version.contains("${")) {
+                String key = key(managedDependency);
+                ManagedDependency inherited = managed.get(key);
+                String version = usableVersion(managedDependency)
+                        ? managedDependency.version()
+                        : inherited == null ? "" : inherited.version();
+                String scope = usableScope(managedDependency)
+                        ? managedDependency.scope()
+                        : inherited == null ? "" : inherited.scope();
+                if (version.isBlank() && scope.isBlank()) {
                     continue;
                 }
-                managed.put(key(managedDependency), version);
+                managed.put(key, new ManagedDependency(version, scope));
             }
         }
         return new MavenManagedVersions(managed);
     }
 
-    /** Returns {@code dependencies} with an inherited version filled onto each version-less entry. */
+    /**
+     * Returns {@code dependencies} with inherited managed facts applied: version for version-less
+     * entries, and scope only when the local dependency omitted {@code <scope>}.
+     */
     List<MavenDependencyInspection> applyTo(List<MavenDependencyInspection> dependencies) {
-        if (versionsByKey.isEmpty()) {
+        if (managedByKey.isEmpty()) {
             return dependencies;
         }
         List<MavenDependencyInspection> resolved = new ArrayList<>(dependencies.size());
         for (MavenDependencyInspection dependency : dependencies) {
-            String managedVersion = versionsByKey.get(key(dependency));
-            if (!dependency.version().isBlank() || managedVersion == null) {
+            ManagedDependency managed = managedByKey.get(key(dependency));
+            if (managed == null) {
+                resolved.add(dependency);
+                continue;
+            }
+            String version = dependency.version().isBlank() && !managed.version().isBlank()
+                    ? managed.version()
+                    : dependency.version();
+            String scope = !dependency.scopeDeclared() && !managed.scope().isBlank()
+                    ? managed.scope()
+                    : dependency.scope();
+            if (version.equals(dependency.version()) && scope.equals(dependency.scope())) {
                 resolved.add(dependency);
                 continue;
             }
             resolved.add(new MavenDependencyInspection(
-                    dependency.scope(),
-                    dependency.coordinate() + ":" + managedVersion,
-                    managedVersion,
+                    scope,
+                    coordinate(dependency, version),
+                    version,
                     dependency.type(),
                     dependency.optional(),
                     dependency.managed(),
                     dependency.importedBom(),
+                    dependency.scopeDeclared(),
                     dependency.exclusions()));
         }
         return resolved;
@@ -91,4 +114,23 @@ final class MavenManagedVersions {
         String artifactId = parts.length > 1 ? parts[1] : "";
         return groupId + ":" + artifactId + ":" + dependency.type();
     }
+
+    private static boolean usableVersion(MavenDependencyInspection dependency) {
+        return !dependency.version().isBlank() && !dependency.version().contains("${");
+    }
+
+    private static boolean usableScope(MavenDependencyInspection dependency) {
+        return dependency.scopeDeclared()
+                && !dependency.scope().isBlank()
+                && !dependency.scope().contains("${");
+    }
+
+    private static String coordinate(MavenDependencyInspection dependency, String version) {
+        if (!dependency.version().isBlank() || version.isBlank()) {
+            return dependency.coordinate();
+        }
+        return dependency.coordinate() + ":" + version;
+    }
+
+    private record ManagedDependency(String version, String scope) {}
 }

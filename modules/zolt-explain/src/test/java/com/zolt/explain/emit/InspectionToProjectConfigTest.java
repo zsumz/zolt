@@ -385,6 +385,45 @@ final class InspectionToProjectConfigTest {
                 () -> "no false version-less review comments for parent-managed deps: " + draft.notes());
     }
 
+    //  -------------------------------------------------------------------------------
+
+    @Test
+    void mavenDraftPlacesManagedScopeDependencyInTestDependencies() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.mockito</groupId>
+                        <artifactId>mockito-inline</artifactId>
+                        <version>4.11.0</version>
+                        <scope>test</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.mockito</groupId>
+                      <artifactId>mockito-inline</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        ProjectConfig config = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir)).config();
+
+        assertEquals("4.11.0", config.testDependencies().get("org.mockito:mockito-inline"),
+                () -> "[test.dependencies] must carry the dependencyManagement scope: "
+                        + config.testDependencies());
+        assertFalse(config.dependencies().containsKey("org.mockito:mockito-inline"),
+                () -> "scope-less dependency managed as test must not leak into [dependencies]: "
+                        + config.dependencies());
+    }
+
     private static final class FakeRenderer implements ProjectConfigRenderer {
         @Override
         public String render(ProjectConfig config) {

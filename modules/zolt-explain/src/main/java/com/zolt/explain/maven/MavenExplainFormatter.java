@@ -32,6 +32,13 @@ public final class MavenExplainFormatter {
                 output.append("    modules: ").append(String.join(", ", project.modules())).append('\n');
             }
             output.append("    dependencies: ").append(project.dependencies().size()).append('\n');
+            for (MavenDependencyInspection dependency : project.dependencies()) {
+                output.append("      - ")
+                        .append(dependency.scope())
+                        .append(' ')
+                        .append(dependency.coordinate())
+                        .append('\n');
+            }
             output.append("    managed dependencies: ").append(project.dependencyManagement().size()).append('\n');
             output.append("    imported BOMs: ").append(project.importedBoms().size()).append('\n');
             output.append("    plugins: ").append(project.plugins().size()).append('\n');
