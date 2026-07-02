@@ -128,8 +128,11 @@ public final class GradleStaticProjectInspector {
         Path relativePath = relativePath(root, projectDirectory);
         String project = path(relativePath);
         List<GradlePluginInspection> plugins = buildFileParser.plugins(content);
+        Map<String, String> dependencyProperties = new LinkedHashMap<>(rootProperties);
+        dependencyProperties.putAll(projectProperties);
+        dependencyProperties.putAll(buildFileParser.extProperties(content));
         List<GradleDependencyInspection> dependencies =
-                buildFileParser.dependencies(content, versionCatalog, catalogBundles, project, signals);
+                buildFileParser.dependencies(content, versionCatalog, catalogBundles, dependencyProperties, project, signals);
         signals.addAll(signalDetector.signals(project, content, dependencies, plugins));
         if (hasGroovyMainSources(projectDirectory, content)) {
             signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(

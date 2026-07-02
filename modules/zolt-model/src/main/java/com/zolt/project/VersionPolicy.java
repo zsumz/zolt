@@ -2,8 +2,11 @@ package com.zolt.project;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 public final class VersionPolicy {
+    private static final Pattern BARE_INTERPOLATION = Pattern.compile("\\$[A-Za-z][A-Za-z0-9_.-]*");
+
     private VersionPolicy() {
     }
 
@@ -88,6 +91,7 @@ public final class VersionPolicy {
 
     private static boolean containsInterpolation(String version) {
         return version.contains("${")
+                || BARE_INTERPOLATION.matcher(version).find()
                 || (version.length() > 2 && version.startsWith("@") && version.endsWith("@"));
     }
 

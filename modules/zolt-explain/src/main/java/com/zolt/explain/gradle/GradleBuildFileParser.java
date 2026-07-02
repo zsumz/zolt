@@ -1,7 +1,6 @@
 package com.zolt.explain.gradle;
 
 import com.zolt.explain.ExplainSignal;
-import com.zolt.explain.ExplainSignals;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -11,16 +10,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class GradleBuildFileParser {
-    private static final List<String> DEPENDENCY_CONFIGURATIONS = List.of(
-            "api",
-            "implementation",
-            "compileOnly",
-            "runtimeOnly",
-            "testImplementation",
-            "testCompileOnly",
-            "testRuntimeOnly",
-            "annotationProcessor",
-            "testAnnotationProcessor");
     private static final Pattern ID_PLUGIN_PATTERN = Pattern.compile("\\bid\\s*(?:\\(\\s*)?['\"]([^'\"]+)['\"]\\s*\\)?(?:\\s*version\\s*['\"]([^'\"]+)['\"])?");
     private static final Pattern GROOVY_PLUGIN_PATTERN = Pattern.compile("(?m)^\\s*([A-Za-z][A-Za-z0-9_-]*)\\s*$");
     // Kotlin-DSL backtick accessor form, e.g. `java-library`, `application`, `java`.
@@ -103,25 +92,21 @@ final class GradleBuildFileParser {
             Map<String, List<String>> catalogBundles,
             String project,
             List<ExplainSignal> signals) {
-        List<GradleDependencyInspection> dependencies = new ArrayList<>();
-        List<String> dependencyBlocks = GradleScriptBlocks.topLevelBlocks(content, "dependencies");
-        for (String configuration : DEPENDENCY_CONFIGURATIONS) {
-            Pattern pattern = Pattern.compile(
-                    "(?m)(?:^|[{;])[\\t ]*" + Pattern.quote(configuration) + "(?![A-Za-z0-9_])\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
-            for (String block : dependencyBlocks) {
-                String topLevelStatements = GradleScriptBlocks.withoutNestedBlocks(block);
-                Matcher matcher = pattern.matcher(topLevelStatements);
-                while (matcher.find()) {
-                    String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();
-                    dependencies.addAll(dependencies(configuration, expression, versionCatalog, catalogBundles, project, signals));
-                }
-            }
-        }
-        dependencies.sort(Comparator
-                .comparing(GradleDependencyInspection::configuration)
-                .thenComparing(GradleDependencyInspection::notation)
-                .thenComparing(GradleDependencyInspection::resolvedCoordinate));
-        return dependencies;
+        return GradleDependencyParser.dependencies(content, versionCatalog, catalogBundles, Map.of(), project, signals);
+    }
+
+    List<GradleDependencyInspection> dependencies(
+            String content,
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            Map<String, String> properties,
+            String project,
+            List<ExplainSignal> signals) {
+        return GradleDependencyParser.dependencies(content, versionCatalog, catalogBundles, properties, project, signals);
+    }
+
+    Map<String, String> extProperties(String content) {
+        return GradleDependencyParser.extProperties(content);
     }
 
     String javaVersion(String content) {
@@ -210,108 +195,6 @@ final class GradleBuildFileParser {
             roots.addAll(quotedValues(value));
         }
         return roots.isEmpty() ? List.of(defaultRoot) : roots.stream().distinct().sorted().toList();
-    }
-
-    private static List<GradleDependencyInspection> dependencies(
-            String configuration,
-            String expression,
-            Map<String, String> versionCatalog,
-            Map<String, List<String>> catalogBundles,
-            String project,
-            List<ExplainSignal> signals) {
-        String notation = expression.replaceAll("\\s+", " ").strip();
-        Optional<String> mapNotation = mapNotation(notation);
-        if (mapNotation.isPresent()) {
-            return List.of(new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), ""));
-        }
-        List<String> quoted = quotedValues(notation);
-        if (!quoted.isEmpty()) {
-            return quoted.stream()
-                    .map(value -> new GradleDependencyInspection(configuration, value, value, ""))
-                    .toList();
-        }
-        Optional<String> bundle = catalogBundleAlias(notation);
-        if (bundle.isPresent()) {
-            return bundleDependencies(configuration, notation, bundle.orElseThrow(), catalogBundles, project, signals);
-        }
-        List<String> aliases = catalogAliases(notation);
-        if (!aliases.isEmpty()) {
-            return aliases.stream()
-                    .map(key -> new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key))
-                    .toList();
-        }
-        unresolvedDependencySignal(project, configuration, notation, signals);
-        return List.of();
-    }
-
-    private static void unresolvedDependencySignal(
-            String project,
-            String configuration,
-            String notation,
-            List<ExplainSignal> signals) {
-        if (notation.isBlank()) {
-            return;
-        }
-        signals.add(ExplainSignals.GRADLE_DEPENDENCY_UNRESOLVED_NOTATION.signal(
-                project,
-                "Gradle dependency `" + configuration + " " + notation
-                        + "` is not a statically resolvable literal and was not emitted as a dependency."));
-    }
-
-    private static List<GradleDependencyInspection> bundleDependencies(
-            String configuration,
-            String notation,
-            String bundleName,
-            Map<String, List<String>> catalogBundles,
-            String project,
-            List<ExplainSignal> signals) {
-        List<String> members = catalogBundles.get(bundleName);
-        if (members == null) {
-            // Bundle referenced but absent from the catalog: keep an unresolved marker instead of
-            // silently dropping the dependency, so the mapper surfaces a review note.
-            signals.add(ExplainSignals.GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED.signal(
-                    project,
-                    "Gradle dependency references version-catalog bundle `" + bundleName
-                            + "`, which is not defined in gradle/libs.versions.toml."));
-            return List.of(new GradleDependencyInspection(configuration, notation, "", "bundles." + bundleName));
-        }
-        if (members.isEmpty()) {
-            return List.of(new GradleDependencyInspection(configuration, notation, "", "bundles." + bundleName));
-        }
-        List<GradleDependencyInspection> expanded = new ArrayList<>();
-        for (String coordinate : members) {
-            expanded.add(new GradleDependencyInspection(configuration, notation, coordinate, "bundles." + bundleName));
-        }
-        return expanded;
-    }
-
-    private static Optional<String> mapNotation(String value) {
-        String group = namedArgument(value, "group");
-        String name = namedArgument(value, "name");
-        String version = namedArgument(value, "version");
-        if (group.isBlank() || name.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(version.isBlank() ? group + ":" + name : group + ":" + name + ":" + version);
-    }
-
-    private static String namedArgument(String expression, String name) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(name) + "\\s*(?::|=)\\s*['\"]([^'\"]+)['\"]").matcher(expression);
-        return matcher.find() ? matcher.group(1) : "";
-    }
-
-    private static List<String> catalogAliases(String expression) {
-        Matcher matcher = Pattern.compile("\\blibs\\.(?!bundles\\.)([A-Za-z0-9_.-]+)").matcher(expression);
-        List<String> aliases = new ArrayList<>();
-        while (matcher.find()) {
-            aliases.add(matcher.group(1));
-        }
-        return aliases;
-    }
-
-    private static Optional<String> catalogBundleAlias(String expression) {
-        Matcher matcher = Pattern.compile("\\blibs\\.bundles\\.([A-Za-z0-9_.-]+)").matcher(expression);
-        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
     }
 
     private static List<String> quotedValues(String input) {

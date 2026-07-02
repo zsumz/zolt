@@ -109,6 +109,57 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void interpolatesExtAndGradlePropertiesInDependencyVersions() {
+        String content = """
+                ext {
+                    slf4jVersion = '2.0.13'
+                    junitVersion = "5.10.2"
+                }
+
+                dependencies {
+                    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+                    implementation group: 'com.google.code.gson', name: 'gson', version: '${gsonVersion}'
+                    testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
+                }
+                """;
+        Map<String, String> properties = new java.util.LinkedHashMap<>(parser.extProperties(content));
+        properties.put("gsonVersion", "2.11.0");
+
+        var dependencies = parser.dependencies(
+                content,
+                Map.of(),
+                Map.of(),
+                properties,
+                ".",
+                new java.util.ArrayList<>());
+
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.slf4j:slf4j-api:2.0.13")));
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("com.google.code.gson:gson:2.11.0")));
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.junit.jupiter:junit-jupiter:5.10.2")));
+    }
+
+    @Test
+    void unresolvedDependencyVersionPlaceholdersBecomeBlockerSignals() {
+        String content = """
+                dependencies {
+                    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+                    implementation "com.google.code.gson:gson:${gsonVersion}"
+                }
+                """;
+        var signals = new java.util.ArrayList<com.zolt.explain.ExplainSignal>();
+
+        var dependencies = parser.dependencies(content, Map.of(), Map.of(), Map.of(), ".", signals);
+
+        assertTrue(dependencies.isEmpty(), () -> "unresolved placeholders must not be emitted: " + dependencies);
+        assertEquals(2, signals.size(), () -> "both placeholder forms need blocker signals: " + signals);
+        assertTrue(signals.stream().allMatch(signal -> signal.id().equals("gradle.dependency.dynamic-version")));
+        assertTrue(signals.stream().allMatch(signal -> signal.message().contains("version-policy rule: no-interpolation")));
+    }
+
+    @Test
     void buildscriptDependenciesAndRepositoriesDoNotPolluteProjectFacts() {
         String content = """
                 buildscript {

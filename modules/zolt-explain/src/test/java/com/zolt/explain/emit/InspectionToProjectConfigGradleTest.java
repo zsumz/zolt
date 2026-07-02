@@ -96,6 +96,38 @@ final class InspectionToProjectConfigGradleTest {
                 () -> "gradle.properties coordinates should avoid placeholder notes: " + draft.notes());
     }
 
+    @Test
+    void gradleDraftInterpolatesDependencyVersionsFromExtAndGradleProperties() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'interpolated'\n");
+        Files.writeString(tempDir.resolve("gradle.properties"), """
+                group=com.acme
+                version=1.2.3
+                gsonVersion=2.11.0
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                ext {
+                    slf4jVersion = '2.0.13'
+                    junitVersion = '5.10.2'
+                }
+                dependencies {
+                    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+                    implementation "com.google.code.gson:gson:${gsonVersion}"
+                    testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals("2.0.13", config.dependencies().get("org.slf4j:slf4j-api"));
+        assertEquals("2.11.0", config.dependencies().get("com.google.code.gson:gson"));
+        assertEquals("5.10.2", config.testDependencies().get("org.junit.jupiter:junit-jupiter"));
+        assertFalse(config.dependencies().values().stream().anyMatch(version -> version.contains("$")));
+        assertFalse(config.testDependencies().values().stream().anyMatch(version -> version.contains("$")));
+    }
+
     //  -------------------------------------------------------------------------------
 
     @Test

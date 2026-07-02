@@ -51,7 +51,7 @@ final class ZoltTomlPlatformsVersionsParserValidationTest {
 
     @Test
     void rejectsMalformedVersionAliasValues() {
-        for (String version : java.util.List.of("${guava}", "@guava@", "[1.0,2.0)", "1.+", "1.0-SNAPSHOT")) {
+        for (String version : java.util.List.of("${guava}", "$guava", "@guava@", "[1.0,2.0)", "1.+", "1.0-SNAPSHOT")) {
             ZoltConfigException exception = assertThrows(
                     ZoltConfigException.class,
                     () -> parser.parse("""
@@ -73,7 +73,7 @@ final class ZoltTomlPlatformsVersionsParserValidationTest {
 
     @Test
     void rejectsUnsupportedLiteralDependencyVersions() {
-        for (String version : java.util.List.of("[1.0,2.0)", "1.+", "LATEST", "RELEASE", "1.0-SNAPSHOT", "1.0.")) {
+        for (String version : java.util.List.of("[1.0,2.0)", "1.+", "LATEST", "RELEASE", "1.0-SNAPSHOT", "1.0.", "$libVersion")) {
             ZoltConfigException exception = assertThrows(
                     ZoltConfigException.class,
                     () -> parser.parse("""

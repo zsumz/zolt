@@ -15,6 +15,8 @@ final class VersionPolicyTest {
         assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "RELEASE", "dynamic-version");
         assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "1.0-SNAPSHOT", "snapshot-version");
         assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "1.0.", "incomplete-version");
+        assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "$slf4jVersion", "no-interpolation");
+        assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "${gsonVersion}", "no-interpolation");
     }
 
     @Test
