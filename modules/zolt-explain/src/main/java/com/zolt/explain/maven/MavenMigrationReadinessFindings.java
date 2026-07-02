@@ -100,6 +100,14 @@ public final class MavenMigrationReadinessFindings {
                     "[project].java",
                     "",
                     signal.nextStep());
+            case "maven.test-java-version.divergent" -> MigrationReadinessFindings.finding(
+                    "tests",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "divergent Maven test Java version",
+                    "test compile settings",
+                    "",
+                    signal.nextStep());
             case "maven.repository.declared" -> MigrationReadinessFindings.finding(
                     "repositories",
                     MigrationReadinessCategory.PLANNED,

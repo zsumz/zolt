@@ -79,6 +79,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.UNKNOWN,
             ExplainSignal.Category.BUILDABILITY,
             "Declare the Maven compiler release/source/target or set [project].java before migrating.");
+    public static final ExplainSignalDefinition MAVEN_TEST_JAVA_VERSION_DIVERGENT = new ExplainSignalDefinition(
+            "maven.test-java-version.divergent",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Align Maven main/test Java levels or review the test compilation model before migrating.");
     public static final ExplainSignalDefinition MAVEN_REPOSITORY_DECLARED = new ExplainSignalDefinition(
             "maven.repository.declared",
             ExplainSignal.Severity.WARN,
@@ -257,6 +262,7 @@ public final class ExplainSignals {
             MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
             MAVEN_DEPENDENCY_MISSING_VERSION,
             MAVEN_JAVA_VERSION_UNKNOWN,
+            MAVEN_TEST_JAVA_VERSION_DIVERGENT,
             MAVEN_REPOSITORY_DECLARED,
             MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,
             GRADLE_BUILD_SRC_DETECTED,

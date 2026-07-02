@@ -137,6 +137,13 @@ public final class MavenStaticProjectInspector {
                     project,
                     "Maven Java version could not be resolved from compiler properties or plugin configuration."));
         }
+        if (!inspection.testJavaVersion().isBlank()
+                && !inspection.testJavaVersion().equals(inspection.javaVersion())) {
+            signals.add(ExplainSignals.MAVEN_TEST_JAVA_VERSION_DIVERGENT.signal(
+                    project,
+                    "Maven test Java version `" + inspection.testJavaVersion()
+                            + "` differs from main Java version `" + inspection.javaVersion() + "`."));
+        }
         boolean hasUnresolvedParent = inspection.parents().stream().anyMatch(parent -> !parent.resolved());
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
             // An unresolved ${...} is not a genuine dynamic/SNAPSHOT/range version; the emit path

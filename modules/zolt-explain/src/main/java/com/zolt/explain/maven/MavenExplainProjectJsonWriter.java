@@ -25,6 +25,9 @@ final class MavenExplainProjectJsonWriter {
                 stringField(json, 3, "displayName", project.name(), true);
                 stringField(json, 3, "packaging", project.packaging(), true);
                 stringField(json, 3, "javaVersion", project.javaVersion(), true);
+                if (!project.testJavaVersion().isBlank()) {
+                    stringField(json, 3, "testJavaVersion", project.testJavaVersion(), true);
+                }
                 parentArray(json, 3, "parents", project.parents(), true);
                 stringArrayField(json, 3, "modules", project.modules(), true);
                 stringArrayField(json, 3, "sourceRoots", project.sourceRoots(), true);

@@ -56,6 +56,7 @@ final class MavenProjectInspectionBuilder {
         List<MavenRepositoryInspection> repositories = repositories(project);
         List<MavenPluginInspection> plugins = MavenPluginParser.parse(project, properties);
         List<MavenProfileInspection> profiles = profiles(project);
+        MavenCompilerJavaVersions javaVersions = MavenCompilerJavaVersions.inspect(project, properties);
 
         return new MavenProjectInspection(
                 relativePath,
@@ -64,7 +65,8 @@ final class MavenProjectInspectionBuilder {
                 projectVersion(project, properties),
                 projectName(project, properties),
                 text(project, "packaging").orElse("jar"),
-                javaVersion(project, properties),
+                javaVersions.mainVersion(),
+                javaVersions.testVersion(),
                 modules,
                 sourceRoots(project, "sourceDirectory", "src/main/java"),
                 sourceRoots(project, "testSourceDirectory", "src/test/java"),
@@ -190,37 +192,6 @@ final class MavenProjectInspectionBuilder {
         }
         hints.sort(String::compareTo);
         return hints;
-    }
-
-    private static String javaVersion(Element project, MavenPomProperties properties) {
-        for (String key : List.of("maven.compiler.release", "maven.compiler.target", "maven.compiler.source", "java.version")) {
-            String value = properties.values().get(key);
-            if (value != null && !value.isBlank()) {
-                return properties.interpolate(value);
-            }
-        }
-        Optional<Element> build = child(project, "build");
-        if (build.isEmpty()) {
-            return "unknown";
-        }
-        Optional<Element> compilerPlugin = child(build.orElseThrow(), "plugins").stream()
-                .flatMap(pluginsElement -> children(pluginsElement, "plugin").stream())
-                .filter(plugin -> "maven-compiler-plugin".equals(text(plugin, "artifactId").orElse("")))
-                .findFirst();
-        if (compilerPlugin.isEmpty()) {
-            return "unknown";
-        }
-        Optional<Element> configuration = child(compilerPlugin.orElseThrow(), "configuration");
-        if (configuration.isEmpty()) {
-            return "unknown";
-        }
-        for (String key : List.of("release", "target", "source")) {
-            Optional<String> value = text(configuration.orElseThrow(), key);
-            if (value.isPresent()) {
-                return value.orElseThrow();
-            }
-        }
-        return "unknown";
     }
 
     private static List<String> sourceRoots(Element project, String elementName, String defaultRoot) {

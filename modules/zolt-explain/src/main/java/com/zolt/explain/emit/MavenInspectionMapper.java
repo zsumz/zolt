@@ -98,6 +98,7 @@ final class MavenInspectionMapper {
         String group = group(primary, notes);
         String version = version(primary, notes);
         String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
+        addTestJavaVersionNote(primary, notes);
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.artifactId(),
                 version,
@@ -214,6 +215,16 @@ final class MavenInspectionMapper {
                     "Maven profiles were detected and are not translated; Zolt has no profile concept."
                             + " Fold any required profile config into this zolt.toml by hand.");
         }
+    }
+
+    private static void addTestJavaVersionNote(MavenProjectInspection project, List<String> notes) {
+        if (project.testJavaVersion().isBlank() || project.testJavaVersion().equals(project.javaVersion())) {
+            return;
+        }
+        notes.add(
+                "Maven test Java version `" + project.testJavaVersion()
+                        + "` differs from main Java version `" + project.javaVersion()
+                        + "`; Zolt has no separate test Java key yet, so review test compilation before use.");
     }
 
     private static String group(MavenProjectInspection project, List<String> notes) {

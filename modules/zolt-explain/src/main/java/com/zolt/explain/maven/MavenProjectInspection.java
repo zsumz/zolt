@@ -19,6 +19,7 @@ public record MavenProjectInspection(
         String name,
         String packaging,
         String javaVersion,
+        String testJavaVersion,
         List<String> modules,
         List<String> sourceRoots,
         List<String> testSourceRoots,
@@ -35,6 +36,7 @@ public record MavenProjectInspection(
         groupId = groupId == null ? "" : groupId;
         version = version == null ? "" : version;
         name = name == null ? "" : name;
+        testJavaVersion = testJavaVersion == null ? "" : testJavaVersion;
         modules = List.copyOf(modules);
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);

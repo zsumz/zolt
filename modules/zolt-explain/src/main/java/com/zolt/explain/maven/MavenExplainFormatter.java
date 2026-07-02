@@ -23,6 +23,9 @@ public final class MavenExplainFormatter {
             if (!project.name().isBlank()) {
                 output.append("    name: ").append(project.name()).append('\n');
             }
+            if (!project.testJavaVersion().isBlank()) {
+                output.append("    test java: ").append(project.testJavaVersion()).append('\n');
+            }
             output.append("    coordinates: ")
                     .append(coordinate(project.groupId()))
                     .append(':').append(project.artifactId())
