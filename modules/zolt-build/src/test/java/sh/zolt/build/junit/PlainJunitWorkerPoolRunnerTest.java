@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +32,7 @@ final class PlainJunitWorkerPoolRunnerTest {
 
     @Test
     void profiledWorkerPoolWritesWorkerLocalProfilesAndMergedProfile() throws IOException {
-        List<Optional<Path>> profileDirectories = new ArrayList<>();
+        List<Optional<Path>> profileDirectories = Collections.synchronizedList(new ArrayList<>());
         PlainJunitWorkerPoolRunner runner = new PlainJunitWorkerPoolRunner(
                 (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
                     profileDirectories.add(profileDirectory);
