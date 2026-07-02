@@ -310,8 +310,7 @@ public final class GradleStaticProjectInspector {
     }
 
     private static String stripComments(String content) {
-        String noBlockComments = content.replaceAll("(?s)/\\*.*?\\*/", "");
-        return noBlockComments.replaceAll("(?m)(^|\\s)//.*$", "$1");
+        return GradleSourceComments.stripComments(content);
     }
 
     private static List<String> quotedValues(String input) {

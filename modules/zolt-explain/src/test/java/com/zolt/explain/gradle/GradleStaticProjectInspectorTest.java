@@ -289,6 +289,44 @@ final class GradleStaticProjectInspectorTest {
     }
 
     @Test
+    void quotedGlobCommentMarkersDoNotHideDownstreamGradleSignals() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'glob-heavy'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                }
+
+                tasks.named('javadoc') {
+                    exclude 'io/reactivex/rxjava4/**'
+                }
+
+                dependencies {
+                    implementation 'org.slf4j:slf4j-api:2.0.16'
+                }
+
+                tasks.register('bundle', Zip) {
+                    from layout.buildDirectory.dir('modules')
+                }
+
+                test {
+                    testLogging {
+                        events 'passed', 'failed'
+                    }
+                    include '**/ExampleTest.class'
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+
+        assertTrue(result.projects().getFirst().dependencies().stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.slf4j:slf4j-api:2.0.16")));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.custom-task.detected")
+                && signal.category() == ExplainSignal.Category.BUILDABILITY));
+        assertTrue(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.test-runtime-settings")
+                && signal.category() == ExplainSignal.Category.BUILDABILITY));
+    }
+
+    @Test
     void missingGradleMetadataFailsWithActionableMessage() {
         MigrationExplainException exception = assertThrows(
                 MigrationExplainException.class,
