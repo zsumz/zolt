@@ -21,6 +21,19 @@ public final class MigrationReadinessFindings {
                 "");
     }
 
+    static MigrationReadinessFinding unknownFinding(String concern) {
+        return new MigrationReadinessFinding(
+                MigrationReadinessCategory.UNKNOWN,
+                ExplainSignal.Severity.UNKNOWN,
+                "concern:" + concern + " unread Gradle build logic",
+                "explicit Zolt model for inspected build behavior",
+                "",
+                "This concern could not be inspected because some Gradle build logic was unread by the static audit.",
+                "Review the unread Gradle build logic, then model this concern explicitly in zolt.toml before relying on the scorecard.",
+                "",
+                "");
+    }
+
     public static MigrationReadinessFinding generic(ExplainSignal signal) {
         MigrationReadinessCategory category = switch (signal.category()) {
             case NON_DETERMINISM -> MigrationReadinessCategory.NON_DETERMINISTIC;

@@ -86,6 +86,11 @@ final class GradleMigrationSignalDetector {
                     project,
                     "Gradle build declares custom tasks."));
         }
+        if (Pattern.compile("(?m)^\\s*apply\\s+(?:from\\s*:|\\(\\s*from\\s*=)").matcher(content).find()) {
+            signals.add(ExplainSignals.GRADLE_SCRIPT_PLUGIN_APPLY_FROM.signal(
+                    project,
+                    "Gradle build applies an external script plugin with apply from."));
+        }
         return signals;
     }
 

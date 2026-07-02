@@ -12,9 +12,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class MigrationReadinessFixtureTest {
     private static final Path FIXTURE_ROOT = MigrationExplainTestPaths.fixtureRoot();
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void gradleEnterpriseSpringFixtureReportsReadinessScorecardWithoutExecutingGradle() throws IOException {
@@ -50,6 +54,95 @@ final class MigrationReadinessFixtureTest {
         assertTrue(json.contains("\"sourcePattern\": \"OpenAPI GenerateTask wired into sourceSets\""));
         assertTrue(json.contains("\"zoltPrimitive\": \"kind = \\\"openapi\\\" generated-source steps\""));
         assertTrue(json.contains("\"followUp\": \"\""));
+    }
+
+    @Test
+    void gradleMissingBuildFileDegradesUnevidencedConcernsToUnknown() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), """
+                rootProject.name = 'missing-build-file'
+                include 'app'
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }\n");
+        Files.createDirectories(tempDir.resolve("app"));
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new GradleStaticProjectInspector().inspect(tempDir));
+        MigrationReadinessScorecardFormatter formatter = new MigrationReadinessScorecardFormatter();
+        String text = formatter.text(scorecard);
+        String json = formatter.json(scorecard);
+
+        assertEquals("blocked", scorecard.status());
+        assertEquals("blocked", concern(scorecard, "dependencies").status());
+        assertEquals("unknown", concern(scorecard, "tests").status());
+        assertEquals("unknown", concern(scorecard, "publish").status());
+        assertEquals("unknown", concern(scorecard, "coverage").status());
+        assertFalse(text.contains("tests: supported"), () -> text);
+        assertTrue(text.contains("tests: unknown"), () -> text);
+        assertTrue(text.contains("unknown  unread Gradle build logic -> explicit Zolt model for inspected build behavior"), () -> text);
+        assertTrue(json.contains("\"status\": \"unknown\""), () -> json);
+        assertTrue(json.contains("\"category\": \"unknown\""), () -> json);
+        assertTrue(json.contains("\"sourcePattern\": \"unread Gradle build logic\""), () -> json);
+        assertTrue(json.contains("\"message\": \"This concern could not be inspected because some Gradle build logic was unread by the static audit.\""), () -> json);
+        assertTrue(json.contains("\"nextStep\": \"Review the unread Gradle build logic, then model this concern explicitly in zolt.toml before relying on the scorecard.\""), () -> json);
+    }
+
+    @Test
+    void gradleConventionPluginDegradesUnevidencedConcernsButKeepsConventionFinding() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'conventions'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'com.example.java-conventions'
+                }
+                """);
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new GradleStaticProjectInspector().inspect(tempDir));
+        String text = new MigrationReadinessScorecardFormatter().text(scorecard);
+
+        assertEquals("blocked", scorecard.status());
+        assertEquals("blocked", concern(scorecard, "ci").status());
+        assertEquals("unknown", concern(scorecard, "dependencies").status());
+        assertEquals("unknown", concern(scorecard, "package").status());
+        assertTrue(text.contains("ci: blocked"), () -> text);
+        assertTrue(text.contains("convention plugin -> explicit Zolt project model"), () -> text);
+        assertFalse(text.contains("package: supported"), () -> text);
+    }
+
+    @Test
+    void gradleApplyFromScriptPluginDegradesUnevidencedConcerns() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'script-plugin'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                }
+
+                apply from: 'gradle/publishing.gradle'
+                """);
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new GradleStaticProjectInspector().inspect(tempDir));
+        String text = new MigrationReadinessScorecardFormatter().text(scorecard);
+        String json = new MigrationReadinessScorecardFormatter().json(scorecard);
+
+        assertEquals("blocked", scorecard.status());
+        assertEquals("blocked", concern(scorecard, "ci").status());
+        assertEquals("unknown", concern(scorecard, "publish").status());
+        assertEquals("unknown", concern(scorecard, "coverage").status());
+        assertTrue(text.contains("apply from script plugin -> explicit Zolt project model"), () -> text);
+        assertTrue(json.contains("\"signalId\": \"gradle.script-plugin.apply-from\""), () -> json);
+        assertTrue(json.contains("\"category\": \"unknown\""), () -> json);
+    }
+
+    @Test
+    void gradleSimpleFixtureKeepsSupportedDefaultsWhenFullyParsed() {
+        Path fixture = fixture("gradle-simple");
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new GradleStaticProjectInspector().inspect(fixture));
+
+        assertEquals("supported", scorecard.status());
+        assertTrue(scorecard.concerns().stream()
+                .allMatch(concern -> concern.status().equals("supported")));
     }
 
     @Test
@@ -130,6 +223,13 @@ final class MigrationReadinessFixtureTest {
 
     private static Path fixture(String name) {
         return FIXTURE_ROOT.resolve(name);
+    }
+
+    private static MigrationReadinessConcern concern(MigrationReadinessScorecard scorecard, String name) {
+        return scorecard.concerns().stream()
+                .filter(concern -> concern.name().equals(name))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static String normalize(String value, Path fixture) {

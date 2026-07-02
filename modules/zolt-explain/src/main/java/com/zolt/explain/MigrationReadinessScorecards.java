@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 public final class MigrationReadinessScorecards {
     private static final List<String> CONCERNS = List.of(
@@ -20,21 +21,38 @@ public final class MigrationReadinessScorecards {
             "package",
             "publish",
             "ci");
+    private static final List<DefaultConcern> MAVEN_DEFAULTS = List.of(
+            new DefaultConcern("repositories", "pom repositories", "[repositories]", ""),
+            new DefaultConcern("dependencies", "dependencies and dependencyManagement", "[dependencies] and [platforms]", ""),
+            new DefaultConcern("generated-sources", "standard Maven source roots", "[generatedSources]", ""),
+            new DefaultConcern("resources", "standard Maven resource roots", "[resources]", ""),
+            new DefaultConcern("tests", "standard Maven test source roots", "[test]", ""),
+            new DefaultConcern("coverage", "no static coverage plugin required", "none required", ""),
+            new DefaultConcern("package", "Maven jar/war packaging metadata", "[package]", ""),
+            new DefaultConcern("publish", "publication metadata in pom.xml", "[publish]", ""),
+            new DefaultConcern("ci", "locked/offline Zolt command sequence", "zolt check --target ci", ""));
+    private static final List<DefaultConcern> GRADLE_DEFAULTS = List.of(
+            new DefaultConcern("repositories", "repositories { mavenCentral() / maven { url ... } }", "[repositories]", ""),
+            new DefaultConcern("dependencies", "simple dependency declarations and BOMs", "[dependencies], [platforms], and dependency policy", ""),
+            new DefaultConcern("generated-sources", "declared sourceSets generated roots", "[generatedSources]", ""),
+            new DefaultConcern("resources", "declared resource roots", "[resources]", ""),
+            new DefaultConcern("tests", "JUnit Platform test execution", "[test]", ""),
+            new DefaultConcern("coverage", "coverage is explicit, not finalizedBy task behavior", "zolt coverage", ""),
+            new DefaultConcern("package", "jar, war, Spring Boot jar, and Spring Boot WAR package modes", "[package]", ""),
+            new DefaultConcern("publish", "publication metadata and dry-run routing", "[publish] and zolt publish --dry-run", ""),
+            new DefaultConcern("ci", "locked/offline Zolt command sequence", "zolt check --target ci", ""));
+    private static final Set<String> GRADLE_COVERAGE_GAP_SIGNALS = Set.of(
+            "gradle.project.missing-build-file",
+            "gradle.project.build-file-name-unresolved",
+            "gradle.plugin.convention",
+            "gradle.script-plugin.apply-from");
 
     private MigrationReadinessScorecards() {
     }
 
     public static MigrationReadinessScorecard from(MavenInspectionResult result) {
         List<MigrationReadinessFinding> findings = new ArrayList<>();
-        findings.add(MigrationReadinessFindings.defaultFinding("repositories", "pom repositories", "[repositories]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("dependencies", "dependencies and dependencyManagement", "[dependencies] and [platforms]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("generated-sources", "standard Maven source roots", "[generatedSources]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("resources", "standard Maven resource roots", "[resources]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("tests", "standard Maven test source roots", "[test]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("coverage", "no static coverage plugin required", "none required", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("package", "Maven jar/war packaging metadata", "[package]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("publish", "publication metadata in pom.xml", "[publish]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("ci", "locked/offline Zolt command sequence", "zolt check --target ci", ""));
+        findings.addAll(defaultFindings(MAVEN_DEFAULTS));
         for (ExplainSignal signal : result.signals()) {
             findings.add(MavenMigrationReadinessFindings.map(signal));
         }
@@ -42,20 +60,50 @@ public final class MigrationReadinessScorecards {
     }
 
     public static MigrationReadinessScorecard from(GradleInspectionResult result) {
-        List<MigrationReadinessFinding> findings = new ArrayList<>();
-        findings.add(MigrationReadinessFindings.defaultFinding("repositories", "repositories { mavenCentral() / maven { url ... } }", "[repositories]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("dependencies", "simple dependency declarations and BOMs", "[dependencies], [platforms], and dependency policy", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("generated-sources", "declared sourceSets generated roots", "[generatedSources]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("resources", "declared resource roots", "[resources]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("tests", "JUnit Platform test execution", "[test]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("coverage", "coverage is explicit, not finalizedBy task behavior", "zolt coverage", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("package", "jar, war, Spring Boot jar, and Spring Boot WAR package modes", "[package]", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("publish", "publication metadata and dry-run routing", "[publish] and zolt publish --dry-run", ""));
-        findings.add(MigrationReadinessFindings.defaultFinding("ci", "locked/offline Zolt command sequence", "zolt check --target ci", ""));
+        List<MigrationReadinessFinding> signalFindings = new ArrayList<>();
         for (ExplainSignal signal : result.signals()) {
-            findings.add(GradleMigrationReadinessFindings.map(signal));
+            signalFindings.add(GradleMigrationReadinessFindings.map(signal));
         }
+        List<MigrationReadinessFinding> findings = new ArrayList<>(
+                gradleDefaultFindings(result.signals(), signalFindings));
+        findings.addAll(signalFindings);
         return build("gradle", result.root(), findings);
+    }
+
+    private static List<MigrationReadinessFinding> defaultFindings(List<DefaultConcern> defaults) {
+        return defaults.stream()
+                .map(def -> MigrationReadinessFindings.defaultFinding(
+                        def.name(),
+                        def.sourcePattern(),
+                        def.zoltPrimitive(),
+                        def.followUp()))
+                .toList();
+    }
+
+    private static List<MigrationReadinessFinding> gradleDefaultFindings(
+            List<ExplainSignal> signals,
+            List<MigrationReadinessFinding> signalFindings) {
+        boolean hasCoverageGap = signals.stream()
+                .map(ExplainSignal::id)
+                .anyMatch(GRADLE_COVERAGE_GAP_SIGNALS::contains);
+        if (!hasCoverageGap) {
+            return defaultFindings(GRADLE_DEFAULTS);
+        }
+        return GRADLE_DEFAULTS.stream()
+                .map(def -> hasConcernEvidence(def.name(), signalFindings)
+                        ? MigrationReadinessFindings.defaultFinding(
+                                def.name(),
+                                def.sourcePattern(),
+                                def.zoltPrimitive(),
+                                def.followUp())
+                        : MigrationReadinessFindings.unknownFinding(def.name()))
+                .toList();
+    }
+
+    private static boolean hasConcernEvidence(
+            String concern,
+            List<MigrationReadinessFinding> findings) {
+        return findings.stream().anyMatch(finding -> concernFor(finding).equals(concern));
     }
 
     private static MigrationReadinessScorecard build(
@@ -99,6 +147,9 @@ public final class MigrationReadinessScorecards {
         if (concerns.stream().anyMatch(concern -> concern.status().equals("non-deterministic"))) {
             return "non-deterministic";
         }
+        if (concerns.stream().anyMatch(concern -> concern.status().equals("unknown"))) {
+            return "unknown";
+        }
         if (concerns.stream().anyMatch(concern -> concern.status().equals("planned"))) {
             return "planned";
         }
@@ -114,6 +165,9 @@ public final class MigrationReadinessScorecards {
         }
         if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.NON_DETERMINISTIC)) {
             return "non-deterministic";
+        }
+        if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.UNKNOWN)) {
+            return "unknown";
         }
         if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.PLANNED)) {
             return "planned";
@@ -136,8 +190,9 @@ public final class MigrationReadinessScorecards {
             case BLOCKED -> 0;
             case UNSUPPORTED -> 1;
             case NON_DETERMINISTIC -> 2;
-            case PLANNED -> 3;
-            case SUPPORTED -> 4;
+            case UNKNOWN -> 3;
+            case PLANNED -> 4;
+            case SUPPORTED -> 5;
         };
     }
 
@@ -148,5 +203,12 @@ public final class MigrationReadinessScorecards {
             case WARN -> 2;
             case OK -> 3;
         };
+    }
+
+    private record DefaultConcern(
+            String name,
+            String sourcePattern,
+            String zoltPrimitive,
+            String followUp) {
     }
 }

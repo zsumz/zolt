@@ -43,6 +43,14 @@ public final class GradleMigrationReadinessFindings {
                     "explicit Zolt project model",
                     "",
                     signal.nextStep());
+            case "gradle.script-plugin.apply-from" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "apply from script plugin",
+                    "explicit Zolt project model",
+                    "",
+                    signal.nextStep());
             case "gradle.included-build.detected" -> MigrationReadinessFindings.finding(
                     "dependencies",
                     MigrationReadinessCategory.BLOCKED,

@@ -75,6 +75,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Review the plugin implementation and model its effects explicitly in Zolt before migrating.");
+    public static final ExplainSignalDefinition GRADLE_SCRIPT_PLUGIN_APPLY_FROM = new ExplainSignalDefinition(
+            "gradle.script-plugin.apply-from",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Review the applied Gradle script plugin and model its effects explicitly in Zolt before migrating.");
     public static final ExplainSignalDefinition GRADLE_INCLUDED_BUILD_DETECTED = new ExplainSignalDefinition(
             "gradle.included-build.detected",
             ExplainSignal.Severity.BLOCK,
@@ -186,6 +191,7 @@ public final class ExplainSignals {
             GRADLE_PROJECT_MISSING_BUILD_FILE,
             GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED,
             GRADLE_PLUGIN_CONVENTION,
+            GRADLE_SCRIPT_PLUGIN_APPLY_FROM,
             GRADLE_INCLUDED_BUILD_DETECTED,
             GRADLE_IMPERATIVE_DEPENDENCY_LOGIC,
             GRADLE_DEPENDENCY_DYNAMIC_VERSION,

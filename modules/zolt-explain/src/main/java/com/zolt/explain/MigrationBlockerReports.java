@@ -34,7 +34,7 @@ public final class MigrationBlockerReports {
 
     private static boolean isBlockingOrRisky(MigrationReadinessFinding finding) {
         return switch (finding.category()) {
-            case BLOCKED, NON_DETERMINISTIC, UNSUPPORTED -> true;
+            case BLOCKED, NON_DETERMINISTIC, UNKNOWN, UNSUPPORTED -> true;
             case PLANNED -> finding.severity() == ExplainSignal.Severity.BLOCK
                     || finding.signalId().equals("maven.annotation-processor.path")
                     || finding.signalId().equals("maven.reactor.detected")
@@ -55,6 +55,9 @@ public final class MigrationBlockerReports {
         if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.NON_DETERMINISTIC)) {
             return "non-deterministic";
         }
+        if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.UNKNOWN)) {
+            return "unknown";
+        }
         if (findings.stream().anyMatch(finding -> finding.category() == MigrationReadinessCategory.PLANNED)) {
             return "planned";
         }
@@ -66,8 +69,9 @@ public final class MigrationBlockerReports {
             case BLOCKED -> 0;
             case UNSUPPORTED -> 1;
             case NON_DETERMINISTIC -> 2;
-            case PLANNED -> 3;
-            case SUPPORTED -> 4;
+            case UNKNOWN -> 3;
+            case PLANNED -> 4;
+            case SUPPORTED -> 5;
         };
     }
 
