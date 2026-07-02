@@ -92,6 +92,22 @@ public final class MavenMigrationReadinessFindings {
                     "execution context policy",
                     "",
                     signal.nextStep());
+            case "maven.language.unsupported" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.UNSUPPORTED,
+                    signal,
+                    "Maven unsupported language or Android plugin",
+                    "normal Java application modules",
+                    "",
+                    signal.nextStep());
+            case "maven.framework-native.unsupported" -> MigrationReadinessFindings.finding(
+                    "package",
+                    MigrationReadinessCategory.UNSUPPORTED,
+                    signal,
+                    "Maven framework-native plugin behavior",
+                    "typed Zolt framework settings",
+                    "",
+                    signal.nextStep());
             default -> MigrationReadinessFindings.generic(signal);
         };
     }

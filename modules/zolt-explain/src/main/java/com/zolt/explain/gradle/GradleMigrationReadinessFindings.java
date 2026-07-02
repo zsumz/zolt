@@ -147,6 +147,14 @@ public final class GradleMigrationReadinessFindings {
                     "[versions] and [platforms]",
                     "",
                     signal.nextStep());
+            case "gradle.version-catalog.bundle-unresolved" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "unresolved Gradle version-catalog bundle",
+                    "[dependencies] with explicit library aliases",
+                    "",
+                    signal.nextStep());
             case "gradle.enterprise-plugin.mapped" -> mapPlugin(signal);
             case "gradle.repository.credentials" -> MigrationReadinessFindings.finding(
                     "repositories",
@@ -210,6 +218,30 @@ public final class GradleMigrationReadinessFindings {
                     signal,
                     "publishing { publications; repositories }",
                     "[publish] and zolt publish --dry-run",
+                    "",
+                    signal.nextStep());
+            case "gradle.language.unsupported" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.UNSUPPORTED,
+                    signal,
+                    "Gradle unsupported language plugin or main sources",
+                    "normal Java application modules",
+                    "",
+                    signal.nextStep());
+            case "gradle.android.unsupported" -> MigrationReadinessFindings.finding(
+                    "package",
+                    MigrationReadinessCategory.UNSUPPORTED,
+                    signal,
+                    "Gradle Android project",
+                    "normal Java application package modes",
+                    "",
+                    signal.nextStep());
+            case "gradle.framework-native.unsupported" -> MigrationReadinessFindings.finding(
+                    "package",
+                    MigrationReadinessCategory.UNSUPPORTED,
+                    signal,
+                    "Gradle framework-native or dev-mode behavior",
+                    "typed Zolt framework settings",
                     "",
                     signal.nextStep());
             default -> MigrationReadinessFindings.generic(signal);
