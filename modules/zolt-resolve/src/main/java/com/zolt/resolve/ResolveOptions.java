@@ -1,6 +1,7 @@
 package com.zolt.resolve;
 
 import com.zolt.resolve.materialization.RepositoryOverlay;
+import com.zolt.resolve.progress.ArtifactProgressListener;
 import java.util.List;
 
 public record ResolveOptions(
@@ -8,10 +9,14 @@ public record ResolveOptions(
         List<RepositoryOverlay> repositoryOverlays,
         boolean rejectLocalOverlays,
         boolean includeCoverageTooling,
-        String retryCommand) {
+        String retryCommand,
+        ArtifactProgressListener artifactProgressListener) {
     public ResolveOptions {
         repositoryOverlays = repositoryOverlays == null ? List.of() : List.copyOf(repositoryOverlays);
         retryCommand = retryCommand == null || retryCommand.isBlank() ? "zolt resolve" : retryCommand.trim();
+        artifactProgressListener = artifactProgressListener == null
+                ? ArtifactProgressListener.NOOP
+                : artifactProgressListener;
         if (rejectLocalOverlays && !repositoryOverlays.isEmpty()) {
             throw ResolveException.actionable(
                     "Cannot combine local repository overlays with local-overlay rejection.",
@@ -24,7 +29,13 @@ public record ResolveOptions(
             List<RepositoryOverlay> repositoryOverlays,
             boolean rejectLocalOverlays,
             boolean includeCoverageTooling) {
-        this(offline, repositoryOverlays, rejectLocalOverlays, includeCoverageTooling, "zolt resolve");
+        this(
+                offline,
+                repositoryOverlays,
+                rejectLocalOverlays,
+                includeCoverageTooling,
+                "zolt resolve",
+                ArtifactProgressListener.NOOP);
     }
 
     public ResolveOptions(boolean offline, List<RepositoryOverlay> repositoryOverlays, boolean rejectLocalOverlays) {
@@ -40,10 +51,32 @@ public record ResolveOptions(
     }
 
     public ResolveOptions withCoverageTooling() {
-        return new ResolveOptions(offline, repositoryOverlays, rejectLocalOverlays, true, retryCommand);
+        return new ResolveOptions(
+                offline,
+                repositoryOverlays,
+                rejectLocalOverlays,
+                true,
+                retryCommand,
+                artifactProgressListener);
     }
 
     public ResolveOptions withRetryCommand(String retryCommand) {
-        return new ResolveOptions(offline, repositoryOverlays, rejectLocalOverlays, includeCoverageTooling, retryCommand);
+        return new ResolveOptions(
+                offline,
+                repositoryOverlays,
+                rejectLocalOverlays,
+                includeCoverageTooling,
+                retryCommand,
+                artifactProgressListener);
+    }
+
+    public ResolveOptions withArtifactProgressListener(ArtifactProgressListener artifactProgressListener) {
+        return new ResolveOptions(
+                offline,
+                repositoryOverlays,
+                rejectLocalOverlays,
+                includeCoverageTooling,
+                retryCommand,
+                artifactProgressListener);
     }
 }

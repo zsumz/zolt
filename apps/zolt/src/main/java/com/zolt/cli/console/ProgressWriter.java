@@ -1,6 +1,9 @@
 package com.zolt.cli.console;
 
+import com.zolt.maven.ArtifactDescriptor;
+import com.zolt.resolve.progress.ArtifactProgressListener;
 import java.io.PrintWriter;
+import java.util.Locale;
 
 public final class ProgressWriter {
     private final PrintWriter err;
@@ -39,6 +42,13 @@ public final class ProgressWriter {
      */
     public boolean animated() {
         return enabled() && policy.interactiveStderr();
+    }
+
+    public ArtifactProgressListener artifactProgressListener() {
+        if (!animated()) {
+            return ArtifactProgressListener.NOOP;
+        }
+        return new LiveArtifactProgressListener(liveRegion(), style);
     }
 
     /**
@@ -104,5 +114,54 @@ public final class ProgressWriter {
     private enum LeadStyle {
         WORK,
         SUCCESS
+    }
+
+    private static final class LiveArtifactProgressListener implements ArtifactProgressListener {
+        private static final String SPINNER_GLYPH = "⠋";
+        private static final String SUCCESS_GLYPH = "✔";
+        private static final String FAILURE_GLYPH = "✗";
+
+        private final LiveRegion region;
+        private final ConsoleStyle style;
+
+        private LiveArtifactProgressListener(LiveRegion region, ConsoleStyle style) {
+            this.region = region;
+            this.style = style;
+        }
+
+        @Override
+        public void onStart(ArtifactDescriptor descriptor) {
+            region.render(style.work(SPINNER_GLYPH) + " " + label(descriptor));
+        }
+
+        @Override
+        public void onComplete(ArtifactDescriptor descriptor, long bytes) {
+            region.commit(style.success(SUCCESS_GLYPH) + " " + label(descriptor) + " " + byteCount(bytes));
+        }
+
+        @Override
+        public void onFailure(ArtifactDescriptor descriptor, Throwable failure) {
+            region.commit(style.error(FAILURE_GLYPH) + " " + label(descriptor));
+        }
+
+        private static String label(ArtifactDescriptor descriptor) {
+            StringBuilder label = new StringBuilder(descriptor.coordinate().toString());
+            descriptor.classifier().ifPresent(classifier -> label.append(':').append(classifier));
+            if (!"jar".equals(descriptor.extension())) {
+                label.append(':').append(descriptor.extension());
+            }
+            return label.toString();
+        }
+
+        private static String byteCount(long bytes) {
+            if (bytes < 1024L) {
+                return bytes + " B";
+            }
+            double kib = bytes / 1024.0;
+            if (kib < 1024.0) {
+                return String.format(Locale.ROOT, "%.1f KiB", kib);
+            }
+            return String.format(Locale.ROOT, "%.1f MiB", kib / 1024.0);
+        }
     }
 }

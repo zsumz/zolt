@@ -77,7 +77,7 @@ public final class WorkspaceResolveService {
         return resolve(startDirectory, cacheRoot, false, ResolveOptions.defaults().withCoverageTooling());
     }
 
-    private ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, ResolveOptions options) {
+    public ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, ResolveOptions options) {
         Path start = startDirectory.toAbsolutePath().normalize();
         Workspace workspace = workspaceDiscoveryService.discover(start).orElseThrow(() -> new ResolveException(
                 "Could not find workspace config. Run `zolt resolve --workspace` from a workspace directory or add zolt.toml with [workspace]."));

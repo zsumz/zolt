@@ -7,16 +7,19 @@ import com.zolt.maven.Coordinate;
 import com.zolt.maven.repository.RepositoryArtifact;
 import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.metrics.ArtifactLoadMetricsSink;
+import com.zolt.resolve.progress.ArtifactProgressListener;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 final class ArtifactMaterializer {
     private final LocalArtifactCache cache;
     private final ResolveOptions options;
     private final LocalOverlayMaterializer localOverlayMaterializer;
+    private final ArtifactProgressListener progressListener;
 
     ArtifactMaterializer(
             LocalArtifactCache cache,
@@ -25,6 +28,7 @@ final class ArtifactMaterializer {
         this.cache = cache;
         this.options = options;
         this.localOverlayMaterializer = localOverlayMaterializer;
+        this.progressListener = options.artifactProgressListener();
     }
 
     CachedArtifact getPom(
@@ -45,7 +49,10 @@ final class ArtifactMaterializer {
         }
         Path before = cache.pomPath(coordinate);
         boolean cached = Files.isRegularFile(before);
-        CachedArtifact artifact = cache.getOrFetchPom(coordinate, fetchPom::apply);
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(coordinate, Optional.empty(), "pom");
+        CachedArtifact artifact = cache.getOrFetchPom(
+                coordinate,
+                ignored -> fetchWithProgress(descriptor, () -> fetchPom.apply(coordinate)));
         if (cached) {
             metrics.recordPomCacheHit(elapsedSince(started));
         } else {
@@ -72,7 +79,10 @@ final class ArtifactMaterializer {
         }
         Path before = cache.jarPath(coordinate);
         boolean cached = Files.isRegularFile(before);
-        CachedArtifact artifact = cache.getOrFetchJar(coordinate, fetchJar::apply);
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(coordinate);
+        CachedArtifact artifact = cache.getOrFetchJar(
+                coordinate,
+                ignored -> fetchWithProgress(descriptor, () -> fetchJar.apply(coordinate)));
         if (cached) {
             metrics.recordJarCacheHit(elapsedSince(started));
         } else {
@@ -100,13 +110,32 @@ final class ArtifactMaterializer {
         }
         Path before = cache.artifactPath(descriptor);
         boolean cached = Files.isRegularFile(before);
-        CachedArtifact artifact = cache.getOrFetchArtifact(descriptor, ignored -> fetchArtifact.apply(descriptor));
+        CachedArtifact artifact = cache.getOrFetchArtifact(
+                descriptor,
+                ignored -> fetchWithProgress(descriptor, () -> fetchArtifact.apply(descriptor)));
         if (cached) {
             metrics.recordArtifactCacheHit(elapsedSince(started));
         } else {
             metrics.recordArtifactDownload(elapsedSince(started));
         }
         return artifact;
+    }
+
+    private RepositoryArtifact fetchWithProgress(
+            ArtifactDescriptor descriptor,
+            Supplier<RepositoryArtifact> fetcher) {
+        progressListener.onStart(descriptor);
+        try {
+            RepositoryArtifact artifact = fetcher.get();
+            progressListener.onComplete(descriptor, artifact.bytes().length);
+            return artifact;
+        } catch (RuntimeException exception) {
+            progressListener.onFailure(descriptor, exception);
+            throw exception;
+        } catch (Error error) {
+            progressListener.onFailure(descriptor, error);
+            throw error;
+        }
     }
 
     private static long elapsedSince(long started) {

@@ -43,7 +43,7 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("Standardize error blocks."));
         assertTrue(design.contains("color-enabled golden test for help, success, and error"));
         assertTrue(design.contains("No full-screen terminal UI"));
-        assertTrue(design.contains("No progress bars, spinners, or carriage-return status lines before"));
+        assertTrue(design.contains("No byte-level progress bars before "));
     }
 
     @Test
@@ -85,7 +85,8 @@ final class ModernConsoleOutputDocumentationTest {
         assertTrue(design.contains("`NO_COLOR --progress=always` emits plain progress lines."));
         assertTrue(design.contains("`NO_COLOR` affects color only."));
         assertTrue(design.contains("`--quiet --progress=always` is allowed for debugging"));
-        assertTrue(design.contains("no spinners, bars, or carriage-return rewrites"));
+        assertTrue(design.contains("Interactive TTY progress may use the live region"));
+        assertTrue(design.contains("no byte-level progress bars before "));
         assertTrue(design.contains("Core resolver, planner, and build services should"));
         assertTrue(design.contains("Native Image smoke logs do not depend on terminal animation support."));
         assertTrue(milestones.contains(" — Add global progress mode"));

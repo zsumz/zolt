@@ -1,14 +1,18 @@
 package com.zolt.resolve;
 
-import com.zolt.resolve.support.ResolveServiceTestSupport;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.PackageId;
 import com.zolt.lockfile.ZoltLockfile;
+import com.zolt.maven.ArtifactDescriptor;
+import com.zolt.resolve.progress.ArtifactProgressListener;
+import com.zolt.resolve.support.ResolveServiceTestSupport;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 
 final class ResolveServiceTest extends ResolveServiceTestSupport {
@@ -43,5 +47,61 @@ final class ResolveServiceTest extends ResolveServiceTestSupport {
                 lockPackage.packageId().equals(new PackageId("com.example", "app")) && lockPackage.direct()));
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "lib")) && !lockPackage.direct()));
+    }
+
+    @Test
+    void artifactProgressListenerDoesNotChangeResolvedLockfile() throws IOException {
+        Path noListenerProject = tempDir.resolve("project-no-listener");
+        Path listenerProject = tempDir.resolve("project-listener");
+        createDirectory(noListenerProject);
+        createDirectory(listenerProject);
+        RecordingArtifactProgressListener listener = new RecordingArtifactProgressListener();
+
+        ResolveResult noListener = resolveService.resolve(
+                noListenerProject,
+                config(),
+                tempDir.resolve("cache-no-listener"),
+                false,
+                ResolveOptions.defaults());
+        ResolveResult withListener = resolveService.resolve(
+                listenerProject,
+                config(),
+                tempDir.resolve("cache-listener"),
+                false,
+                ResolveOptions.defaults().withArtifactProgressListener(listener));
+
+        assertEquals(noListener.resolvedCount(), withListener.resolvedCount());
+        assertEquals(noListener.downloadCount(), withListener.downloadCount());
+        assertEquals(
+                Files.readString(noListener.lockfilePath()),
+                Files.readString(withListener.lockfilePath()));
+        assertTrue(listener.events().contains("start com.example:app:1.0.0::pom"));
+        assertTrue(listener.events().contains("complete com.example:app:1.0.0::jar"));
+    }
+
+    private static final class RecordingArtifactProgressListener implements ArtifactProgressListener {
+        private final CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void onStart(ArtifactDescriptor descriptor) {
+            events.add("start " + key(descriptor));
+        }
+
+        @Override
+        public void onComplete(ArtifactDescriptor descriptor, long bytes) {
+            events.add("complete " + key(descriptor));
+        }
+
+        private List<String> events() {
+            return List.copyOf(events);
+        }
+
+        private static String key(ArtifactDescriptor descriptor) {
+            return descriptor.coordinate()
+                    + ":"
+                    + descriptor.classifier().orElse("")
+                    + ":"
+                    + descriptor.extension();
+        }
     }
 }

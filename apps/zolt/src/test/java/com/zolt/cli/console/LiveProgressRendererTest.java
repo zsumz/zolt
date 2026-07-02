@@ -4,15 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.maven.ArtifactDescriptor;
+import com.zolt.maven.Coordinate;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class LiveProgressRendererTest {
     private static final String HIDE_CURSOR = "[?25l";
     private static final String SHOW_CURSOR = "[?25h";
     private static final String CLEAR_TO_EOL = "[K";
+    private static final Coordinate APP = new Coordinate("com.example", "app", Optional.of("1.0.0"));
 
     @Test
     void interactivePhaseAnimatesInPlaceAndCommitsSuccessLine() {
@@ -131,6 +135,42 @@ final class LiveProgressRendererTest {
         phase.fail();
 
         assertEquals(afterFirst, stderr.toString(), "finishing a phase twice must not emit more output");
+    }
+
+    @Test
+    void interactiveArtifactProgressRendersLiveStartAndCommitsCompletionLine() {
+        StringWriter stderr = new StringWriter();
+        ProgressWriter writer = interactiveWriter(stderr);
+
+        ProgressPhase phase = writer.phase("Resolving dependencies");
+        writer.artifactProgressListener().onStart(ArtifactDescriptor.jar(APP));
+        writer.artifactProgressListener().onComplete(ArtifactDescriptor.jar(APP), 1536L);
+        phase.done();
+
+        String output = stderr.toString();
+        assertTrue(output.contains("⠋ com.example:app:1.0.0"), "start event renders artifact row: " + escape(output));
+        assertTrue(
+                output.contains("✔ com.example:app:1.0.0 1.5 KiB"),
+                "complete event commits artifact row: " + escape(output));
+        assertTrue(output.contains("✔ Resolving dependencies"), "phase summary still commits after artifact rows");
+        assertTrue(output.endsWith(SHOW_CURSOR), "cursor must be restored after artifact progress: " + escape(output));
+    }
+
+    @Test
+    void nonInteractiveArtifactProgressIsNoop() {
+        StringWriter stderr = new StringWriter();
+        ProgressWriter writer = new ProgressWriter(
+                new PrintWriter(stderr),
+                ProgressPolicy.of(ProgressMode.ALWAYS, false, false, Map.of()),
+                ConsoleStyle.disabled(),
+                ProgressOutputContract.HUMAN);
+
+        ProgressPhase phase = writer.phase("Resolving dependencies");
+        writer.artifactProgressListener().onStart(ArtifactDescriptor.jar(APP));
+        writer.artifactProgressListener().onComplete(ArtifactDescriptor.jar(APP), 1536L);
+        phase.done();
+
+        assertEquals("Resolving dependencies...\n", stderr.toString());
     }
 
     private static ProgressWriter interactiveWriter(StringWriter stderr) {

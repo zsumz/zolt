@@ -110,14 +110,16 @@ public final class ResolveCommand implements Runnable {
                             "Run without --workspace or wait for workspace overlay policy support.");
                 }
                 ProgressPhase phase = progress.phase("Resolving workspace dependencies");
+                ResolveOptions options = ResolveOptions.offline(offline)
+                        .withRetryCommand("zolt resolve --workspace")
+                        .withArtifactProgressListener(progress.artifactProgressListener());
                 ResolveResult result = resolveInPhase(phase, () -> timings.measure(
                         "resolve workspace",
                         () -> workspaceResolveService.resolve(
                                 projectRoot,
                                 cacheRoot,
                                 locked,
-                                offline,
-                                "zolt resolve --workspace"),
+                                options),
                         ResolveCommand::resolveAttributes));
                 CommandResolveOutput.print(spec, result, !locked);
                 CommandHumanOutput.of(spec).action("zolt build --workspace");
@@ -128,6 +130,8 @@ public final class ResolveCommand implements Runnable {
                     "config read",
                     () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
             ProgressPhase phase = progress.phase("Resolving dependencies");
+            ResolveOptions options = resolveOptions()
+                    .withArtifactProgressListener(progress.artifactProgressListener());
             ResolveResult result = resolveInPhase(phase, () -> timings.measure(
                     "resolve graph",
                     () -> resolveService.resolve(
@@ -135,7 +139,7 @@ public final class ResolveCommand implements Runnable {
                             config,
                             cacheRoot,
                             locked,
-                            resolveOptions()),
+                            options),
                     ResolveCommand::resolveAttributes));
             CommandResolveOutput.print(spec, result, !locked);
             CommandHumanOutput.of(spec).action("zolt build");
