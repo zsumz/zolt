@@ -1,7 +1,10 @@
 package com.zolt.cli;
 
 import com.zolt.cli.console.ConsoleStyle;
+import com.zolt.provenance.BuildProvenance;
+import com.zolt.provenance.GitProvenance;
 import java.io.PrintWriter;
+import java.util.Optional;
 import picocli.CommandLine;
 import picocli.CommandLine.Model.CommandSpec;
 
@@ -9,11 +12,13 @@ public final class CommandHumanOutput {
     private final PrintWriter out;
     private final ConsoleStyle style;
     private final boolean quiet;
+    private final boolean verbose;
 
-    private CommandHumanOutput(PrintWriter out, ConsoleStyle style, boolean quiet) {
+    private CommandHumanOutput(PrintWriter out, ConsoleStyle style, boolean quiet, boolean verbose) {
         this.out = out;
         this.style = style;
         this.quiet = quiet;
+        this.verbose = verbose && !quiet;
     }
 
     public static CommandHumanOutput of(CommandSpec spec) {
@@ -21,18 +26,23 @@ public final class CommandHumanOutput {
         ZoltCli root = root(commandLine);
         ConsoleStyle style = root == null ? ConsoleStyle.disabled() : root.consoleStyle();
         boolean quiet = root != null && root.quiet();
-        return new CommandHumanOutput(commandLine.getOut(), style, quiet);
+        boolean verbose = root != null && root.verbose();
+        return new CommandHumanOutput(commandLine.getOut(), style, quiet, verbose);
     }
 
     static CommandHumanOutput forTesting(PrintWriter out, ConsoleStyle style, boolean quiet) {
-        return new CommandHumanOutput(out, style, quiet);
+        return forTesting(out, style, quiet, false);
+    }
+
+    static CommandHumanOutput forTesting(PrintWriter out, ConsoleStyle style, boolean quiet, boolean verbose) {
+        return new CommandHumanOutput(out, style, quiet, verbose);
     }
 
     public static CommandHumanOutput errors(CommandSpec spec) {
         CommandLine commandLine = spec.commandLine();
         ZoltCli root = root(commandLine);
         ConsoleStyle style = root == null ? ConsoleStyle.disabled() : root.consoleStyle();
-        return new CommandHumanOutput(commandLine.getErr(), style, false);
+        return new CommandHumanOutput(commandLine.getErr(), style, false, false);
     }
 
     public void work(String message) {
@@ -79,6 +89,23 @@ public final class CommandHumanOutput {
         for (String target : targets) {
             pointer(verb, target);
         }
+    }
+
+    public void provenance(BuildProvenance provenance) {
+        if (quiet || !verbose) {
+            return;
+        }
+        out.println("  " + style.muted("provenance"));
+        commitLine(provenance.git()).ifPresent(line ->
+                out.println("    " + style.muted("commit") + "    " + style.path(line)));
+        out.println("    " + style.muted("built") + "     " + provenance.buildTimestamp());
+        out.println("    " + style.muted("toolchain") + " "
+                + "zolt " + provenance.zoltVersion()
+                + " · JDK " + provenance.jdkVersion()
+                + " (" + provenance.jdkVendor() + ")");
+        provenance.resolutionFingerprint().ifPresent(fingerprint ->
+                out.println("    " + style.muted("inputs") + "    "
+                        + style.path(fingerprint) + " (resolution fingerprint)"));
     }
 
     public void action(String command) {
@@ -179,6 +206,20 @@ public final class CommandHumanOutput {
             case "skip" -> style.muted("skip:");
             default -> marker + ":";
         };
+    }
+
+    private static Optional<String> commitLine(GitProvenance git) {
+        if (git.commitSha().isEmpty()) {
+            return Optional.empty();
+        }
+        StringBuilder line = new StringBuilder(git.commitSha().orElseThrow());
+        git.shortSha().ifPresent(shortSha -> line.append(" (").append(shortSha).append(')'));
+        git.branch().ifPresent(branch -> line.append(" on ").append(branch));
+        if (git.branch().isEmpty() && git.detached()) {
+            line.append(" detached");
+        }
+        git.dirty().filter(Boolean::booleanValue).ifPresent(ignored -> line.append(" dirty"));
+        return Optional.of(line.toString());
     }
 
     private static ZoltCli root(CommandLine commandLine) {

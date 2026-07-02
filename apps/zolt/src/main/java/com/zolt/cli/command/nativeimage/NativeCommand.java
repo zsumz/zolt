@@ -12,6 +12,7 @@ import com.zolt.build.nativeimage.NativeBuildService;
 import com.zolt.build.NativeImageException;
 import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
+import com.zolt.cli.command.CommandBuildProvenance;
 import com.zolt.cli.command.CommandFailures;
 import com.zolt.cli.command.CommandFrameworkServices;
 import com.zolt.cli.command.CommandLockfiles;
@@ -118,6 +119,7 @@ public final class NativeCommand implements Runnable {
                 output.summary(
                         "Built native binaries for " + result.members().size() + " workspace members",
                         result.members().size() + " members");
+                output.provenance(CommandBuildProvenance.read(projectRoot));
                 progress.result("Built native binaries for " + result.members().size() + " workspace members");
                 return;
             }
@@ -137,6 +139,7 @@ public final class NativeCommand implements Runnable {
             output.pointer("wrote", result.nativeImageResult().outputBinary().toString());
             output.pointer("logged", result.nativeImageResult().logFile().toString());
             printSpringBootAotEvidence(result, "");
+            output.provenance(CommandBuildProvenance.read(projectRoot));
             progress.result("Built native binary at " + result.nativeImageResult().outputBinary());
         } catch (BuildException
                 | JavacException

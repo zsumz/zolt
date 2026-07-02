@@ -102,6 +102,61 @@ final class BuildCommandTest {
     }
 
     @Test
+    void buildVerbosePrintsProvenanceBlockWithoutGitLinesOutsideARepository() throws IOException {
+        Path projectDir = tempDir.resolve("verbose-demo");
+        Path cacheRoot = tempDir.resolve("verbose-cache");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+        CommandResult resolve = execute(
+                "resolve",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        CommandResult result = execute(
+                "-v",
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, resolve.exitCode(), resolve.stderr());
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("✔ Compiled 1 main source files"));
+        assertTrue(result.stdout().contains("  provenance"));
+        assertFalse(result.stdout().contains("commit    "));
+        assertTrue(result.stdout().contains("built     "));
+        assertTrue(result.stdout().contains("toolchain zolt "));
+        assertTrue(result.stdout().contains("inputs    sha256:"));
+    }
+
+    @Test
+    void buildQuietSuppressesVerboseProvenance() throws IOException {
+        Path projectDir = tempDir.resolve("quiet-verbose-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                }
+                """);
+
+        CommandResult result = execute(
+                "--quiet",
+                "-v",
+                "build",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("quiet-verbose-cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertEquals("", result.stdout());
+    }
+
+    @Test
     void buildAcceptsVisibleProjectDirectoryOption() throws IOException {
         Path projectDir = tempDir.resolve("directory-build");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

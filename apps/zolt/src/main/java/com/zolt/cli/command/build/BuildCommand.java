@@ -13,6 +13,7 @@ import com.zolt.cli.CommandHumanOutput;
 import com.zolt.cli.CommandProgress;
 import com.zolt.cli.ZoltCli;
 import com.zolt.cli.command.CommandFailures;
+import com.zolt.cli.command.CommandBuildProvenance;
 import com.zolt.cli.command.CommandFrameworkServices;
 import com.zolt.cli.command.CommandLockfiles;
 import com.zolt.cli.command.CommandProjectDirectory;
@@ -143,6 +144,7 @@ public final class BuildCommand implements Runnable {
                 output.summary(
                         "Compiled " + result.sourceCount() + " workspace main source files",
                         result.members().size() + " members");
+                output.provenance(CommandBuildProvenance.read(projectRoot));
                 progress.result("Built " + result.sourceCount() + " workspace main source files");
                 return;
             }
@@ -169,6 +171,7 @@ public final class BuildCommand implements Runnable {
                 output.summary("Compiled " + result.sourceCount() + " main source files");
             }
             output.pointer("wrote", result.outputDirectory().toString());
+            output.provenance(CommandBuildProvenance.read(projectRoot));
             progress.result("Built " + result.sourceCount() + " main source files");
             Optional<FrameworkBuildAugmentationResult> augmentationResult =
                     timings.measure(

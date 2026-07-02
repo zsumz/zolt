@@ -265,6 +265,7 @@ public final class TestCommand implements Runnable {
                         + " workspace members; use --all to test every member"
                 : "Tests passed for " + testedMembers + " workspace members";
         output.summary(summary, testedMembers + " members");
+        output.provenance(CommandBuildProvenance.read(projectRoot));
         progress.result("Tested " + testedMembers + " workspace members");
     }
 
@@ -341,6 +342,7 @@ public final class TestCommand implements Runnable {
         result.reportsDirectory().ifPresent(directory ->
                 output.pointer("wrote", directory.toString()));
         CommandTestProfileOutput.print(output, result, profileSettings);
+        output.provenance(CommandBuildProvenance.read(projectRoot));
         progress.result("Tested project");
     }
 }

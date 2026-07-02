@@ -143,6 +143,12 @@ public final class ZoltCli implements Runnable {
             description = "Suppress Zolt human summaries and auto progress.")
     private boolean quiet;
 
+    @Option(
+            names = {"-v", "--verbose"},
+            scope = ScopeType.INHERIT,
+            description = "Print opt-in diagnostic detail for human output.")
+    private boolean verbose;
+
     @Mixin
     private ZoltUpdateNoticeHook updateNoticeHook = new ZoltUpdateNoticeHook();
 
@@ -226,6 +232,10 @@ public final class ZoltCli implements Runnable {
 
     boolean quiet() {
         return quiet;
+    }
+
+    boolean verbose() {
+        return verbose;
     }
 
     public static final class TimingOptions {

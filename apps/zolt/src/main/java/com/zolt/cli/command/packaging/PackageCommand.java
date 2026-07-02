@@ -229,6 +229,7 @@ public final class PackageCommand implements Runnable {
             printPackageResult(member.result(), " in " + member.member());
         }
         output.success("Packaged " + result.members().size() + " workspace members");
+        output.provenance(CommandBuildProvenance.read(projectRoot));
         progress.result("Packaged " + result.members().size() + " workspace members");
     }
 
@@ -285,6 +286,7 @@ public final class PackageCommand implements Runnable {
             output.success("Resolved dependencies because zolt.lock was missing");
         }
         printPackageResult(result, "");
+        output.provenance(CommandBuildProvenance.read(projectRoot));
         progress.result("Packaged " + result.jarPath());
     }
 
