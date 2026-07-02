@@ -69,6 +69,17 @@ public final class ExplainCommand implements Callable<Integer> {
     @Option(names = "--emit-toml", description = "Print a draft zolt.toml synthesized from the migration audit instead of the raw explain report.")
     private boolean emitToml;
 
+    @Option(
+            names = "--emit-toml-output",
+            paramLabel = "<DIRECTORY>",
+            description = "Write emitted zolt.toml document(s) under this directory instead of printing TOML.")
+    private Path emitTomlOutput;
+
+    @Option(
+            names = "--emit-toml-overwrite",
+            description = "Allow --emit-toml-output to replace existing zolt.toml files.")
+    private boolean emitTomlOverwrite;
+
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
@@ -128,6 +139,16 @@ public final class ExplainCommand implements Callable<Integer> {
                     spec.commandLine(),
                     "`--emit-toml` emits TOML and cannot combine with `--format json`. Choose one.");
         }
+        if (emitTomlOutput != null && !emitToml) {
+            throw new CommandLine.ParameterException(
+                    spec.commandLine(),
+                    "`--emit-toml-output` writes emitted TOML files and requires `--emit-toml`.");
+        }
+        if (emitTomlOverwrite && emitTomlOutput == null) {
+            throw new CommandLine.ParameterException(
+                    spec.commandLine(),
+                    "`--emit-toml-overwrite` only applies with `--emit-toml-output`.");
+        }
         Source detectedSource = detectSource(root);
         if (detectedSource == Source.MAVEN) {
             return explainMaven(root);
@@ -142,6 +163,11 @@ public final class ExplainCommand implements Callable<Integer> {
         try {
             MavenInspectionResult result = mavenInspector.inspect(root);
             if (emitToml) {
+                if (emitTomlOutput != null) {
+                    new ExplainEmitFileWriter(spec, emitTomlOutput, emitTomlOverwrite)
+                            .write(root, emitRenderer.renderMavenDocuments(result));
+                    return 0;
+                }
                 CommandOutput.printAndFlush(spec, emitRenderer.renderMaven(result).stripTrailing());
                 return 0;
             }
@@ -182,6 +208,11 @@ public final class ExplainCommand implements Callable<Integer> {
         try {
             GradleInspectionResult result = gradleInspector.inspect(root);
             if (emitToml) {
+                if (emitTomlOutput != null) {
+                    new ExplainEmitFileWriter(spec, emitTomlOutput, emitTomlOverwrite)
+                            .write(root, emitRenderer.renderGradleDocuments(result));
+                    return 0;
+                }
                 CommandOutput.printAndFlush(spec, emitRenderer.renderGradle(result).stripTrailing());
                 return 0;
             }

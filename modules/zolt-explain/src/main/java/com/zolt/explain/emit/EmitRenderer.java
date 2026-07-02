@@ -2,6 +2,7 @@ package com.zolt.explain.emit;
 
 import com.zolt.explain.gradle.GradleInspectionResult;
 import com.zolt.explain.maven.MavenInspectionResult;
+import java.util.List;
 
 /**
  * Turns a Maven or Gradle audit into a ready-to-print draft: a single {@code zolt.toml} for a
@@ -40,10 +41,31 @@ public final class EmitRenderer {
         return render(mapper.emitFromGradle(result));
     }
 
+    public List<DraftZoltTomlDocument> renderMavenDocuments(MavenInspectionResult result) {
+        return renderDocuments(mapper.emitFromMaven(result));
+    }
+
+    public List<DraftZoltTomlDocument> renderGradleDocuments(GradleInspectionResult result) {
+        return renderDocuments(mapper.emitFromGradle(result));
+    }
+
     private String render(DraftEmit emit) {
         if (emit instanceof DraftWorkspace workspace) {
             return workspaceRenderer.render(workspace, workspaceConfigRenderer, configRenderer);
         }
         return draftRenderer.render((DraftZoltToml) emit, configRenderer);
+    }
+
+    private List<DraftZoltTomlDocument> renderDocuments(DraftEmit emit) {
+        if (emit instanceof DraftWorkspace workspace) {
+            return workspaceRenderer.renderDocuments(workspace, workspaceConfigRenderer, configRenderer);
+        }
+        return List.of(new DraftZoltTomlDocument(
+                "zolt.toml",
+                withTrailingNewline(draftRenderer.render((DraftZoltToml) emit, configRenderer))));
+    }
+
+    private static String withTrailingNewline(String value) {
+        return value.stripTrailing() + "\n";
     }
 }
