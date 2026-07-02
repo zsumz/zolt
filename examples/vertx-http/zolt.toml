@@ -27,6 +27,9 @@ test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
 
+[build.metadata]
+reproducible = true
+
 [resources]
 main = ["src/main/resources"]
 test = ["src/test/resources"]
