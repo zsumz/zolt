@@ -28,6 +28,7 @@ public final class MigrationBlockerReportFormatter {
                 if (!finding.followUp().isBlank()) {
                     output.append(" (").append(finding.followUp()).append(')');
                 }
+                appendFindingDetail(output, finding);
                 output.append('\n')
                         .append("      signal: ")
                         .append(finding.signalId())
@@ -50,6 +51,15 @@ public final class MigrationBlockerReportFormatter {
         }
         output.append("\nThis blocker report inspected build metadata statically and did not execute Maven or Gradle.\n");
         return output.toString();
+    }
+
+    private static void appendFindingDetail(StringBuilder output, MigrationReadinessFinding finding) {
+        if (!finding.project().isBlank()) {
+            output.append(" [project: ").append(finding.project()).append(']');
+        }
+        if (!finding.message().isBlank()) {
+            output.append(" - ").append(finding.message());
+        }
     }
 
     public String json(MigrationBlockerReport report) {

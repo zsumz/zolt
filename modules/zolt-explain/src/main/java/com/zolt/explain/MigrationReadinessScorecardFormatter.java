@@ -31,6 +31,7 @@ public final class MigrationReadinessScorecardFormatter {
                 if (!finding.followUp().isBlank()) {
                     output.append(" (").append(finding.followUp()).append(')');
                 }
+                appendFindingDetail(output, finding);
                 output.append('\n');
                 if (!finding.signalId().isBlank()) {
                     output.append("        signal: ")
@@ -52,6 +53,15 @@ public final class MigrationReadinessScorecardFormatter {
         }
         output.append("\nThis scorecard inspected build metadata statically and did not execute Maven or Gradle.\n");
         return output.toString();
+    }
+
+    private static void appendFindingDetail(StringBuilder output, MigrationReadinessFinding finding) {
+        if (!finding.project().isBlank()) {
+            output.append(" [project: ").append(finding.project()).append(']');
+        }
+        if (!finding.message().isBlank()) {
+            output.append(" - ").append(finding.message());
+        }
     }
 
     public String json(MigrationReadinessScorecard scorecard) {

@@ -11,6 +11,8 @@ import com.zolt.explain.maven.MavenStaticProjectInspector;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -287,6 +289,49 @@ final class MigrationReadinessFixtureTest {
         assertTrue(blockerJson.contains("\"followUp\": \"\""));
     }
 
+    @Test
+    void mavenReactorDynamicDependencyFindingsAreDistinctInScorecardAndBlockers() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.acme</groupId>
+                  <artifactId>acme-parent</artifactId>
+                  <version>1.0.0</version>
+                  <packaging>pom</packaging>
+                  <modules>
+                    <module>module-a</module>
+                    <module>module-b</module>
+                  </modules>
+                </project>
+                """);
+        writeSnapshotDependencyPom("module-a", "lib-one", "2.0-SNAPSHOT");
+        writeSnapshotDependencyPom("module-b", "lib-two", "3.1-SNAPSHOT");
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new MavenStaticProjectInspector().inspect(tempDir));
+        String scorecardText = new MigrationReadinessScorecardFormatter().text(scorecard);
+        String blockerText = new MigrationBlockerReportFormatter().text(MigrationBlockerReports.from(scorecard));
+        String scorecardJson = new MigrationReadinessScorecardFormatter().json(scorecard);
+        String blockerJson = new MigrationBlockerReportFormatter().json(MigrationBlockerReports.from(scorecard));
+
+        assertDistinctDynamicVersionLines(scorecardText);
+        assertDistinctDynamicVersionLines(blockerText);
+        assertTrue(scorecardText.contains("[project: module-a] - Dependency `com.acme:lib-one:2.0-SNAPSHOT`"),
+                () -> scorecardText);
+        assertTrue(scorecardText.contains("[project: module-b] - Dependency `com.acme:lib-two:3.1-SNAPSHOT`"),
+                () -> scorecardText);
+        assertTrue(blockerText.contains("[project: module-a] - Dependency `com.acme:lib-one:2.0-SNAPSHOT`"),
+                () -> blockerText);
+        assertTrue(blockerText.contains("[project: module-b] - Dependency `com.acme:lib-two:3.1-SNAPSHOT`"),
+                () -> blockerText);
+        assertTrue(scorecardJson.contains("\"project\": \"module-a\""), () -> scorecardJson);
+        assertTrue(scorecardJson.contains("\"message\": \"Dependency `com.acme:lib-one:2.0-SNAPSHOT`"),
+                () -> scorecardJson);
+        assertTrue(blockerJson.contains("\"project\": \"module-b\""), () -> blockerJson);
+        assertTrue(blockerJson.contains("\"message\": \"Dependency `com.acme:lib-two:3.1-SNAPSHOT`"),
+                () -> blockerJson);
+    }
+
     private static Path fixture(String name) {
         return FIXTURE_ROOT.resolve(name);
     }
@@ -300,5 +345,36 @@ final class MigrationReadinessFixtureTest {
 
     private static String normalize(String value, Path fixture) {
         return value.replace(fixture.toString().replace('\\', '/'), "$ROOT");
+    }
+
+    private void writeSnapshotDependencyPom(String module, String artifactId, String version) throws IOException {
+        Path moduleDirectory = tempDir.resolve(module);
+        Files.createDirectories(moduleDirectory);
+        Files.writeString(moduleDirectory.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.acme</groupId>
+                    <artifactId>acme-parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>%s</artifactId>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.acme</groupId>
+                      <artifactId>%s</artifactId>
+                      <version>%s</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """.formatted(module, artifactId, version));
+    }
+
+    private static void assertDistinctDynamicVersionLines(String text) {
+        List<String> dynamicVersionLines = text.lines()
+                .filter(line -> line.contains("SNAPSHOT or Maven version range -> fixed versions and [platforms]"))
+                .toList();
+        assertEquals(2, dynamicVersionLines.size(), () -> text);
+        assertEquals(2, Set.copyOf(dynamicVersionLines).size(), () -> dynamicVersionLines.toString());
     }
 }
