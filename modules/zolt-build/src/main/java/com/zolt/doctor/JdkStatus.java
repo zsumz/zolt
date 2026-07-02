@@ -75,8 +75,22 @@ public record JdkStatus(
         if (value == null || value.isBlank()) {
             return Optional.empty();
         }
+        String normalized = value.strip();
+        if (normalized.startsWith("1.")) {
+            int index = 2;
+            while (index < normalized.length() && Character.isDigit(normalized.charAt(index))) {
+                index++;
+            }
+            if (index > 2) {
+                try {
+                    return Optional.of(Integer.parseInt(normalized.substring(2, index)));
+                } catch (NumberFormatException exception) {
+                    return Optional.empty();
+                }
+            }
+        }
         try {
-            return Optional.of(Integer.parseInt(value));
+            return Optional.of(Integer.parseInt(normalized));
         } catch (NumberFormatException exception) {
             return Optional.empty();
         }

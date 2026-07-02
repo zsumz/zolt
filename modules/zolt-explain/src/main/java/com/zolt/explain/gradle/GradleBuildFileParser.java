@@ -127,10 +127,12 @@ final class GradleBuildFileParser {
     String javaVersion(String content) {
         for (Pattern pattern : List.of(
                 Pattern.compile("\\blanguageVersion\\s*=\\s*JavaLanguageVersion\\.of\\((\\d+)\\)"),
-                Pattern.compile("\\bsourceCompatibility\\s*=\\s*JavaVersion\\.VERSION_(\\d+)"),
-                Pattern.compile("\\btargetCompatibility\\s*=\\s*JavaVersion\\.VERSION_(\\d+)"),
+                Pattern.compile("\\bsourceCompatibility\\s*=\\s*JavaVersion\\.VERSION_([0-9_]+)"),
+                Pattern.compile("\\btargetCompatibility\\s*=\\s*JavaVersion\\.VERSION_([0-9_]+)"),
                 Pattern.compile("\\bsourceCompatibility\\s*=\\s*['\"]([^'\"]+)['\"]"),
-                Pattern.compile("\\btargetCompatibility\\s*=\\s*['\"]([^'\"]+)['\"]"))) {
+                Pattern.compile("\\btargetCompatibility\\s*=\\s*['\"]([^'\"]+)['\"]"),
+                Pattern.compile("\\bsourceCompatibility\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)"),
+                Pattern.compile("\\btargetCompatibility\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)"))) {
             Matcher matcher = pattern.matcher(content);
             if (matcher.find()) {
                 return matcher.group(1).replace('_', '.');

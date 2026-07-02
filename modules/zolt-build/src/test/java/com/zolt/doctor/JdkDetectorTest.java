@@ -118,6 +118,29 @@ final class JdkDetectorTest {
     }
 
     @Test
+    void legacyRequiredJavaFeatureNotationMatchesNewerJdk() {
+        JdkStatus status = status("21", "1.8");
+
+        assertTrue(status.ok());
+        assertTrue(status.versionSatisfies());
+        assertTrue(status.problems().isEmpty());
+    }
+
+    @Test
+    void legacyAndModernJavaEightNotationAreEquivalent() {
+        assertTrue(status("1.8", "8").versionSatisfies());
+        assertTrue(status("8", "1.8").versionSatisfies());
+    }
+
+    @Test
+    void unparseableJavaVersionsKeepExactMatchFallback() {
+        assertTrue(status("latest", "latest").versionSatisfies());
+        assertFalse(status("21", "latest").versionSatisfies());
+        assertTrue(status("1.x", "1.x").versionSatisfies());
+        assertFalse(status("21", "1.x").versionSatisfies());
+    }
+
+    @Test
     void reusesDetectedToolchainForRepeatedChecks() throws IOException {
         Path javaHome = tempDir.resolve("jdk");
         tool(javaHome, "java");
@@ -157,6 +180,16 @@ final class JdkDetectorTest {
             JdkDetector.ToolVersionReader versionReader) {
         Function<String, String> env = environment::get;
         return new JdkDetector(env, java.io.File.pathSeparator, "Linux", Optional.empty(), versionReader);
+    }
+
+    private static JdkStatus status(String detected, String required) {
+        return new JdkStatus(
+                Optional.of(Path.of("/jdk")),
+                Optional.of(Path.of("/jdk/bin/java")),
+                Optional.of(Path.of("/jdk/bin/javac")),
+                Optional.of(Path.of("/jdk/bin/jar")),
+                Optional.of(detected),
+                required);
     }
 
     private static Path tool(Path javaHomeOrBin, String name) throws IOException {

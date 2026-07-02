@@ -86,7 +86,7 @@ final class GradleInspectionMapper {
                 primary.name(),
                 version,
                 group,
-                primary.javaVersion(),
+                JavaVersionNotation.normalizeLegacyFeature(primary.javaVersion()),
                 primary.mainClass().filter(value -> !value.isBlank()));
         boolean groupMissing = primary.group().filter(value -> !value.isBlank()).isEmpty();
         boolean versionMissing = primary.version().filter(value -> !value.isBlank()).isEmpty();

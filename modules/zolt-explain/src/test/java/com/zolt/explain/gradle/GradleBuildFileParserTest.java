@@ -47,6 +47,14 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void parsesLegacyJavaVersionNotationBeforeEmitNormalization() {
+        assertEquals("1.8", parser.javaVersion("sourceCompatibility = 1.8"));
+        assertEquals("1.8", parser.javaVersion("targetCompatibility = 1.8"));
+        assertEquals("1.8", parser.javaVersion("sourceCompatibility = JavaVersion.VERSION_1_8"));
+        assertEquals("17", parser.javaVersion("targetCompatibility = JavaVersion.VERSION_17"));
+    }
+
+    @Test
     void parsesKotlinDslBacktickAccessorPlugins() {
         String content = """
                 plugins {

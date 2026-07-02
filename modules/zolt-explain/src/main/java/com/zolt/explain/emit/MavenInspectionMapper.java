@@ -100,7 +100,7 @@ final class MavenInspectionMapper {
                 primary.artifactId(),
                 version,
                 group,
-                primary.javaVersion(),
+                JavaVersionNotation.normalizeLegacyFeature(primary.javaVersion()),
                 Optional.empty());
 
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
