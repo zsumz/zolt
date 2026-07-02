@@ -56,7 +56,7 @@ final class MigrationExplainMavenFixtures {
                     "blockers": 0,
                     "warnings": 0,
                     "unknown": 0,
-                    "ok": 1
+                    "ok": 0
                   },
                   "projects": [
                     {

@@ -1,6 +1,7 @@
 package com.zolt.explain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.explain.gradle.GradleDependencyInspection;
 import com.zolt.explain.gradle.GradleExplainFormatter;
@@ -88,6 +89,39 @@ final class ExplainReportFormatterTest {
                 This command inspected Maven metadata statically and did not execute Maven.
                 """,
                 new MavenExplainFormatter().text(result));
+    }
+
+    @Test
+    void mavenJsonSummaryPartitionsMixedSeveritySignals() {
+        MavenInspectionResult result = new MavenInspectionResult(
+                Path.of("/repo"),
+                List.of(minimalMavenProject()),
+                ExplainSignals.sorted(List.of(
+                        ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
+                                ".",
+                                "Packaging `war` needs an explicit Zolt packaging primitive."),
+                        new ExplainSignal(
+                                ExplainSignal.Severity.UNKNOWN,
+                                ExplainSignal.Category.BUILDABILITY,
+                                ".",
+                                "maven.synthetic.unknown",
+                                "Synthetic unknown signal for summary coverage.",
+                                "Review the unknown Maven fact."),
+                        new ExplainSignal(
+                                ExplainSignal.Severity.OK,
+                                ExplainSignal.Category.BUILDABILITY,
+                                ".",
+                                "maven.synthetic.ok",
+                                "Synthetic ok signal for summary coverage.",
+                                "No action needed."))));
+
+        String json = new MavenExplainFormatter().json(result);
+
+        assertSummaryValue(json, "signals", 3);
+        assertSummaryValue(json, "blockers", 1);
+        assertSummaryValue(json, "warnings", 0);
+        assertSummaryValue(json, "unknown", 1);
+        assertSummaryValue(json, "ok", 1);
     }
 
     @Test
@@ -191,5 +225,78 @@ final class ExplainReportFormatterTest {
                 }
                 """,
                 new GradleExplainFormatter().json(result));
+    }
+
+    @Test
+    void gradleJsonSummaryCountsOkSeveritySignals() {
+        GradleInspectionResult result = new GradleInspectionResult(
+                Path.of("/repo"),
+                "settings.gradle",
+                List.of(),
+                List.of(),
+                List.of(minimalGradleProject()),
+                ExplainSignals.sorted(List.of(
+                        ExplainSignals.GRADLE_ENTERPRISE_PLUGIN_MAPPED.signal(
+                                ".",
+                                "Gradle plugin `java` maps to Zolt Java source, javac, classpath, and package primitives."),
+                        ExplainSignals.GRADLE_ENTERPRISE_PLUGIN_MAPPED.signal(
+                                ".",
+                                "Gradle plugin `jacoco` maps to Zolt coverage command."))));
+
+        String json = new GradleExplainFormatter().json(result);
+
+        assertSummaryValue(json, "signals", 2);
+        assertSummaryValue(json, "blockers", 0);
+        assertSummaryValue(json, "warnings", 0);
+        assertSummaryValue(json, "unknown", 0);
+        assertSummaryValue(json, "ok", 2);
+    }
+
+    private static MavenProjectInspection minimalMavenProject() {
+        return new MavenProjectInspection(
+                Path.of("."),
+                "demo",
+                "com.example",
+                "1.0.0",
+                "",
+                "jar",
+                "21",
+                List.of(),
+                List.of("src/main/java"),
+                List.of("src/test/java"),
+                List.of("src/main/resources"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+    }
+
+    private static GradleProjectInspection minimalGradleProject() {
+        return new GradleProjectInspection(
+                Path.of("."),
+                "demo",
+                "build.gradle",
+                "groovy",
+                "21",
+                java.util.Optional.empty(),
+                java.util.Optional.empty(),
+                java.util.Optional.empty(),
+                List.of(
+                        new GradlePluginInspection("java", ""),
+                        new GradlePluginInspection("jacoco", "")),
+                List.of(),
+                List.of(),
+                List.of("src/main/java"),
+                List.of("src/test/java"));
+    }
+
+    private static void assertSummaryValue(String json, String key, int value) {
+        assertTrue(
+                json.contains("\"" + key + "\": " + value),
+                () -> "missing " + key + "=" + value + " in:\n" + json);
     }
 }

@@ -42,7 +42,7 @@ final class GradleExplainJsonWriter {
         intField(json, 2, "blockers", count(result.signals(), ExplainSignal.Severity.BLOCK), true);
         intField(json, 2, "warnings", count(result.signals(), ExplainSignal.Severity.WARN), true);
         intField(json, 2, "unknown", count(result.signals(), ExplainSignal.Severity.UNKNOWN), true);
-        intField(json, 2, "ok", result.signals().isEmpty() ? 1 : 0, false);
+        intField(json, 2, "ok", count(result.signals(), ExplainSignal.Severity.OK), false);
         indent(json, 1).append("}");
     }
 

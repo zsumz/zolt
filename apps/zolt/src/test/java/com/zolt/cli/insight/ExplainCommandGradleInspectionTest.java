@@ -40,6 +40,32 @@ final class ExplainCommandGradleInspectionTest {
     }
 
     @Test
+    void explainGradleJsonCountsOkSignalsInSummary() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'jacoco'
+                }
+                """);
+
+        CommandResult result = execute(
+                "explain",
+                "--cwd", tempDir.toString(),
+                "--source", "gradle",
+                "--format", "json");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("\"signals\": 2"));
+        assertTrue(result.stdout().contains("\"blockers\": 0"));
+        assertTrue(result.stdout().contains("\"warnings\": 0"));
+        assertTrue(result.stdout().contains("\"unknown\": 0"));
+        assertTrue(result.stdout().contains("\"ok\": 2"));
+        assertEquals(2, countOccurrences(result.stdout(), "\"severity\": \"ok\""));
+        assertEquals("", result.stderr());
+    }
+
+    @Test
     void explainGradleClassifiesUnsupportedBetaShapes() throws IOException {
         Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
         Files.writeString(tempDir.resolve("build.gradle"), """
@@ -166,5 +192,18 @@ final class ExplainCommandGradleInspectionTest {
 
     private static String jsonPath(Path path) {
         return path.toString().replace('\\', '/');
+    }
+
+    private static int countOccurrences(String value, String needle) {
+        int count = 0;
+        int offset = 0;
+        while (true) {
+            int index = value.indexOf(needle, offset);
+            if (index < 0) {
+                return count;
+            }
+            count++;
+            offset = index + needle.length();
+        }
     }
 }
