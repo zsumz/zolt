@@ -185,6 +185,7 @@ final class ExplainCommandEmitWorkspaceTest {
                     id 'java'
                     id 'application'
                 }
+                sourceCompatibility = JavaVersion.VERSION_21
                 dependencies {
                     implementation libs.guava
                     implementation project(':core')
@@ -193,6 +194,7 @@ final class ExplainCommandEmitWorkspaceTest {
                 """);
         writeGradleModule("core", """
                 plugins { id 'java-library' }
+                sourceCompatibility = JavaVersion.VERSION_21
                 dependencies {
                     api libs.commons.lang3
                 }

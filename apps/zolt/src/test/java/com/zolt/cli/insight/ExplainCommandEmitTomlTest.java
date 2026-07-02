@@ -80,6 +80,57 @@ final class ExplainCommandEmitTomlTest {
     }
 
     @Test
+    void emitTomlCommentsUnknownMavenJavaVersion() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>dev.zolt.examples</groupId>
+                  <artifactId>unknown-java</artifactId>
+                  <version>1.0.0</version>
+                  <build>
+                    <plugins>
+                      <plugin>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                          <execution>
+                            <configuration>
+                              <source>8</source>
+                              <target>8</target>
+                            </configuration>
+                          </execution>
+                        </executions>
+                      </plugin>
+                    </plugins>
+                  </build>
+                </project>
+                """);
+
+        CommandResult result = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
+
+        assertEquals(0, result.exitCode(), () -> result.stderr());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("# Review items:"), () -> result.stdout());
+        assertTrue(result.stdout().contains("Project Java version could not be determined"), () -> result.stdout());
+        assertTrue(hasLine(result.stdout(), "# java = \"unknown\""), () -> result.stdout());
+        assertFalse(hasLine(result.stdout(), "java = \"unknown\""), () -> result.stdout());
+    }
+
+    @Test
+    void emitTomlCommentsUnknownGradleJavaVersion() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'unknown-gradle'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }\n");
+
+        CommandResult result = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "gradle");
+
+        assertEquals(0, result.exitCode(), () -> result.stderr());
+        assertEquals("", result.stderr());
+        assertTrue(result.stdout().contains("# Review items:"), () -> result.stdout());
+        assertTrue(result.stdout().contains("Project Java version could not be determined"), () -> result.stdout());
+        assertTrue(hasLine(result.stdout(), "# java = \"unknown\""), () -> result.stdout());
+        assertFalse(hasLine(result.stdout(), "java = \"unknown\""), () -> result.stdout());
+    }
+
+    @Test
     void emitTomlIsByteForByteDeterministic() throws IOException {
         Files.writeString(tempDir.resolve("pom.xml"), MAVEN_SIMPLE_POM);
 
@@ -386,5 +437,9 @@ final class ExplainCommandEmitTomlTest {
             assertTrue(lock.contains("org.apiguardian:apiguardian-api:1.1.0"), () -> lock);
             assertFalse(lock.contains("org.apiguardian:apiguardian-api:1.1.2"), () -> lock);
         }
+    }
+
+    private static boolean hasLine(String rendered, String expected) {
+        return rendered.lines().anyMatch(expected::equals);
     }
 }

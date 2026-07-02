@@ -1,6 +1,7 @@
 package com.zolt.explain.emit;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Renders a {@link DraftZoltToml} to a deterministic zolt.toml string: a fixed review-before-use
@@ -43,7 +44,46 @@ public final class DraftZoltTomlRenderer {
             }
         }
         out.append('\n');
-        out.append(renderer.render(draft.config()));
+        out.append(renderConfig(draft, renderer));
         return out.toString();
+    }
+
+    private static String renderConfig(DraftZoltToml draft, ProjectConfigRenderer renderer) {
+        String rendered = renderer.render(draft.config());
+        if (draft.commentedProjectKeys().isEmpty()) {
+            return rendered;
+        }
+        return commentProjectAssignments(rendered, Set.copyOf(draft.commentedProjectKeys()));
+    }
+
+    private static String commentProjectAssignments(String toml, Set<String> keys) {
+        StringBuilder out = new StringBuilder();
+        boolean inProject = false;
+        String[] lines = toml.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                out.append('\n');
+            }
+            String line = lines[i];
+            String stripped = line.strip();
+            if ("[project]".equals(stripped)) {
+                inProject = true;
+            } else if (stripped.startsWith("[") && stripped.endsWith("]")) {
+                inProject = false;
+            }
+            if (inProject && isCommentedAssignment(line, keys)) {
+                out.append("# ");
+            }
+            out.append(line);
+        }
+        return out.toString();
+    }
+
+    private static boolean isCommentedAssignment(String line, Set<String> keys) {
+        String stripped = line.stripLeading();
+        if (stripped.startsWith("#")) {
+            return false;
+        }
+        return keys.stream().anyMatch(key -> stripped.startsWith(key + " = "));
     }
 }

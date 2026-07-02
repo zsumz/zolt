@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /** Maps a single-project {@link GradleInspectionResult} to a {@link DraftZoltToml}. */
 final class GradleInspectionMapper {
@@ -69,6 +70,7 @@ final class GradleInspectionMapper {
         Map<String, String> workspaceApi = new TreeMap<>();
         Map<String, String> workspaceDependencies = new TreeMap<>();
         Map<String, String> workspaceTest = new TreeMap<>();
+        Set<String> commentedProjectKeys = new TreeSet<>();
 
         for (GradleDependencyInspection dependency : primary.dependencies()) {
             if (mapWorkspaceDependency(
@@ -82,11 +84,12 @@ final class GradleInspectionMapper {
 
         String group = primary.group().filter(value -> !value.isBlank()).orElse("com.example");
         String version = primary.version().filter(value -> !value.isBlank()).orElse("0.1.0");
+        String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.name(),
                 version,
                 group,
-                JavaVersionNotation.normalizeLegacyFeature(primary.javaVersion()),
+                javaVersion,
                 primary.mainClass().filter(value -> !value.isBlank()));
         boolean groupMissing = primary.group().filter(value -> !value.isBlank()).isEmpty();
         boolean versionMissing = primary.version().filter(value -> !value.isBlank()).isEmpty();
@@ -131,7 +134,24 @@ final class GradleInspectionMapper {
                 NativeSettings.defaults(),
                 CompilerSettings.defaults(),
                 PackageSettings.defaults());
-        return new DraftZoltToml(config, notes);
+        return new DraftZoltToml(config, notes, List.copyOf(commentedProjectKeys));
+    }
+
+    private static String javaVersion(
+            String inspected,
+            List<String> notes,
+            Set<String> commentedProjectKeys) {
+        Optional<String> liveFeature = JavaVersionNotation.liveFeature(inspected);
+        if (liveFeature.isPresent()) {
+            return liveFeature.get();
+        }
+        String reviewValue = JavaVersionNotation.reviewValue(inspected);
+        commentedProjectKeys.add("java");
+        notes.add(
+                "Project Java version could not be determined from the static audit (`" + reviewValue
+                        + "`); uncomment `[project].java` and set it to the Java feature version before"
+                        + " resolving or building.");
+        return reviewValue;
     }
 
     /**

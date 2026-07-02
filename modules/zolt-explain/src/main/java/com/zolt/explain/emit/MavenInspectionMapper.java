@@ -59,6 +59,7 @@ final class MavenInspectionMapper {
         Map<String, String> platforms = new TreeMap<>();
         Map<String, String> annotationProcessors = new TreeMap<>();
         Map<String, DependencyMetadata> dependencyMetadata = new TreeMap<>();
+        Set<String> commentedProjectKeys = new TreeSet<>();
 
         for (MavenDependencyInspection bom : primary.importedBoms()) {
             mapPlatform(bom, platforms, notes);
@@ -96,11 +97,12 @@ final class MavenInspectionMapper {
 
         String group = group(primary, notes);
         String version = version(primary, notes);
+        String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.artifactId(),
                 version,
                 group,
-                JavaVersionNotation.normalizeLegacyFeature(primary.javaVersion()),
+                javaVersion,
                 Optional.empty());
 
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
@@ -136,7 +138,24 @@ final class MavenInspectionMapper {
         if (!constraints.isEmpty()) {
             config = config.withDependencyPolicy(new DependencyPolicySettings(List.of(), constraints));
         }
-        return new DraftZoltToml(config, notes);
+        return new DraftZoltToml(config, notes, List.copyOf(commentedProjectKeys));
+    }
+
+    private static String javaVersion(
+            String inspected,
+            List<String> notes,
+            Set<String> commentedProjectKeys) {
+        Optional<String> liveFeature = JavaVersionNotation.liveFeature(inspected);
+        if (liveFeature.isPresent()) {
+            return liveFeature.get();
+        }
+        String reviewValue = JavaVersionNotation.reviewValue(inspected);
+        commentedProjectKeys.add("java");
+        notes.add(
+                "Project Java version could not be determined from the static audit (`" + reviewValue
+                        + "`); uncomment `[project].java` and set it to the Java feature version before"
+                        + " resolving or building.");
+        return reviewValue;
     }
 
     private static void mapAnnotationProcessor(
