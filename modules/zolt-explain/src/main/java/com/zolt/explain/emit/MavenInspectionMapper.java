@@ -1,5 +1,6 @@
 package com.zolt.explain.emit;
 
+import com.zolt.explain.maven.MavenAnnotationProcessorInspection;
 import com.zolt.explain.maven.MavenDependencyExclusion;
 import com.zolt.explain.maven.MavenDependencyInspection;
 import com.zolt.explain.maven.MavenInspectionResult;
@@ -51,6 +52,7 @@ final class MavenInspectionMapper {
         Map<String, String> workspaceDependencies = new TreeMap<>();
         Map<String, String> workspaceTest = new TreeMap<>();
         Map<String, String> platforms = new TreeMap<>();
+        Map<String, String> annotationProcessors = new TreeMap<>();
         Map<String, DependencyMetadata> dependencyMetadata = new TreeMap<>();
 
         for (MavenDependencyInspection dependency : primary.dependencies()) {
@@ -68,6 +70,9 @@ final class MavenInspectionMapper {
         }
         for (MavenDependencyInspection bom : primary.importedBoms()) {
             mapPlatform(bom, platforms, notes);
+        }
+        for (MavenAnnotationProcessorInspection processor : primary.annotationProcessors()) {
+            mapAnnotationProcessor(processor, annotationProcessors, notes);
         }
         addRepositoryNotes(primary.repositories(), notes);
         addProfileNotes(primary, notes);
@@ -100,7 +105,7 @@ final class MavenInspectionMapper {
                 test,
                 Set.of(),
                 workspaceTest,
-                Map.of(),
+                annotationProcessors,
                 Set.of(),
                 Map.of(),
                 Set.of(),
@@ -112,6 +117,27 @@ final class MavenInspectionMapper {
             config = config.withDependencyMetadata(dependencyMetadata);
         }
         return new DraftZoltToml(config, notes);
+    }
+
+    private static void mapAnnotationProcessor(
+            MavenAnnotationProcessorInspection processor,
+            Map<String, String> annotationProcessors,
+            List<String> notes) {
+        String coordinate = coordinateOf(processor.coordinate());
+        if (processor.version().isBlank()) {
+            notes.add(
+                    "Annotation processor `" + coordinate + "` has no static version; add it under"
+                            + " [annotationProcessors] before resolving.");
+            return;
+        }
+        if (processor.version().contains("${")) {
+            notes.add(
+                    "Annotation processor `" + coordinate + "` uses version `" + processor.version()
+                            + "`, which references a property the static audit could not resolve. Replace it"
+                            + " with a fixed version under [annotationProcessors] before resolving.");
+            return;
+        }
+        annotationProcessors.put(coordinate, processor.version());
     }
 
     private static void mapDependency(

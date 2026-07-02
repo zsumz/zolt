@@ -155,6 +155,12 @@ public final class MavenStaticProjectInspector {
                         "Plugin `" + plugin.coordinate() + "` is declared and was not executed."));
             }
         }
+        for (MavenAnnotationProcessorInspection processor : inspection.annotationProcessors()) {
+            signals.add(ExplainSignals.MAVEN_ANNOTATION_PROCESSOR_PATH.signal(
+                    project,
+                    "Annotation processor path `" + processor.coordinate()
+                            + "` is configured in maven-compiler-plugin."));
+        }
         for (MavenProfileInspection profile : inspection.profiles()) {
             String activation = profile.activationHints().isEmpty()
                     ? "manual activation"

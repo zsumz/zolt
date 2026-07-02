@@ -49,6 +49,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Run zolt explain --emit-toml to generate the Zolt workspace, then verify each member draft.");
+    public static final ExplainSignalDefinition MAVEN_ANNOTATION_PROCESSOR_PATH = new ExplainSignalDefinition(
+            "maven.annotation-processor.path",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Map compiler annotation processor paths to [annotationProcessors] and verify generated code.");
 
     public static final ExplainSignalDefinition GRADLE_BUILD_SRC_DETECTED = new ExplainSignalDefinition(
             "gradle.build-src.detected",
@@ -171,6 +176,7 @@ public final class ExplainSignals {
             MAVEN_LANGUAGE_UNSUPPORTED,
             MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED,
             MAVEN_REACTOR_DETECTED,
+            MAVEN_ANNOTATION_PROCESSOR_PATH,
             GRADLE_BUILD_SRC_DETECTED,
             GRADLE_PROJECT_MISSING_BUILD_FILE,
             GRADLE_PLUGIN_CONVENTION,

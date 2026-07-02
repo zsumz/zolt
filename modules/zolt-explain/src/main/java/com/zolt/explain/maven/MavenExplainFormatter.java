@@ -41,6 +41,12 @@ public final class MavenExplainFormatter {
             }
             output.append("    managed dependencies: ").append(project.dependencyManagement().size()).append('\n');
             output.append("    imported BOMs: ").append(project.importedBoms().size()).append('\n');
+            output.append("    annotation processors: ").append(project.annotationProcessors().size()).append('\n');
+            for (MavenAnnotationProcessorInspection processor : project.annotationProcessors()) {
+                output.append("      - ")
+                        .append(processor.coordinate())
+                        .append('\n');
+            }
             output.append("    plugins: ").append(project.plugins().size()).append('\n');
             output.append("    profiles: ").append(project.profiles().size()).append('\n');
         }

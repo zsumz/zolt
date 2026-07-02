@@ -21,6 +21,7 @@ final class MigrationExplainMavenFixtures {
                       - test org.junit.jupiter:junit-jupiter:5.11.4
                     managed dependencies: 0
                     imported BOMs: 0
+                    annotation processors: 0
                     plugins: 0
                     profiles: 0
 
@@ -92,6 +93,7 @@ final class MigrationExplainMavenFixtures {
                       ],
                       "dependencyManagement": [],
                       "importedBoms": [],
+                      "annotationProcessors": [],
                       "plugins": [],
                       "profiles": []
                     }

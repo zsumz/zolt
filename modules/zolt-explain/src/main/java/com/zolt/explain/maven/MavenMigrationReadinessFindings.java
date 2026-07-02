@@ -59,6 +59,14 @@ public final class MavenMigrationReadinessFindings {
                     "[workspace] with one member draft per module",
                     "",
                     signal.nextStep());
+            case "maven.annotation-processor.path" -> MigrationReadinessFindings.finding(
+                    "generated-sources",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "maven-compiler-plugin annotationProcessorPaths",
+                    "[annotationProcessors]",
+                    "",
+                    signal.nextStep());
             case "maven.profile.detected" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.NON_DETERMINISTIC,

@@ -50,6 +50,8 @@ final class MavenProjectInspectionBuilder {
         List<MavenDependencyInspection> importedBoms = dependencyManagement.stream()
                 .filter(MavenDependencyInspection::importedBom)
                 .toList();
+        List<MavenAnnotationProcessorInspection> annotationProcessors =
+                MavenAnnotationProcessorPaths.parse(project, properties);
         List<MavenRepositoryInspection> repositories = repositories(project);
         List<MavenPluginInspection> plugins = plugins(project, properties);
         List<MavenProfileInspection> profiles = profiles(project);
@@ -69,6 +71,7 @@ final class MavenProjectInspectionBuilder {
                 dependencies,
                 dependencyManagement,
                 importedBoms,
+                annotationProcessors,
                 repositories,
                 plugins,
                 profiles);

@@ -30,6 +30,10 @@ final class ExplainSignalsTest {
                 ExplainSignal.Severity.WARN,
                 ExplainSignal.Category.BUILDABILITY);
         assertDefinition(
+                "maven.annotation-processor.path",
+                ExplainSignal.Severity.WARN,
+                ExplainSignal.Category.BUILDABILITY);
+        assertDefinition(
                 "gradle.build-src.detected",
                 ExplainSignal.Severity.BLOCK,
                 ExplainSignal.Category.MIGRATION_BLOCKER);

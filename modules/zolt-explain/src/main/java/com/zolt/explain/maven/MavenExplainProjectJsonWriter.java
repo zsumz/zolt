@@ -32,6 +32,7 @@ final class MavenExplainProjectJsonWriter {
                 dependencyArray(json, 3, "dependencies", project.dependencies(), true);
                 dependencyArray(json, 3, "dependencyManagement", project.dependencyManagement(), true);
                 dependencyArray(json, 3, "importedBoms", project.importedBoms(), true);
+                annotationProcessorArray(json, 3, "annotationProcessors", project.annotationProcessors(), true);
                 pluginArray(json, 3, "plugins", project.plugins(), true);
                 profileArray(json, 3, "profiles", project.profiles(), false);
                 indent(json, 2).append("}");
@@ -66,6 +67,35 @@ final class MavenExplainProjectJsonWriter {
                 booleanField(json, level + 2, "importedBom", dependency.importedBom(), false);
                 indent(json, level + 1).append("}");
                 if (index < dependencies.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, level);
+        }
+        json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void annotationProcessorArray(
+            StringBuilder json,
+            int level,
+            String name,
+            List<MavenAnnotationProcessorInspection> processors,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": [");
+        if (!processors.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < processors.size(); index++) {
+                MavenAnnotationProcessorInspection processor = processors.get(index);
+                indent(json, level + 1).append("{\n");
+                stringField(json, level + 2, "coordinate", processor.coordinate(), true);
+                stringField(json, level + 2, "version", processor.version(), false);
+                indent(json, level + 1).append("}");
+                if (index < processors.size() - 1) {
                     json.append(',');
                 }
                 json.append('\n');

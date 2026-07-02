@@ -36,6 +36,7 @@ public final class MigrationBlockerReports {
         return switch (finding.category()) {
             case BLOCKED, NON_DETERMINISTIC, UNSUPPORTED -> true;
             case PLANNED -> finding.severity() == ExplainSignal.Severity.BLOCK
+                    || finding.signalId().equals("maven.annotation-processor.path")
                     || finding.signalId().equals("maven.reactor.detected")
                     || finding.signalId().equals("gradle.custom-task.detected")
                     || finding.signalId().equals("gradle.openapi.generated-sources")
