@@ -19,6 +19,16 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.NON_DETERMINISM,
             "Replace Maven ranges or SNAPSHOTs with fixed versions before migrating.");
+    public static final ExplainSignalDefinition MAVEN_DEPENDENCY_UNRESOLVED_VERSION = new ExplainSignalDefinition(
+            "maven.dependency.unresolved-version",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Resolve the Maven property or set a fixed dependency version before relying on the migration draft.");
+    public static final ExplainSignalDefinition MAVEN_DEPENDENCY_MISSING_VERSION = new ExplainSignalDefinition(
+            "maven.dependency.missing-version",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Resolve inherited dependency management or add an explicit fixed dependency version before migrating.");
     public static final ExplainSignalDefinition MAVEN_PLUGIN_LIFECYCLE_BINDING = new ExplainSignalDefinition(
             "maven.plugin.lifecycle-binding",
             ExplainSignal.Severity.BLOCK,
@@ -59,6 +69,16 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.NON_DETERMINISM,
             "Replace SNAPSHOT parents with fixed releases or vendor the inherited settings explicitly before migrating.");
+    public static final ExplainSignalDefinition MAVEN_PARENT_UNRESOLVED = new ExplainSignalDefinition(
+            "maven.parent.unresolved",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Vendor or resolve the parent POM metadata before relying on inherited Maven settings.");
+    public static final ExplainSignalDefinition MAVEN_JAVA_VERSION_UNKNOWN = new ExplainSignalDefinition(
+            "maven.java-version.unknown",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Declare the Maven compiler release/source/target or set [project].java before migrating.");
     public static final ExplainSignalDefinition MAVEN_REPOSITORY_DECLARED = new ExplainSignalDefinition(
             "maven.repository.declared",
             ExplainSignal.Severity.WARN,
@@ -233,6 +253,10 @@ public final class ExplainSignals {
             MAVEN_REACTOR_DETECTED,
             MAVEN_ANNOTATION_PROCESSOR_PATH,
             MAVEN_PARENT_SNAPSHOT,
+            MAVEN_PARENT_UNRESOLVED,
+            MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
+            MAVEN_DEPENDENCY_MISSING_VERSION,
+            MAVEN_JAVA_VERSION_UNKNOWN,
             MAVEN_REPOSITORY_DECLARED,
             MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,
             GRADLE_BUILD_SRC_DETECTED,

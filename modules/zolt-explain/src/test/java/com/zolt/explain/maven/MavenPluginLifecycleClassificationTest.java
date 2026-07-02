@@ -196,6 +196,9 @@ final class MavenPluginLifecycleClassificationTest {
                   <groupId>com.example</groupId>
                   <artifactId>managed</artifactId>
                   <version>1.0.0</version>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                  </properties>
                   <build>
                     <pluginManagement>
                       <plugins>

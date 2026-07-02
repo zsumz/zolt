@@ -27,6 +27,9 @@ final class MavenPluginReadinessRoutingTest {
                   <groupId>com.example</groupId>
                   <artifactId>plugin-routing</artifactId>
                   <version>1.0.0</version>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                  </properties>
                   <build>
                     <plugins>
                       <plugin>
@@ -86,6 +89,9 @@ final class MavenPluginReadinessRoutingTest {
                   <groupId>com.example</groupId>
                   <artifactId>plugin-routing</artifactId>
                   <version>1.0.0</version>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                  </properties>
                   <build>
                     <plugins>
                       <plugin>

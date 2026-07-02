@@ -132,10 +132,27 @@ public final class MavenStaticProjectInspector {
                     project,
                     "Packaging `" + inspection.packaging() + "` needs an explicit Zolt packaging primitive."));
         }
+        if ("unknown".equals(inspection.javaVersion())) {
+            signals.add(ExplainSignals.MAVEN_JAVA_VERSION_UNKNOWN.signal(
+                    project,
+                    "Maven Java version could not be resolved from compiler properties or plugin configuration."));
+        }
+        boolean hasUnresolvedParent = inspection.parents().stream().anyMatch(parent -> !parent.resolved());
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
             // An unresolved ${...} is not a genuine dynamic/SNAPSHOT/range version; the emit path
             // surfaces it as an honest review comment instead of a wrong non-determinism blocker.
             if (dependency.version().contains("${")) {
+                signals.add(ExplainSignals.MAVEN_DEPENDENCY_UNRESOLVED_VERSION.signal(
+                        project,
+                        "Dependency `" + dependency.coordinate() + "` keeps unresolved version `"
+                                + dependency.version() + "`."));
+                continue;
+            }
+            if (dependency.version().isBlank() && hasUnresolvedParent) {
+                signals.add(ExplainSignals.MAVEN_DEPENDENCY_MISSING_VERSION.signal(
+                        project,
+                        "Dependency `" + dependency.coordinate()
+                                + "` has no statically resolved version because external parent metadata was not loaded."));
                 continue;
             }
             Optional<VersionPolicy.Violation> violation = unsupportedExternalVersion(dependency.version());
@@ -185,6 +202,12 @@ public final class MavenStaticProjectInspector {
                             + "` is configured in maven-compiler-plugin."));
         }
         for (MavenParentInspection parent : inspection.parents()) {
+            if (!parent.resolved()) {
+                signals.add(ExplainSignals.MAVEN_PARENT_UNRESOLVED.signal(
+                        project,
+                        "Parent `" + parent.coordinate()
+                                + "` was not resolved from the reactor; inherited metadata remains unknown."));
+            }
             if (snapshotVersion(parent.version())) {
                 signals.add(ExplainSignals.MAVEN_PARENT_SNAPSHOT.signal(
                         project,

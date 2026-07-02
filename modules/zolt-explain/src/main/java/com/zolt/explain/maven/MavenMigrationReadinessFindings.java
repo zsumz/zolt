@@ -36,6 +36,22 @@ public final class MavenMigrationReadinessFindings {
                     "fixed versions and [platforms]",
                     "",
                     signal.nextStep());
+            case "maven.dependency.unresolved-version" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "unresolved Maven dependency version property",
+                    "fixed [dependencies] versions",
+                    "",
+                    signal.nextStep());
+            case "maven.dependency.missing-version" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "missing Maven dependency version from unresolved parent metadata",
+                    "fixed [dependencies] versions or imported platforms",
+                    "",
+                    signal.nextStep());
             case "maven.plugin.lifecycle-binding" -> mapPlugin(
                     signal,
                     MigrationReadinessCategory.BLOCKED,
@@ -66,6 +82,22 @@ public final class MavenMigrationReadinessFindings {
                     signal,
                     "SNAPSHOT Maven parent",
                     "fixed parent metadata and [repositories]",
+                    "",
+                    signal.nextStep());
+            case "maven.parent.unresolved" -> MigrationReadinessFindings.finding(
+                    "repositories",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "unresolved Maven parent metadata",
+                    "fixed parent metadata and [repositories]",
+                    "",
+                    signal.nextStep());
+            case "maven.java-version.unknown" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "unknown Maven Java version",
+                    "[project].java",
                     "",
                     signal.nextStep());
             case "maven.repository.declared" -> MigrationReadinessFindings.finding(
