@@ -120,12 +120,12 @@ public final class MavenStaticProjectInspector {
 
     private List<ExplainSignal> signalsFor(String project, MavenProjectInspection inspection) {
         List<ExplainSignal> signals = new ArrayList<>();
-        if ("pom".equals(inspection.packaging()) && !inspection.modules().isEmpty()) {
+        List<String> profileModules = MavenProfileSignals.modules(inspection);
+        if ("pom".equals(inspection.packaging()) && (!inspection.modules().isEmpty() || !profileModules.isEmpty())) {
             int members = inspection.modules().size();
             signals.add(ExplainSignals.MAVEN_REACTOR_DETECTED.signal(
                     project,
-                    "Multi-module reactor with " + members + " module(s); `zolt explain --emit-toml`"
-                            + " emits a Zolt workspace with a root [workspace] plus one member draft per module."));
+                    reactorMessage(members, profileModules)));
         }
         if (unsupportedPackaging(inspection.packaging())) {
             signals.add(ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
@@ -232,20 +232,26 @@ public final class MavenStaticProjectInspector {
                         "Maven " + label + " `" + repository.id() + "` has snapshots enabled."));
             }
         }
-        for (MavenProfileInspection profile : inspection.profiles()) {
-            String activation = profile.activationHints().isEmpty()
-                    ? "manual activation"
-                    : String.join(", ", profile.activationHints());
-            signals.add(ExplainSignals.MAVEN_PROFILE_DETECTED.signal(
-                    project,
-                    "Profile `" + profile.id() + "` is present with " + activation + "."));
-        }
+        signals.addAll(MavenProfileSignals.signalsFor(project, inspection));
         return signals;
     }
 
     private static Path relativePath(Path root, Path projectDirectory) {
         Path relative = root.relativize(projectDirectory);
         return relative.toString().isBlank() ? Path.of(".") : relative;
+    }
+
+    private static String reactorMessage(int members, List<String> profileModules) {
+        if (profileModules.isEmpty()) {
+            return "Multi-module reactor with " + members + " module(s); `zolt explain --emit-toml`"
+                    + " emits a Zolt workspace with a root [workspace] plus one member draft per module.";
+        }
+        return "Multi-module reactor with " + members + " top-level module(s) plus "
+                + profileModules.size()
+                + " profile-declared module(s) omitted from default workspace coverage: "
+                + String.join(", ", profileModules)
+                + "; `zolt explain --emit-toml` emits a Zolt workspace with a root [workspace]"
+                + " plus one member draft per top-level module.";
     }
 
     private static boolean unsupportedPackaging(String packaging) {

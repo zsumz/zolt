@@ -132,6 +132,14 @@ public final class MavenMigrationReadinessFindings {
                     "execution context policy",
                     "",
                     signal.nextStep());
+            case "maven.profile.modules.detected" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "profile-declared Maven modules omitted from workspace emit",
+                    "[workspace] reviewed members",
+                    "",
+                    signal.nextStep());
             case "maven.language.unsupported" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.UNSUPPORTED,

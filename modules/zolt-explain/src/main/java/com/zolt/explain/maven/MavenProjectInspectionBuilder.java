@@ -186,7 +186,8 @@ final class MavenProjectInspectionBuilder {
         for (Element profile : children(profilesElement.orElseThrow(), "profile")) {
             profiles.add(new MavenProfileInspection(
                     text(profile, "id").orElse("unknown"),
-                    activationHints(profile)));
+                    activationHints(profile),
+                    texts(child(profile, "modules"), "module")));
         }
         profiles.sort(Comparator.comparing(MavenProfileInspection::id));
         return profiles;

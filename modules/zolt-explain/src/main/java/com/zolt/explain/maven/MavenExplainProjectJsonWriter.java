@@ -224,7 +224,10 @@ final class MavenExplainProjectJsonWriter {
                 MavenProfileInspection profile = profiles.get(index);
                 indent(json, level + 1).append("{\n");
                 stringField(json, level + 2, "id", profile.id(), true);
-                stringArrayField(json, level + 2, "activationHints", profile.activationHints(), false);
+                stringArrayField(json, level + 2, "activationHints", profile.activationHints(), !profile.modules().isEmpty());
+                if (!profile.modules().isEmpty()) {
+                    stringArrayField(json, level + 2, "modules", profile.modules(), false);
+                }
                 indent(json, level + 1).append("}");
                 if (index < profiles.size() - 1) {
                     json.append(',');

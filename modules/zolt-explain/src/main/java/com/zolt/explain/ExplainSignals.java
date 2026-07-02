@@ -44,6 +44,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.NON_DETERMINISM,
             "Move profile-specific behavior into explicit Zolt configuration or keep it in manual-review scope.");
+    public static final ExplainSignalDefinition MAVEN_PROFILE_MODULES_DETECTED = new ExplainSignalDefinition(
+            "maven.profile.modules.detected",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.BUILDABILITY,
+            "Review profile-declared modules and add active members explicitly before relying on workspace emit.");
     public static final ExplainSignalDefinition MAVEN_LANGUAGE_UNSUPPORTED = new ExplainSignalDefinition(
             "maven.language.unsupported",
             ExplainSignal.Severity.BLOCK,

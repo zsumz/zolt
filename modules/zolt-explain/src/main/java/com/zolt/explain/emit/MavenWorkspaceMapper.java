@@ -1,8 +1,10 @@
 package com.zolt.explain.emit;
 
 import com.zolt.explain.maven.MavenInspectionResult;
+import com.zolt.explain.maven.MavenProfileInspection;
 import com.zolt.explain.maven.MavenProjectInspection;
 import com.zolt.workspace.WorkspaceConfig;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,7 @@ final class MavenWorkspaceMapper {
                             + " dependency(ies); a [workspace] cannot carry dependencies. Move them into"
                             + " the member(s) that need them, or into a shared module.");
         }
+        notes.addAll(profileModuleNotes(projects, memberPaths));
         WorkspaceConfig workspace = new WorkspaceConfig(
                 root.artifactId(),
                 memberPaths,
@@ -81,5 +84,35 @@ final class MavenWorkspaceMapper {
             return null;
         }
         return group + ":" + artifact;
+    }
+
+    private static List<String> profileModuleNotes(
+            List<MavenProjectInspection> projects,
+            List<String> memberPaths) {
+        List<String> notes = new ArrayList<>();
+        for (MavenProjectInspection project : projects) {
+            for (MavenProfileInspection profile : project.profiles()) {
+                List<String> omitted = profile.modules().stream()
+                        .map(module -> profileModulePath(project.path().toString(), module))
+                        .filter(module -> !memberPaths.contains(module))
+                        .distinct()
+                        .sorted()
+                        .toList();
+                if (!omitted.isEmpty()) {
+                    notes.add(
+                            "Maven profile `" + profile.id() + "` in project `"
+                                    + project.path()
+                                    + "` declares module(s) omitted from workspace members: "
+                                    + String.join(", ", omitted)
+                                    + ". Add them by hand if that profile is active for this migration.");
+                }
+            }
+        }
+        return notes;
+    }
+
+    private static String profileModulePath(String projectPath, String module) {
+        String combined = ROOT_PATH.equals(projectPath) ? module : projectPath + "/" + module;
+        return Path.of(combined).normalize().toString().replace('\\', '/');
     }
 }
