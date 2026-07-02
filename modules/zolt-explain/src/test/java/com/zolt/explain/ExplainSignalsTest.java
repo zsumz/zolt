@@ -38,6 +38,10 @@ final class ExplainSignalsTest {
                 ExplainSignal.Severity.BLOCK,
                 ExplainSignal.Category.MIGRATION_BLOCKER);
         assertDefinition(
+                "gradle.project.build-file-name-unresolved",
+                ExplainSignal.Severity.UNKNOWN,
+                ExplainSignal.Category.BUILDABILITY);
+        assertDefinition(
                 "gradle.custom-task.detected",
                 ExplainSignal.Severity.WARN,
                 ExplainSignal.Category.BUILDABILITY);

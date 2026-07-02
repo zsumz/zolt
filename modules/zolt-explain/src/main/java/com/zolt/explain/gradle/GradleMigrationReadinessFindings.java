@@ -27,6 +27,14 @@ public final class GradleMigrationReadinessFindings {
                     "workspace members",
                     "",
                     signal.nextStep());
+            case "gradle.project.build-file-name-unresolved" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "settings buildFileName mutation with candidate build file",
+                    "workspace members",
+                    "",
+                    signal.nextStep());
             case "gradle.plugin.convention" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.BLOCKED,

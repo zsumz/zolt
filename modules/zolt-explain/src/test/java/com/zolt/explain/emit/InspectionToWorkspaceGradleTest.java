@@ -111,6 +111,34 @@ final class InspectionToWorkspaceGradleTest {
                 () -> "project edge must not leave an unresolved-notation note: " + appDraft.notes());
     }
 
+    @Test
+    void workspaceEmitNotesIncludedProjectsSkippedByUnresolvedBuildFileNameAssignment() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle.kts"), """
+                rootProject.name = "renamed"
+                include("app", "core")
+
+                rootProject.children.forEach { project ->
+                    project.buildFileName = providers.gradleProperty(project.name).get()
+                }
+                """);
+        Files.writeString(tempDir.resolve("build.gradle.kts"), "plugins { java }\n");
+        Path app = tempDir.resolve("app");
+        Files.createDirectories(app);
+        Files.writeString(app.resolve("app.gradle.kts"), "plugins { java }\n");
+        writeModule("core", "plugins { id 'java-library' }\n");
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftEmit emit = mapper.emitFromGradle(result);
+        DraftWorkspace workspace = assertInstanceOf(DraftWorkspace.class, emit);
+
+        assertEquals(List.of("core"), workspace.workspace().members());
+        assertEquals(List.of("core"), workspace.members().stream().map(DraftWorkspace.Member::path).toList());
+        assertTrue(workspace.notes().stream()
+                .anyMatch(note -> note.contains("app")
+                        && note.contains("not emitted")
+                        && note.contains("explain signals")));
+    }
+
     private static ProjectConfig member(DraftWorkspace workspace, String path) {
         return memberDraft(workspace, path).config();
     }

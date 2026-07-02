@@ -12,19 +12,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseError;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class GradleStaticProjectInspector {
-    private static final Pattern INCLUDE_PATTERN = Pattern.compile("\\binclude\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
-    private static final Pattern INCLUDE_BUILD_PATTERN = Pattern.compile("\\bincludeBuild\\b\\s*(?:\\(([^)]*)\\)|([^\\n]+))");
-    private static final Pattern ROOT_PROJECT_NAME_PATTERN =
-            Pattern.compile("\\brootProject\\.name\\s*=\\s*['\"]([^'\"]+)['\"]");
-    private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
     private final GradleBuildFileParser buildFileParser = new GradleBuildFileParser();
     private final GradleMigrationSignalDetector signalDetector = new GradleMigrationSignalDetector();
 
@@ -49,11 +42,15 @@ public final class GradleStaticProjectInspector {
                 versionCatalog,
                 catalogBundles,
                 signals));
-        List<String> includedProjects = settingsFile
-                .map(path -> parseIncludedProjects(read(path)))
-                .orElseGet(List::of);
-        Optional<String> rootProjectName = settingsFile.flatMap(path -> rootProjectName(read(path)));
-        settingsFile.ifPresent(path -> signals.addAll(settingsSignals(normalizedRoot, path, read(path))));
+        String settingsContent = settingsFile.map(GradleStaticProjectInspector::read).orElse("");
+        List<String> includedProjects = settingsFile.isPresent()
+                ? GradleSettingsScripts.includedProjects(settingsContent)
+                : List.of();
+        Optional<String> rootProjectName = settingsFile.isPresent()
+                ? GradleSettingsScripts.rootProjectName(settingsContent)
+                : Optional.empty();
+        GradleSettingsBuildFileNames settingsBuildFileNames = GradleSettingsBuildFileNames.parse(settingsContent);
+        settingsFile.ifPresent(path -> signals.addAll(GradleSettingsScripts.signals(normalizedRoot, path, settingsContent)));
         if (Files.isDirectory(normalizedRoot.resolve("buildSrc"))) {
             signals.add(ExplainSignals.GRADLE_BUILD_SRC_DETECTED.signal(
                     ".",
@@ -71,13 +68,25 @@ public final class GradleStaticProjectInspector {
                 signals)));
         for (String includedProject : includedProjects) {
             Path projectDirectory = normalizedRoot.resolve(includedProject).normalize();
-            Optional<Path> includedBuildFile = buildFile(projectDirectory);
+            String projectName = projectDirectory.getFileName().toString();
+            Optional<Path> includedBuildFile = settingsBuildFileNames.buildFile(projectDirectory, projectName);
             if (includedBuildFile.isPresent()) {
                 projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), Optional.empty(), versionCatalog, catalogBundles, signals));
+                continue;
+            }
+            Optional<ExplainSignal> unresolvedBuildFileName = settingsBuildFileNames.unresolvedCandidateSignal(
+                    normalizedRoot,
+                    projectDirectory,
+                    includedProject);
+            if (unresolvedBuildFileName.isPresent()) {
+                signals.add(unresolvedBuildFileName.orElseThrow());
             } else {
+                String expected = settingsBuildFileNames.fileNameFor(projectName)
+                        .map(name -> "`" + name + "`")
+                        .orElse("build.gradle or build.gradle.kts");
                 signals.add(ExplainSignals.GRADLE_PROJECT_MISSING_BUILD_FILE.signal(
                         projectLabel(normalizedRoot, projectDirectory),
-                        "Included Gradle project `" + includedProject + "` does not contain build.gradle or build.gradle.kts."));
+                        "Included Gradle project `" + includedProject + "` does not contain " + expected + "."));
             }
         }
 
@@ -121,46 +130,6 @@ public final class GradleStaticProjectInspector {
                 dependencies,
                 buildFileParser.sourceRoots(content, "main", "src/main/java"),
                 buildFileParser.sourceRoots(content, "test", "src/test/java"));
-    }
-
-    private static Optional<String> rootProjectName(String content) {
-        Matcher matcher = ROOT_PROJECT_NAME_PATTERN.matcher(stripComments(content));
-        if (matcher.find()) {
-            String name = matcher.group(1).strip();
-            if (!name.isBlank()) {
-                return Optional.of(name);
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static List<String> parseIncludedProjects(String content) {
-        List<String> projects = new ArrayList<>();
-        Matcher matcher = INCLUDE_PATTERN.matcher(stripComments(content));
-        while (matcher.find()) {
-            String arguments = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
-            for (String value : quotedValues(arguments)) {
-                String path = value.replaceFirst("^:+", "").replace(':', '/');
-                if (!path.isBlank()) {
-                    projects.add(path);
-                }
-            }
-        }
-        return projects.stream().distinct().sorted().toList();
-    }
-
-    private static List<ExplainSignal> settingsSignals(Path root, Path settingsFile, String content) {
-        List<ExplainSignal> signals = new ArrayList<>();
-        Matcher matcher = INCLUDE_BUILD_PATTERN.matcher(stripComments(content));
-        while (matcher.find()) {
-            String arguments = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
-            for (String value : quotedValues(arguments)) {
-                signals.add(ExplainSignals.GRADLE_INCLUDED_BUILD_DETECTED.signal(
-                        ".",
-                        "Included Gradle build `" + value + "` is declared in " + root.relativize(settingsFile) + "."));
-            }
-        }
-        return signals;
     }
 
     private static List<GradleVersionCatalogAlias> parseVersionCatalog(
@@ -313,21 +282,6 @@ public final class GradleStaticProjectInspector {
         return GradleSourceComments.stripComments(content);
     }
 
-    private static List<String> quotedValues(String input) {
-        if (input == null || input.isBlank()) {
-            return List.of();
-        }
-        List<String> values = new ArrayList<>();
-        Matcher matcher = QUOTED_PATTERN.matcher(input);
-        while (matcher.find()) {
-            String value = matcher.group(1).trim();
-            if (!value.isBlank()) {
-                values.add(value);
-            }
-        }
-        return values;
-    }
-
     private static Path relativePath(Path root, Path projectDirectory) {
         Path relative = root.relativize(projectDirectory);
         return relative.toString().isBlank() ? Path.of(".") : relative;
@@ -344,4 +298,5 @@ public final class GradleStaticProjectInspector {
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
+
 }

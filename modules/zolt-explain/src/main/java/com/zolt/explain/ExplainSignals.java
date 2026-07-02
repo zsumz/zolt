@@ -65,6 +65,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.BUILDABILITY,
             "Fix the include path or exclude it from migration scope before generating Zolt metadata.");
+    public static final ExplainSignalDefinition GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED = new ExplainSignalDefinition(
+            "gradle.project.build-file-name-unresolved",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Review the settings buildFileName logic and choose the included project's build file before generating Zolt metadata.");
     public static final ExplainSignalDefinition GRADLE_PLUGIN_CONVENTION = new ExplainSignalDefinition(
             "gradle.plugin.convention",
             ExplainSignal.Severity.BLOCK,
@@ -179,6 +184,7 @@ public final class ExplainSignals {
             MAVEN_ANNOTATION_PROCESSOR_PATH,
             GRADLE_BUILD_SRC_DETECTED,
             GRADLE_PROJECT_MISSING_BUILD_FILE,
+            GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED,
             GRADLE_PLUGIN_CONVENTION,
             GRADLE_INCLUDED_BUILD_DETECTED,
             GRADLE_IMPERATIVE_DEPENDENCY_LOGIC,

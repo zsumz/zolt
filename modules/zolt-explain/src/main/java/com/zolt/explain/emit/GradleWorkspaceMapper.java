@@ -49,6 +49,7 @@ final class GradleWorkspaceMapper {
         }
 
         List<String> notes = new ArrayList<>();
+        notes.addAll(GradleInspectionMapper.skippedIncludedProjectNotes(result));
         if (!root.dependencies().isEmpty()) {
             notes.add(
                     "The root project declares " + root.dependencies().size()

@@ -147,6 +147,71 @@ final class GradleStaticProjectInspectorTest {
     }
 
     @Test
+    void honorsSettingsBuildFileNameProjectNameTemplate() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle.kts"), """
+                rootProject.name = "renamed"
+                include("app")
+
+                rootProject.children.forEach { project ->
+                    project.buildFileName = "${project.name}.gradle.kts"
+                    require(project.buildFile.isFile)
+                }
+                """);
+        Files.writeString(tempDir.resolve("build.gradle.kts"), "plugins { java }\n");
+        Path app = tempDir.resolve("app");
+        Files.createDirectories(app);
+        Files.writeString(app.resolve("app.gradle.kts"), """
+                plugins { java }
+                dependencies {
+                    implementation("com.google.guava:guava:33.4.8-jre")
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+
+        GradleProjectInspection project = result.projects().stream()
+                .filter(candidate -> candidate.path().equals(Path.of("app")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("app.gradle.kts", project.buildFile());
+        assertTrue(project.dependencies().stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("com.google.guava:guava:33.4.8-jre")));
+        assertTrue(result.signals().stream()
+                .noneMatch(signal -> signal.id().equals("gradle.project.missing-build-file")
+                        && signal.project().equals("app")));
+    }
+
+    @Test
+    void dynamicBuildFileNameAssignmentReportsCandidateAsUnknown() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle.kts"), """
+                include("app")
+
+                rootProject.children.forEach { project ->
+                    project.buildFileName = providers.gradleProperty(project.name).get()
+                }
+                """);
+        Files.writeString(tempDir.resolve("build.gradle.kts"), "plugins { java }\n");
+        Path app = tempDir.resolve("app");
+        Files.createDirectories(app);
+        Files.writeString(app.resolve("app.gradle.kts"), "plugins { java }\n");
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+
+        assertTrue(result.projects().stream().noneMatch(project -> project.path().equals(Path.of("app"))));
+        assertTrue(result.signals().stream()
+                .anyMatch(signal -> signal.id().equals("gradle.project.build-file-name-unresolved")
+                        && signal.severity() == ExplainSignal.Severity.UNKNOWN
+                        && signal.category() == ExplainSignal.Category.BUILDABILITY
+                        && signal.project().equals("app")
+                        && signal.message().contains("project.buildFileName")
+                        && signal.message().contains("app/app.gradle.kts")));
+        assertTrue(result.signals().stream()
+                .noneMatch(signal -> signal.id().equals("gradle.project.missing-build-file")
+                        && signal.project().equals("app")));
+        assertTrue(new GradleExplainFormatter().json(result).contains("\"unknown\": 1"));
+    }
+
+    @Test
     void resolvesSimpleVersionCatalogAliases() throws IOException {
         Files.createDirectories(tempDir.resolve("gradle"));
         Files.writeString(tempDir.resolve("gradle/libs.versions.toml"), """

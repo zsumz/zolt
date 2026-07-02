@@ -25,7 +25,7 @@ final class GradleInspectionMapper {
     }
 
     static DraftZoltToml map(GradleInspectionResult result) {
-        List<String> notes = new ArrayList<>();
+        List<String> notes = skippedIncludedProjectNotes(result);
         GradleProjectInspection primary = result.projects().get(0);
         return mapProject(primary, null, result.versionCatalogAliases(), notes);
     }
@@ -36,6 +36,24 @@ final class GradleInspectionMapper {
             WorkspaceMemberRegistry registry,
             List<GradleVersionCatalogAlias> aliases) {
         return mapProject(project, registry, aliases, new ArrayList<>());
+    }
+
+    static List<String> skippedIncludedProjectNotes(GradleInspectionResult result) {
+        List<String> inspectedMembers = result.projects().stream()
+                .map(project -> path(project.path().toString()))
+                .filter(path -> !".".equals(path))
+                .toList();
+        List<String> skippedMembers = result.includedProjects().stream()
+                .filter(path -> !inspectedMembers.contains(path))
+                .toList();
+        if (skippedMembers.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(List.of(
+                "Gradle settings included " + skippedMembers.size()
+                        + " project(s) that the static audit could not map to a build file: "
+                        + String.join(", ", skippedMembers)
+                        + ". These members are not emitted in this draft; review the explain signals before use."));
     }
 
     private static DraftZoltToml mapProject(
@@ -247,5 +265,9 @@ final class GradleInspectionMapper {
             return parts[2];
         }
         return null;
+    }
+
+    private static String path(String path) {
+        return path.replace('\\', '/');
     }
 }
