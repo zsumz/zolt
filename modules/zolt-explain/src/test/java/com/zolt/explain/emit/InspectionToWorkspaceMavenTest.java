@@ -151,6 +151,41 @@ final class InspectionToWorkspaceMavenTest {
     }
 
     @Test
+    void reactorInternalBomPinsVersionlessDependencyWithoutLivePlatform() throws IOException {
+        DraftWorkspace workspace = emitReactorWithInternalBom("1.0.0");
+
+        ProjectConfig app = member(workspace, "app");
+        assertFalse(app.platforms().containsKey("com.acme:acme-bom"),
+                () -> "reactor-internal BOM must not be emitted as an external platform: " + app.platforms());
+        assertEquals("2.10.1", app.dependencies().get("com.google.code.gson:gson"),
+                () -> "direct versionless dependency should be pinned from the sibling BOM: "
+                        + app.dependencies());
+        assertFalse(app.managedDependencies().contains("com.google.code.gson:gson"),
+                () -> "sibling BOM pin must not leave an orphaned platform-managed marker: "
+                        + app.managedDependencies());
+        assertEquals(
+                "2.0.17",
+                app.dependencyPolicy()
+                        .constraints()
+                        .get("org.slf4j:slf4j-api")
+                        .version(),
+                () -> "non-direct sibling BOM pins should become dependency constraints: "
+                        + app.dependencyPolicy().constraints());
+    }
+
+    @Test
+    void reactorInternalSnapshotBomEmitsNoLiveSnapshotPlatform() throws IOException {
+        DraftWorkspace workspace = emitReactorWithInternalBom("1.0.0-SNAPSHOT");
+
+        ProjectConfig app = member(workspace, "app");
+        assertTrue(app.platforms().isEmpty(), () -> "SNAPSHOT sibling BOM must not be live: " + app.platforms());
+        assertEquals("2.10.1", app.dependencies().get("com.google.code.gson:gson"));
+        assertTrue(memberDraft(workspace, "app").notes().stream()
+                .anyMatch(note -> note.contains("Reactor-internal BOM `com.acme:acme-bom`")),
+                () -> "dropped sibling BOM should leave a review note: " + memberDraft(workspace, "app").notes());
+    }
+
+    @Test
     void rootAggregatorWithNoDependenciesAddsNoDependencyNote() throws IOException {
         DraftWorkspace workspace = emitReactor();
 
@@ -160,10 +195,91 @@ final class InspectionToWorkspaceMavenTest {
     }
 
     private static ProjectConfig member(DraftWorkspace workspace, String path) {
+        return memberDraft(workspace, path).config();
+    }
+
+    private static DraftZoltToml memberDraft(DraftWorkspace workspace, String path) {
         return workspace.members().stream()
                 .filter(member -> member.path().equals(path))
-                .map(member -> member.draft().config())
+                .map(DraftWorkspace.Member::draft)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no member at " + path + " in " + workspace.members()));
+    }
+
+    private DraftWorkspace emitReactorWithInternalBom(String version) throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.acme</groupId>
+                  <artifactId>acme-parent</artifactId>
+                  <version>%s</version>
+                  <packaging>pom</packaging>
+                  <properties>
+                    <maven.compiler.release>21</maven.compiler.release>
+                  </properties>
+                  <modules>
+                    <module>acme-bom</module>
+                    <module>app</module>
+                  </modules>
+                </project>
+                """.formatted(version));
+        writeModule("acme-bom", """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.acme</groupId>
+                    <artifactId>acme-parent</artifactId>
+                    <version>%s</version>
+                  </parent>
+                  <artifactId>acme-bom</artifactId>
+                  <packaging>pom</packaging>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.google.code.gson</groupId>
+                        <artifactId>gson</artifactId>
+                        <version>2.10.1</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.17</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """.formatted(version));
+        writeModule("app", """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.acme</groupId>
+                    <artifactId>acme-parent</artifactId>
+                    <version>%s</version>
+                  </parent>
+                  <artifactId>app</artifactId>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.acme</groupId>
+                        <artifactId>acme-bom</artifactId>
+                        <version>${project.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.google.code.gson</groupId>
+                      <artifactId>gson</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """.formatted(version));
+
+        MavenInspectionResult result = new MavenStaticProjectInspector().inspect(tempDir);
+        DraftEmit emit = mapper.emitFromMaven(result);
+        return assertInstanceOf(DraftWorkspace.class, emit);
     }
 }

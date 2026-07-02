@@ -113,6 +113,39 @@ final class MavenDependencyManagementEmitTest {
     }
 
     @Test
+    void snapshotImportedBomBecomesReviewNoteNotLivePlatform() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>snapshot-platform-demo</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>snapshot-bom</artifactId>
+                        <version>1.0.0-SNAPSHOT</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+
+        DraftZoltToml draft = mapper.fromMaven(new MavenStaticProjectInspector().inspect(tempDir));
+
+        assertFalse(draft.config().platforms().containsKey("com.example:snapshot-bom"),
+                () -> "SNAPSHOT platform must not be emitted live: " + draft.config().platforms());
+        assertTrue(draft.notes().stream()
+                .anyMatch(note -> note.contains("com.example:snapshot-bom")
+                        && note.contains("unsupported platform version")
+                        && note.contains("snapshot-version")),
+                () -> "SNAPSHOT platform should become a review note: " + draft.notes());
+    }
+
+    @Test
     void reactorMemberInheritsParentImportedBomIntoPlatforms() throws IOException {
         Files.writeString(tempDir.resolve("pom.xml"), """
                 <project>

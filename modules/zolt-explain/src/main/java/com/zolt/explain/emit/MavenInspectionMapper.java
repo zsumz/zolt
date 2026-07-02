@@ -34,17 +34,21 @@ final class MavenInspectionMapper {
     static DraftZoltToml map(MavenInspectionResult result) {
         List<String> notes = new ArrayList<>();
         MavenProjectInspection primary = result.projects().get(0);
-        return mapProject(primary, null, notes);
+        return mapProject(primary, null, Map.of(), notes);
     }
 
     /** Maps one reactor member, rewriting sibling deps to {@code { workspace = ... }} via the registry. */
-    static DraftZoltToml mapMember(MavenProjectInspection project, WorkspaceMemberRegistry registry) {
-        return mapProject(project, registry, new ArrayList<>());
+    static DraftZoltToml mapMember(
+            MavenProjectInspection project,
+            WorkspaceMemberRegistry registry,
+            Map<String, MavenProjectInspection> reactorProjects) {
+        return mapProject(project, registry, reactorProjects, new ArrayList<>());
     }
 
     private static DraftZoltToml mapProject(
             MavenProjectInspection primary,
             WorkspaceMemberRegistry registry,
+            Map<String, MavenProjectInspection> reactorProjects,
             List<String> notes) {
         Map<String, String> dependencies = new TreeMap<>();
         Map<String, String> runtime = new TreeMap<>();
@@ -61,12 +65,14 @@ final class MavenInspectionMapper {
         Map<String, DependencyMetadata> dependencyMetadata = new TreeMap<>();
         Set<String> commentedProjectKeys = new TreeSet<>();
 
-        for (MavenDependencyInspection bom : primary.importedBoms()) {
-            mapPlatform(bom, platforms, notes);
-        }
+        MavenPlatformMapping platformMapping =
+                MavenPlatformMapper.map(primary.importedBoms(), registry, reactorProjects, notes);
+        platforms.putAll(platformMapping.platforms());
+        List<MavenDependencyInspection> managedForConstraints = new ArrayList<>(primary.dependencyManagement());
+        managedForConstraints.addAll(platformMapping.managedDependencies());
         Map<String, DependencyConstraint> constraints =
                 MavenDependencyConstraintMapper.map(
-                        primary.dependencyManagement(),
+                        managedForConstraints,
                         primary.dependencies(),
                         notes);
         MavenDependencySectionMapper dependencyMapper = new MavenDependencySectionMapper(
@@ -84,6 +90,7 @@ final class MavenInspectionMapper {
                         managedProvided,
                         managedTest),
                 !platforms.isEmpty(),
+                platformMapping.managedPins(),
                 dependencyMetadata,
                 notes);
         for (MavenDependencyInspection dependency : primary.dependencies()) {
@@ -178,27 +185,6 @@ final class MavenInspectionMapper {
             return;
         }
         annotationProcessors.put(coordinate, processor.version());
-    }
-
-    private static void mapPlatform(
-            MavenDependencyInspection bom,
-            Map<String, String> platforms,
-            List<String> notes) {
-        String coordinate = coordinateOf(bom.coordinate());
-        if (bom.version().isBlank()) {
-            notes.add(
-                    "Imported BOM `" + coordinate + "` has no static version; add a version under"
-                            + " [platforms] before resolving.");
-            return;
-        }
-        if (bom.version().contains("${")) {
-            notes.add(
-                    "Imported BOM `" + coordinate + "` uses version `" + bom.version() + "`, which"
-                            + " references a property the static audit could not resolve. Replace it with a"
-                            + " fixed version under [platforms] before resolving.");
-            return;
-        }
-        platforms.put(coordinate, bom.version());
     }
 
     private static void addRepositoryNotes(List<MavenRepositoryInspection> repositories, List<String> notes) {

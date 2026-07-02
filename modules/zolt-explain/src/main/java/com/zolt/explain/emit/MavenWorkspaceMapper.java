@@ -6,6 +6,7 @@ import com.zolt.workspace.WorkspaceConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Maps a multi-module Maven reactor to a {@link DraftWorkspace}: the root aggregator becomes the
@@ -28,8 +29,13 @@ final class MavenWorkspaceMapper {
         MavenProjectInspection root = root(projects);
 
         WorkspaceMemberRegistry registry = new WorkspaceMemberRegistry();
+        Map<String, MavenProjectInspection> projectsByCoordinate = new TreeMap<>();
         for (MavenProjectInspection project : projects) {
-            registry.register(memberKey(project), project.path().toString());
+            String key = memberKey(project);
+            registry.register(key, project.path().toString());
+            if (key != null) {
+                projectsByCoordinate.put(key, project);
+            }
         }
 
         List<String> memberPaths = new ArrayList<>();
@@ -40,7 +46,9 @@ final class MavenWorkspaceMapper {
                 continue;
             }
             memberPaths.add(path);
-            members.add(new DraftWorkspace.Member(path, MavenInspectionMapper.mapMember(project, registry)));
+            members.add(new DraftWorkspace.Member(
+                    path,
+                    MavenInspectionMapper.mapMember(project, registry, projectsByCoordinate)));
         }
 
         List<String> notes = new ArrayList<>();

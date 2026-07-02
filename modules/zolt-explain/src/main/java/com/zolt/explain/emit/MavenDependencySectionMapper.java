@@ -30,6 +30,7 @@ final class MavenDependencySectionMapper {
     private final VersionedSections versioned;
     private final ManagedSections managed;
     private final boolean platformAvailable;
+    private final Map<String, String> managedPins;
     private final Map<String, DependencyMetadata> dependencyMetadata;
     private final List<String> notes;
 
@@ -38,12 +39,14 @@ final class MavenDependencySectionMapper {
             VersionedSections versioned,
             ManagedSections managed,
             boolean platformAvailable,
+            Map<String, String> managedPins,
             Map<String, DependencyMetadata> dependencyMetadata,
             List<String> notes) {
         this.registry = registry;
         this.versioned = versioned;
         this.managed = managed;
         this.platformAvailable = platformAvailable;
+        this.managedPins = managedPins == null ? Map.of() : Map.copyOf(managedPins);
         this.dependencyMetadata = dependencyMetadata;
         this.notes = notes;
     }
@@ -63,6 +66,14 @@ final class MavenDependencySectionMapper {
         }
         String version = dependency.version();
         if (version.isBlank()) {
+            String pinnedVersion = managedPins.get(coordinate);
+            if (pinnedVersion != null) {
+                String section = mapVersionedDependency(dependency, coordinate, pinnedVersion);
+                if (section != null) {
+                    recordExclusions(section, coordinate, dependency);
+                }
+                return;
+            }
             String managedSection = mapManagedDependency(dependency, coordinate);
             if (managedSection != null) {
                 recordExclusions(managedSection, coordinate, dependency);
