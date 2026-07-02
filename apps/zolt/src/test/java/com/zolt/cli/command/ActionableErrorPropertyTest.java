@@ -58,7 +58,7 @@ final class ActionableErrorPropertyTest {
                     return List.of(
                             "build", "--workspace", "--cwd", dir.toString(), "--cache-root", cache(dir));
                 }),
-                scenario("resolve: unresolved/unknown dependency (404)", (dir, repo) -> {
+                repositoryScenario("resolve: unresolved/unknown dependency (404)", (dir, repo) -> {
                     writeConfig(dir, "unknown-dep", """
 
                             [repositories]
@@ -66,18 +66,15 @@ final class ActionableErrorPropertyTest {
 
                             [dependencies]
                             "com.example:does-not-exist" = "9.9.9"
-                            """.formatted(repo.baseUri()));
+                            """.formatted(repo.orElseThrow().baseUri()));
                     return List.of("resolve", "--cwd", dir.toString(), "--cache-root", cache(dir));
                 }),
                 scenario("resolve: unsupported external dependency version", (dir, repo) -> {
                     writeConfig(dir, "bad-version", """
 
-                            [repositories]
-                            test = "%s"
-
                             [dependencies]
                             "com.example:thing" = "1.0.+"
-                            """.formatted(repo.baseUri()));
+                            """);
                     return List.of("resolve", "--cwd", dir.toString(), "--cache-root", cache(dir));
                 }),
                 scenario("resolve --locked: missing lockfile", (dir, repo) -> {
@@ -140,28 +137,31 @@ final class ActionableErrorPropertyTest {
     @MethodSource("coveredScenarios")
     void everyCoveredFailureRendersANonEmptyNextLine(Scenario scenario) throws IOException {
         Path dir = Files.createDirectories(tempDir.resolve(slug(scenario.name())));
-        try (CliTestRepository repository = CliTestRepository.start()) {
-            // Seed a real artifact so version/coordinate failures fail on policy/404, not on an empty repo.
-            repository.addArtifact("com.example", "thing", "1.0.0", """
-                    <project>
-                      <groupId>com.example</groupId>
-                      <artifactId>thing</artifactId>
-                      <version>1.0.0</version>
-                    </project>
-                    """);
-            List<String> args = scenario.setup().run(dir, repository);
-            CommandResult result = execute(args.toArray(String[]::new));
-
-            assertNotEquals(
-                    0,
-                    result.exitCode(),
-                    () -> scenario.name() + " was expected to fail but exited 0.\nstdout:\n" + result.stdout());
-            assertTrue(
-                    nextRemediation(result.stderr()).isPresent(),
-                    () -> "Scenario '" + scenario.name()
-                            + "' must render a non-empty 'Next:' remediation line, but stderr was:\n"
-                            + result.stderr());
+        if (!scenario.requiresRepository()) {
+            assertScenarioRendersNextLine(scenario, dir, Optional.empty());
+            return;
         }
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            assertScenarioRendersNextLine(scenario, dir, Optional.of(repository));
+        }
+    }
+
+    private static void assertScenarioRendersNextLine(
+            Scenario scenario,
+            Path dir,
+            Optional<CliTestRepository> repository) throws IOException {
+        List<String> args = scenario.setup().run(dir, repository);
+        CommandResult result = execute(args.toArray(String[]::new));
+
+        assertNotEquals(
+                0,
+                result.exitCode(),
+                () -> scenario.name() + " was expected to fail but exited 0.\nstdout:\n" + result.stdout());
+        assertTrue(
+                nextRemediation(result.stderr()).isPresent(),
+                () -> "Scenario '" + scenario.name()
+                        + "' must render a non-empty 'Next:' remediation line, but stderr was:\n"
+                        + result.stderr());
     }
 
     /**
@@ -219,15 +219,19 @@ final class ActionableErrorPropertyTest {
     }
 
     private static Scenario scenario(String name, ScenarioSetup setup) {
-        return new Scenario(name, setup);
+        return new Scenario(name, false, setup);
+    }
+
+    private static Scenario repositoryScenario(String name, ScenarioSetup setup) {
+        return new Scenario(name, true, setup);
     }
 
     @FunctionalInterface
     private interface ScenarioSetup {
-        List<String> run(Path dir, CliTestRepository repository) throws IOException;
+        List<String> run(Path dir, Optional<CliTestRepository> repository) throws IOException;
     }
 
-    private record Scenario(String name, ScenarioSetup setup) {
+    private record Scenario(String name, boolean requiresRepository, ScenarioSetup setup) {
         @Override
         public String toString() {
             return name;
