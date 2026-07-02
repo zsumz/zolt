@@ -16,44 +16,44 @@ final class ReleaseChannelManifestValidatorTest {
                 {
                   "target": "macos-arm64",
                   "archive": "zolt-0.1.0-macos-arm64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz",
-                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-macos-arm64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "macos-x64",
                   "archive": "zolt-0.1.0-macos-x64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz",
-                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-macos-x64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "linux-arm64",
                   "archive": "zolt-0.1.0-linux-arm64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz",
-                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-arm64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 },
                 {
                   "target": "linux-x64",
                   "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                   "sha256": "%s",
                   "format": "tar.gz",
                   "binaryName": "zolt",
                   "signature": {
                     "kind": "minisign",
-                    "url": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
+                    "url": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
                   }
                 },
                 {
                   "target": "windows-x64",
                   "archive": "zolt-0.1.0-windows-x64.zip",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip",
-                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip.sha256",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip",
+                  "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-windows-x64.zip.sha256",
                   "format": "zip",
                   "binaryName": "zolt.exe"
                 }
@@ -75,7 +75,7 @@ final class ReleaseChannelManifestValidatorTest {
     void acceptsGitHubReleasesFlatDownloadUrls() {
         // The gh-release publish backend (scripts/publish-native-release) emits flat
         // per-tag GitHub Releases asset URLs with no /artifacts/<channel>/<version>/
-        // segments. Lock in that these validate cleanly alongside the dist.zolt.build layout.
+        // segments. Lock in that these validate cleanly alongside the dist.zolt.sh layout.
         ReleaseChannelManifest manifest = validator.validate(manifestJson("""
                 {
                   "target": "linux-x64",
@@ -104,8 +104,8 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "solaris-sparc",
                           "archive": "zolt-0.1.0-solaris-sparc.tar.gz",
-                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz",
-                          "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz.sha256",
+                          "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz",
+                          "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-solaris-sparc.tar.gz.sha256",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
@@ -121,8 +121,8 @@ final class ReleaseChannelManifestValidatorTest {
                 {
                   "target": "linux-x64",
                   "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
-                  "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                  "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
                   "format": "tar.gz",
                   "binaryName": "zolt"
                 }
@@ -160,8 +160,8 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "linux-x64",
                           "archive": "zolt-0.1.0-linux-x64.jar",
-                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar",
-                          "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar.sha256",
+                          "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar",
+                          "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.jar.sha256",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
@@ -179,7 +179,7 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "linux-x64",
                           "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                          "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                           "format": "tar.gz",
                           "binaryName": "zolt"
                         }
@@ -197,7 +197,7 @@ final class ReleaseChannelManifestValidatorTest {
                 {
                   "target": "linux-x64",
                   "archive": "zolt-0.1.0-nightly.20260628.0123456-linux-x64.tar.gz",
-                  "archiveUrl": "https://dist.zolt.build/artifacts/nightly/0.1.0-nightly.20260628.0123456/zolt-0.1.0-nightly.20260628.0123456-linux-x64.tar.gz",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/nightly/0.1.0-nightly.20260628.0123456/zolt-0.1.0-nightly.20260628.0123456-linux-x64.tar.gz",
                   "sha256": "%s",
                   "format": "tar.gz",
                   "binaryName": "zolt"
@@ -209,13 +209,33 @@ final class ReleaseChannelManifestValidatorTest {
     }
 
     @Test
+    void acceptsZapManifestVersion() {
+        ReleaseChannelManifest manifest = validator.validate(manifestJson(
+                "zap",
+                "0.1.0-zap.20260702.0123456",
+                """
+                {
+                  "target": "linux-x64",
+                  "archive": "zolt-0.1.0-zap.20260702.0123456-linux-x64.tar.gz",
+                  "archiveUrl": "https://dist.zolt.sh/artifacts/zap/0.1.0-zap.20260702.0123456/zolt-0.1.0-zap.20260702.0123456-linux-x64.tar.gz",
+                  "sha256": "%s",
+                  "format": "tar.gz",
+                  "binaryName": "zolt"
+                }
+                """.formatted("A".repeat(64))));
+
+        assertEquals("zap", manifest.channel());
+        assertEquals("0.1.0-zap.20260702.0123456", manifest.version());
+    }
+
+    @Test
     void rejectsUnsupportedChannel() {
         ReleaseChannelManifestException exception = assertThrows(
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson("dev", "0.1.0", linuxArtifact())));
 
         assertTrue(exception.getMessage().contains("channel"));
-        assertTrue(exception.getMessage().contains("stable, nightly"));
+        assertTrue(exception.getMessage().contains("stable, nightly, zap"));
     }
 
     @Test
@@ -243,7 +263,7 @@ final class ReleaseChannelManifestValidatorTest {
                     ReleaseChannelManifestException.class,
                     () -> validator.validate(manifestJson(linuxArtifact(
                             archive,
-                            "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                            "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                             """
                             "sha256": "%s",
                             """.formatted("1".repeat(64))))));
@@ -258,7 +278,7 @@ final class ReleaseChannelManifestValidatorTest {
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson(linuxArtifact(
                         "zolt-0.1.0-linux-x64.tar.gz",
-                        "http://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        "http://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                         """
                         "sha256": "%s",
                         """.formatted("1".repeat(64))))));
@@ -269,7 +289,7 @@ final class ReleaseChannelManifestValidatorTest {
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson(linuxArtifact(
                         "zolt-0.1.0-linux-x64.tar.gz",
-                        "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                         """
                         "checksumUrl": "file:///tmp/zolt-0.1.0-linux-x64.tar.gz.sha256",
                         """))));
@@ -283,7 +303,7 @@ final class ReleaseChannelManifestValidatorTest {
                 ReleaseChannelManifestException.class,
                 () -> validator.validate(manifestJson(linuxArtifact(
                         "zolt-0.1.0-linux-x64.tar.gz",
-                        "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                        "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                         """
                         "sha256": "not-a-sha",
                         """))));
@@ -299,13 +319,13 @@ final class ReleaseChannelManifestValidatorTest {
                         {
                           "target": "linux-x64",
                           "archive": "zolt-0.1.0-linux-x64.tar.gz",
-                          "archiveUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                          "archiveUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                           "sha256": "%s",
                           "format": "tar.gz",
                           "binaryName": "zolt",
                           "signature": {
                             "kind": "minisign",
-                            "url": "http://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
+                            "url": "http://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig"
                           }
                         }
                         """.formatted("1".repeat(64)))));
@@ -336,9 +356,9 @@ final class ReleaseChannelManifestValidatorTest {
     private static String linuxArtifact() {
         return linuxArtifact(
                 "zolt-0.1.0-linux-x64.tar.gz",
-                "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                 """
-                "checksumUrl": "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                "checksumUrl": "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
                 """);
     }
 

@@ -12,17 +12,18 @@ final class ReleaseDistributionUrlLayoutTest {
     void dryRunPublicationUrlsUseOwnedDomainForInstallerChannelsAndArchives() {
         ReleaseDistributionUrlLayout urls = new ReleaseDistributionUrlLayout();
 
-        assertEquals("https://dist.zolt.build/install.sh", urls.installScriptUrl());
-        assertEquals("https://dist.zolt.build/channels/stable.json", urls.channelManifestUrl("stable"));
-        assertEquals("https://dist.zolt.build/channels/nightly.json", urls.channelManifestUrl("nightly"));
+        assertEquals("https://dist.zolt.sh/install.sh", urls.installScriptUrl());
+        assertEquals("https://dist.zolt.sh/channels/stable.json", urls.channelManifestUrl("stable"));
+        assertEquals("https://dist.zolt.sh/channels/nightly.json", urls.channelManifestUrl("nightly"));
+        assertEquals("https://dist.zolt.sh/channels/zap.json", urls.channelManifestUrl("zap"));
         assertEquals(
-                "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
+                "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                 urls.archiveUrl("stable", "0.1.0", "zolt-0.1.0-linux-x64.tar.gz"));
         assertEquals(
-                "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
+                "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.sha256",
                 urls.checksumUrl("stable", "0.1.0", "zolt-0.1.0-linux-x64.tar.gz"));
         assertEquals(
-                "https://dist.zolt.build/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig",
+                "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig",
                 urls.signatureUrl("stable", "0.1.0", "zolt-0.1.0-linux-x64.tar.gz", ".minisig"));
     }
 
@@ -34,7 +35,7 @@ final class ReleaseDistributionUrlLayoutTest {
             String archive = "zolt-0.1.0-" + target.id() + target.archiveExtension();
             String archiveUrl = urls.archiveUrl("stable", "0.1.0", archive);
 
-            assertTrue(archiveUrl.startsWith("https://dist.zolt.build/artifacts/stable/0.1.0/"));
+            assertTrue(archiveUrl.startsWith("https://dist.zolt.sh/artifacts/stable/0.1.0/"));
             assertTrue(archiveUrl.endsWith(target.archiveExtension()));
             assertTrue(!archiveUrl.contains(".jar"));
             assertTrue(!archiveUrl.contains("jre"));
@@ -44,7 +45,7 @@ final class ReleaseDistributionUrlLayoutTest {
 
     @Test
     void layoutRejectsNonHttpsAndUnsafePathSegments() {
-        assertThrows(ReleaseChannelManifestException.class, () -> new ReleaseDistributionUrlLayout("http://dist.zolt.build"));
+        assertThrows(ReleaseChannelManifestException.class, () -> new ReleaseDistributionUrlLayout("http://dist.zolt.sh"));
 
         ReleaseDistributionUrlLayout urls = new ReleaseDistributionUrlLayout();
         assertThrows(ReleaseChannelManifestException.class, () -> urls.channelManifestUrl("../stable"));

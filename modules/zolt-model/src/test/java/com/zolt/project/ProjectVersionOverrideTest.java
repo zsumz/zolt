@@ -19,12 +19,15 @@ final class ProjectVersionOverrideTest {
     }
 
     @Test
-    void acceptsBaseAndNightlyShapes() {
+    void acceptsBaseNightlyAndZapShapes() {
         assertEquals(Optional.of("0.1.0"), ProjectVersionOverride.fromValue("0.1.0"));
         assertEquals(Optional.of("0.1.0-SNAPSHOT"), ProjectVersionOverride.fromValue("0.1.0-SNAPSHOT"));
         assertEquals(
                 Optional.of("0.1.0-nightly.20260628.0123456789ab"),
                 ProjectVersionOverride.fromValue(" 0.1.0-nightly.20260628.0123456789ab "));
+        assertEquals(
+                Optional.of("0.1.0-zap.20260702.0123456789ab"),
+                ProjectVersionOverride.fromValue(" 0.1.0-zap.20260702.0123456789ab "));
     }
 
     @Test
@@ -34,6 +37,7 @@ final class ProjectVersionOverrideTest {
         assertTrue(notAVersion.error().summary().contains("not a version"));
         assertTrue(notAVersion.error().remediation().contains("ZOLT_VERSION_OVERRIDE"));
         assertTrue(notAVersion.error().remediation().contains("0.1.0-nightly"));
+        assertTrue(notAVersion.error().remediation().contains("0.1.0-zap"));
 
         // Whitespace inside the value is rejected.
         assertThrows(ActionableException.class, () -> ProjectVersionOverride.fromValue("0.1.0 nightly"));

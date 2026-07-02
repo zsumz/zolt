@@ -8,11 +8,11 @@ import java.util.regex.Pattern;
 
 final class ReleaseChannelManifestConstraints {
     private static final Pattern STABLE_VERSION = Pattern.compile("\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z][0-9A-Za-z._-]*)?");
-    private static final Pattern NIGHTLY_VERSION = Pattern.compile("[0-9A-Za-z._-]+-nightly\\.[0-9]{8}\\.[0-9A-Fa-f]{7,40}");
+    private static final Pattern DEV_VERSION = Pattern.compile("[0-9A-Za-z._-]+-(nightly|zap)\\.[0-9]{8}\\.[0-9A-Fa-f]{7,40}");
     private static final Pattern ARCHIVE_FILENAME = Pattern.compile("[A-Za-z0-9._-]+");
     private static final Pattern SHA256 = Pattern.compile("[0-9A-Fa-f]{64}");
     private static final Pattern SIGNATURE_KIND = Pattern.compile("[A-Za-z0-9._-]+");
-    private static final Set<String> SUPPORTED_CHANNELS = Set.of("stable", "nightly");
+    private static final Set<String> SUPPORTED_CHANNELS = Set.of("stable", "nightly", "zap");
 
     private ReleaseChannelManifestConstraints() {
     }
@@ -20,17 +20,17 @@ final class ReleaseChannelManifestConstraints {
     static void validateChannel(String channel) {
         if (!SUPPORTED_CHANNELS.contains(channel)) {
             throw new ReleaseChannelManifestException(
-                    "Release channel manifest channel must be one of stable, nightly; got `" + channel + "`.");
+                    "Release channel manifest channel must be one of stable, nightly, zap; got `" + channel + "`.");
         }
     }
 
     static void validateVersion(String version) {
         validateSafeSegment("version", version);
-        if (STABLE_VERSION.matcher(version).matches() || NIGHTLY_VERSION.matcher(version).matches()) {
+        if (STABLE_VERSION.matcher(version).matches() || DEV_VERSION.matcher(version).matches()) {
             return;
         }
         throw new ReleaseChannelManifestException(
-                "Release channel manifest version must look like 0.1.0 or <base>-nightly.YYYYMMDD.<commit>; got `"
+                "Release channel manifest version must look like 0.1.0, <base>-nightly.YYYYMMDD.<commit>, or <base>-zap.YYYYMMDD.<commit>; got `"
                         + version
                         + "`.");
     }

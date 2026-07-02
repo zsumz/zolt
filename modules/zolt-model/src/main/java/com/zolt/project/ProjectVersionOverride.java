@@ -18,14 +18,15 @@ import java.util.regex.Pattern;
  * misconfigured nightly job fails before any archive is written. The accepted shape mirrors the
  * version grammar that {@code scripts/install-zolt} and {@code scripts/publish-native-release}
  * accept: a {@code <base>} semver (optionally with a pre-release suffix) or a
- * {@code <base>-nightly.YYYYMMDD.<commit>} nightly string.
+ * {@code <base>-nightly.YYYYMMDD.<commit>} nightly string or
+ * {@code <base>-zap.YYYYMMDD.<commit>} zap dev-channel string.
  */
 public final class ProjectVersionOverride {
     public static final String ENV_VAR = "ZOLT_VERSION_OVERRIDE";
 
     private static final Pattern ACCEPTED = Pattern.compile(
             "^([0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z._-]*)?"
-                    + "|[0-9A-Za-z._-]+-nightly\\.[0-9]{8}\\.[0-9A-Fa-f]{7,40})$");
+                    + "|[0-9A-Za-z._-]+-(nightly|zap)\\.[0-9]{8}\\.[0-9A-Fa-f]{7,40})$");
 
     private ProjectVersionOverride() {
     }
@@ -55,8 +56,9 @@ public final class ProjectVersionOverride {
             throw new ActionableException(ActionableError.of(
                     ENV_VAR + " value `" + trimmed + "` is not a valid Zolt version.",
                     "Set " + ENV_VAR
-                            + " to a base version like `0.1.0` or a nightly version like"
-                            + " `0.1.0-nightly.YYYYMMDD.<commit>` (7-40 hex commit characters)."));
+                            + " to a base version like `0.1.0`, a nightly version like"
+                            + " `0.1.0-nightly.YYYYMMDD.<commit>`, or a zap version like"
+                            + " `0.1.0-zap.YYYYMMDD.<commit>` (7-40 hex commit characters)."));
         }
         return Optional.of(trimmed);
     }

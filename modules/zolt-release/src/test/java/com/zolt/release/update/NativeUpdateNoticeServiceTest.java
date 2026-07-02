@@ -215,8 +215,8 @@ final class NativeUpdateNoticeServiceTest {
                     {
                       "target": "linux-x64",
                       "archive": "zolt-%s-linux-x64.tar.gz",
-                      "archiveUrl": "https://dist.zolt.build/artifacts/%s/%s/zolt-%s-linux-x64.tar.gz",
-                      "checksumUrl": "https://dist.zolt.build/artifacts/%s/%s/zolt-%s-linux-x64.tar.gz.sha256",
+                      "archiveUrl": "https://dist.zolt.sh/artifacts/%s/%s/zolt-%s-linux-x64.tar.gz",
+                      "checksumUrl": "https://dist.zolt.sh/artifacts/%s/%s/zolt-%s-linux-x64.tar.gz.sha256",
                       "format": "tar.gz",
                       "binaryName": "zolt"
                     }

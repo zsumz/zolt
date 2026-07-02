@@ -3,7 +3,7 @@ package com.zolt.release.channel;
 import java.util.Objects;
 
 public final class ReleaseDistributionUrlLayout {
-    public static final String DEFAULT_ORIGIN = "https://dist.zolt.build";
+    public static final String DEFAULT_ORIGIN = "https://dist.zolt.sh";
 
     private final String origin;
 
