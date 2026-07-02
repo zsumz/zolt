@@ -82,11 +82,13 @@ final class DirectDependencyRequestPlannerTest {
     void rejectsUnsupportedExternalVersionClearly() {
         ResolveException exception = assertThrows(
                 ResolveException.class,
-                () -> planner.plan(managedTestConfig(), Map.of(MANAGED_TEST, "1.+")));
+                () -> planner.plan(managedTestConfig(), Map.of(MANAGED_TEST, "1.+"), "zolt build"));
 
         assertTrue(exception.getMessage().contains("Unsupported external dependency version `1.+`"));
         assertTrue(exception.getMessage().contains("com.example:managed-test"));
         assertTrue(exception.getMessage().contains("Use a fixed released version"));
+        assertTrue(exception.getMessage().contains("run `zolt build` again"));
+        assertTrue(!exception.getMessage().contains("run `zolt resolve` again"));
     }
 
     @Test
@@ -105,10 +107,11 @@ final class DirectDependencyRequestPlannerTest {
 
         ResolveException exception = assertThrows(
                 ResolveException.class,
-                () -> planner.plan(config, Map.of()));
+                () -> planner.plan(config, Map.of(), "zolt build"));
 
         assertTrue(exception.getMessage().contains("Wildcard dependency exclusions are not supported"));
         assertTrue(exception.getMessage().contains("*:legacy"));
+        assertTrue(exception.getMessage().contains("run `zolt build` again"));
     }
 
     private static DependencyRequest onlyRequest(List<DependencyRequest> requests, PackageId packageId) {

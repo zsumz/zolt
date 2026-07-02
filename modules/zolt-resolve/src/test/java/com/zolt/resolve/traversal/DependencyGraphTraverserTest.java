@@ -1,13 +1,20 @@
 package com.zolt.resolve.traversal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.zolt.dependency.DependencyScope;
 import com.zolt.dependency.PackageId;
+import com.zolt.project.DependencyConstraint;
+import com.zolt.project.DependencyConstraintKind;
+import com.zolt.project.DependencyPolicySettings;
+import com.zolt.resolve.ResolveException;
 import com.zolt.resolve.graph.ResolutionGraph;
 import com.zolt.resolve.metadata.platform.ManagedVersion;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSupport {
@@ -291,6 +298,54 @@ final class DependencyGraphTraverserTest extends DependencyGraphTraverserTestSup
 
         assertEquals(List.of("com.example:root:1.0.0", "com.example:lib:2.0.0"), nodeStrings(graph));
         assertEquals(0, source.loadCount("com.example:lib:[1.0,2.0)"));
+    }
+
+    @Test
+    void strictConstraintBypassesUnsupportedTransitiveRange() {
+        PackageId library = new PackageId("com.example", "lib");
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependency("com.example", "lib", "[1.0,2.0)"))));
+        source.put("com.example:lib:1.0", pom("com.example", "lib", "1.0", List.of()));
+
+        ResolutionGraph graph = new DependencyGraphTraverser(
+                source,
+                new DependencyPolicySettings(
+                        List.of(),
+                        Map.of("com.example:lib", new DependencyConstraint(
+                                "com.example:lib",
+                                "1.0",
+                                DependencyConstraintKind.STRICT,
+                                Optional.empty()))),
+                Map.of())
+                .traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertEquals(List.of("com.example:root:1.0.0", "com.example:lib:1.0"), nodeStrings(graph));
+        assertEquals(0, source.loadCount("com.example:lib:[1.0,2.0)"));
+    }
+
+    @Test
+    void unsupportedTransitiveRangeHintNamesDependencyConstraintsAndRetryCommand() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put("com.example:root:1.0.0", pom("com.example", "root", "1.0.0", List.of(
+                dependency("com.example", "lib", "[1.0,2.0)"))));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> new DependencyGraphTraverser(
+                        source,
+                        DependencyPolicySettings.defaults(),
+                        Map.of(),
+                        "zolt resolve --workspace")
+                        .traverse(List.of(direct("com.example", "root", "1.0.0"))));
+
+        assertTrue(exception.getMessage().contains("Unsupported transitive dependency version `[1.0,2.0)`"));
+        assertTrue(exception.getMessage().contains("[dependencyConstraints]"));
+        assertTrue(exception.getMessage()
+                .contains("\"com.example:lib\" = { version = \"1.0\", kind = \"strict\" }"));
+        assertTrue(exception.getMessage().contains("run `zolt resolve --workspace` again"));
+        assertTrue(!exception.getMessage().contains("[dependencyPolicy] constraint"), () -> exception.getMessage());
+        assertTrue(!exception.getMessage().contains("[platforms] entry"), () -> exception.getMessage());
     }
 
 }

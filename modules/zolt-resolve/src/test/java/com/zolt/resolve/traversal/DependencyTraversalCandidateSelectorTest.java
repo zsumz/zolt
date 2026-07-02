@@ -315,7 +315,8 @@ final class DependencyTraversalCandidateSelectorTest {
                 new DependencyTransitiveScopeSelector(),
                 exclusions,
                 constraints,
-                managedVersions);
+                managedVersions,
+                "zolt resolve");
     }
 
     private static DependencyTraversalCandidate candidate(

@@ -61,7 +61,16 @@ public final class WorkspaceResolveService {
     }
 
     public ResolveResult resolve(Path startDirectory, Path cacheRoot, boolean locked, boolean offline) {
-        return resolve(startDirectory, cacheRoot, locked, ResolveOptions.offline(offline));
+        return resolve(startDirectory, cacheRoot, locked, offline, "zolt resolve --workspace");
+    }
+
+    public ResolveResult resolve(
+            Path startDirectory,
+            Path cacheRoot,
+            boolean locked,
+            boolean offline,
+            String retryCommand) {
+        return resolve(startDirectory, cacheRoot, locked, ResolveOptions.offline(offline).withRetryCommand(retryCommand));
     }
 
     public ResolveResult resolveWithCoverageTooling(Path startDirectory, Path cacheRoot) {

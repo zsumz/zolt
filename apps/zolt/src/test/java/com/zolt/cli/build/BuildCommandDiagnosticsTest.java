@@ -96,6 +96,41 @@ final class BuildCommandDiagnosticsTest {
     }
 
     @Test
+    void buildAutoResolveFailureRetryHintNamesBuild() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("com.example", "root", "1.0.0", """
+                    <project>
+                      <groupId>com.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0.0</version>
+                      <dependencies>
+                        <dependency>
+                          <groupId>com.example</groupId>
+                          <artifactId>bad</artifactId>
+                          <version>[1.0,2.0)</version>
+                        </dependency>
+                      </dependencies>
+                    </project>
+                    """);
+            Path projectDir = tempDir.resolve("build-unsupported-version");
+            writeProjectConfig(
+                    projectDir,
+                    repository.baseUri().toString(),
+                    Map.of("com.example:root", "1.0.0"));
+
+            CommandResult result = execute(
+                    "build",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache-build-unsupported-version").toString());
+
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stderr().contains("Unsupported transitive dependency version `[1.0,2.0)`"));
+            assertTrue(result.stderr().contains("run `zolt build` again"));
+            assertFalse(result.stderr().contains("run `zolt resolve` again"));
+        }
+    }
+
+    @Test
     void buildRunsQuarkusAugmentationWhenFrameworkIsEnabled() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");

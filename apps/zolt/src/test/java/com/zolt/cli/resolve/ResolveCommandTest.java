@@ -135,6 +135,55 @@ final class ResolveCommandTest {
     }
 
     @Test
+    void resolveUnsupportedVersionRetryHintNamesResolve() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            addRangeRoot(repository);
+            Path projectDir = tempDir.resolve("resolve-unsupported-version");
+            writeProjectConfig(
+                    projectDir,
+                    repository.baseUri().toString(),
+                    Map.of("com.example:root", "1.0.0"));
+
+            CommandResult result = execute(
+                    "resolve",
+                    "--cwd", projectDir.toString(),
+                    "--cache-root", tempDir.resolve("cache-unsupported-version").toString());
+
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stderr().contains("Unsupported transitive dependency version `[1.0,2.0)`"));
+            assertTrue(result.stderr().contains("run `zolt resolve` again"));
+        }
+    }
+
+    @Test
+    void resolveWorkspaceUnsupportedVersionRetryHintKeepsWorkspaceFlag() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            addRangeRoot(repository);
+            Path workspaceDir = tempDir.resolve("resolve-workspace-unsupported-version");
+            Files.createDirectories(workspaceDir);
+            Files.writeString(workspaceDir.resolve("zolt.toml"), """
+                    [workspace]
+                    name = "demo"
+                    members = ["app"]
+                    """);
+            writeProjectConfig(
+                    workspaceDir.resolve("app"),
+                    repository.baseUri().toString(),
+                    Map.of("com.example:root", "1.0.0"));
+
+            CommandResult result = execute(
+                    "resolve",
+                    "--workspace",
+                    "--cwd", workspaceDir.toString(),
+                    "--cache-root", tempDir.resolve("cache-workspace-unsupported-version").toString());
+
+            assertEquals(1, result.exitCode());
+            assertTrue(result.stderr().contains("Unsupported transitive dependency version `[1.0,2.0)`"));
+            assertTrue(result.stderr().contains("run `zolt resolve --workspace` again"));
+        }
+    }
+
+    @Test
     void resolveLockedReportsMissingLockfileClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir, Map.of());
@@ -166,6 +215,23 @@ final class ResolveCommandTest {
         assertTrue(result.stderr().contains("error: Offline mode requires cached POM"));
         assertTrue(result.stderr().contains("Coordinate: com.example:missing:1.0.0"));
         assertTrue(result.stderr().contains("Next: Run the command without --offline"));
+    }
+
+    private static void addRangeRoot(CliTestRepository repository) {
+        repository.addArtifact("com.example", "root", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>root</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>bad</artifactId>
+                      <version>[1.0,2.0)</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
     }
 
 }

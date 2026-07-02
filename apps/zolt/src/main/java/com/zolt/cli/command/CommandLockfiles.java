@@ -2,6 +2,7 @@ package com.zolt.cli.command;
 
 import com.zolt.lockfile.toml.LockfileReadException;
 import com.zolt.project.ProjectConfig;
+import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.ResolveService;
 import com.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
 import com.zolt.workspace.service.Workspace;
@@ -42,11 +43,25 @@ public final class CommandLockfiles {
             ProjectConfig config,
             Path cacheRoot,
             boolean offline) {
+        requireFreshLockfile(workingDirectory, config, cacheRoot, offline, "zolt resolve");
+    }
+
+    public void requireFreshLockfile(
+            Path workingDirectory,
+            ProjectConfig config,
+            Path cacheRoot,
+            boolean offline,
+            String retryCommand) {
         Path lockfilePath = workingDirectory.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
             return;
         }
-        resolveService.resolve(workingDirectory, config, cacheRoot, true, offline);
+        resolveService.resolve(
+                workingDirectory,
+                config,
+                cacheRoot,
+                true,
+                ResolveOptions.offline(offline).withRetryCommand(retryCommand));
     }
 
     public void refreshExistingLockfile(
@@ -62,6 +77,14 @@ public final class CommandLockfiles {
     }
 
     public void requireFreshWorkspaceLockfile(Path workingDirectory, Path cacheRoot, boolean offline) {
+        requireFreshWorkspaceLockfile(workingDirectory, cacheRoot, offline, "zolt resolve --workspace");
+    }
+
+    public void requireFreshWorkspaceLockfile(
+            Path workingDirectory,
+            Path cacheRoot,
+            boolean offline,
+            String retryCommand) {
         Optional<Workspace> workspace = workspaceDiscoveryService.discover(workingDirectory.toAbsolutePath().normalize());
         if (workspace.isEmpty()) {
             return;
@@ -70,7 +93,7 @@ public final class CommandLockfiles {
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
             return;
         }
-        workspaceResolveService.resolve(workingDirectory, cacheRoot, true, offline);
+        workspaceResolveService.resolve(workingDirectory, cacheRoot, true, offline, retryCommand);
     }
 
     private static boolean looksGeneratedLockfile(Path lockfilePath) {

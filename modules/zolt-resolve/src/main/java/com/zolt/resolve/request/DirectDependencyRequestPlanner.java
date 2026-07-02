@@ -23,6 +23,13 @@ final class DirectDependencyRequestPlanner {
     List<DependencyRequest> plan(
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions) {
+        return plan(config, projectManagedVersions, "zolt resolve");
+    }
+
+    List<DependencyRequest> plan(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            String retryCommand) {
         List<DependencyRequest> requests = new ArrayList<>();
         addDirectRequests(
                 requests,
@@ -31,7 +38,8 @@ final class DirectDependencyRequestPlanner {
                 config.apiDependencies(),
                 config.managedApiDependencies(),
                 projectManagedVersions,
-                DependencyScope.COMPILE);
+                DependencyScope.COMPILE,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -39,7 +47,8 @@ final class DirectDependencyRequestPlanner {
                 config.dependencies(),
                 config.managedDependencies(),
                 projectManagedVersions,
-                DependencyScope.COMPILE);
+                DependencyScope.COMPILE,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -47,7 +56,8 @@ final class DirectDependencyRequestPlanner {
                 config.runtimeDependencies(),
                 config.managedRuntimeDependencies(),
                 projectManagedVersions,
-                DependencyScope.RUNTIME);
+                DependencyScope.RUNTIME,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -55,7 +65,8 @@ final class DirectDependencyRequestPlanner {
                 config.providedDependencies(),
                 config.managedProvidedDependencies(),
                 projectManagedVersions,
-                DependencyScope.PROVIDED);
+                DependencyScope.PROVIDED,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -63,7 +74,8 @@ final class DirectDependencyRequestPlanner {
                 config.devDependencies(),
                 config.managedDevDependencies(),
                 projectManagedVersions,
-                DependencyScope.DEV);
+                DependencyScope.DEV,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -71,7 +83,8 @@ final class DirectDependencyRequestPlanner {
                 config.testDependencies(),
                 config.managedTestDependencies(),
                 projectManagedVersions,
-                DependencyScope.TEST);
+                DependencyScope.TEST,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -79,7 +92,8 @@ final class DirectDependencyRequestPlanner {
                 config.annotationProcessors(),
                 config.managedAnnotationProcessors(),
                 projectManagedVersions,
-                DependencyScope.PROCESSOR);
+                DependencyScope.PROCESSOR,
+                retryCommand);
         addDirectRequests(
                 requests,
                 config,
@@ -87,7 +101,8 @@ final class DirectDependencyRequestPlanner {
                 config.testAnnotationProcessors(),
                 config.managedTestAnnotationProcessors(),
                 projectManagedVersions,
-                DependencyScope.TEST_PROCESSOR);
+                DependencyScope.TEST_PROCESSOR,
+                retryCommand);
         return requests;
     }
 
@@ -98,7 +113,8 @@ final class DirectDependencyRequestPlanner {
             Map<String, String> dependencies,
             Iterable<String> managedDependencies,
             Map<PackageId, String> projectManagedVersions,
-            DependencyScope scope) {
+            DependencyScope scope,
+            String retryCommand) {
         for (Map.Entry<String, String> dependency : dependencies.entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(directDependencyRequest(
@@ -106,7 +122,8 @@ final class DirectDependencyRequestPlanner {
                     section,
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
-                    scope));
+                    scope,
+                    retryCommand));
         }
         for (String dependency : managedDependencies) {
             Coordinate coordinate = coordinateParser.parse(dependency);
@@ -116,7 +133,8 @@ final class DirectDependencyRequestPlanner {
                     section,
                     packageId,
                     managedVersion(section, packageId, projectManagedVersions),
-                    scope));
+                    scope,
+                    retryCommand));
         }
     }
 
@@ -125,8 +143,9 @@ final class DirectDependencyRequestPlanner {
             String section,
             PackageId packageId,
             String version,
-            DependencyScope scope) {
-        validateSupportedVersion(section, packageId, version);
+            DependencyScope scope,
+            String retryCommand) {
+        validateSupportedVersion(section, packageId, version, retryCommand);
         DependencyMetadata metadata = config.dependencyMetadata()
                 .get(DependencyMetadata.key(section, packageId.toString()));
         if (metadata == null || metadata.exclusions().isEmpty()) {
@@ -138,11 +157,15 @@ final class DirectDependencyRequestPlanner {
                 scope,
                 RequestOrigin.DIRECT,
                 metadata.exclusions().stream()
-                        .map(DirectDependencyRequestPlanner::directExclusion)
+                        .map(exclusion -> directExclusion(exclusion, retryCommand))
                         .toList());
     }
 
-    private static void validateSupportedVersion(String section, PackageId packageId, String version) {
+    private static void validateSupportedVersion(
+            String section,
+            PackageId packageId,
+            String version,
+            String retryCommand) {
         VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version).ifPresent(violation -> {
             throw ResolveException.actionable(
                     "Unsupported external dependency version `"
@@ -152,11 +175,13 @@ final class DirectDependencyRequestPlanner {
                             + "` in ["
                             + section
                             + "].",
-                    violation.guidance() + " Use a fixed released version, then run `zolt resolve` again.");
+                    violation.guidance() + " Use a fixed released version, then run `"
+                            + retryCommand
+                            + "` again.");
         });
     }
 
-    private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion) {
+    private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion, String retryCommand) {
         if ("*".equals(exclusion.group()) || "*".equals(exclusion.artifact())) {
             throw ResolveException.actionable(
                     "Wildcard dependency exclusions are not supported in zolt.toml: "
@@ -164,7 +189,9 @@ final class DirectDependencyRequestPlanner {
                             + ":"
                             + exclusion.artifact()
                             + ".",
-                    "Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
+                    "Replace it with explicit group and artifact exclusions, then run `"
+                            + retryCommand
+                            + "` again.");
         }
         return new DependencyExclusion(exclusion.group(), exclusion.artifact());
     }

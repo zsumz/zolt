@@ -24,18 +24,21 @@ final class DependencyTraversalCandidateSelector {
     private final List<DependencyGlobalExclusion> globalExclusions;
     private final Map<PackageId, DependencyConstraint> strictConstraints;
     private final Map<PackageId, ManagedVersion> rootManagedVersions;
+    private final String retryCommand;
 
     DependencyTraversalCandidateSelector(
             DependencyTraversalPolicy traversalPolicy,
             DependencyTransitiveScopeSelector transitiveScopeSelector,
             List<DependencyGlobalExclusion> globalExclusions,
             Map<PackageId, DependencyConstraint> strictConstraints,
-            Map<PackageId, ManagedVersion> rootManagedVersions) {
+            Map<PackageId, ManagedVersion> rootManagedVersions,
+            String retryCommand) {
         this.traversalPolicy = traversalPolicy;
         this.transitiveScopeSelector = transitiveScopeSelector;
         this.globalExclusions = List.copyOf(globalExclusions);
         this.strictConstraints = Map.copyOf(strictConstraints);
         this.rootManagedVersions = Map.copyOf(rootManagedVersions);
+        this.retryCommand = retryCommand == null || retryCommand.isBlank() ? "zolt resolve" : retryCommand.trim();
     }
 
     DependencyTraversalSelection select(DependencyTraversalCandidate candidate) {
@@ -71,7 +74,7 @@ final class DependencyTraversalCandidateSelector {
                 packageId,
                 constraint,
                 managedVersion);
-        validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source());
+        validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source(), retryCommand);
         List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
         if (constraint != null) {
             policyEffects.add(strictVersionEffect(
@@ -242,7 +245,8 @@ final class DependencyTraversalCandidateSelector {
     private static void validateSupportedTransitiveVersion(
             PackageId packageId,
             String requestedVersion,
-            PackageNode source) {
+            PackageNode source,
+            String retryCommand) {
         VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, requestedVersion).ifPresent(violation -> {
             throw ResolveException.actionable(
                     "Unsupported transitive dependency version `"
@@ -253,9 +257,28 @@ final class DependencyTraversalCandidateSelector {
                             + sourceCoordinate(source)
                             + "`.",
                     violation.guidance()
-                            + " Pin a fixed version via a [platforms] entry or a [dependencyPolicy]"
-                            + " constraint, then run `zolt resolve` again.");
+                            + " Add [dependencyConstraints] entry `\""
+                            + packageId
+                            + "\" = { version = \""
+                            + fixedVersionExample(requestedVersion)
+                            + "\", kind = \"strict\" }`, then run `"
+                            + retryCommand
+                            + "` again.");
         });
+    }
+
+    private static String fixedVersionExample(String requestedVersion) {
+        if (requestedVersion == null || requestedVersion.length() < 3) {
+            return "1.0.0";
+        }
+        int comma = requestedVersion.indexOf(',');
+        if ((requestedVersion.startsWith("[") || requestedVersion.startsWith("(")) && comma > 1) {
+            String lowerBound = requestedVersion.substring(1, comma).trim();
+            if (!lowerBound.isBlank()) {
+                return lowerBound;
+            }
+        }
+        return "1.0.0";
     }
 
     private static String sourceCoordinate(PackageNode node) {

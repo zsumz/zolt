@@ -47,13 +47,22 @@ public final class DependencyGraphTraverser {
             DependencyMetadataSource metadataSource,
             DependencyPolicySettings dependencyPolicy,
             Map<PackageId, ManagedVersion> rootManagedVersions) {
+        this(metadataSource, dependencyPolicy, rootManagedVersions, "zolt resolve");
+    }
+
+    public DependencyGraphTraverser(
+            DependencyMetadataSource metadataSource,
+            DependencyPolicySettings dependencyPolicy,
+            Map<PackageId, ManagedVersion> rootManagedVersions,
+            String retryCommand) {
         this(
                 metadataSource,
                 new PomDependencyManager(),
                 new DependencyNormalizer(),
                 new DependencyTraversalPolicy(),
                 dependencyPolicy,
-                rootManagedVersions);
+                rootManagedVersions,
+                retryCommand);
     }
 
     DependencyGraphTraverser(
@@ -62,7 +71,8 @@ public final class DependencyGraphTraverser {
             DependencyNormalizer normalizer,
             DependencyTraversalPolicy traversalPolicy,
             DependencyPolicySettings dependencyPolicy,
-            Map<PackageId, ManagedVersion> rootManagedVersions) {
+            Map<PackageId, ManagedVersion> rootManagedVersions,
+            String retryCommand) {
         this.metadataSource = metadataSource;
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
@@ -70,9 +80,10 @@ public final class DependencyGraphTraverser {
         this.candidateSelector = new DependencyTraversalCandidateSelector(
                 traversalPolicy,
                 new DependencyTransitiveScopeSelector(),
-                globalExclusions(dependencyPolicy),
+                globalExclusions(dependencyPolicy, retryCommand),
                 strictConstraints(dependencyPolicy),
-                rootManagedVersions);
+                rootManagedVersions,
+                retryCommand);
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {
@@ -160,7 +171,9 @@ public final class DependencyGraphTraverser {
                 Optional.ofNullable(request.requestedVersion()));
     }
 
-    private static List<DependencyGlobalExclusion> globalExclusions(DependencyPolicySettings dependencyPolicy) {
+    private static List<DependencyGlobalExclusion> globalExclusions(
+            DependencyPolicySettings dependencyPolicy,
+            String retryCommand) {
         if (dependencyPolicy == null) {
             return List.of();
         }
@@ -173,7 +186,9 @@ public final class DependencyGraphTraverser {
                                         + ":"
                                         + exclusion.artifact()
                                         + ".",
-                                "Replace it with explicit group and artifact exclusions, then run `zolt resolve` again.");
+                                "Replace it with explicit group and artifact exclusions, then run `"
+                                        + retryCommand
+                                        + "` again.");
                     }
                     return new DependencyGlobalExclusion(
                             new DependencyExclusion(exclusion.group(), exclusion.artifact()),

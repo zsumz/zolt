@@ -39,15 +39,27 @@ public final class DependencyRequestPlanner {
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions,
             boolean includeCoverageTooling) {
-        List<DependencyRequest> requests = directDependencyRequestPlanner.plan(config, projectManagedVersions);
+        return plan(config, projectManagedVersions, includeCoverageTooling, "zolt resolve");
+    }
+
+    public List<DependencyRequest> plan(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            boolean includeCoverageTooling,
+            String retryCommand) {
+        List<DependencyRequest> requests = directDependencyRequestPlanner.plan(
+                config,
+                projectManagedVersions,
+                retryCommand);
         toolingDependencyContributor.contribute(config, projectManagedVersions, requests, includeCoverageTooling);
-        validateDirectRequestsAllowed(config, requests);
+        validateDirectRequestsAllowed(config, requests, retryCommand);
         return List.copyOf(requests);
     }
 
     private static void validateDirectRequestsAllowed(
             ProjectConfig config,
-            List<DependencyRequest> directRequests) {
+            List<DependencyRequest> directRequests,
+            String retryCommand) {
         List<DependencyPolicyExclusion> exclusions = config.dependencyPolicy().exclusions();
         if (exclusions.isEmpty()) {
             return;
@@ -64,7 +76,9 @@ public final class DependencyRequestPlanner {
                                     + request.packageId()
                                     + "`."
                                     + reason
-                                    + " Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry, then run `zolt resolve` again.");
+                                    + " Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry, then run `"
+                                    + retryCommand
+                                    + "` again.");
                 }
             }
         }

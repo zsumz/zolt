@@ -92,7 +92,12 @@ public final class WorkspaceBuildService {
         Path lockfilePath = workspace.root().resolve("zolt.lock");
         Optional<ResolveResult> resolveResult = Optional.empty();
         if (!Files.isRegularFile(lockfilePath)) {
-            resolveResult = Optional.of(workspaceResolveService.resolve(start, cacheRoot, false, offline));
+            resolveResult = Optional.of(workspaceResolveService.resolve(
+                    start,
+                    cacheRoot,
+                    false,
+                    offline,
+                    "zolt build --workspace"));
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);

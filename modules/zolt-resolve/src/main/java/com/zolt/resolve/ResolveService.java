@@ -151,14 +151,16 @@ public final class ResolveService {
         List<DependencyRequest> directRequests = dependencyRequestPlanner.plan(
                 config,
                 managedVersions,
-                options.includeCoverageTooling());
+                options.includeCoverageTooling(),
+                options.retryCommand());
         directRequests = relocateDirectRequests(context, directRequests);
         DependencyGraphResolution initial = graphResolver.resolve(
                 context,
                 context.config().dependencyPolicy(),
                 managedVersionDetails,
                 directRequests,
-                context);
+                context,
+                options.retryCommand());
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         allRequests.addAll(frameworkDependencyRequestPlanner.plan(frameworkPlanRequestAssembler.assemble(
                 context.config(),
@@ -175,8 +177,9 @@ public final class ResolveService {
                         context.config().dependencyPolicy(),
                         managedVersionDetails,
                         allRequests,
-                        context);
-        enforceVersionConflictPolicy(context.config().dependencyPolicy(), resolved.selection());
+                        context,
+                        options.retryCommand());
+        enforceVersionConflictPolicy(context.config().dependencyPolicy(), resolved.selection(), options.retryCommand());
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
     }
@@ -200,7 +203,8 @@ public final class ResolveService {
 
     private static void enforceVersionConflictPolicy(
             DependencyPolicySettings dependencyPolicy,
-            VersionSelectionResult selection) {
+            VersionSelectionResult selection,
+            String retryCommand) {
         if (dependencyPolicy == null
                 || !dependencyPolicy.failOnVersionConflict()
                 || selection.conflicts().isEmpty()) {
@@ -213,7 +217,9 @@ public final class ResolveService {
         throw ResolveException.actionable(
                 "Dependency version conflicts are disallowed by [dependencyPolicy].failOnVersionConflict.",
                 "Align the conflicting versions with a [platforms] BOM, a direct dependency, or a "
-                        + "[dependencyPolicy] strict constraint, then run `zolt resolve` again. Conflicts: "
+                        + "[dependencyConstraints] strict constraint, then run `"
+                        + retryCommand
+                        + "` again. Conflicts: "
                         + String.join("; ", conflicts));
     }
 
@@ -252,7 +258,8 @@ public final class ResolveService {
         DependencyGraphTraverser create(
                 DependencyMetadataSource source,
                 DependencyPolicySettings dependencyPolicy,
-                Map<PackageId, ManagedVersion> managedVersions);
+                Map<PackageId, ManagedVersion> managedVersions,
+                String retryCommand);
     }
 
 }

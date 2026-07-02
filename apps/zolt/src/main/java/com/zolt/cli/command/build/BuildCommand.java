@@ -111,7 +111,7 @@ public final class BuildCommand implements Runnable {
         Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
-                lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline);
+                lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt build --workspace");
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
                         "build workspace",
@@ -149,7 +149,7 @@ public final class BuildCommand implements Runnable {
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
-            lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, offline);
+            lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, offline, "zolt build");
             progress.start("Building project");
             output.work("Building " + config.project().name());
             BuildResult result = timings.measure(

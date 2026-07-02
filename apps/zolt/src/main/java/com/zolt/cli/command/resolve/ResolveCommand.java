@@ -116,7 +116,8 @@ public final class ResolveCommand implements Runnable {
                                 projectRoot,
                                 cacheRoot,
                                 locked,
-                                offline),
+                                offline,
+                                "zolt resolve --workspace"),
                         ResolveCommand::resolveAttributes));
                 CommandResolveOutput.print(spec, result, !locked);
                 CommandHumanOutput.of(spec).action("zolt build --workspace");
@@ -162,7 +163,7 @@ public final class ResolveCommand implements Runnable {
         for (String overlay : repositoryOverlays) {
             overlays.add(repositoryOverlay(overlay));
         }
-        return new ResolveOptions(offline, overlays, noLocalOverlays);
+        return new ResolveOptions(offline, overlays, noLocalOverlays).withRetryCommand("zolt resolve");
     }
 
     private RepositoryOverlay repositoryOverlay(String value) {

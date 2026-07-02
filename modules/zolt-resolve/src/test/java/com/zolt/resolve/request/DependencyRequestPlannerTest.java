@@ -78,11 +78,12 @@ final class DependencyRequestPlannerTest {
     void rejectsUnsupportedManagedVersionFromPlanningInputs() {
         ResolveException exception = assertThrows(
                 ResolveException.class,
-                () -> planner.plan(managedTestDependencyConfig(), Map.of(TEST_APP, "1.+"), false));
+                () -> planner.plan(managedTestDependencyConfig(), Map.of(TEST_APP, "1.+"), false, "zolt build"));
 
         assertTrue(exception.getMessage().contains("Unsupported external dependency version `1.+`"));
         assertTrue(exception.getMessage().contains("com.example:test-app"));
         assertTrue(exception.getMessage().contains("fixed released version"));
+        assertTrue(exception.getMessage().contains("run `zolt build` again"));
     }
 
     @Test
@@ -96,13 +97,14 @@ final class DependencyRequestPlannerTest {
 
         ResolveException exception = assertThrows(
                 ResolveException.class,
-                () -> planner.plan(config, Map.of(JUNIT_CONSOLE, "1.12.0"), false));
+                () -> planner.plan(config, Map.of(JUNIT_CONSOLE, "1.12.0"), false, "zolt build"));
 
         assertTrue(exception.getMessage()
                 .contains("Dependency policy excludes direct dependency `org.junit.platform:junit-platform-console`"));
         assertTrue(exception.getMessage().contains("Use an internal test launcher"));
         assertTrue(exception.getMessage()
                 .contains("Remove the direct dependency or remove the matching [dependencyPolicy].exclude entry"));
+        assertTrue(exception.getMessage().contains("run `zolt build` again"));
     }
 
     @Test

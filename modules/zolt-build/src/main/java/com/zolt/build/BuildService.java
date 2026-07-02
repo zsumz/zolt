@@ -27,6 +27,7 @@ import com.zolt.lockfile.toml.ZoltLockfileReader;
 import com.zolt.project.GeneratedSourceKind;
 import com.zolt.project.ProjectConfig;
 import com.zolt.resolve.ResolveResult;
+import com.zolt.resolve.ResolveOptions;
 import com.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,7 +111,7 @@ public final class BuildService {
                     request.config(),
                     request.cacheRoot(),
                     false,
-                    request.offline()));
+                    ResolveOptions.offline(request.offline()).withRetryCommand("zolt build")));
         }
         if (openApiToolingMissing(request)) {
             resolveResult = Optional.of(resolveService.resolve(
@@ -118,7 +119,7 @@ public final class BuildService {
                     request.config(),
                     request.cacheRoot(),
                     false,
-                    request.offline()));
+                    ResolveOptions.offline(request.offline()).withRetryCommand("zolt build")));
         }
 
         ZoltLockfile lockfile = lockfileReader.read(lockfilePath);

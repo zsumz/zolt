@@ -163,6 +163,8 @@ final class ResolveServicePolicyConstraintTest extends ResolveServiceTestSupport
         assertTrue(exception.getMessage().contains("1.0.0 [transitive compile]"));
         assertTrue(exception.getMessage().contains("2.0.0 [direct compile]"));
         assertTrue(exception.getMessage().contains("Align the conflicting versions with a [platforms] BOM"));
+        assertTrue(exception.getMessage().contains("[dependencyConstraints] strict constraint"));
+        assertTrue(!exception.getMessage().contains("[dependencyPolicy] strict constraint"));
     }
 
     @Test
