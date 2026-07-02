@@ -51,7 +51,7 @@ final class MavenProjectInspectionBuilder {
                 .filter(MavenDependencyInspection::importedBom)
                 .toList();
         List<MavenRepositoryInspection> repositories = repositories(project);
-        List<MavenPluginInspection> plugins = plugins(project);
+        List<MavenPluginInspection> plugins = plugins(project, properties);
         List<MavenProfileInspection> profiles = profiles(project);
 
         return new MavenProjectInspection(
@@ -59,7 +59,7 @@ final class MavenProjectInspectionBuilder {
                 artifactId(project, projectDirectory),
                 groupId(project, properties),
                 projectVersion(project, properties),
-                projectName(project),
+                projectName(project, properties),
                 text(project, "packaging").orElse("jar"),
                 javaVersion(project, properties),
                 modules,
@@ -101,31 +101,34 @@ final class MavenProjectInspectionBuilder {
         return repositories;
     }
 
-    private static List<MavenPluginInspection> plugins(Element project) {
+    private static List<MavenPluginInspection> plugins(Element project, MavenPomProperties properties) {
         Optional<Element> build = child(project, "build");
         if (build.isEmpty()) {
             return List.of();
         }
         List<MavenPluginInspection> plugins = new ArrayList<>();
-        plugins.addAll(pluginList(child(build.orElseThrow(), "plugins"), false));
+        plugins.addAll(pluginList(child(build.orElseThrow(), "plugins"), false, properties));
         child(build.orElseThrow(), "pluginManagement")
                 .flatMap(element -> child(element, "plugins"))
-                .ifPresent(element -> plugins.addAll(pluginList(Optional.of(element), true)));
+                .ifPresent(element -> plugins.addAll(pluginList(Optional.of(element), true, properties)));
         plugins.sort(Comparator
                 .comparing(MavenPluginInspection::coordinate)
                 .thenComparing(MavenPluginInspection::pluginManagement));
         return plugins;
     }
 
-    private static List<MavenPluginInspection> pluginList(Optional<Element> pluginsElement, boolean pluginManagement) {
+    private static List<MavenPluginInspection> pluginList(
+            Optional<Element> pluginsElement,
+            boolean pluginManagement,
+            MavenPomProperties properties) {
         if (pluginsElement.isEmpty()) {
             return List.of();
         }
         List<MavenPluginInspection> plugins = new ArrayList<>();
         for (Element plugin : children(pluginsElement.orElseThrow(), "plugin")) {
-            String groupId = text(plugin, "groupId").orElse("org.apache.maven.plugins");
-            String artifactId = text(plugin, "artifactId").orElse("unknown-plugin");
-            String version = text(plugin, "version").orElse("");
+            String groupId = properties.interpolate(text(plugin, "groupId").orElse("org.apache.maven.plugins"));
+            String artifactId = properties.interpolate(text(plugin, "artifactId").orElse("unknown-plugin"));
+            String version = properties.interpolate(text(plugin, "version").orElse(""));
             List<Element> executions = child(plugin, "executions")
                     .map(executionsElement -> children(executionsElement, "execution"))
                     .orElseGet(List::of);
@@ -333,7 +336,9 @@ final class MavenProjectInspectionBuilder {
                 .orElse("");
     }
 
-    private static String projectName(Element project) {
-        return text(project, "name").orElse("");
+    private static String projectName(Element project, MavenPomProperties properties) {
+        return text(project, "name")
+                .map(properties::interpolate)
+                .orElse("");
     }
 }

@@ -375,4 +375,5 @@ final class MavenInspectionInterpolationTest {
         assertTrue(json.contains("\"version\": \"3.2.1\""), () -> json);
         assertTrue(json.contains("\"displayName\": \"Acme Orders API\""), () -> json);
     }
+
 }
