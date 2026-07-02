@@ -29,7 +29,7 @@ final class GradleBuildFileParser {
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
 
     List<GradlePluginInspection> plugins(String content) {
-        String block = block(content, "plugins").orElse("");
+        String block = GradleScriptBlocks.topLevelBlock(content, "plugins").orElse("");
         List<GradlePluginInspection> plugins = new ArrayList<>();
         Matcher idMatcher = ID_PLUGIN_PATTERN.matcher(block);
         while (idMatcher.find()) {
@@ -54,25 +54,47 @@ final class GradleBuildFileParser {
     }
 
     List<GradleRepositoryInspection> repositories(String content) {
+        return repositoriesFromBlocks(repositoryBlocks(content));
+    }
+
+    List<String> repositoryBlocks(String content) {
+        return GradleScriptBlocks.topLevelBlocks(content, "repositories");
+    }
+
+    List<GradleRepositoryInspection> settingsRepositories(String content) {
+        return repositoriesFromBlocks(GradleScriptBlocks.blocksAtPath(
+                content,
+                List.of("dependencyResolutionManagement", "repositories")));
+    }
+
+    private static List<GradleRepositoryInspection> repositoriesFromBlocks(List<String> blocks) {
         List<GradleRepositoryInspection> repositories = new ArrayList<>();
-        if (content.contains("mavenCentral()")) {
-            repositories.add(new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2"));
-        }
-        if (content.contains("gradlePluginPortal()")) {
-            repositories.add(new GradleRepositoryInspection("gradlePluginPortal", "https://plugins.gradle.org/m2"));
-        }
-        if (content.contains("google()")) {
-            repositories.add(new GradleRepositoryInspection("google", "https://dl.google.com/dl/android/maven2"));
-        }
-        if (content.contains("mavenLocal()")) {
-            repositories.add(new GradleRepositoryInspection("mavenLocal", "~/.m2/repository"));
-        }
-        Matcher urlMatcher = REPOSITORY_URL_PATTERN.matcher(content);
-        while (urlMatcher.find()) {
-            repositories.add(new GradleRepositoryInspection("maven", urlMatcher.group(1)));
+        for (String block : blocks) {
+            if (block.contains("mavenCentral()")) {
+                addRepository(repositories, new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2"));
+            }
+            if (block.contains("gradlePluginPortal()")) {
+                addRepository(repositories, new GradleRepositoryInspection("gradlePluginPortal", "https://plugins.gradle.org/m2"));
+            }
+            if (block.contains("google()")) {
+                addRepository(repositories, new GradleRepositoryInspection("google", "https://dl.google.com/dl/android/maven2"));
+            }
+            if (block.contains("mavenLocal()")) {
+                addRepository(repositories, new GradleRepositoryInspection("mavenLocal", "~/.m2/repository"));
+            }
+            Matcher urlMatcher = REPOSITORY_URL_PATTERN.matcher(block);
+            while (urlMatcher.find()) {
+                addRepository(repositories, new GradleRepositoryInspection("maven", urlMatcher.group(1)));
+            }
         }
         repositories.sort(Comparator.comparing(GradleRepositoryInspection::kind).thenComparing(GradleRepositoryInspection::url));
         return repositories;
+    }
+
+    private static void addRepository(List<GradleRepositoryInspection> repositories, GradleRepositoryInspection repository) {
+        if (!repositories.contains(repository)) {
+            repositories.add(repository);
+        }
     }
 
     List<GradleDependencyInspection> dependencies(
@@ -81,19 +103,18 @@ final class GradleBuildFileParser {
             Map<String, List<String>> catalogBundles,
             String project,
             List<ExplainSignal> signals) {
-        String block = block(content, "dependencies").orElse("");
         List<GradleDependencyInspection> dependencies = new ArrayList<>();
+        List<String> dependencyBlocks = GradleScriptBlocks.topLevelBlocks(content, "dependencies");
         for (String configuration : DEPENDENCY_CONFIGURATIONS) {
-            // Anchor the configuration to a statement-leading token (start of line, or after `{`/`;`)
-            // and require the token to end, so a config name only matches when it is the leading
-            // identifier of a dependency statement. This stops the `api` inside `slf4j-api` (a regex
-            // word boundary at `-`/`:`) from spawning a phantom `api`-scope dependency.
             Pattern pattern = Pattern.compile(
                     "(?m)(?:^|[{;])[\\t ]*" + Pattern.quote(configuration) + "(?![A-Za-z0-9_])\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
-            Matcher matcher = pattern.matcher(block);
-            while (matcher.find()) {
-                String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();
-                dependencies.addAll(dependencies(configuration, expression, versionCatalog, catalogBundles, project, signals));
+            for (String block : dependencyBlocks) {
+                String topLevelStatements = GradleScriptBlocks.withoutNestedBlocks(block);
+                Matcher matcher = pattern.matcher(topLevelStatements);
+                while (matcher.find()) {
+                    String expression = (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).trim();
+                    dependencies.addAll(dependencies(configuration, expression, versionCatalog, catalogBundles, project, signals));
+                }
             }
         }
         dependencies.sort(Comparator
@@ -119,17 +140,24 @@ final class GradleBuildFileParser {
     }
 
     Optional<String> group(String content) {
-        return stringAssignment(content, "group");
+        return topLevelStringAssignment(content, "group");
     }
 
     Optional<String> version(String content) {
-        return stringAssignment(content, "version");
+        return topLevelStringAssignment(content, "version");
     }
 
     Optional<String> mainClass(String content) {
-        return firstQuotedAfter(content, List.of(
+        Optional<String> topLevel = firstQuotedAfter(GradleScriptBlocks.withoutNestedBlocks(content), List.of(
                 Pattern.compile("\\bmainClass\\s*(?:=|\\.set\\s*\\(|\\.value\\s*\\()\\s*['\"]([^'\"]+)['\"]"),
                 Pattern.compile("\\bmainClassName\\s*=\\s*['\"]([^'\"]+)['\"]")));
+        if (topLevel.isPresent()) {
+            return topLevel;
+        }
+        return GradleScriptBlocks.topLevelBlock(content, "application")
+                .flatMap(block -> firstQuotedAfter(block, List.of(
+                        Pattern.compile("\\bmainClass\\s*(?:=|\\.set\\s*\\(|\\.value\\s*\\()\\s*['\"]([^'\"]+)['\"]"),
+                        Pattern.compile("\\bmainClassName\\s*=\\s*['\"]([^'\"]+)['\"]"))));
     }
 
     /**
@@ -142,6 +170,10 @@ final class GradleBuildFileParser {
         return firstQuotedAfter(content, List.of(
                 Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(property) + "\\s*=\\s*['\"]([^'\"$]+)['\"]"),
                 Pattern.compile("(?m)^[\\t ]*" + Pattern.quote(property) + "\\s+['\"]([^'\"$]+)['\"]")));
+    }
+
+    private static Optional<String> topLevelStringAssignment(String content, String property) {
+        return stringAssignment(GradleScriptBlocks.withoutNestedBlocks(content), property);
     }
 
     private static Optional<String> firstQuotedAfter(String content, List<Pattern> patterns) {
@@ -158,11 +190,11 @@ final class GradleBuildFileParser {
     }
 
     List<String> sourceRoots(String content, String sourceSet, String defaultRoot) {
-        Optional<String> sourceSets = block(content, "sourceSets");
+        Optional<String> sourceSets = GradleScriptBlocks.topLevelBlock(content, "sourceSets");
         if (sourceSets.isEmpty()) {
             return List.of(defaultRoot);
         }
-        Optional<String> sourceSetBlock = block(sourceSets.orElseThrow(), sourceSet);
+        Optional<String> sourceSetBlock = GradleScriptBlocks.topLevelBlock(sourceSets.orElseThrow(), sourceSet);
         if (sourceSetBlock.isEmpty()) {
             return List.of(defaultRoot);
         }
@@ -190,20 +222,38 @@ final class GradleBuildFileParser {
         if (mapNotation.isPresent()) {
             return List.of(new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), ""));
         }
-        Optional<String> quoted = firstQuoted(notation);
-        if (quoted.isPresent()) {
-            return List.of(new GradleDependencyInspection(configuration, quoted.orElseThrow(), quoted.orElseThrow(), ""));
+        List<String> quoted = quotedValues(notation);
+        if (!quoted.isEmpty()) {
+            return quoted.stream()
+                    .map(value -> new GradleDependencyInspection(configuration, value, value, ""))
+                    .toList();
         }
         Optional<String> bundle = catalogBundleAlias(notation);
         if (bundle.isPresent()) {
             return bundleDependencies(configuration, notation, bundle.orElseThrow(), catalogBundles, project, signals);
         }
-        Optional<String> alias = catalogAlias(notation);
-        if (alias.isPresent()) {
-            String key = alias.orElseThrow();
-            return List.of(new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key));
+        List<String> aliases = catalogAliases(notation);
+        if (!aliases.isEmpty()) {
+            return aliases.stream()
+                    .map(key -> new GradleDependencyInspection(configuration, notation, versionCatalog.getOrDefault(key, ""), key))
+                    .toList();
         }
-        return List.of(new GradleDependencyInspection(configuration, notation, "", ""));
+        unresolvedDependencySignal(project, configuration, notation, signals);
+        return List.of();
+    }
+
+    private static void unresolvedDependencySignal(
+            String project,
+            String configuration,
+            String notation,
+            List<ExplainSignal> signals) {
+        if (notation.isBlank()) {
+            return;
+        }
+        signals.add(ExplainSignals.GRADLE_DEPENDENCY_UNRESOLVED_NOTATION.signal(
+                project,
+                "Gradle dependency `" + configuration + " " + notation
+                        + "` is not a statically resolvable literal and was not emitted as a dependency."));
     }
 
     private static List<GradleDependencyInspection> bundleDependencies(
@@ -248,35 +298,18 @@ final class GradleBuildFileParser {
         return matcher.find() ? matcher.group(1) : "";
     }
 
-    private static Optional<String> catalogAlias(String expression) {
-        Matcher matcher = Pattern.compile("\\blibs\\.([A-Za-z0-9_.-]+)").matcher(expression);
-        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
+    private static List<String> catalogAliases(String expression) {
+        Matcher matcher = Pattern.compile("\\blibs\\.(?!bundles\\.)([A-Za-z0-9_.-]+)").matcher(expression);
+        List<String> aliases = new ArrayList<>();
+        while (matcher.find()) {
+            aliases.add(matcher.group(1));
+        }
+        return aliases;
     }
 
     private static Optional<String> catalogBundleAlias(String expression) {
         Matcher matcher = Pattern.compile("\\blibs\\.bundles\\.([A-Za-z0-9_.-]+)").matcher(expression);
         return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
-    }
-
-    private static Optional<String> block(String content, String name) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(name) + "\\s*\\{").matcher(content);
-        if (!matcher.find()) {
-            return Optional.empty();
-        }
-        int openBrace = content.indexOf('{', matcher.start());
-        int depth = 0;
-        for (int index = openBrace; index < content.length(); index++) {
-            char character = content.charAt(index);
-            if (character == '{') {
-                depth++;
-            } else if (character == '}') {
-                depth--;
-                if (depth == 0) {
-                    return Optional.of(content.substring(openBrace + 1, index));
-                }
-            }
-        }
-        return Optional.of(content.substring(openBrace + 1));
     }
 
     private static List<String> quotedValues(String input) {
@@ -294,11 +327,6 @@ final class GradleBuildFileParser {
         return values;
     }
 
-    private static Optional<String> firstQuoted(String value) {
-        Matcher matcher = QUOTED_PATTERN.matcher(value);
-        return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
-    }
-
     private static boolean containsAny(String content, String... values) {
         for (String value : values) {
             if (content.contains(value)) {
@@ -311,4 +339,5 @@ final class GradleBuildFileParser {
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
+
 }

@@ -120,6 +120,39 @@ final class GradleStaticProjectInspectorTest {
     }
 
     @Test
+    void readsDependencyResolutionManagementRepositoriesFromSettings() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle.kts"), """
+                rootProject.name = "settings-repos"
+
+                dependencyResolutionManagement {
+                    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+                    repositories {
+                        mavenCentral()
+                        maven {
+                            url = uri("https://repo.settings.example/releases")
+                        }
+                    }
+                }
+                """);
+        Files.writeString(tempDir.resolve("build.gradle.kts"), """
+                plugins { java }
+                dependencies {
+                    implementation("com.example:lib:1.0")
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertTrue(project.repositories().stream().anyMatch(repository ->
+                repository.kind().equals("mavenCentral")
+                        && repository.url().equals("https://repo.maven.apache.org/maven2")));
+        assertTrue(project.repositories().stream().anyMatch(repository ->
+                repository.kind().equals("maven")
+                        && repository.url().equals("https://repo.settings.example/releases")));
+    }
+
+    @Test
     void reportsMultiProjectIncludesAndMissingBuildFiles() throws IOException {
         Files.writeString(tempDir.resolve("settings.gradle.kts"), """
                 rootProject.name = "multi"

@@ -63,6 +63,7 @@ public final class GradleStaticProjectInspector {
                 normalizedRoot,
                 path,
                 rootProjectName,
+                buildFileParser.settingsRepositories(settingsContent),
                 versionCatalog,
                 catalogBundles,
                 signals)));
@@ -71,7 +72,7 @@ public final class GradleStaticProjectInspector {
             String projectName = projectDirectory.getFileName().toString();
             Optional<Path> includedBuildFile = settingsBuildFileNames.buildFile(projectDirectory, projectName);
             if (includedBuildFile.isPresent()) {
-                projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), Optional.empty(), versionCatalog, catalogBundles, signals));
+                projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), Optional.empty(), List.of(), versionCatalog, catalogBundles, signals));
                 continue;
             }
             Optional<ExplainSignal> unresolvedBuildFileName = settingsBuildFileNames.unresolvedCandidateSignal(
@@ -106,6 +107,7 @@ public final class GradleStaticProjectInspector {
             Path projectDirectory,
             Path buildFile,
             Optional<String> declaredName,
+            List<GradleRepositoryInspection> settingsRepositories,
             Map<String, String> versionCatalog,
             Map<String, List<String>> catalogBundles,
             List<ExplainSignal> signals) {
@@ -131,10 +133,23 @@ public final class GradleStaticProjectInspector {
                 buildFileParser.version(content),
                 buildFileParser.mainClass(content),
                 plugins,
-                buildFileParser.repositories(content),
+                repositories(content, settingsRepositories),
                 dependencies,
                 buildFileParser.sourceRoots(content, "main", "src/main/java"),
                 buildFileParser.sourceRoots(content, "test", "src/test/java"));
+    }
+
+    private List<GradleRepositoryInspection> repositories(
+            String buildFileContent,
+            List<GradleRepositoryInspection> settingsRepositories) {
+        List<GradleRepositoryInspection> repositories = new ArrayList<>(buildFileParser.repositories(buildFileContent));
+        for (GradleRepositoryInspection repository : settingsRepositories) {
+            if (!repositories.contains(repository)) {
+                repositories.add(repository);
+            }
+        }
+        repositories.sort(Comparator.comparing(GradleRepositoryInspection::kind).thenComparing(GradleRepositoryInspection::url));
+        return repositories;
     }
 
     private static List<GradleVersionCatalogAlias> parseVersionCatalog(

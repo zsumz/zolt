@@ -125,6 +125,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.NON_DETERMINISM,
             "Replace Gradle dynamic versions with fixed versions or explicit platforms before migrating.");
+    public static final ExplainSignalDefinition GRADLE_DEPENDENCY_UNRESOLVED_NOTATION = new ExplainSignalDefinition(
+            "gradle.dependency.unresolved-notation",
+            ExplainSignal.Severity.UNKNOWN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Review the Gradle dependency expression and add an explicit Zolt dependency if it applies.");
     public static final ExplainSignalDefinition GRADLE_CROSS_PROJECT_BUILD_LOGIC = new ExplainSignalDefinition(
             "gradle.cross-project-build-logic",
             ExplainSignal.Severity.BLOCK,
@@ -241,6 +246,7 @@ public final class ExplainSignals {
             GRADLE_INCLUDED_BUILD_DETECTED,
             GRADLE_IMPERATIVE_DEPENDENCY_LOGIC,
             GRADLE_DEPENDENCY_DYNAMIC_VERSION,
+            GRADLE_DEPENDENCY_UNRESOLVED_NOTATION,
             GRADLE_CROSS_PROJECT_BUILD_LOGIC,
             GRADLE_CUSTOM_TASK_DETECTED,
             GRADLE_START_PARAMETER_MUTATION,

@@ -99,6 +99,14 @@ public final class GradleMigrationReadinessFindings {
                     "fixed versions, [versions], and [platforms]",
                     "",
                     signal.nextStep());
+            case "gradle.dependency.unresolved-notation" -> MigrationReadinessFindings.finding(
+                    "dependencies",
+                    MigrationReadinessCategory.UNKNOWN,
+                    signal,
+                    "unresolved Gradle dependency expression",
+                    "explicit [dependencies]",
+                    "",
+                    signal.nextStep());
             case "gradle.cross-project-build-logic" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.BLOCKED,

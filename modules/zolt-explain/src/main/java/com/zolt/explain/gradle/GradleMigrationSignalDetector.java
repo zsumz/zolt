@@ -6,7 +6,6 @@ import com.zolt.project.VersionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class GradleMigrationSignalDetector {
@@ -182,7 +181,7 @@ final class GradleMigrationSignalDetector {
 
     private static List<ExplainSignal> enterpriseSignals(String project, String content) {
         List<ExplainSignal> signals = new ArrayList<>();
-        String repositoriesBlock = block(content, "repositories").orElse("");
+        String repositoriesBlock = String.join("\n", new GradleBuildFileParser().repositoryBlocks(content));
         if (repositoriesBlock.contains("credentials")) {
             signals.add(ExplainSignals.GRADLE_REPOSITORY_CREDENTIALS.signal(
                     project,
@@ -225,27 +224,6 @@ final class GradleMigrationSignalDetector {
                     "Gradle Maven Publish configuration selects artifacts and repositories."));
         }
         return signals;
-    }
-
-    private static Optional<String> block(String content, String name) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(name) + "\\s*\\{").matcher(content);
-        if (!matcher.find()) {
-            return Optional.empty();
-        }
-        int openBrace = content.indexOf('{', matcher.start());
-        int depth = 0;
-        for (int index = openBrace; index < content.length(); index++) {
-            char character = content.charAt(index);
-            if (character == '{') {
-                depth++;
-            } else if (character == '}') {
-                depth--;
-                if (depth == 0) {
-                    return Optional.of(content.substring(openBrace + 1, index));
-                }
-            }
-        }
-        return Optional.of(content.substring(openBrace + 1));
     }
 
     private static boolean containsAny(String content, String... values) {

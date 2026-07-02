@@ -45,6 +45,10 @@ final class ExplainSignalsTest {
                 "gradle.custom-task.detected",
                 ExplainSignal.Severity.WARN,
                 ExplainSignal.Category.BUILDABILITY);
+        assertDefinition(
+                "gradle.dependency.unresolved-notation",
+                ExplainSignal.Severity.UNKNOWN,
+                ExplainSignal.Category.BUILDABILITY);
     }
 
     @Test

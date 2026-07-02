@@ -1,6 +1,7 @@
 package com.zolt.explain.gradle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -100,6 +101,84 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void buildscriptDependenciesAndRepositoriesDoNotPolluteProjectFacts() {
+        String content = """
+                buildscript {
+                    repositories {
+                        mavenLocal()
+                    }
+                    dependencies {
+                        classpath 'com.example:gradle-plugin:1.0'
+                    }
+                }
+
+                dependencies {
+                    implementation 'com.example:app-lib:1.0'
+                }
+
+                repositories {
+                    mavenCentral()
+                }
+                """;
+
+        var dependencies = parser.dependencies(content, Map.of(), Map.of(), ".", new java.util.ArrayList<>());
+        var repositories = parser.repositories(content);
+
+        assertEquals(1, dependencies.size(), () -> "only project-scope dependency should be read: " + dependencies);
+        assertEquals("com.example:app-lib:1.0", dependencies.getFirst().resolvedCoordinate());
+        assertTrue(repositories.stream().anyMatch(repository -> repository.kind().equals("mavenCentral")));
+        assertFalse(repositories.stream().anyMatch(repository -> repository.kind().equals("mavenLocal")),
+                () -> "buildscript mavenLocal must not be reported as a project repository: " + repositories);
+    }
+
+    @Test
+    void readsEveryTopLevelDependenciesBlockAndEveryQuotedCoordinateOnALine() {
+        String content = """
+                dependencies {
+                    implementation 'com.example:first:1.0'
+                }
+
+                dependencies {
+                    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4", "org.junit.jupiter:junit-jupiter-engine:5.11.4")
+                }
+                """;
+
+        var dependencies = parser.dependencies(content, Map.of(), Map.of(), ".", new java.util.ArrayList<>());
+
+        assertEquals(3, dependencies.size(), () -> "expected all top-level blocks and quoted coordinates: " + dependencies);
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("com.example:first:1.0")));
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.junit.jupiter:junit-jupiter-api:5.11.4")));
+        assertTrue(dependencies.stream()
+                .anyMatch(dependency -> dependency.resolvedCoordinate().equals("org.junit.jupiter:junit-jupiter-engine:5.11.4")));
+    }
+
+    @Test
+    void dropsConstraintAndNonLiteralDependencyExpressions() {
+        String content = """
+                dependencies {
+                    implementation 'com.example:real:1.0'
+                    constraints {
+                        implementation 'com.example:constrained:2.0'
+                    }
+                    implementation it
+                    testImplementation project.rootProject
+                }
+                """;
+        var signals = new java.util.ArrayList<com.zolt.explain.ExplainSignal>();
+
+        var dependencies = parser.dependencies(content, Map.of(), Map.of(), ".", signals);
+
+        assertEquals(1, dependencies.size(), () -> "constraints and dynamic loop variables must not be fabricated: " + dependencies);
+        assertEquals("com.example:real:1.0", dependencies.getFirst().resolvedCoordinate());
+        assertEquals(2, signals.size(), () -> "non-literal dependency expressions should be reported as unknown: " + signals);
+        assertTrue(signals.stream().allMatch(signal ->
+                signal.severity() == com.zolt.explain.ExplainSignal.Severity.UNKNOWN
+                        && signal.id().equals("gradle.dependency.unresolved-notation")));
+    }
+
+    @Test
     void configurationNameSubstringInArtifactIdDoesNotSpawnPhantomDependency() {
         String content = """
                 dependencies {
@@ -138,6 +217,25 @@ final class GradleBuildFileParserTest {
     }
 
     @Test
+    void taskLevelGroupAndMainClassAssignmentsDoNotLeakIntoProjectFacts() {
+        String content = """
+                group = "com.example"
+
+                application {
+                    mainClass = "com.example.App"
+                }
+
+                tasks.register<JavaExec>("memoryOverhead") {
+                    group = "Benchmarks"
+                    mainClass = "com.example.bench.MemoryOverhead"
+                }
+                """;
+
+        assertEquals("com.example", parser.group(content).orElseThrow());
+        assertEquals("com.example.App", parser.mainClass(content).orElseThrow());
+    }
+
+    @Test
     void parsesGroovySpaceCallAssignmentsAndMainClassName() {
         String content = """
                 group "com.example.groovy"
@@ -162,6 +260,24 @@ final class GradleBuildFileParserTest {
         assertTrue(parser.group(content).isEmpty(), () -> "interpolated group must not be read as a literal");
         assertTrue(parser.version(content).isEmpty());
         assertTrue(parser.mainClass(content).isEmpty());
+    }
+
+    @Test
+    void arbitraryUriAssignmentsAreNotRepositories() {
+        String content = """
+                extra["license"] = uri("https://www.eclipse.org/legal/epl-2.0")
+
+                repositories {
+                    maven {
+                        url = uri("https://repo.example.com/releases")
+                    }
+                }
+                """;
+
+        var repositories = parser.repositories(content);
+
+        assertEquals(1, repositories.size(), () -> "only repositories block URLs should be read: " + repositories);
+        assertEquals("https://repo.example.com/releases", repositories.getFirst().url());
     }
 
     @Test
