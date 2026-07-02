@@ -12,10 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.tomlj.Toml;
-import org.tomlj.TomlParseError;
-import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
 
 public final class GradleStaticProjectInspector {
     private final GradleBuildFileParser buildFileParser = new GradleBuildFileParser();
@@ -37,7 +33,7 @@ public final class GradleStaticProjectInspector {
         List<ExplainSignal> signals = new ArrayList<>();
         Map<String, String> versionCatalog = new LinkedHashMap<>();
         Map<String, List<String>> catalogBundles = new LinkedHashMap<>();
-        List<GradleVersionCatalogAlias> aliases = new ArrayList<>(parseVersionCatalog(
+        List<GradleVersionCatalogAlias> aliases = new ArrayList<>(GradleVersionCatalogParser.parse(
                 normalizedRoot.resolve("gradle/libs.versions.toml"),
                 versionCatalog,
                 catalogBundles,
@@ -168,131 +164,6 @@ public final class GradleStaticProjectInspector {
         return repositories;
     }
 
-    private static List<GradleVersionCatalogAlias> parseVersionCatalog(
-            Path catalogPath,
-            Map<String, String> aliases,
-            Map<String, List<String>> bundles,
-            List<ExplainSignal> signals) {
-        if (!Files.isRegularFile(catalogPath)) {
-            return List.of();
-        }
-        TomlParseResult result;
-        try {
-            result = Toml.parse(catalogPath);
-        } catch (IOException exception) {
-            throw new MigrationExplainException("Could not read Gradle version catalog for zolt explain: " + catalogPath, exception);
-        }
-        if (result.hasErrors()) {
-            TomlParseError firstError = result.errors().getFirst();
-            signals.add(ExplainSignals.GRADLE_VERSION_CATALOG_MALFORMED.signal(
-                    ".",
-                    "Gradle version catalog could not be parsed near " + firstError.position() + "."));
-            return List.of();
-        }
-        Map<String, String> versions = new LinkedHashMap<>();
-        TomlTable versionTable = result.getTable("versions");
-        if (versionTable != null) {
-            for (String key : versionTable.keySet()) {
-                Object value = versionTable.get(key);
-                if (value instanceof String stringValue && !stringValue.isBlank()) {
-                    versions.put(key, stringValue);
-                }
-            }
-        }
-        List<GradleVersionCatalogAlias> parsed = new ArrayList<>();
-        Map<String, String> libraryCoordinatesByKey = new LinkedHashMap<>();
-        TomlTable libraries = result.getTable("libraries");
-        if (libraries != null) {
-            for (String key : libraries.keySet()) {
-                Optional<String> coordinate = libraryCoordinate(libraries, key, versions);
-                if (coordinate.isPresent()) {
-                    String value = coordinate.orElseThrow();
-                    libraryCoordinatesByKey.put(key, value);
-                    aliases.put(key, value);
-                    aliases.put(key.replace('-', '.'), value);
-                    parsed.add(new GradleVersionCatalogAlias(key, value));
-                }
-            }
-        }
-        parseBundles(result, libraryCoordinatesByKey, bundles, signals);
-        return parsed;
-    }
-
-    private static void parseBundles(
-            TomlParseResult result,
-            Map<String, String> libraryCoordinatesByKey,
-            Map<String, List<String>> bundles,
-            List<ExplainSignal> signals) {
-        TomlTable bundleTable = result.getTable("bundles");
-        if (bundleTable == null) {
-            return;
-        }
-        for (String bundle : bundleTable.keySet()) {
-            org.tomlj.TomlArray memberArray = bundleTable.getArray(List.of(bundle));
-            List<?> members = memberArray == null ? List.of() : memberArray.toList();
-            List<String> coordinates = new ArrayList<>();
-            List<String> unresolved = new ArrayList<>();
-            for (Object member : members) {
-                if (!(member instanceof String memberKey) || memberKey.isBlank()) {
-                    continue;
-                }
-                String coordinate = libraryCoordinatesByKey.get(memberKey);
-                if (coordinate == null) {
-                    coordinate = libraryCoordinatesByKey.get(memberKey.replace('.', '-'));
-                }
-                if (coordinate == null) {
-                    unresolved.add(memberKey);
-                } else {
-                    coordinates.add(coordinate);
-                }
-            }
-            // Register under both raw and dot-normalized keys so `libs.bundles.<x>` resolves
-            // regardless of whether the alias was written with `-` or `.` separators.
-            bundles.put(bundle, coordinates);
-            bundles.put(bundle.replace('-', '.'), coordinates);
-            if (!unresolved.isEmpty()) {
-                signals.add(ExplainSignals.GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED.signal(
-                        ".",
-                        "Gradle version catalog bundle `" + bundle + "` references undefined libraries "
-                                + unresolved + "; those members were dropped from the migration draft."));
-            }
-        }
-    }
-
-    private static Optional<String> libraryCoordinate(TomlTable libraries, String key, Map<String, String> versions) {
-        Object raw = libraries.get(key);
-        if (raw instanceof String value && !value.isBlank()) {
-            return Optional.of(value);
-        }
-        if (!(raw instanceof TomlTable table)) {
-            return Optional.empty();
-        }
-        String module = nullToEmpty(table.getString("module"));
-        if (module.isBlank()) {
-            String group = nullToEmpty(table.getString("group"));
-            String name = nullToEmpty(table.getString("name"));
-            if (!group.isBlank() && !name.isBlank()) {
-                module = group + ":" + name;
-            }
-        }
-        if (module.isBlank()) {
-            return Optional.empty();
-        }
-        Object rawVersion = table.get("version");
-        String version = rawVersion instanceof String stringVersion ? stringVersion : "";
-        if (version.isBlank()) {
-            version = nullToEmpty(table.getString("version.ref"));
-            if (version.isBlank()) {
-                TomlTable versionTable = table.getTable("version");
-                if (versionTable != null) {
-                    version = nullToEmpty(versionTable.getString("ref"));
-                }
-            }
-            version = versions.getOrDefault(version, version);
-        }
-        return Optional.of(version.isBlank() ? module : module + ":" + version);
-    }
-
     private static Optional<Path> buildFile(Path directory) {
         return firstRegularFile(directory.resolve("build.gradle"), directory.resolve("build.gradle.kts"));
     }
@@ -329,10 +200,6 @@ public final class GradleStaticProjectInspector {
 
     private static String path(Path path) {
         return path.toString().replace('\\', '/');
-    }
-
-    private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     private static boolean hasGroovyMainSources(Path projectDirectory, String content) {

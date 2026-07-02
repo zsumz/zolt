@@ -128,6 +128,39 @@ final class InspectionToProjectConfigGradleTest {
         assertFalse(config.testDependencies().values().stream().anyMatch(version -> version.contains("$")));
     }
 
+    @Test
+    void gradleDraftKeepsRichVersionCatalogDependencies() throws IOException {
+        Files.createDirectories(tempDir.resolve("gradle"));
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'catalog-rich'\n");
+        Files.writeString(tempDir.resolve("gradle/libs.versions.toml"), """
+                [versions]
+                junit4 = { require = "[4.12,)", prefer = "4.13.2" }
+
+                [libraries]
+                guava = { module = "com.google.guava:guava", version = { strictly = "[33.0, 34[", prefer = "33.4.8-jre" } }
+                junit4 = { module = "junit:junit", version.ref = "junit4" }
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                group = 'com.acme'
+                version = '1.2.3'
+                dependencies {
+                    implementation libs.guava
+                    testImplementation libs.junit4
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals("33.4.8-jre", config.dependencies().get("com.google.guava:guava"));
+        assertEquals("4.13.2", config.testDependencies().get("junit:junit"));
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("no version")),
+                () -> "rich catalog aliases should emit concrete versions: " + draft.notes());
+    }
+
     //  -------------------------------------------------------------------------------
 
     @Test
