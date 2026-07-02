@@ -123,6 +123,11 @@ public final class ExplainCommand implements Callable<Integer> {
                             + (scorecard ? "`--scorecard`" : "`--blockers`")
                             + ". Choose one.");
         }
+        if (emitToml && format == Format.JSON) {
+            throw new CommandLine.ParameterException(
+                    spec.commandLine(),
+                    "`--emit-toml` emits TOML and cannot combine with `--format json`. Choose one.");
+        }
         Source detectedSource = detectSource(root);
         if (detectedSource == Source.MAVEN) {
             return explainMaven(root);

@@ -85,9 +85,17 @@ final class ExplainCommandEmitTomlTest {
 
         CommandResult first = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
         CommandResult second = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
+        CommandResult explicitText = execute(
+                "explain",
+                "--emit-toml",
+                "--format", "text",
+                "--cwd", tempDir.toString(),
+                "--source", "maven");
 
         assertEquals(0, first.exitCode());
         assertEquals(first.stdout(), second.stdout());
+        assertEquals(0, explicitText.exitCode());
+        assertEquals(first.stdout(), explicitText.stdout());
     }
 
     @Test
@@ -112,6 +120,42 @@ final class ExplainCommandEmitTomlTest {
         assertNotEquals(0, result.exitCode());
         assertTrue(result.stderr().contains("--emit-toml"));
         assertTrue(result.stderr().contains("--blockers"));
+    }
+
+    @Test
+    void emitTomlConflictsWithJsonFormatForMaven() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), MAVEN_SIMPLE_POM);
+
+        CommandResult result = execute(
+                "explain",
+                "--emit-toml",
+                "--format", "json",
+                "--cwd", tempDir.toString(),
+                "--source", "maven");
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("--emit-toml"));
+        assertTrue(result.stderr().contains("--format json"));
+        assertTrue(result.stderr().contains("Choose one"));
+    }
+
+    @Test
+    void emitTomlConflictsWithJsonFormatForGradle() throws IOException {
+        Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }\n");
+
+        CommandResult result = execute(
+                "explain",
+                "--emit-toml",
+                "--format", "json",
+                "--cwd", tempDir.toString(),
+                "--source", "gradle");
+
+        assertEquals(2, result.exitCode());
+        assertEquals("", result.stdout());
+        assertTrue(result.stderr().contains("--emit-toml"));
+        assertTrue(result.stderr().contains("--format json"));
+        assertTrue(result.stderr().contains("Choose one"));
     }
 
     //  / 1553 / 1554 end-to-end -----------------------------------------------------
