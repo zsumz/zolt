@@ -56,6 +56,7 @@ public final class GradleStaticProjectInspector {
                     ".",
                     "Gradle buildSrc is present."));
         }
+        Map<String, String> rootProperties = GradleProperties.read(normalizedRoot.resolve("gradle.properties"));
 
         List<GradleProjectInspection> projects = new ArrayList<>();
         rootBuildFile.ifPresent(path -> projects.add(inspectProject(
@@ -63,6 +64,7 @@ public final class GradleStaticProjectInspector {
                 normalizedRoot,
                 path,
                 rootProjectName,
+                rootProperties,
                 buildFileParser.settingsRepositories(settingsContent),
                 versionCatalog,
                 catalogBundles,
@@ -72,7 +74,16 @@ public final class GradleStaticProjectInspector {
             String projectName = projectDirectory.getFileName().toString();
             Optional<Path> includedBuildFile = settingsBuildFileNames.buildFile(projectDirectory, projectName);
             if (includedBuildFile.isPresent()) {
-                projects.add(inspectProject(normalizedRoot, projectDirectory, includedBuildFile.orElseThrow(), Optional.empty(), List.of(), versionCatalog, catalogBundles, signals));
+                projects.add(inspectProject(
+                        normalizedRoot,
+                        projectDirectory,
+                        includedBuildFile.orElseThrow(),
+                        Optional.empty(),
+                        rootProperties,
+                        List.of(),
+                        versionCatalog,
+                        catalogBundles,
+                        signals));
                 continue;
             }
             Optional<ExplainSignal> unresolvedBuildFileName = settingsBuildFileNames.unresolvedCandidateSignal(
@@ -107,11 +118,13 @@ public final class GradleStaticProjectInspector {
             Path projectDirectory,
             Path buildFile,
             Optional<String> declaredName,
+            Map<String, String> rootProperties,
             List<GradleRepositoryInspection> settingsRepositories,
             Map<String, String> versionCatalog,
             Map<String, List<String>> catalogBundles,
             List<ExplainSignal> signals) {
         String content = stripComments(read(buildFile));
+        Map<String, String> projectProperties = GradleProperties.read(projectDirectory.resolve("gradle.properties"));
         Path relativePath = relativePath(root, projectDirectory);
         String project = path(relativePath);
         List<GradlePluginInspection> plugins = buildFileParser.plugins(content);
@@ -129,8 +142,8 @@ public final class GradleStaticProjectInspector {
                 buildFile.getFileName().toString(),
                 buildFile.getFileName().toString().endsWith(".kts") ? "kotlin" : "groovy",
                 buildFileParser.javaVersion(content),
-                buildFileParser.group(content),
-                buildFileParser.version(content),
+                buildFileParser.group(content).or(() -> GradleProperties.value("group", projectProperties, rootProperties)),
+                buildFileParser.version(content).or(() -> GradleProperties.value("version", projectProperties, rootProperties)),
                 buildFileParser.mainClass(content),
                 plugins,
                 repositories(content, settingsRepositories),

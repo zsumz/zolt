@@ -71,6 +71,31 @@ final class InspectionToProjectConfigGradleTest {
                 () -> "expected the cannot-read fallback note: " + draft.notes());
     }
 
+    @Test
+    void gradleDraftUsesGradlePropertiesCoordinatesWithoutPlaceholderNotes() throws IOException {
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'properties-demo'\n");
+        Files.writeString(tempDir.resolve("gradle.properties"), """
+                group=com.acme
+                version=1.2.3
+                """);
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins { id 'java' }
+                dependencies {
+                    implementation 'com.example:lib:1.0'
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals("com.acme", config.project().group());
+        assertEquals("1.2.3", config.project().version());
+        assertFalse(
+                draft.notes().stream().anyMatch(note -> note.contains("placeholder")),
+                () -> "gradle.properties coordinates should avoid placeholder notes: " + draft.notes());
+    }
+
     //  -------------------------------------------------------------------------------
 
     @Test

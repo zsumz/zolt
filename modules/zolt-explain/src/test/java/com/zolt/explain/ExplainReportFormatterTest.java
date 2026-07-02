@@ -137,9 +137,9 @@ final class ExplainReportFormatterTest {
                         "build.gradle",
                         "groovy",
                         "21",
-                        java.util.Optional.empty(),
-                        java.util.Optional.empty(),
-                        java.util.Optional.empty(),
+                        java.util.Optional.of("com.example"),
+                        java.util.Optional.of("1.0.0"),
+                        java.util.Optional.of("com.example.Main"),
                         List.of(new GradlePluginInspection("java", "")),
                         List.of(new GradleRepositoryInspection("mavenCentral", "https://repo.maven.apache.org/maven2")),
                         List.of(new GradleDependencyInspection(
@@ -184,6 +184,9 @@ final class ExplainReportFormatterTest {
                       "buildFile": "build.gradle",
                       "dsl": "groovy",
                       "javaVersion": "21",
+                      "group": "com.example",
+                      "version": "1.0.0",
+                      "mainClass": "com.example.Main",
                       "plugins": [
                         {
                           "id": "java",
@@ -225,6 +228,35 @@ final class ExplainReportFormatterTest {
                 }
                 """,
                 new GradleExplainFormatter().json(result));
+    }
+
+    @Test
+    void gradleTextReportPrintsCoordinatesAndMainClassWhenKnown() {
+        GradleInspectionResult result = new GradleInspectionResult(
+                Path.of("/repo"),
+                "settings.gradle",
+                List.of(),
+                List.of(),
+                List.of(new GradleProjectInspection(
+                        Path.of("."),
+                        "demo",
+                        "build.gradle",
+                        "groovy",
+                        "21",
+                        java.util.Optional.of("com.example"),
+                        java.util.Optional.of("1.0.0"),
+                        java.util.Optional.of("com.example.Main"),
+                        List.of(new GradlePluginInspection("java", "")),
+                        List.of(),
+                        List.of(),
+                        List.of("src/main/java"),
+                        List.of("src/test/java"))),
+                List.of());
+
+        String text = new GradleExplainFormatter().text(result);
+
+        assertTrue(text.contains("coordinates: com.example:demo:1.0.0"), () -> text);
+        assertTrue(text.contains("main class: com.example.Main"), () -> text);
     }
 
     @Test

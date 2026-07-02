@@ -24,6 +24,19 @@ public final class GradleExplainFormatter {
                     .append(", java=").append(project.javaVersion())
                     .append(")\n");
             output.append("    build file: ").append(project.buildFile()).append('\n');
+            if (project.group().isPresent() && project.version().isPresent()) {
+                output.append("    coordinates: ")
+                        .append(project.group().orElseThrow())
+                        .append(':')
+                        .append(project.name())
+                        .append(':')
+                        .append(project.version().orElseThrow())
+                        .append('\n');
+            } else {
+                project.group().ifPresent(group -> output.append("    group: ").append(group).append('\n'));
+                project.version().ifPresent(version -> output.append("    version: ").append(version).append('\n'));
+            }
+            project.mainClass().ifPresent(mainClass -> output.append("    main class: ").append(mainClass).append('\n'));
             output.append("    plugins: ").append(project.plugins().size()).append('\n');
             output.append("    repositories: ").append(project.repositories().size()).append('\n');
             output.append("    dependencies: ").append(project.dependencies().size()).append('\n');

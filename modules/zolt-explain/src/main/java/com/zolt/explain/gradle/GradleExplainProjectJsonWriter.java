@@ -6,6 +6,7 @@ import static com.zolt.explain.gradle.GradleExplainJsonFields.stringArrayField;
 import static com.zolt.explain.gradle.GradleExplainJsonFields.stringField;
 
 import java.util.List;
+import java.util.Optional;
 
 final class GradleExplainProjectJsonWriter {
     void projects(StringBuilder json, List<GradleProjectInspection> projects) {
@@ -20,6 +21,9 @@ final class GradleExplainProjectJsonWriter {
                 stringField(json, 3, "buildFile", project.buildFile(), true);
                 stringField(json, 3, "dsl", project.dsl(), true);
                 stringField(json, 3, "javaVersion", project.javaVersion(), true);
+                optionalStringField(json, 3, "group", project.group(), true);
+                optionalStringField(json, 3, "version", project.version(), true);
+                optionalStringField(json, 3, "mainClass", project.mainClass(), true);
                 pluginArray(json, 3, "plugins", project.plugins(), true);
                 repositoryArray(json, 3, "repositories", project.repositories(), true);
                 dependencyArray(json, 3, "dependencies", project.dependencies(), true);
@@ -34,6 +38,16 @@ final class GradleExplainProjectJsonWriter {
             indent(json, 1);
         }
         json.append("]");
+    }
+
+    private static void optionalStringField(
+            StringBuilder json,
+            int level,
+            String name,
+            Optional<String> value,
+            boolean trailingComma) {
+        value.filter(candidate -> !candidate.isBlank())
+                .ifPresent(candidate -> stringField(json, level, name, candidate, trailingComma));
     }
 
     private static void pluginArray(

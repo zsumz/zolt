@@ -24,6 +24,8 @@ final class MigrationExplainDocumentationContractTest {
         assertTrue(report.contains("\"includedProjects\": 0"), () -> report);
         assertTrue(report.contains("\"versionCatalogAliases\": 0"), () -> report);
         assertTrue(report.contains("\"version\": \"33.4.8-jre\""), () -> report);
+        assertTrue(report.contains("\"group\": \"com.example\""), () -> report);
+        assertTrue(report.contains("\"mainClass\": \"com.example.Main\""), () -> report);
         assertTrue(report.contains("\"type\": \"jar\""), () -> report);
         assertTrue(report.contains("\"optional\": false"), () -> report);
         assertTrue(report.contains("\"managed\": false"), () -> report);
