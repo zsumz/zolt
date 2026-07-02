@@ -37,6 +37,7 @@ final class ExplainCommandEmitWorkspaceTest {
                   <properties>
                     <maven.compiler.release>21</maven.compiler.release>
                     <jackson.version>2.17.1</jackson.version>
+                    <junit.version>5.10.2</junit.version>
                   </properties>
                   <modules>
                     <module>orders-core</module>
@@ -48,6 +49,13 @@ final class ExplainCommandEmitWorkspaceTest {
                         <groupId>com.fasterxml.jackson.core</groupId>
                         <artifactId>jackson-databind</artifactId>
                         <version>${jackson.version}</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.junit</groupId>
+                        <artifactId>junit-bom</artifactId>
+                        <version>${junit.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
                       </dependency>
                     </dependencies>
                   </dependencyManagement>
@@ -66,6 +74,11 @@ final class ExplainCommandEmitWorkspaceTest {
                     <dependency>
                       <groupId>com.fasterxml.jackson.core</groupId>
                       <artifactId>jackson-databind</artifactId>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.junit.jupiter</groupId>
+                      <artifactId>junit-jupiter</artifactId>
+                      <scope>test</scope>
                     </dependency>
                   </dependencies>
                 </project>
@@ -113,6 +126,9 @@ final class ExplainCommandEmitWorkspaceTest {
         assertTrue(toml.contains("\"com.acme.shop:orders-core\" = { workspace = \"orders-core\" }"), () -> toml);
         // The external dep carries the inherited concrete version.
         assertTrue(toml.contains("\"com.fasterxml.jackson.core:jackson-databind\" = \"2.17.1\""), () -> toml);
+        // The child module also carries the parent's imported BOM and platform-managed test dependency.
+        assertTrue(toml.contains("\"org.junit:junit-bom\" = \"5.10.2\""), () -> toml);
+        assertTrue(toml.contains("\"org.junit.jupiter:junit-jupiter\" = {}"), () -> toml);
         assertFalse(toml.contains("${"), () -> "no interpolation token should survive:\n" + toml);
     }
 
@@ -137,6 +153,11 @@ final class ExplainCommandEmitWorkspaceTest {
         String edge = api.workspaceDependencies().get("com.acme.shop:orders-core");
         assertEquals("orders-core", edge, () -> "workspace edge must point at a real member: " + api.workspaceDependencies());
         assertTrue(workspace.members().contains(edge), () -> "edge target must be a member: " + edge);
+
+        ProjectConfig core = new ZoltTomlParser().parse(documents.get("orders-core"));
+        assertEquals("5.10.2", core.platforms().get("org.junit:junit-bom"));
+        assertTrue(core.managedTestDependencies().contains("org.junit.jupiter:junit-jupiter"),
+                () -> "parent BOM-managed test dep should be emitted as {}: " + core.managedTestDependencies());
     }
 
     // --- Gradle multi-project ----------------------------------------------------------------

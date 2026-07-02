@@ -24,9 +24,13 @@ import org.w3c.dom.Element;
  */
 final class MavenManagedVersions {
     private final Map<String, ManagedDependency> managedByKey;
+    private final List<MavenDependencyInspection> dependencyManagement;
 
-    private MavenManagedVersions(Map<String, ManagedDependency> managedByKey) {
+    private MavenManagedVersions(
+            Map<String, ManagedDependency> managedByKey,
+            List<MavenDependencyInspection> dependencyManagement) {
         this.managedByKey = managedByKey;
+        this.dependencyManagement = List.copyOf(dependencyManagement);
     }
 
     /**
@@ -38,12 +42,14 @@ final class MavenManagedVersions {
             List<Element> ancestors,
             MavenPomProperties properties) {
         Map<String, ManagedDependency> managed = new LinkedHashMap<>();
+        Map<String, MavenDependencyInspection> effective = new LinkedHashMap<>();
         List<Element> rootFirst = new ArrayList<>(ancestors);
         Collections.reverse(rootFirst);
         rootFirst.add(project);
         for (Element pom : rootFirst) {
             for (MavenDependencyInspection managedDependency : managedDependencies(pom, properties)) {
                 String key = key(managedDependency);
+                effective.put(key, effectiveDependency(managedDependency, effective.get(key)));
                 ManagedDependency inherited = managed.get(key);
                 String version = usableVersion(managedDependency)
                         ? managedDependency.version()
@@ -57,7 +63,11 @@ final class MavenManagedVersions {
                 managed.put(key, new ManagedDependency(version, scope));
             }
         }
-        return new MavenManagedVersions(managed);
+        return new MavenManagedVersions(managed, new ArrayList<>(effective.values()));
+    }
+
+    List<MavenDependencyInspection> effectiveDependencyManagement() {
+        return dependencyManagement;
     }
 
     /**
@@ -94,9 +104,32 @@ final class MavenManagedVersions {
                     dependency.managed(),
                     dependency.importedBom(),
                     dependency.scopeDeclared(),
+                    dependency.classifier(),
                     dependency.exclusions()));
         }
         return resolved;
+    }
+
+    private static MavenDependencyInspection effectiveDependency(
+            MavenDependencyInspection dependency,
+            MavenDependencyInspection inherited) {
+        String version = !dependency.version().isBlank()
+                ? dependency.version()
+                : inherited == null ? "" : inherited.version();
+        String scope = dependency.scopeDeclared()
+                ? dependency.scope()
+                : inherited == null ? dependency.scope() : inherited.scope();
+        return new MavenDependencyInspection(
+                scope,
+                coordinate(dependency, version),
+                version,
+                dependency.type(),
+                dependency.optional(),
+                dependency.managed(),
+                dependency.importedBom(),
+                dependency.scopeDeclared(),
+                dependency.classifier(),
+                dependency.exclusions());
     }
 
     private static List<MavenDependencyInspection> managedDependencies(

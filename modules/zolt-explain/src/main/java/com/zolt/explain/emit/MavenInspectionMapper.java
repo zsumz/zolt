@@ -1,15 +1,15 @@
 package com.zolt.explain.emit;
 
 import com.zolt.explain.maven.MavenAnnotationProcessorInspection;
-import com.zolt.explain.maven.MavenDependencyExclusion;
 import com.zolt.explain.maven.MavenDependencyInspection;
 import com.zolt.explain.maven.MavenInspectionResult;
 import com.zolt.explain.maven.MavenProjectInspection;
 import com.zolt.explain.maven.MavenRepositoryInspection;
 import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
-import com.zolt.project.DependencyExclusionSpec;
+import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
+import com.zolt.project.DependencyPolicySettings;
 import com.zolt.project.NativeSettings;
 import com.zolt.project.PackageSettings;
 import com.zolt.project.ProjectConfig;
@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /** Maps a single-project {@link MavenInspectionResult} to a {@link DraftZoltToml}. */
 final class MavenInspectionMapper {
@@ -49,27 +50,43 @@ final class MavenInspectionMapper {
         Map<String, String> runtime = new TreeMap<>();
         Map<String, String> provided = new TreeMap<>();
         Map<String, String> test = new TreeMap<>();
+        Set<String> managedDependencies = new TreeSet<>();
+        Set<String> managedRuntime = new TreeSet<>();
+        Set<String> managedProvided = new TreeSet<>();
+        Set<String> managedTest = new TreeSet<>();
         Map<String, String> workspaceDependencies = new TreeMap<>();
         Map<String, String> workspaceTest = new TreeMap<>();
         Map<String, String> platforms = new TreeMap<>();
         Map<String, String> annotationProcessors = new TreeMap<>();
         Map<String, DependencyMetadata> dependencyMetadata = new TreeMap<>();
 
-        for (MavenDependencyInspection dependency : primary.dependencies()) {
-            mapDependency(
-                    dependency,
-                    registry,
-                    dependencies,
-                    runtime,
-                    provided,
-                    test,
-                    workspaceDependencies,
-                    workspaceTest,
-                    dependencyMetadata,
-                    notes);
-        }
         for (MavenDependencyInspection bom : primary.importedBoms()) {
             mapPlatform(bom, platforms, notes);
+        }
+        Map<String, DependencyConstraint> constraints =
+                MavenDependencyConstraintMapper.map(
+                        primary.dependencyManagement(),
+                        primary.dependencies(),
+                        notes);
+        MavenDependencySectionMapper dependencyMapper = new MavenDependencySectionMapper(
+                registry,
+                new MavenDependencySectionMapper.VersionedSections(
+                        dependencies,
+                        runtime,
+                        provided,
+                        test,
+                        workspaceDependencies,
+                        workspaceTest),
+                new MavenDependencySectionMapper.ManagedSections(
+                        managedDependencies,
+                        managedRuntime,
+                        managedProvided,
+                        managedTest),
+                !platforms.isEmpty(),
+                dependencyMetadata,
+                notes);
+        for (MavenDependencyInspection dependency : primary.dependencies()) {
+            dependencyMapper.map(dependency);
         }
         for (MavenAnnotationProcessorInspection processor : primary.annotationProcessors()) {
             mapAnnotationProcessor(processor, annotationProcessors, notes);
@@ -94,16 +111,16 @@ final class MavenInspectionMapper {
                 Set.of(),
                 Map.of(),
                 dependencies,
-                Set.of(),
+                managedDependencies,
                 workspaceDependencies,
                 runtime,
-                Set.of(),
+                managedRuntime,
                 provided,
-                Set.of(),
+                managedProvided,
                 Map.of(),
                 Set.of(),
                 test,
-                Set.of(),
+                managedTest,
                 workspaceTest,
                 annotationProcessors,
                 Set.of(),
@@ -115,6 +132,9 @@ final class MavenInspectionMapper {
                 PackageSettings.defaults());
         if (!dependencyMetadata.isEmpty()) {
             config = config.withDependencyMetadata(dependencyMetadata);
+        }
+        if (!constraints.isEmpty()) {
+            config = config.withDependencyPolicy(new DependencyPolicySettings(List.of(), constraints));
         }
         return new DraftZoltToml(config, notes);
     }
@@ -138,119 +158,6 @@ final class MavenInspectionMapper {
             return;
         }
         annotationProcessors.put(coordinate, processor.version());
-    }
-
-    private static void mapDependency(
-            MavenDependencyInspection dependency,
-            WorkspaceMemberRegistry registry,
-            Map<String, String> dependencies,
-            Map<String, String> runtime,
-            Map<String, String> provided,
-            Map<String, String> test,
-            Map<String, String> workspaceDependencies,
-            Map<String, String> workspaceTest,
-            Map<String, DependencyMetadata> dependencyMetadata,
-            List<String> notes) {
-        String coordinate = coordinateOf(dependency.coordinate());
-        if (mapWorkspaceDependency(
-                dependency, coordinate, registry, workspaceDependencies, workspaceTest, notes)) {
-            return;
-        }
-        String version = dependency.version();
-        if (version.isBlank()) {
-            notes.add(
-                    "Dependency `" + coordinate + "` (scope " + dependency.scope() + ") has no static"
-                            + " version; it is likely managed by a BOM. Add a version or platform entry"
-                            + " before resolving.");
-            return;
-        }
-        if (version.contains("${")) {
-            notes.add(
-                    "Dependency `" + coordinate + "` (scope " + dependency.scope() + ") uses version `"
-                            + version + "`, which references a property the static audit could not"
-                            + " resolve. Replace it with a fixed version before resolving.");
-            return;
-        }
-        String section = switch (dependency.scope()) {
-            case "compile" -> {
-                dependencies.put(coordinate, version);
-                yield "dependencies";
-            }
-            case "runtime" -> {
-                runtime.put(coordinate, version);
-                yield "runtime.dependencies";
-            }
-            case "provided" -> {
-                provided.put(coordinate, version);
-                yield "provided.dependencies";
-            }
-            case "test" -> {
-                test.put(coordinate, version);
-                yield "test.dependencies";
-            }
-            default -> {
-                notes.add(
-                        "Dependency `" + coordinate + "` uses Maven scope `" + dependency.scope()
-                                + "`, which has no direct Zolt section; place it manually after review.");
-                yield null;
-            }
-        };
-        if (section != null) {
-            recordExclusions(section, coordinate, dependency, dependencyMetadata);
-        }
-    }
-
-    /**
-     * Rewrites a dependency on a sibling reactor member to {@code { workspace = "<path>" }}. Returns
-     * true when the dependency was a member edge (and has been recorded or noted), false otherwise.
-     */
-    private static boolean mapWorkspaceDependency(
-            MavenDependencyInspection dependency,
-            String coordinate,
-            WorkspaceMemberRegistry registry,
-            Map<String, String> workspaceDependencies,
-            Map<String, String> workspaceTest,
-            List<String> notes) {
-        if (registry == null) {
-            return false;
-        }
-        String memberPath = registry.pathFor(coordinate);
-        if (memberPath == null) {
-            return false;
-        }
-        switch (dependency.scope()) {
-            case "compile" -> workspaceDependencies.put(coordinate, memberPath);
-            case "test" -> workspaceTest.put(coordinate, memberPath);
-            default -> notes.add(
-                    "Dependency `" + coordinate + "` targets sibling module `" + memberPath
-                            + "` in Maven scope `" + dependency.scope() + "`, which Zolt cannot express"
-                            + " as a workspace edge; wire it under the matching section by hand.");
-        }
-        return true;
-    }
-
-    private static void recordExclusions(
-            String section,
-            String coordinate,
-            MavenDependencyInspection dependency,
-            Map<String, DependencyMetadata> dependencyMetadata) {
-        if (dependency.exclusions().isEmpty()) {
-            return;
-        }
-        List<DependencyExclusionSpec> specs = new ArrayList<>();
-        for (MavenDependencyExclusion exclusion : dependency.exclusions()) {
-            specs.add(new DependencyExclusionSpec(exclusion.groupId(), exclusion.artifactId()));
-        }
-        DependencyMetadata metadata = new DependencyMetadata(
-                section,
-                coordinate,
-                null,
-                dependency.managed(),
-                null,
-                false,
-                false,
-                specs);
-        dependencyMetadata.put(DependencyMetadata.key(section, coordinate), metadata);
     }
 
     private static void mapPlatform(

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.zolt.cli.CliTestRepository;
 import com.zolt.cli.CliTestSupport.CommandResult;
 import com.zolt.project.ProjectConfig;
 import com.zolt.toml.ZoltTomlParser;
@@ -169,6 +170,44 @@ final class ExplainCommandEmitTomlTest {
             </project>
             """;
 
+    private static final String MAVEN_MANAGED_POM = """
+            <project>
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>com.example</groupId>
+              <artifactId>managed-demo</artifactId>
+              <version>1.0.0</version>
+              <dependencyManagement>
+                <dependencies>
+                  <dependency>
+                    <groupId>org.junit</groupId>
+                    <artifactId>junit-bom</artifactId>
+                    <version>5.10.2</version>
+                    <type>pom</type>
+                    <scope>import</scope>
+                  </dependency>
+                  <dependency>
+                    <groupId>org.apiguardian</groupId>
+                    <artifactId>apiguardian-api</artifactId>
+                    <version>1.1.0</version>
+                  </dependency>
+                </dependencies>
+              </dependencyManagement>
+              <dependencies>
+                <dependency>
+                  <groupId>org.junit.jupiter</groupId>
+                  <artifactId>junit-jupiter</artifactId>
+                  <scope>test</scope>
+                </dependency>
+                <dependency>
+                  <groupId>org.jacoco</groupId>
+                  <artifactId>org.jacoco.agent</artifactId>
+                  <version>0.8.12</version>
+                  <classifier>runtime</classifier>
+                </dependency>
+              </dependencies>
+            </project>
+            """;
+
     @Test
     void emitTomlInterpolatesPropertyVersionsEmitsCoordsAndExclusions() throws IOException {
         Files.writeString(tempDir.resolve("pom.xml"), MAVEN_PROPERTY_POM);
@@ -187,6 +226,7 @@ final class ExplainCommandEmitTomlTest {
         // : interpolated concrete versions; no interpolation token survives.
         assertTrue(toml.contains("\"com.fasterxml.jackson.core:jackson-databind\" = \"2.17.1\""), () -> toml);
         assertTrue(toml.contains("\"org.junit:junit-bom\" = \"5.10.2\""), () -> toml);
+        assertTrue(toml.contains("\"org.junit.jupiter:junit-jupiter\" = {}"), () -> toml);
         assertFalse(toml.contains("${"), () -> "no interpolation token should survive:\n" + toml);
 
         // : guava's exclusions carried in the draft.
@@ -210,5 +250,97 @@ final class ExplainCommandEmitTomlTest {
         assertEquals("2.17.1", parsed.dependencies().get("com.fasterxml.jackson.core:jackson-databind"));
         assertEquals("33.2.1-jre", parsed.dependencies().get("com.google.guava:guava"));
         assertEquals("5.10.2", parsed.platforms().get("org.junit:junit-bom"));
+        assertTrue(parsed.managedTestDependencies().contains("org.junit.jupiter:junit-jupiter"));
+    }
+
+    @Test
+    void emitTomlCarriesDependencyManagementFactsAndResolvesDraft() throws IOException {
+        try (CliTestRepository repository = CliTestRepository.start()) {
+            repository.addArtifact("org.junit", "junit-bom", "5.10.2", """
+                    <project>
+                      <groupId>org.junit</groupId>
+                      <artifactId>junit-bom</artifactId>
+                      <version>5.10.2</version>
+                      <packaging>pom</packaging>
+                      <dependencyManagement>
+                        <dependencies>
+                          <dependency>
+                            <groupId>org.junit.jupiter</groupId>
+                            <artifactId>junit-jupiter</artifactId>
+                            <version>5.10.2</version>
+                          </dependency>
+                          <dependency>
+                            <groupId>org.junit.platform</groupId>
+                            <artifactId>junit-platform-console</artifactId>
+                            <version>1.11.4</version>
+                          </dependency>
+                        </dependencies>
+                      </dependencyManagement>
+                    </project>
+                    """);
+            repository.addArtifact("org.junit.jupiter", "junit-jupiter", "5.10.2", """
+                    <project>
+                      <groupId>org.junit.jupiter</groupId>
+                      <artifactId>junit-jupiter</artifactId>
+                      <version>5.10.2</version>
+                      <dependencies>
+                        <dependency>
+                          <groupId>org.apiguardian</groupId>
+                          <artifactId>apiguardian-api</artifactId>
+                          <version>1.1.2</version>
+                        </dependency>
+                      </dependencies>
+                    </project>
+                    """);
+            repository.addArtifact("org.apiguardian", "apiguardian-api", "1.1.0", """
+                    <project>
+                      <groupId>org.apiguardian</groupId>
+                      <artifactId>apiguardian-api</artifactId>
+                      <version>1.1.0</version>
+                    </project>
+                    """);
+            repository.addArtifact("org.apiguardian", "apiguardian-api", "1.1.2", """
+                    <project>
+                      <groupId>org.apiguardian</groupId>
+                      <artifactId>apiguardian-api</artifactId>
+                      <version>1.1.2</version>
+                    </project>
+                    """);
+            repository.addArtifact("org.junit.platform", "junit-platform-console", "1.11.4", """
+                    <project>
+                      <groupId>org.junit.platform</groupId>
+                      <artifactId>junit-platform-console</artifactId>
+                      <version>1.11.4</version>
+                    </project>
+                    """);
+            Files.writeString(tempDir.resolve("pom.xml"), MAVEN_MANAGED_POM);
+
+            CommandResult explain = execute("explain", "--emit-toml", "--cwd", tempDir.toString(), "--source", "maven");
+
+            assertEquals(0, explain.exitCode(), () -> explain.stderr());
+            ProjectConfig parsed = new ZoltTomlParser().parse(explain.stdout());
+            assertEquals("5.10.2", parsed.platforms().get("org.junit:junit-bom"));
+            assertTrue(parsed.managedTestDependencies().contains("org.junit.jupiter:junit-jupiter"));
+            assertEquals(
+                    "1.1.0",
+                    parsed.dependencyPolicy()
+                            .constraints()
+                            .get("org.apiguardian:apiguardian-api")
+                            .version());
+            assertFalse(parsed.dependencies().containsKey("org.jacoco:org.jacoco.agent"));
+            assertTrue(explain.stdout().contains("classifier `runtime`"), () -> explain.stdout());
+
+            String hermeticToml = explain.stdout().replace(ProjectConfig.MAVEN_CENTRAL, repository.baseUri().toString());
+            Files.writeString(tempDir.resolve("zolt.toml"), hermeticToml);
+            CommandResult resolve = execute(
+                    "resolve",
+                    "--cwd", tempDir.toString(),
+                    "--cache-root", tempDir.resolve("cache").toString());
+
+            assertEquals(0, resolve.exitCode(), () -> resolve.stderr());
+            String lock = Files.readString(tempDir.resolve("zolt.lock"));
+            assertTrue(lock.contains("org.apiguardian:apiguardian-api:1.1.0"), () -> lock);
+            assertFalse(lock.contains("org.apiguardian:apiguardian-api:1.1.2"), () -> lock);
+        }
     }
 }

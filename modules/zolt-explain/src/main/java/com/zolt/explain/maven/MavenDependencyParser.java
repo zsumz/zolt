@@ -34,6 +34,7 @@ final class MavenDependencyParser {
             Optional<String> declaredScope = text(dependency, "scope");
             String scope = declaredScope.orElse("compile");
             String type = text(dependency, "type").orElse("jar");
+            String classifier = properties.interpolate(text(dependency, "classifier").orElse(""));
             boolean optional = text(dependency, "optional").map(Boolean::parseBoolean).orElse(false);
             boolean importedBom = managed && "pom".equals(type) && "import".equals(scope);
             dependencies.add(new MavenDependencyInspection(
@@ -45,6 +46,7 @@ final class MavenDependencyParser {
                     managed,
                     importedBom,
                     declaredScope.isPresent(),
+                    classifier,
                     parseExclusions(dependency, properties)));
         }
         dependencies.sort(Comparator

@@ -43,11 +43,11 @@ final class MavenProjectInspectionBuilder {
         MavenManagedVersions managedVersions = MavenManagedVersions.resolve(project, ancestors, properties);
         List<MavenDependencyInspection> dependencies = managedVersions.applyTo(
                 MavenDependencyParser.parseDependencies(child(project, "dependencies"), false, properties));
-        List<MavenDependencyInspection> dependencyManagement = child(project, "dependencyManagement")
-                .flatMap(element -> child(element, "dependencies"))
-                .map(element -> MavenDependencyParser.parseDependencies(Optional.of(element), true, properties))
-                .orElseGet(List::of);
-        List<MavenDependencyInspection> importedBoms = dependencyManagement.stream()
+        List<MavenDependencyInspection> effectiveDependencyManagement = managedVersions.effectiveDependencyManagement();
+        List<MavenDependencyInspection> dependencyManagement = effectiveDependencyManagement.stream()
+                .filter(dependency -> !dependency.importedBom())
+                .toList();
+        List<MavenDependencyInspection> importedBoms = effectiveDependencyManagement.stream()
                 .filter(MavenDependencyInspection::importedBom)
                 .toList();
         List<MavenAnnotationProcessorInspection> annotationProcessors =
