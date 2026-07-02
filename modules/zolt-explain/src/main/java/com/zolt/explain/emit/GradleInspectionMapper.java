@@ -110,6 +110,7 @@ final class GradleInspectionMapper {
                     "Project version is a placeholder; the static Gradle audit could not read it."
                             + " Set `version` to your real coordinate.");
         }
+        BuildSettings defaultBuild = BuildSettings.defaults();
 
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
                 metadata,
@@ -134,7 +135,12 @@ final class GradleInspectionMapper {
                 Set.of(),
                 Map.of(),
                 Set.of(),
-                BuildSettings.defaults(),
+                InspectionBuildSettingsMapper.fromRoots(
+                        primary.sourceRoots(),
+                        primary.testSourceRoots(),
+                        defaultBuild.resourceRoots(),
+                        defaultBuild.testResourceRoots(),
+                        notes),
                 NativeSettings.defaults(),
                 CompilerSettings.defaults(),
                 PackageSettings.defaults());

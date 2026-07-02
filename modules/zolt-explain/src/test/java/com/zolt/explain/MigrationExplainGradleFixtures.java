@@ -98,8 +98,8 @@ final class MigrationExplainGradleFixtures {
                           "versionCatalogAlias": ""
                         }
                       ],
-                      "sourceRoots": ["src/main/java"],
-                      "testSourceRoots": ["src/test/java"]
+                      "sourceRoots": [],
+                      "testSourceRoots": []
                     }
                   ],
                   "signals": [],

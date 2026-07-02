@@ -21,6 +21,8 @@ final class GradleStaticProjectInspectorTest {
 
     @Test
     void inspectsSimpleSingleProjectJavaBuild() throws IOException {
+        Files.createDirectories(tempDir.resolve("src/main/java"));
+        Files.createDirectories(tempDir.resolve("src/test/java"));
         Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
         Files.writeString(tempDir.resolve("build.gradle"), """
                 plugins {

@@ -24,6 +24,7 @@ public record MavenProjectInspection(
         List<String> sourceRoots,
         List<String> testSourceRoots,
         List<String> resourceRoots,
+        List<String> testResourceRoots,
         List<MavenDependencyInspection> dependencies,
         List<MavenDependencyInspection> dependencyManagement,
         List<MavenDependencyInspection> importedBoms,
@@ -41,6 +42,7 @@ public record MavenProjectInspection(
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);
         resourceRoots = List.copyOf(resourceRoots);
+        testResourceRoots = List.copyOf(testResourceRoots);
         dependencies = List.copyOf(dependencies);
         dependencyManagement = List.copyOf(dependencyManagement);
         importedBoms = List.copyOf(importedBoms);

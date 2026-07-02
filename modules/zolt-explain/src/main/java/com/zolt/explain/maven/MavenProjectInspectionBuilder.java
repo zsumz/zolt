@@ -68,9 +68,27 @@ final class MavenProjectInspectionBuilder {
                 javaVersions.mainVersion(),
                 javaVersions.testVersion(),
                 modules,
-                sourceRoots(project, "sourceDirectory", "src/main/java"),
-                sourceRoots(project, "testSourceDirectory", "src/test/java"),
-                resourceRoots(project),
+                MavenRootInspection.sourceRoots(
+                        project,
+                        projectDirectory,
+                        "sourceDirectory",
+                        "src/main/java",
+                        properties,
+                        MavenRootInspection.buildHelperSourceRoots(project, properties)),
+                MavenRootInspection.sourceRoots(
+                        project,
+                        projectDirectory,
+                        "testSourceDirectory",
+                        "src/test/java",
+                        properties,
+                        List.of()),
+                MavenRootInspection.resourceRoots(project, projectDirectory, "resources", "src/main/resources", properties),
+                MavenRootInspection.resourceRoots(
+                        project,
+                        projectDirectory,
+                        "testResources",
+                        "src/test/resources",
+                        properties),
                 dependencies,
                 dependencyManagement,
                 importedBoms,
@@ -192,29 +210,6 @@ final class MavenProjectInspectionBuilder {
         }
         hints.sort(String::compareTo);
         return hints;
-    }
-
-    private static List<String> sourceRoots(Element project, String elementName, String defaultRoot) {
-        Optional<Element> build = child(project, "build");
-        return build.flatMap(element -> text(element, elementName))
-                .map(List::of)
-                .orElseGet(() -> List.of(defaultRoot));
-    }
-
-    private static List<String> resourceRoots(Element project) {
-        Optional<Element> build = child(project, "build");
-        if (build.isEmpty()) {
-            return List.of("src/main/resources");
-        }
-        Optional<Element> resources = child(build.orElseThrow(), "resources");
-        if (resources.isEmpty()) {
-            return List.of("src/main/resources");
-        }
-        List<String> roots = new ArrayList<>();
-        for (Element resource : children(resources.orElseThrow(), "resource")) {
-            text(resource, "directory").ifPresent(roots::add);
-        }
-        return roots.isEmpty() ? List.of("src/main/resources") : List.copyOf(roots);
     }
 
     private static Map<String, String> parseProperties(Element project) {

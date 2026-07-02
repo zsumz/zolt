@@ -5,7 +5,6 @@ import com.zolt.explain.maven.MavenDependencyInspection;
 import com.zolt.explain.maven.MavenInspectionResult;
 import com.zolt.explain.maven.MavenProjectInspection;
 import com.zolt.explain.maven.MavenRepositoryInspection;
-import com.zolt.project.BuildSettings;
 import com.zolt.project.CompilerSettings;
 import com.zolt.project.DependencyConstraint;
 import com.zolt.project.DependencyMetadata;
@@ -136,7 +135,12 @@ final class MavenInspectionMapper {
                 Set.of(),
                 Map.of(),
                 Set.of(),
-                BuildSettings.defaults(),
+                InspectionBuildSettingsMapper.fromRoots(
+                        primary.sourceRoots(),
+                        primary.testSourceRoots(),
+                        primary.resourceRoots(),
+                        primary.testResourceRoots(),
+                        notes),
                 NativeSettings.defaults(),
                 CompilerSettings.defaults(),
                 PackageSettings.defaults());

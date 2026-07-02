@@ -69,9 +69,9 @@ final class MigrationExplainMavenFixtures {
                       "javaVersion": "21",
                       "parents": [],
                       "modules": [],
-                      "sourceRoots": ["src/main/java"],
-                      "testSourceRoots": ["src/test/java"],
-                      "resourceRoots": ["src/main/resources"],
+                      "sourceRoots": [],
+                      "testSourceRoots": [],
+                      "resourceRoots": [],
                       "dependencies": [
                         {
                           "scope": "compile",

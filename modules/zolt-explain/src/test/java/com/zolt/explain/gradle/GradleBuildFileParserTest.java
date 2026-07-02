@@ -365,5 +365,11 @@ final class GradleBuildFileParserTest {
         assertEquals(
                 java.util.List.of("src/fixtures/java"),
                 parser.sourceRoots(content, "fixtures", "src/fixtures/java"));
+        assertEquals(
+                java.util.List.of("src/integrationTest/java"),
+                parser.sourceRoots(content, "test", "src/test/java", false));
+        assertEquals(
+                java.util.List.of(),
+                parser.sourceRoots(content, "fixtures", "src/fixtures/java", false));
     }
 }

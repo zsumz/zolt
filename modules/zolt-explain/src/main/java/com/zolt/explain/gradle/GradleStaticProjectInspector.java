@@ -147,8 +147,16 @@ public final class GradleStaticProjectInspector {
                 plugins,
                 repositories(content, settingsRepositories),
                 dependencies,
-                buildFileParser.sourceRoots(content, "main", "src/main/java"),
-                buildFileParser.sourceRoots(content, "test", "src/test/java"));
+                buildFileParser.sourceRoots(
+                        content,
+                        "main",
+                        "src/main/java",
+                        Files.isDirectory(projectDirectory.resolve("src/main/java"))),
+                buildFileParser.sourceRoots(
+                        content,
+                        "test",
+                        "src/test/java",
+                        Files.isDirectory(projectDirectory.resolve("src/test/java"))));
     }
 
     private List<GradleRepositoryInspection> repositories(

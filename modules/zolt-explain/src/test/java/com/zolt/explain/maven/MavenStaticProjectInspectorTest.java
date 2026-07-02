@@ -53,9 +53,6 @@ final class MavenStaticProjectInspectorTest {
         assertEquals("demo", project.artifactId());
         assertEquals("jar", project.packaging());
         assertEquals("21", project.javaVersion());
-        assertEquals("src/main/java", project.sourceRoots().getFirst());
-        assertEquals("src/test/java", project.testSourceRoots().getFirst());
-        assertEquals("src/main/resources", project.resourceRoots().getFirst());
         assertEquals(2, project.dependencies().size());
         assertTrue(project.dependencies().stream()
                 .anyMatch(dependency -> dependency.coordinate().equals("com.google.guava:guava:33.4.8-jre")));

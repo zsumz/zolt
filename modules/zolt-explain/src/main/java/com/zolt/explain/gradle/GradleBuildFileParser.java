@@ -177,16 +177,20 @@ final class GradleBuildFileParser {
     }
 
     List<String> sourceRoots(String content, String sourceSet, String defaultRoot) {
+        return sourceRoots(content, sourceSet, defaultRoot, true);
+    }
+
+    List<String> sourceRoots(String content, String sourceSet, String defaultRoot, boolean includeDefaultRoot) {
         Optional<String> sourceSets = GradleScriptBlocks.topLevelBlock(content, "sourceSets");
         if (sourceSets.isEmpty()) {
-            return List.of(defaultRoot);
+            return defaultRoots(defaultRoot, includeDefaultRoot);
         }
         Optional<String> sourceSetBlock = GradleScriptBlocks.topLevelBlock(sourceSets.orElseThrow(), sourceSet);
         if (sourceSetBlock.isEmpty()) {
-            return List.of(defaultRoot);
+            return defaultRoots(defaultRoot, includeDefaultRoot);
         }
         List<String> roots = new ArrayList<>();
-        if (containsAny(sourceSetBlock.orElseThrow(), "srcDirs +=", "srcDir(")) {
+        if (includeDefaultRoot && containsAny(sourceSetBlock.orElseThrow(), "srcDirs +=", "srcDir(")) {
             roots.add(defaultRoot);
         }
         Matcher srcDirs = Pattern.compile("\\bsrcDirs?\\s*(?:=\\s*)?(?:\\[([^]]*)]|([^\\n]+))").matcher(sourceSetBlock.orElseThrow());
@@ -194,7 +198,11 @@ final class GradleBuildFileParser {
             String value = srcDirs.group(1) == null ? srcDirs.group(2) : srcDirs.group(1);
             roots.addAll(quotedValues(value));
         }
-        return roots.isEmpty() ? List.of(defaultRoot) : roots.stream().distinct().sorted().toList();
+        return roots.isEmpty() ? defaultRoots(defaultRoot, includeDefaultRoot) : roots.stream().distinct().sorted().toList();
+    }
+
+    private static List<String> defaultRoots(String defaultRoot, boolean includeDefaultRoot) {
+        return includeDefaultRoot ? List.of(defaultRoot) : List.of();
     }
 
     private static List<String> quotedValues(String input) {
