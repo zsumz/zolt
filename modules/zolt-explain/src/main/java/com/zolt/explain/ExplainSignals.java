@@ -54,6 +54,21 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Map compiler annotation processor paths to [annotationProcessors] and verify generated code.");
+    public static final ExplainSignalDefinition MAVEN_PARENT_SNAPSHOT = new ExplainSignalDefinition(
+            "maven.parent.snapshot",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Replace SNAPSHOT parents with fixed releases or vendor the inherited settings explicitly before migrating.");
+    public static final ExplainSignalDefinition MAVEN_REPOSITORY_DECLARED = new ExplainSignalDefinition(
+            "maven.repository.declared",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.CACHEABILITY,
+            "Map declared Maven repositories to explicit Zolt repository configuration and cache policy.");
+    public static final ExplainSignalDefinition MAVEN_REPOSITORY_SNAPSHOTS_ENABLED = new ExplainSignalDefinition(
+            "maven.repository.snapshots-enabled",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Disable SNAPSHOT repositories or pin all consumed artifacts to release repositories before migrating.");
 
     public static final ExplainSignalDefinition GRADLE_BUILD_SRC_DETECTED = new ExplainSignalDefinition(
             "gradle.build-src.detected",
@@ -212,6 +227,9 @@ public final class ExplainSignals {
             MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED,
             MAVEN_REACTOR_DETECTED,
             MAVEN_ANNOTATION_PROCESSOR_PATH,
+            MAVEN_PARENT_SNAPSHOT,
+            MAVEN_REPOSITORY_DECLARED,
+            MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,
             GRADLE_BUILD_SRC_DETECTED,
             GRADLE_PROJECT_MISSING_BUILD_FILE,
             GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED,

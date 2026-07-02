@@ -226,6 +226,44 @@ final class MigrationReadinessFixtureTest {
     }
 
     @Test
+    void mavenSnapshotParentAndRepositoryMakeRepositoryReadinessNonDeterministic() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.example.parents</groupId>
+                    <artifactId>enterprise-parent</artifactId>
+                    <version>1.0.0-SNAPSHOT</version>
+                  </parent>
+                  <groupId>com.example</groupId>
+                  <artifactId>service</artifactId>
+                  <version>1.0.0</version>
+                  <repositories>
+                    <repository>
+                      <id>snapshots</id>
+                      <url>https://repo.example.test/snapshots</url>
+                      <snapshots>
+                        <enabled>true</enabled>
+                      </snapshots>
+                    </repository>
+                  </repositories>
+                </project>
+                """);
+
+        MigrationReadinessScorecard scorecard = MigrationReadinessScorecards.from(
+                new MavenStaticProjectInspector().inspect(tempDir));
+        String text = new MigrationReadinessScorecardFormatter().text(scorecard);
+        String json = new MigrationReadinessScorecardFormatter().json(scorecard);
+
+        assertEquals("non-deterministic", scorecard.status());
+        assertEquals("non-deterministic", concern(scorecard, "repositories").status());
+        assertTrue(text.contains("SNAPSHOT Maven parent"), () -> text);
+        assertTrue(text.contains("snapshots-enabled Maven repository"), () -> text);
+        assertTrue(json.contains("\"signalId\": \"maven.parent.snapshot\""), () -> json);
+        assertTrue(json.contains("\"signalId\": \"maven.repository.snapshots-enabled\""), () -> json);
+    }
+
+    @Test
     void mavenMultiModuleReactorSurfacesReactorConcernInScorecardAndBlockers() {
         Path fixture = fixture("maven-multimodule");
         MavenInspectionResult result = new MavenStaticProjectInspector().inspect(fixture);

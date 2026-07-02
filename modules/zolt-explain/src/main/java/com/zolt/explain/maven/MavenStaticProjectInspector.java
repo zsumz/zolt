@@ -1,5 +1,8 @@
 package com.zolt.explain.maven;
 
+import static com.zolt.explain.maven.MavenXml.child;
+import static com.zolt.explain.maven.MavenXml.texts;
+
 import com.zolt.explain.ExplainSignal;
 import com.zolt.explain.ExplainSignals;
 import com.zolt.explain.MigrationExplainException;
@@ -10,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -38,37 +42,48 @@ public final class MavenStaticProjectInspector {
 
         List<MavenProjectInspection> projects = new ArrayList<>();
         List<ExplainSignal> signals = new ArrayList<>();
-        // Root-first recursion registers each ancestor before its children, so a module's parent chain
-        // is already on disk in the reactor by the time the module is inspected.
         MavenReactorPoms reactor = new MavenReactorPoms();
-        inspectPom(normalizedRoot, normalizedRoot, projects, signals, reactor);
+        List<MavenPomNode> poms = new ArrayList<>();
+        collectPom(normalizedRoot, normalizedRoot, poms, signals, reactor, new LinkedHashSet<>());
+        for (MavenPomNode pom : poms) {
+            MavenProjectInspection inspection = MavenProjectInspectionBuilder.build(
+                    pom.pom(),
+                    pom.relativePath(),
+                    pom.directory(),
+                    pom.project(),
+                    reactor);
+            projects.add(inspection);
+            signals.addAll(signalsFor(pom.projectLabel(), inspection));
+        }
         projects.sort(Comparator.comparing(project -> project.path().toString()));
         return new MavenInspectionResult(normalizedRoot, projects, ExplainSignals.sorted(signals));
     }
 
-    private void inspectPom(
+    private void collectPom(
             Path root,
             Path projectDirectory,
-            List<MavenProjectInspection> projects,
+            List<MavenPomNode> poms,
             List<ExplainSignal> signals,
-            MavenReactorPoms reactor) {
+            MavenReactorPoms reactor,
+            Set<Path> seenPoms) {
         Path pom = projectDirectory.resolve("pom.xml");
+        Path normalizedPom = pom.toAbsolutePath().normalize();
+        if (!seenPoms.add(normalizedPom)) {
+            return;
+        }
         Document document = document(pom);
         Element project = document.getDocumentElement();
-        reactor.register(project);
 
         Path relativePath = relativePath(root, projectDirectory);
         String projectLabel = relativePath.toString().isBlank() ? "." : relativePath.toString();
-        MavenProjectInspection inspection =
-                MavenProjectInspectionBuilder.build(pom, relativePath, projectDirectory, project, reactor);
-        projects.add(inspection);
-        signals.addAll(signalsFor(projectLabel, inspection));
+        reactor.register(project, relativePath);
+        poms.add(new MavenPomNode(pom, projectDirectory, relativePath, projectLabel, project));
 
-        for (String module : inspection.modules()) {
+        for (String module : texts(child(project, "modules"), "module")) {
             Path moduleDirectory = projectDirectory.resolve(module).normalize();
             Path modulePom = moduleDirectory.resolve("pom.xml");
             if (Files.isRegularFile(modulePom)) {
-                inspectPom(root, moduleDirectory, projects, signals, reactor);
+                collectPom(root, moduleDirectory, poms, signals, reactor, seenPoms);
             } else {
                 signals.add(ExplainSignals.MAVEN_MODULE_MISSING_POM.signal(
                         projectLabel,
@@ -169,6 +184,24 @@ public final class MavenStaticProjectInspector {
                     "Annotation processor path `" + processor.coordinate()
                             + "` is configured in maven-compiler-plugin."));
         }
+        for (MavenParentInspection parent : inspection.parents()) {
+            if (snapshotVersion(parent.version())) {
+                signals.add(ExplainSignals.MAVEN_PARENT_SNAPSHOT.signal(
+                        project,
+                        "Parent `" + parent.coordinate() + "` uses a SNAPSHOT version."));
+            }
+        }
+        for (MavenRepositoryInspection repository : inspection.repositories()) {
+            String label = repositoryLabel(repository);
+            signals.add(ExplainSignals.MAVEN_REPOSITORY_DECLARED.signal(
+                    project,
+                    "Maven " + label + " `" + repository.id() + "` declares " + repository.url() + "."));
+            if (repository.snapshotsEnabled()) {
+                signals.add(ExplainSignals.MAVEN_REPOSITORY_SNAPSHOTS_ENABLED.signal(
+                        project,
+                        "Maven " + label + " `" + repository.id() + "` has snapshots enabled."));
+            }
+        }
         for (MavenProfileInspection profile : inspection.profiles()) {
             String activation = profile.activationHints().isEmpty()
                     ? "manual activation"
@@ -217,6 +250,14 @@ public final class MavenStaticProjectInspector {
                 || lower.contains(":android-maven-plugin");
     }
 
+    private static boolean snapshotVersion(String version) {
+        return version.toUpperCase().contains("SNAPSHOT");
+    }
+
+    private static String repositoryLabel(MavenRepositoryInspection repository) {
+        return repository.pluginRepository() ? "pluginRepository" : "repository";
+    }
+
     private static boolean unsupportedFrameworkNativePlugin(MavenPluginInspection plugin) {
         String lower = plugin.coordinate().toLowerCase();
         if (lower.contains(":native-maven-plugin") || lower.contains(":micronaut-maven-plugin")) {
@@ -236,6 +277,14 @@ public final class MavenStaticProjectInspector {
         List<MavenDependencyInspection> combined = new ArrayList<>(first);
         combined.addAll(second);
         return combined;
+    }
+
+    private record MavenPomNode(
+            Path pom,
+            Path directory,
+            Path relativePath,
+            String projectLabel,
+            Element project) {
     }
 
     private static final class QuietErrorHandler implements ErrorHandler {

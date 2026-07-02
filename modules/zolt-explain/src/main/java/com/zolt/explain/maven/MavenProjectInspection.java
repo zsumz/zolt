@@ -27,6 +27,7 @@ public record MavenProjectInspection(
         List<MavenDependencyInspection> dependencyManagement,
         List<MavenDependencyInspection> importedBoms,
         List<MavenAnnotationProcessorInspection> annotationProcessors,
+        List<MavenParentInspection> parents,
         List<MavenRepositoryInspection> repositories,
         List<MavenPluginInspection> plugins,
         List<MavenProfileInspection> profiles) {
@@ -42,6 +43,7 @@ public record MavenProjectInspection(
         dependencyManagement = List.copyOf(dependencyManagement);
         importedBoms = List.copyOf(importedBoms);
         annotationProcessors = List.copyOf(annotationProcessors);
+        parents = List.copyOf(parents);
         repositories = List.copyOf(repositories);
         plugins = List.copyOf(plugins);
         profiles = List.copyOf(profiles);

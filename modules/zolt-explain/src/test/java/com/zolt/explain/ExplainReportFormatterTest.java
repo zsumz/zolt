@@ -39,6 +39,7 @@ final class ExplainReportFormatterTest {
                         List.of(),
                         List.of(),
                         List.of(),
+                        List.of(),
                         List.of())),
                 ExplainSignals.sorted(List.of(
                         ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(

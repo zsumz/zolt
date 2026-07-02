@@ -3,7 +3,9 @@ package com.zolt.explain.maven;
 import static com.zolt.explain.maven.MavenXml.child;
 import static com.zolt.explain.maven.MavenXml.text;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,10 +16,9 @@ import org.w3c.dom.Element;
 
 /**
  * A registry of the {@code <project>} elements for every POM reachable within the reactor being
- * inspected, keyed by {@code groupId:artifactId:version} coordinate. Because
- * {@link MavenStaticProjectInspector} recurses root-first (a parent declares its {@code <modules>}, so
- * it is always inspected before its children), a child's ancestors are guaranteed to be registered by
- * the time the child is inspected.
+ * inspected, keyed by {@code groupId:artifactId:version} coordinate. {@link MavenStaticProjectInspector}
+ * registers every readable reactor POM before building inspections, so a root project can still inherit
+ * from a parent POM that lives in a subdirectory module.
  *
  * <p>This lets the inspection builder walk a module's {@code <parent>} chain <em>within the reactor</em>
  * to compute its effective {@code <properties>} and {@code <dependencyManagement>}, mirroring Maven's own
@@ -27,10 +28,16 @@ import org.w3c.dom.Element;
  */
 final class MavenReactorPoms {
     private final Map<String, Element> byCoordinate = new LinkedHashMap<>();
+    private final Map<Element, Path> relativePaths = new IdentityHashMap<>();
 
     /** Registers a POM's {@code <project>} element under its {@code groupId:artifactId:version}. */
-    void register(Element project) {
+    void register(Element project, Path relativePath) {
+        relativePaths.put(project, relativePath);
         coordinate(project).ifPresent(coordinate -> byCoordinate.putIfAbsent(coordinate, project));
+    }
+
+    Path relativePath(Element project) {
+        return relativePaths.getOrDefault(project, Path.of(""));
     }
 
     /**
@@ -65,6 +72,12 @@ final class MavenReactorPoms {
             }
             return Optional.ofNullable(byCoordinate.get(coordinate(groupId, artifactId, version)));
         });
+    }
+
+    boolean sameCoordinate(Element project, String groupId, String artifactId, String version) {
+        return coordinate(project)
+                .map(coordinate -> coordinate.equals(coordinate(groupId, artifactId, version)))
+                .orElse(false);
     }
 
     private static Optional<String> coordinate(Element project) {

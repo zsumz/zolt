@@ -25,6 +25,7 @@ final class MavenExplainProjectJsonWriter {
                 stringField(json, 3, "displayName", project.name(), true);
                 stringField(json, 3, "packaging", project.packaging(), true);
                 stringField(json, 3, "javaVersion", project.javaVersion(), true);
+                parentArray(json, 3, "parents", project.parents(), true);
                 stringArrayField(json, 3, "modules", project.modules(), true);
                 stringArrayField(json, 3, "sourceRoots", project.sourceRoots(), true);
                 stringArrayField(json, 3, "testSourceRoots", project.testSourceRoots(), true);
@@ -33,6 +34,7 @@ final class MavenExplainProjectJsonWriter {
                 dependencyArray(json, 3, "dependencyManagement", project.dependencyManagement(), true);
                 dependencyArray(json, 3, "importedBoms", project.importedBoms(), true);
                 annotationProcessorArray(json, 3, "annotationProcessors", project.annotationProcessors(), true);
+                repositoryArray(json, 3, "repositories", project.repositories(), true);
                 pluginArray(json, 3, "plugins", project.plugins(), true);
                 profileArray(json, 3, "profiles", project.profiles(), false);
                 indent(json, 2).append("}");
@@ -80,6 +82,40 @@ final class MavenExplainProjectJsonWriter {
         json.append('\n');
     }
 
+    private static void parentArray(
+            StringBuilder json,
+            int level,
+            String name,
+            List<MavenParentInspection> parents,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": [");
+        if (!parents.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < parents.size(); index++) {
+                MavenParentInspection parent = parents.get(index);
+                indent(json, level + 1).append("{\n");
+                stringField(json, level + 2, "coordinate", parent.coordinate(), true);
+                stringField(json, level + 2, "groupId", parent.groupId(), true);
+                stringField(json, level + 2, "artifactId", parent.artifactId(), true);
+                stringField(json, level + 2, "version", parent.version(), true);
+                booleanField(json, level + 2, "inReactor", parent.inReactor(), true);
+                booleanField(json, level + 2, "resolved", parent.resolved(), true);
+                stringField(json, level + 2, "path", parent.path(), false);
+                indent(json, level + 1).append("}");
+                if (index < parents.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, level);
+        }
+        json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
     private static void annotationProcessorArray(
             StringBuilder json,
             int level,
@@ -96,6 +132,37 @@ final class MavenExplainProjectJsonWriter {
                 stringField(json, level + 2, "version", processor.version(), false);
                 indent(json, level + 1).append("}");
                 if (index < processors.size() - 1) {
+                    json.append(',');
+                }
+                json.append('\n');
+            }
+            indent(json, level);
+        }
+        json.append("]");
+        if (trailingComma) {
+            json.append(',');
+        }
+        json.append('\n');
+    }
+
+    private static void repositoryArray(
+            StringBuilder json,
+            int level,
+            String name,
+            List<MavenRepositoryInspection> repositories,
+            boolean trailingComma) {
+        indent(json, level).append('"').append(name).append("\": [");
+        if (!repositories.isEmpty()) {
+            json.append('\n');
+            for (int index = 0; index < repositories.size(); index++) {
+                MavenRepositoryInspection repository = repositories.get(index);
+                indent(json, level + 1).append("{\n");
+                stringField(json, level + 2, "id", repository.id(), true);
+                stringField(json, level + 2, "url", repository.url(), true);
+                booleanField(json, level + 2, "pluginRepository", repository.pluginRepository(), true);
+                booleanField(json, level + 2, "snapshotsEnabled", repository.snapshotsEnabled(), false);
+                indent(json, level + 1).append("}");
+                if (index < repositories.size() - 1) {
                     json.append(',');
                 }
                 json.append('\n');

@@ -60,6 +60,30 @@ public final class MavenMigrationReadinessFindings {
                     "[annotationProcessors]",
                     "",
                     signal.nextStep());
+            case "maven.parent.snapshot" -> MigrationReadinessFindings.finding(
+                    "repositories",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "SNAPSHOT Maven parent",
+                    "fixed parent metadata and [repositories]",
+                    "",
+                    signal.nextStep());
+            case "maven.repository.declared" -> MigrationReadinessFindings.finding(
+                    "repositories",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "declared Maven repository or pluginRepository",
+                    "[repositories]",
+                    "",
+                    signal.nextStep());
+            case "maven.repository.snapshots-enabled" -> MigrationReadinessFindings.finding(
+                    "repositories",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "snapshots-enabled Maven repository",
+                    "[repositories]",
+                    "",
+                    signal.nextStep());
             case "maven.profile.detected" -> MigrationReadinessFindings.finding(
                     "ci",
                     MigrationReadinessCategory.NON_DETERMINISTIC,

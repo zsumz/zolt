@@ -28,6 +28,16 @@ public final class MavenExplainFormatter {
                     .append(':').append(project.artifactId())
                     .append(':').append(coordinate(project.version()))
                     .append('\n');
+            if (!project.parents().isEmpty()) {
+                output.append("    parents: ").append(project.parents().size()).append('\n');
+                for (MavenParentInspection parent : project.parents()) {
+                    output.append("      - ")
+                            .append(parent.coordinate())
+                            .append(" (")
+                            .append(parentStatus(parent))
+                            .append(")\n");
+                }
+            }
             if (!project.modules().isEmpty()) {
                 output.append("    modules: ").append(String.join(", ", project.modules())).append('\n');
             }
@@ -41,6 +51,21 @@ public final class MavenExplainFormatter {
             }
             output.append("    managed dependencies: ").append(project.dependencyManagement().size()).append('\n');
             output.append("    imported BOMs: ").append(project.importedBoms().size()).append('\n');
+            if (!project.repositories().isEmpty()) {
+                output.append("    repositories: ").append(project.repositories().size()).append('\n');
+                for (MavenRepositoryInspection repository : project.repositories()) {
+                    output.append("      - ")
+                            .append(repository.pluginRepository() ? "pluginRepository" : "repository")
+                            .append(' ')
+                            .append(repository.id())
+                            .append(' ')
+                            .append(repository.url());
+                    if (repository.snapshotsEnabled()) {
+                        output.append(" (snapshots enabled)");
+                    }
+                    output.append('\n');
+                }
+            }
             output.append("    annotation processors: ").append(project.annotationProcessors().size()).append('\n');
             for (MavenAnnotationProcessorInspection processor : project.annotationProcessors()) {
                 output.append("      - ")
@@ -134,6 +159,13 @@ public final class MavenExplainFormatter {
 
     private static long pluginManagementCount(List<MavenPluginInspection> plugins) {
         return plugins.stream().filter(MavenPluginInspection::pluginManagement).count();
+    }
+
+    private static String parentStatus(MavenParentInspection parent) {
+        if (parent.resolved() && parent.inReactor()) {
+            return "in-reactor " + path(Path.of(parent.path()));
+        }
+        return "external/unresolved";
     }
 
     private static String coordinate(String value) {

@@ -67,6 +67,7 @@ final class MigrationExplainMavenFixtures {
                       "displayName": "",
                       "packaging": "jar",
                       "javaVersion": "21",
+                      "parents": [],
                       "modules": [],
                       "sourceRoots": ["src/main/java"],
                       "testSourceRoots": ["src/test/java"],
@@ -94,6 +95,7 @@ final class MigrationExplainMavenFixtures {
                       "dependencyManagement": [],
                       "importedBoms": [],
                       "annotationProcessors": [],
+                      "repositories": [],
                       "plugins": [],
                       "profiles": []
                     }

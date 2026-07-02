@@ -52,6 +52,7 @@ final class MavenProjectInspectionBuilder {
                 .toList();
         List<MavenAnnotationProcessorInspection> annotationProcessors =
                 MavenAnnotationProcessorPaths.parse(project, properties);
+        List<MavenParentInspection> parents = parents(project, ancestors, reactor);
         List<MavenRepositoryInspection> repositories = repositories(project);
         List<MavenPluginInspection> plugins = MavenPluginParser.parse(project, properties);
         List<MavenProfileInspection> profiles = profiles(project);
@@ -72,9 +73,52 @@ final class MavenProjectInspectionBuilder {
                 dependencyManagement,
                 importedBoms,
                 annotationProcessors,
+                parents,
                 repositories,
                 plugins,
                 profiles);
+    }
+
+    private static List<MavenParentInspection> parents(
+            Element project,
+            List<Element> ancestors,
+            MavenReactorPoms reactor) {
+        List<MavenParentInspection> parents = new ArrayList<>();
+        Element current = project;
+        int ancestorIndex = 0;
+        while (true) {
+            Optional<Element> parentElement = child(current, "parent");
+            if (parentElement.isEmpty()) {
+                return parents;
+            }
+            String groupId = text(parentElement.orElseThrow(), "groupId").orElse("");
+            String artifactId = text(parentElement.orElseThrow(), "artifactId").orElse("");
+            String version = text(parentElement.orElseThrow(), "version").orElse("");
+            Optional<Element> resolved = Optional.empty();
+            if (!groupId.isBlank()
+                    && !artifactId.isBlank()
+                    && !version.isBlank()
+                    && ancestorIndex < ancestors.size()) {
+                Element candidate = ancestors.get(ancestorIndex);
+                if (reactor.sameCoordinate(candidate, groupId, artifactId, version)) {
+                    resolved = Optional.of(candidate);
+                }
+            }
+            if (resolved.isEmpty()) {
+                parents.add(new MavenParentInspection(groupId, artifactId, version, false, false, ""));
+                return parents;
+            }
+            Element ancestor = resolved.orElseThrow();
+            parents.add(new MavenParentInspection(
+                    groupId,
+                    artifactId,
+                    version,
+                    true,
+                    true,
+                    reactor.relativePath(ancestor).toString()));
+            current = ancestor;
+            ancestorIndex++;
+        }
     }
 
     private static List<MavenRepositoryInspection> repositories(Element project) {
@@ -95,13 +139,22 @@ final class MavenProjectInspectionBuilder {
             return List.of();
         }
         List<MavenRepositoryInspection> repositories = new ArrayList<>();
-        for (Element repository : children(repositoriesElement.orElseThrow(), "repository")) {
+        String elementName = pluginRepository ? "pluginRepository" : "repository";
+        for (Element repository : children(repositoriesElement.orElseThrow(), elementName)) {
             repositories.add(new MavenRepositoryInspection(
                     text(repository, "id").orElse("unknown"),
                     text(repository, "url").orElse(""),
-                    pluginRepository));
+                    pluginRepository,
+                    snapshotsEnabled(repository)));
         }
         return repositories;
+    }
+
+    private static boolean snapshotsEnabled(Element repository) {
+        return child(repository, "snapshots")
+                .flatMap(snapshots -> text(snapshots, "enabled"))
+                .map("true"::equalsIgnoreCase)
+                .orElse(false);
     }
 
     private static List<MavenProfileInspection> profiles(Element project) {
