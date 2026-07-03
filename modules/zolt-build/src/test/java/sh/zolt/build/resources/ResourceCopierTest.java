@@ -81,6 +81,25 @@ final class ResourceCopierTest extends ResourceCopierTestSupport {
     }
 
     @Test
+    void skipsExistingBuildOutputsWhenConfiguredResourceRootContainsTarget() throws IOException {
+        Path generated = resource("target/generated/resources/static/app.css", "body {}\n");
+        resource("target/classes/stale.properties", "stale=true\n");
+        resource("target/test-classes/fixture.properties", "test=true\n");
+        BuildSettings settings = buildSettingsWithResourceRoots(
+                List.of("target"),
+                List.of("src/test/resources"));
+
+        ResourceCopyResult result = copier.copyMainResources(projectDir, settings);
+
+        assertEquals(List.of(generated), result.copiedResources());
+        assertEquals(
+                "body {}\n",
+                Files.readString(projectDir.resolve("target/classes/generated/resources/static/app.css")));
+        assertFalse(Files.exists(projectDir.resolve("target/classes/classes/stale.properties")));
+        assertFalse(Files.exists(projectDir.resolve("target/classes/test-classes/fixture.properties")));
+    }
+
+    @Test
     void missingResourceDirectoriesReturnEmptyResults() {
         ResourceCopyResult main = copier.copyMainResources(projectDir, BuildSettings.defaults());
         ResourceCopyResult test = copier.copyTestResources(projectDir, BuildSettings.defaults());
