@@ -54,6 +54,39 @@ final class WorkspaceBuildOrderPlannerTest {
                 exception.getMessage());
     }
 
+    @Test
+    void reportsCyclePathUsingWorkspaceDeclarationOrderWhenEdgesAreUnordered() {
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> planner.buildOrder(
+                        List.of(member("apps/api"), member("modules/core"), member("modules/util")),
+                        List.of(
+                                new WorkspaceProjectEdge("apps/api", "modules/util", "compile", "com.acme:util"),
+                                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core"),
+                                new WorkspaceProjectEdge("modules/util", "apps/api", "compile", "com.acme:api"),
+                                new WorkspaceProjectEdge("modules/core", "apps/api", "compile", "com.acme:api"))));
+
+        assertEquals(
+                "Workspace dependency cycle detected: apps/api -> modules/core -> apps/api.",
+                exception.getMessage());
+    }
+
+    @Test
+    void reportsCyclePathAfterSkippingAlreadyVisitedAcyclicMembers() {
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> planner.buildOrder(
+                        List.of(member("modules/util"), member("apps/api"), member("modules/core")),
+                        List.of(
+                                new WorkspaceProjectEdge("apps/api", "modules/util", "compile", "com.acme:util"),
+                                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core"),
+                                new WorkspaceProjectEdge("modules/core", "apps/api", "compile", "com.acme:api"))));
+
+        assertEquals(
+                "Workspace dependency cycle detected: apps/api -> modules/core -> apps/api.",
+                exception.getMessage());
+    }
+
     private static WorkspaceMember member(String path) {
         return new WorkspaceMember(path, Path.of(path), null);
     }

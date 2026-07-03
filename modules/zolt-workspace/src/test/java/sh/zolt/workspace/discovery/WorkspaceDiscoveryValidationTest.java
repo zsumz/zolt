@@ -5,10 +5,12 @@ import static sh.zolt.workspace.discovery.WorkspaceDiscoveryServiceTestSupport.m
 import static sh.zolt.workspace.discovery.WorkspaceDiscoveryServiceTestSupport.rootWorkspace;
 import static sh.zolt.workspace.discovery.WorkspaceDiscoveryServiceTestSupport.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.workspace.WorkspaceConfigException;
+import sh.zolt.workspace.service.Workspace;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +22,92 @@ final class WorkspaceDiscoveryValidationTest {
 
     @TempDir
     private Path tempDir;
+
+    @Test
+    void discoverAcceptsStartFileInsideWorkspaceMember() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member(tempDir, "apps/api", "api", "com.acme", "");
+        Path sourceFile = tempDir.resolve("apps/api/src/main/java/com/acme/Api.java");
+        Files.createDirectories(sourceFile.getParent());
+        Files.writeString(sourceFile, "package com.acme; public final class Api {}\n");
+
+        Workspace workspace = service.discover(sourceFile).orElseThrow();
+
+        assertEquals(tempDir.toAbsolutePath().normalize(), workspace.root());
+        assertEquals("apps/api", workspace.members().getFirst().path());
+    }
+
+    @Test
+    void loadReportsMissingWorkspaceConfigWithNextStep() {
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Could not find workspace config at "
+                        + tempDir.toAbsolutePath().normalize()
+                        + ". Add zolt.toml with [workspace] or create zolt-workspace.toml.",
+                exception.getMessage());
+    }
+
+    @Test
+    void ignoresRootZoltTomlWithoutWorkspaceSectionWhenLoadingFromChild() throws IOException {
+        Files.writeString(tempDir.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+                """);
+        Path child = tempDir.resolve("apps/api");
+        Files.createDirectories(child);
+
+        assertFalse(service.discover(child).isPresent());
+    }
+
+    @Test
+    void reportsMalformedRootZoltTomlWhileCheckingWorkspaceSection() throws IOException {
+        Files.writeString(tempDir.resolve("zolt.toml"), """
+                [workspace]
+                name = "bad"
+                members = [
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.discover(tempDir));
+
+        assertTrue(exception.getMessage().contains("Could not parse zolt.toml."));
+        assertTrue(exception.getMessage().contains("Fix the TOML syntax near"));
+    }
+
+    @Test
+    void wrapsInvalidMemberProjectConfigWithMemberPath() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                """);
+        Path member = tempDir.resolve("apps/api");
+        Files.createDirectories(member);
+        Files.writeString(member.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                java = "21"
+                """);
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertTrue(exception.getMessage().startsWith("Workspace member `apps/api` has an invalid zolt.toml."));
+        assertTrue(exception.getMessage().contains("[project].group"));
+    }
 
     @Test
     void rejectsMemberPathsThatEscapeWorkspaceRoot() throws IOException {
@@ -143,6 +231,24 @@ final class WorkspaceDiscoveryValidationTest {
     }
 
     @Test
+    void rejectsDefaultMemberPathsThatEscapeWorkspaceRoot() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                defaultMembers = ["../apps/api"]
+                """);
+        member(tempDir, "apps/api", "api", "com.acme", "");
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertTrue(exception.getMessage().contains("Invalid workspace member path `../apps/api` in [workspace].defaultMembers."));
+        assertTrue(exception.getMessage().contains("Use a project-relative path under"));
+    }
+
+    @Test
     void rejectsDefaultMembersThatAreNotDeclaredMembers() throws IOException {
         workspace(tempDir, """
                 [workspace]
@@ -158,6 +264,25 @@ final class WorkspaceDiscoveryValidationTest {
 
         assertEquals(
                 "Workspace default member `apps/worker` must also be listed in [workspace].members.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicateNormalizedDefaultMemberPaths() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "bad"
+                members = ["apps/api"]
+                defaultMembers = ["apps/api", "apps/./api"]
+                """);
+        member(tempDir, "apps/api", "api", "com.acme", "");
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.load(tempDir));
+
+        assertEquals(
+                "Duplicate workspace default member `apps/api` after path normalization.",
                 exception.getMessage());
     }
 

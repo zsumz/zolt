@@ -67,6 +67,34 @@ final class WorkspaceMemberSelectorTest {
     }
 
     @Test
+    void normalizesRootMemberSelection() {
+        Workspace workspace = workspace(
+                List.of(".", "modules/core"),
+                List.of(),
+                List.of("modules/core", "."),
+                List.of(new WorkspaceProjectEdge(".", "modules/core", "compile", "com.acme:core")));
+
+        WorkspaceSelection selection = selector.select(
+                workspace,
+                new WorkspaceSelectionRequest(false, List.of(".")));
+
+        assertEquals(List.of("modules/core", "."), selection.includedMembers());
+        assertEquals(List.of("."), selection.selectedMembers());
+    }
+
+    @Test
+    void treatsNullRequestedMembersAsDefaultSelection() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
+
+        WorkspaceSelection selection = selector.select(
+                workspace,
+                new WorkspaceSelectionRequest(false, null));
+
+        assertEquals(List.of("modules/core", "apps/api", "apps/worker"), selection.includedMembers());
+        assertEquals(List.of("modules/core", "apps/api", "apps/worker"), selection.selectedMembers());
+    }
+
+    @Test
     void selectsAllMembersWhenNoExplicitSelectionOrDefaultsExist() {
         Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
 
@@ -88,6 +116,19 @@ final class WorkspaceMemberSelectorTest {
 
         assertEquals(
                 "Workspace member `apps/missing` is not declared in [workspace].members. Choose a declared member or use --all.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsAbsoluteRequestedMembers() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core"), List.of());
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> selector.select(workspace, new WorkspaceSelectionRequest(false, List.of("/apps/api"))));
+
+        assertEquals(
+                "Invalid workspace member `/apps/api`. Use a relative member path declared in [workspace].members.",
                 exception.getMessage());
     }
 
@@ -129,21 +170,40 @@ final class WorkspaceMemberSelectorTest {
     }
 
     private static Workspace workspace(List<String> members, List<String> defaultMembers) {
+        return workspace(
+                members,
+                defaultMembers,
+                List.of("modules/core", "apps/api", "apps/worker").stream()
+                        .filter(members::contains)
+                        .toList(),
+                List.of(new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")));
+    }
+
+    private static Workspace workspace(
+            List<String> members,
+            List<String> defaultMembers,
+            List<String> buildOrder,
+            List<WorkspaceProjectEdge> edges) {
         List<WorkspaceMember> workspaceMembers = members.stream()
                 .map(member -> new WorkspaceMember(
                         member,
                         Path.of(member),
-                        config(member.substring(member.lastIndexOf('/') + 1))))
+                        config(projectName(member))))
                 .toList();
         return new Workspace(
                 Path.of("."),
                 Path.of("zolt-workspace.toml"),
                 new WorkspaceConfig("workspace", members, defaultMembers, Map.of(), Map.of()),
                 workspaceMembers,
-                List.of(new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")),
-                List.of("modules/core", "apps/api", "apps/worker").stream()
-                        .filter(members::contains)
-                        .toList());
+                edges,
+                buildOrder);
+    }
+
+    private static String projectName(String member) {
+        if (".".equals(member)) {
+            return "root";
+        }
+        return member.substring(member.lastIndexOf('/') + 1);
     }
 
     private static ProjectConfig config(String name) {
