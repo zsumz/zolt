@@ -3,6 +3,7 @@ package sh.zolt.maven.repository;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -113,6 +114,27 @@ final class MavenRepositoryClientUploadTest {
                 "/publish-pom/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom",
                 path.get());
         assertArrayEquals("<project/>".getBytes(StandardCharsets.UTF_8), body.get());
+    }
+
+    @Test
+    void uploadsArtifactWithoutAuthenticationThroughConvenienceOverload() throws IOException {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path source = tempDir.resolve("guava-33.4.0-jre.jar");
+        byte[] bytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+        Files.write(source, bytes);
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<byte[]> body = new AtomicReference<>();
+        server.createContext("/publish-no-auth/", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            body.set(exchange.getRequestBody().readAllBytes());
+            respond(exchange, 200, "ok".getBytes(StandardCharsets.UTF_8));
+        });
+        URI publishBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/publish-no-auth/");
+
+        client.uploadArtifact(publishBaseUri, ArtifactDescriptor.jar(coordinate), source);
+
+        assertNull(authorization.get());
+        assertArrayEquals(bytes, body.get());
     }
 
     @Test

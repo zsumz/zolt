@@ -12,6 +12,19 @@ final class PomPropertyInterpolatorTest {
     private final PomPropertyInterpolator interpolator = new PomPropertyInterpolator();
 
     @Test
+    void plainValueReturnsOriginalString() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                </project>
+                """);
+
+        assertEquals("already-fixed", interpolator.interpolate("already-fixed", pom));
+    }
+
+    @Test
     void supportsProjectVersion() {
         EffectiveRawPom pom = effective("""
                 <project>
@@ -155,6 +168,40 @@ final class PomPropertyInterpolatorTest {
     }
 
     @Test
+    void interpolatesDependencyTypeScopeAndExclusions() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                  <properties>
+                    <dependency.scope>runtime</dependency.scope>
+                    <artifact.type>test-jar</artifact.type>
+                    <excluded.group>org.unwanted</excluded.group>
+                    <excluded.artifact>legacy-helper</excluded.artifact>
+                  </properties>
+                </project>
+                """);
+        RawPomDependency dependency = new RawPomDependency(
+                "com.example",
+                "library",
+                Optional.of("2.0.0"),
+                Optional.of("${dependency.scope}"),
+                Optional.of("${artifact.type}"),
+                Optional.of("tests"),
+                false,
+                java.util.List.of(new RawPomExclusion("${excluded.group}", "${excluded.artifact}")));
+
+        RawPomDependency interpolated = interpolator.interpolateDependency(dependency, pom);
+
+        assertEquals("runtime", interpolated.scope().orElseThrow());
+        assertEquals("test-jar", interpolated.type().orElseThrow());
+        assertEquals("tests", interpolated.classifier().orElseThrow());
+        assertEquals("org.unwanted", interpolated.exclusions().getFirst().groupId());
+        assertEquals("legacy-helper", interpolated.exclusions().getFirst().artifactId());
+    }
+
+    @Test
     void plainDependencyFieldsReturnOriginalDependency() {
         EffectiveRawPom pom = effective("""
                 <project>
@@ -202,6 +249,28 @@ final class PomPropertyInterpolatorTest {
         assertEquals("quarkus-junit", relocation.artifactId().orElseThrow());
         assertEquals("3.33.2", relocation.version().orElseThrow());
         assertEquals("Use io.quarkus:quarkus-junit.", relocation.message().orElseThrow());
+    }
+
+    @Test
+    void plainRelocationFieldsReturnOriginalRelocation() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>io.quarkus</groupId>
+                  <artifactId>quarkus-junit5</artifactId>
+                  <version>3.33.2</version>
+                  <distributionManagement>
+                    <relocation>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-junit</artifactId>
+                      <version>3.33.2</version>
+                      <message>Use quarkus-junit.</message>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+        RawPomRelocation relocation = pom.rawPom().relocation().orElseThrow();
+
+        assertSame(relocation, interpolator.interpolateRelocation(relocation, pom));
     }
 
     private EffectiveRawPom effective(String xml) {

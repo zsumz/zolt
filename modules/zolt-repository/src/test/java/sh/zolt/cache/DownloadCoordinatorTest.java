@@ -1,6 +1,7 @@
 package sh.zolt.cache;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import sh.zolt.cache.DownloadCoordinator.DownloadTask;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -83,6 +85,9 @@ final class DownloadCoordinatorTest {
         assertEquals(1, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "1")));
         assertEquals(8, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "8")));
         assertEquals(1, DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "0")));
+        assertEquals(
+                DownloadCoordinator.DEFAULT_CONCURRENCY,
+                DownloadCoordinator.concurrencyFromEnvironment(Map.of("ZOLT_DOWNLOAD_CONCURRENCY", "   ")));
         assertEquals(DownloadCoordinator.DEFAULT_CONCURRENCY, DownloadCoordinator.concurrencyFromEnvironment(Map.of()));
         assertEquals(
                 DownloadCoordinator.DEFAULT_CONCURRENCY,
@@ -167,6 +172,86 @@ final class DownloadCoordinatorTest {
                 new DownloadCoordinator.DownloadFailure("repo/null-message.jar", "RuntimeException")),
                 exception.failures());
         assertTrue(exception.getMessage().contains("Retry the command or check your repository and network settings."));
+    }
+
+    @Test
+    void runAllInterruptedWaitReportsActionableFailuresAndPreservesInterruptFlag() {
+        clearInterruptFlag();
+        DownloadCoordinator coordinator = new DownloadCoordinator(1);
+
+        try {
+            Thread.currentThread().interrupt();
+            DownloadCoordinatorException exception = assertThrows(
+                    DownloadCoordinatorException.class,
+                    () -> coordinator.runAll(List.of(
+                            new DownloadTask<>("repo/a.jar", () -> "a"))));
+
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertEquals(List.of(
+                    new DownloadCoordinator.DownloadFailure(
+                            "repo/a.jar",
+                            "interrupted while waiting for download")),
+                    exception.failures());
+            assertTrue(exception.getMessage().contains("Retry the command or check your repository and network settings."));
+        } finally {
+            clearInterruptFlag();
+        }
+    }
+
+    @Test
+    void duplicateInFlightRuntimeFailureIsPropagatedToWaiter() throws Exception {
+        CountDownLatch duplicateJoined = new CountDownLatch(1);
+        DownloadCoordinator coordinator = new DownloadCoordinator(
+                2,
+                RepositoryExecutionLane.DEFAULT,
+                duplicateJoined::countDown);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFailure = new CountDownLatch(1);
+        ArtifactCacheException failure = new ArtifactCacheException("network failed");
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<String> first = executor.submit(() -> coordinator.run("repo/shared.jar", () -> {
+                firstStarted.countDown();
+                await(releaseFailure);
+                throw failure;
+            }));
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
+
+            Future<String> second = executor.submit(() -> coordinator.run("repo/shared.jar", () -> "duplicate"));
+            assertTrue(duplicateJoined.await(2, TimeUnit.SECONDS));
+            releaseFailure.countDown();
+
+            assertSame(failure, executionCause(first));
+            assertSame(failure, executionCause(second));
+        }
+    }
+
+    @Test
+    void duplicateInFlightErrorIsPropagatedToWaiter() throws Exception {
+        CountDownLatch duplicateJoined = new CountDownLatch(1);
+        DownloadCoordinator coordinator = new DownloadCoordinator(
+                2,
+                RepositoryExecutionLane.DEFAULT,
+                duplicateJoined::countDown);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFailure = new CountDownLatch(1);
+        AssertionError failure = new AssertionError("boom");
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<String> first = executor.submit(() -> coordinator.run("repo/shared.jar", () -> {
+                firstStarted.countDown();
+                await(releaseFailure);
+                throw failure;
+            }));
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
+
+            Future<String> second = executor.submit(() -> coordinator.run("repo/shared.jar", () -> "duplicate"));
+            assertTrue(duplicateJoined.await(2, TimeUnit.SECONDS));
+            releaseFailure.countDown();
+
+            assertSame(failure, executionCause(first));
+            assertSame(failure, executionCause(second));
+        }
     }
 
     @Test
@@ -255,5 +340,10 @@ final class DownloadCoordinatorTest {
 
     private static void clearInterruptFlag() {
         Thread.interrupted();
+    }
+
+    private static Throwable executionCause(Future<String> future) {
+        ExecutionException exception = assertThrows(ExecutionException.class, future::get);
+        return exception.getCause();
     }
 }

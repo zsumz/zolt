@@ -1,6 +1,7 @@
 package sh.zolt.maven.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -159,5 +160,32 @@ final class MavenRepositoryClientHttpBehaviorTest extends MavenRepositoryClientT
 
         assertEquals(1, attempts.get());
         assertTrue(new String(artifact.bytes(), StandardCharsets.UTF_8).contains("<project/>"));
+    }
+
+    @Test
+    void authenticationFailureMessageIsActionableAndDoesNotLeakCredentials() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/unauthorized/", exchange -> {
+            attempts.incrementAndGet();
+            respond(exchange, 401, "unauthorized".getBytes(StandardCharsets.UTF_8));
+        });
+        URI unauthorizedBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/unauthorized/");
+
+        RepositoryClientException exception = assertThrows(
+                RepositoryClientException.class,
+                () -> client.fetchPom(
+                        unauthorizedBaseUri,
+                        coordinate,
+                        Optional.of(new RepositoryAuthentication("zolt-user", "zolt-secret"))));
+
+        assertEquals(1, attempts.get());
+        assertTrue(exception.getMessage().contains("Repository returned HTTP 401 while fetching"));
+        assertTrue(exception.getMessage().contains("Try again or check the repository URL."));
+        assertTrue(exception.getMessage().contains("com.google.guava:guava:33.4.0-jre"));
+        assertTrue(exception.getMessage().contains("/unauthorized/"));
+        assertTrue(exception.getMessage().contains("guava-33.4.0-jre.pom"));
+        assertFalse(exception.getMessage().contains("zolt-user"));
+        assertFalse(exception.getMessage().contains("zolt-secret"));
     }
 }

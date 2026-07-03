@@ -217,6 +217,34 @@ final class ParentPomResolverTest {
                 () -> new ParentPomResolver(source).resolve(child));
 
         assertTrue(exception.getMessage().contains("Parent POM cycle detected"));
+        assertTrue(exception.getMessage().contains("com.example:app:1.0.0 -> com.example:a:1.0.0"));
+        assertTrue(exception.getMessage().contains("Remove the circular <parent> reference"));
+    }
+
+    @Test
+    void detectsSelfParentWithoutLoadingParentPom() {
+        RawPom child = pom("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>app</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        ParentPomException exception = assertThrows(
+                ParentPomException.class,
+                () -> new ParentPomResolver(coordinate -> {
+                    throw new AssertionError("self-parent should be detected before loading " + coordinate);
+                }).resolve(child));
+
+        assertEquals(
+                "Parent POM cycle detected: com.example:app:1.0.0 -> com.example:app:1.0.0. Remove the circular <parent> reference from one of these POMs.",
+                exception.getMessage());
     }
 
     @Test

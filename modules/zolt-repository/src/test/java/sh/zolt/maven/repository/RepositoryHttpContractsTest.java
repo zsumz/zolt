@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class RepositoryHttpContractsTest {
@@ -24,6 +25,41 @@ final class RepositoryHttpContractsTest {
     }
 
     @Test
+    void fetchRequestUsesGetTimeoutAndAuthenticationHeader() {
+        RepositoryAuthentication authentication = new RepositoryAuthentication("zolt-user", "zolt-secret");
+        RepositoryHttpPolicy policy = new RepositoryHttpPolicy(Duration.ofSeconds(7), 1, Duration.ZERO);
+
+        HttpRequest request = RepositoryHttpRequests.fetchRequest(
+                URI.create("https://repo.example.test/maven2/com/example/app/1.0.0/app-1.0.0.pom"),
+                Optional.of(authentication),
+                policy);
+
+        assertEquals("GET", request.method());
+        assertEquals(Duration.ofSeconds(7), request.timeout().orElseThrow());
+        assertEquals(
+                authentication.basicAuthorizationHeader(),
+                request.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void uploadRequestUsesPutTimeoutAndAuthenticationHeader() {
+        RepositoryAuthentication authentication = new RepositoryAuthentication("zolt-user", "zolt-secret");
+        RepositoryHttpPolicy policy = new RepositoryHttpPolicy(Duration.ofSeconds(9), 1, Duration.ZERO);
+
+        HttpRequest request = RepositoryHttpRequests.uploadRequest(
+                URI.create("https://repo.example.test/maven2/com/example/app/1.0.0/app-1.0.0.pom"),
+                HttpRequest.BodyPublishers.ofString("<project/>"),
+                Optional.of(authentication),
+                policy);
+
+        assertEquals("PUT", request.method());
+        assertEquals(Duration.ofSeconds(9), request.timeout().orElseThrow());
+        assertEquals(
+                authentication.basicAuthorizationHeader(),
+                request.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
     void authenticationRejectsBlankUsernameAndPassword() {
         IllegalArgumentException usernameException = assertThrows(
                 IllegalArgumentException.class,
@@ -31,6 +67,19 @@ final class RepositoryHttpContractsTest {
         IllegalArgumentException passwordException = assertThrows(
                 IllegalArgumentException.class,
                 () -> new RepositoryAuthentication("zolt-user", ""));
+
+        assertEquals("Repository authentication username must be non-empty.", usernameException.getMessage());
+        assertEquals("Repository authentication password must be non-empty.", passwordException.getMessage());
+    }
+
+    @Test
+    void authenticationRejectsNullUsernameAndPassword() {
+        IllegalArgumentException usernameException = assertThrows(
+                IllegalArgumentException.class,
+                () -> new RepositoryAuthentication(null, "zolt-secret"));
+        IllegalArgumentException passwordException = assertThrows(
+                IllegalArgumentException.class,
+                () -> new RepositoryAuthentication("zolt-user", null));
 
         assertEquals("Repository authentication username must be non-empty.", usernameException.getMessage());
         assertEquals("Repository authentication password must be non-empty.", passwordException.getMessage());

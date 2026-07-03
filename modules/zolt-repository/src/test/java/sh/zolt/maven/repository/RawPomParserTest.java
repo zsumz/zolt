@@ -148,6 +148,28 @@ final class RawPomParserTest {
     }
 
     @Test
+    void parsesPartialDistributionManagementRelocation() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.legacy</groupId>
+                  <artifactId>old-api</artifactId>
+                  <version>1.0.0</version>
+                  <distributionManagement>
+                    <relocation>
+                      <artifactId>new-api</artifactId>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+
+        RawPomRelocation relocation = pom.relocation().orElseThrow();
+        assertFalse(relocation.groupId().isPresent());
+        assertEquals("new-api", relocation.artifactId().orElseThrow());
+        assertFalse(relocation.version().isPresent());
+        assertFalse(relocation.message().isPresent());
+    }
+
+    @Test
     void defaultsPackagingToJar() {
         RawPom pom = parser.parse("""
                 <project>
@@ -197,6 +219,16 @@ final class RawPomParserTest {
         RawPomParseException exception = assertThrows(
                 RawPomParseException.class,
                 () -> parser.parse("<project><artifactId>broken</project>"));
+
+        assertTrue(exception.getMessage().contains("Could not parse POM XML."));
+        assertTrue(exception.getMessage().contains("Fix malformed XML"));
+    }
+
+    @Test
+    void emptyInputFailsAsMalformedPomMetadata() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse(new byte[0]));
 
         assertTrue(exception.getMessage().contains("Could not parse POM XML."));
         assertTrue(exception.getMessage().contains("Fix malformed XML"));
@@ -317,6 +349,25 @@ final class RawPomParserTest {
 
         assertEquals(
                 "Could not parse POM XML. Missing required <artifactId> in <parent>.",
+                exception.getMessage());
+    }
+
+    @Test
+    void missingParentGroupIdFailsCleanly() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("""
+                        <project>
+                          <parent>
+                            <artifactId>parent</artifactId>
+                            <version>1.0.0</version>
+                          </parent>
+                          <artifactId>child</artifactId>
+                        </project>
+                        """));
+
+        assertEquals(
+                "Could not parse POM XML. Missing required <groupId> in <parent>.",
                 exception.getMessage());
     }
 

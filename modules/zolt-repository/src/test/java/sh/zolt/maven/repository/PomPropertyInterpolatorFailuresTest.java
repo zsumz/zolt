@@ -83,6 +83,25 @@ final class PomPropertyInterpolatorFailuresTest {
     }
 
     @Test
+    void unclosedPropertyExpressionFailsWithPomContext() {
+        EffectiveRawPom pom = effective("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.2.3</version>
+                </project>
+                """);
+
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> interpolator.interpolate("lib-${missing.version", pom));
+
+        assertEquals(
+                "Unclosed property expression in POM for com.example:app:1.2.3: `lib-${missing.version`.",
+                exception.getMessage());
+    }
+
+    @Test
     void interpolatorLeavesUnknownPropertyTextReadable() {
         EffectiveRawPom pom = effective("""
                 <project>
