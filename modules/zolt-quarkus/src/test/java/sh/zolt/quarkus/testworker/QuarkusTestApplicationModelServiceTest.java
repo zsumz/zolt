@@ -1,5 +1,6 @@
 package sh.zolt.quarkus.testworker;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -18,6 +19,7 @@ import sh.zolt.quarkus.bootstrap.descriptor.QuarkusBootstrapDescriptorWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +29,68 @@ import org.junit.jupiter.api.io.TempDir;
 final class QuarkusTestApplicationModelServiceTest {
     @TempDir
     private Path projectDir;
+
+    @Test
+    void skipsWhenQuarkusFrameworkIsDisabled() {
+        assertTrue(service().writeIfEnabled(projectDir, config(BuildSettings.defaults(), false)).isEmpty());
+    }
+
+    @Test
+    void requiresProjectDirectoryAndConfig() {
+        assertTrue(assertThrows(
+                        QuarkusAugmentationException.class,
+                        () -> service().writeIfEnabled(null, config(BuildSettings.defaults())))
+                .getMessage()
+                .contains("requires a project directory"));
+        assertTrue(assertThrows(
+                        QuarkusAugmentationException.class,
+                        () -> service().writeIfEnabled(projectDir, null))
+                .getMessage()
+                .contains("requires a project config"));
+    }
+
+    @Test
+    void writesEnabledModelThroughWorkerLauncherWithWorkspaceInputs() throws IOException {
+        writeBootstrapDescriptor();
+        List<List<String>> commands = new ArrayList<>();
+        QuarkusTestApplicationModelService service = new QuarkusTestApplicationModelService(
+                new QuarkusBootstrapDescriptorReader(),
+                new JdkDetector(),
+                () -> List.of(projectDir.resolve("zolt-worker.jar")),
+                (javaExecutable, workerClasspath) -> new QuarkusTestApplicationModelWorkerLauncher(
+                        ":",
+                        javaExecutable,
+                        workerClasspath,
+                        command -> {
+                            commands.add(command);
+                            try {
+                                Files.writeString(Path.of(command.get(5)), "serialized model");
+                            } catch (IOException exception) {
+                                throw new AssertionError(exception);
+                            }
+                            return new QuarkusTestApplicationModelWorkerLauncher.ProcessResult(0, "");
+                        }));
+
+        Optional<Path> output = service.writeIfEnabled(projectDir, config(BuildSettings.defaults()));
+
+        Path expectedOutput = projectDir.resolve("target/quarkus/test-application-model.dat")
+                .toAbsolutePath()
+                .normalize();
+        assertEquals(Optional.of(expectedOutput), output);
+        assertEquals("serialized model", Files.readString(expectedOutput));
+        List<String> command = commands.getFirst();
+        assertEquals(QuarkusTestApplicationModelWorker.MAIN_CLASS, command.get(3));
+        assertEquals(projectDir.resolve("target/quarkus/zolt-bootstrap.properties").toString(), command.get(4));
+        assertEquals(expectedOutput.toString(), command.get(5));
+        assertEquals(projectDir.toAbsolutePath().normalize().toString(), command.get(6));
+        assertEquals(projectDir.resolve("target").toAbsolutePath().normalize().toString(), command.get(7));
+        assertEquals(projectDir.resolve("src/main/java").toAbsolutePath().normalize().toString(), command.get(8));
+        assertEquals(projectDir.resolve("src/main/resources").toAbsolutePath().normalize().toString(), command.get(9));
+        assertEquals(projectDir.resolve("target/classes").toAbsolutePath().normalize().toString(), command.get(10));
+        assertEquals(projectDir.resolve("src/test/java").toAbsolutePath().normalize().toString(), command.get(11));
+        assertEquals(projectDir.resolve("src/test/resources").toAbsolutePath().normalize().toString(), command.get(12));
+        assertEquals(projectDir.resolve("target/test-classes").toAbsolutePath().normalize().toString(), command.get(13));
+    }
 
     @Test
     void rejectsQuarkusModelOutputSymlinkThatEscapesProject() throws IOException {
@@ -71,6 +135,10 @@ final class QuarkusTestApplicationModelServiceTest {
     }
 
     private ProjectConfig config(BuildSettings buildSettings) {
+        return config(buildSettings, true);
+    }
+
+    private ProjectConfig config(BuildSettings buildSettings, boolean quarkusEnabled) {
         return ProjectConfigs.withDirectDependencies(
                         new ProjectMetadata(
                                 "demo",
@@ -83,7 +151,7 @@ final class QuarkusTestApplicationModelServiceTest {
                         Map.of(),
                         buildSettings)
                 .withFrameworkSettings(new FrameworkSettings(new QuarkusSettings(
-                        true,
+                        quarkusEnabled,
                         QuarkusPackageMode.FAST_JAR)));
     }
 
