@@ -10,6 +10,9 @@ import sh.zolt.quality.QualityCheckStatus;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -38,6 +41,32 @@ final class PackageContentQualityCheckTest extends PackageQualityCheckTestSuppor
                 "zolt.lock",
                 "Package content diagnostics require zolt.lock.",
                 "Run `zolt resolve`.");
+    }
+
+    @Test
+    void packageContentsReportsMalformedLockfileWithWorkspaceResolveAction() throws IOException {
+        Path projectDir = tempDir.resolve("contents-malformed-lock");
+        ProjectConfig config = parseProject(projectDir, "");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = 42
+                """);
+
+        QualityCheckResult result = check.checkContents(
+                Optional.of("modules/api"),
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                false).getFirst();
+
+        assertEquals(QualityCheckService.PACKAGE_CONTENTS, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals(Optional.of("modules/api"), result.member());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Invalid value type in zolt.lock"));
+        assertEquals("Run `zolt resolve --workspace`.", result.nextStep());
     }
 
     @Test
@@ -177,6 +206,38 @@ final class PackageContentQualityCheckTest extends PackageQualityCheckTestSuppor
     }
 
     @Test
+    void packageContentsAcceptsCurrentEvidenceForExistingArchive() throws IOException {
+        Path projectDir = tempDir.resolve("current-evidence");
+        ProjectConfig config = parseProject(projectDir, "");
+        writeLockfile(projectDir, "");
+        Path jar = projectDir.resolve("target/current-evidence-0.1.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar bytes\n");
+        Files.writeString(projectDir.resolve("target/current-evidence-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/current-evidence-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(sha256(jar)));
+
+        QualityCheckResult result = check.checkContents(
+                Optional.empty(),
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                false).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckService.PACKAGE_CONTENTS,
+                QualityCheckStatus.PASSED,
+                "current-evidence",
+                "Package mode `thin` has 0 dependency dispositions.",
+                "");
+    }
+
+    @Test
     void packageContentsReportsUnreadableEvidenceManifest() throws IOException {
         Path projectDir = tempDir.resolve("bad-evidence");
         ProjectConfig config = parseProject(projectDir, "");
@@ -202,5 +263,14 @@ final class PackageContentQualityCheckTest extends PackageQualityCheckTestSuppor
         assertEquals("target/bad-evidence-0.1.0.jar.zolt-package.json", result.subject());
         assertTrue(result.message().contains("is missing string field `archive`"));
         assertEquals("Run `zolt package` to regenerate package evidence.", result.nextStep());
+    }
+
+    private static String sha256(Path path) throws IOException {
+        try {
+            return "sha256:" + HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError("SHA-256 is required for package content tests.", exception);
+        }
     }
 }

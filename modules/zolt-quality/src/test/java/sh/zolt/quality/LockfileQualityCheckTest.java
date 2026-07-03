@@ -104,6 +104,23 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     @Test
+    void projectLockfilePassesWithOfflineReadyMessageWhenNoArtifactsAreNeeded() throws IOException {
+        Path projectDir = tempDir.resolve("lockfile-ready");
+        ProjectConfig config = parseProject(projectDir, "");
+        new ResolveService().resolve(projectDir, config, tempDir.resolve("cache"));
+
+        QualityCheckResult result = check.checkProjectLockfile(request(projectDir, false, true), config);
+
+        assertResult(
+                result,
+                QualityCheckService.LOCKFILE,
+                QualityCheckStatus.PASSED,
+                "zolt.lock",
+                "zolt.lock matches zolt.toml and locked artifacts are available from the local cache.",
+                "");
+    }
+
+    @Test
     void projectCacheIntegrityRequiresLockfile() throws IOException {
         Path projectDir = tempDir.resolve("missing-cache-lock");
         Files.createDirectories(projectDir);
@@ -183,6 +200,37 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
                 "zolt.lock",
                 "All cached artifacts with lockfile checksums match local bytes.",
                 "");
+    }
+
+    @Test
+    void cacheIntegrityReportsChecksumMismatchWithCacheRefreshNextStep() throws IOException {
+        Path projectDir = tempDir.resolve("cache-checksum-mismatch");
+        Path cacheRoot = tempDir.resolve("cache");
+        Path jar = cacheRoot.resolve("com/example/mismatch/1.0.0/mismatch-1.0.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "actual cached bytes\n");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:mismatch"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/mismatch/1.0.0/mismatch-1.0.0.jar"
+                jarSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+                dependencies = []
+                """);
+
+        QualityCheckResult result = check.checkProjectCacheIntegrity(request(projectDir));
+
+        assertEquals(QualityCheckService.CACHE_INTEGRITY, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Cached jar integrity check failed for com.example:mismatch:1.0.0"));
+        assertEquals("Remove the cache entry or run `zolt resolve`.", result.nextStep());
     }
 
     private QualityCheckRequest request(Path projectDir) {

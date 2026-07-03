@@ -101,6 +101,53 @@ final class DependencyQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     @Test
+    void dependencyMetadataRequiresClasspathDependencyInLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("classpath-missing");
+        ProjectConfig config = parseProject(projectDir, """
+
+                [dependencies]
+                "com.example:missing-lib" = { version = "1.0.0", optional = true }
+                """);
+        writeLockfile(projectDir, "");
+
+        QualityCheckResult result = check.checkProjectMetadata(Optional.empty(), projectDir, config, false).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckService.DEPENDENCY_METADATA,
+                QualityCheckStatus.FAILED,
+                "com.example:missing-lib",
+                "Dependency metadata for `com.example:missing-lib` is not represented in zolt.lock.",
+                "Run `zolt resolve`.");
+    }
+
+    @Test
+    void dependencyMetadataPassesWhenClasspathMetadataMatchesLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("classpath-metadata-ok");
+        ProjectConfig config = parseProject(projectDir, """
+
+                [dependencies]
+                "com.example:root-lib" = { version = "1.0.0", optional = true, exclusions = [{ group = "com.example", artifact = "legacy" }] }
+                """);
+        writeLockfile(projectDir, packageEntry(
+                "com.example:root-lib",
+                "1.0.0",
+                "compile",
+                true,
+                "dependencies = [\"com.example:helper\"]"));
+
+        QualityCheckResult result = check.checkProjectMetadata(Optional.empty(), projectDir, config, false).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckService.DEPENDENCY_METADATA,
+                QualityCheckStatus.PASSED,
+                "com.example:root-lib",
+                "Dependency metadata for `com.example:root-lib` is represented in zolt.lock.",
+                "");
+    }
+
+    @Test
     void dependencyMetadataRejectsPublishOnlyDependenciesPresentInLockfile() throws IOException {
         Path projectDir = tempDir.resolve("publish-only-in-lockfile");
         ProjectConfig config = parseProject(projectDir, """

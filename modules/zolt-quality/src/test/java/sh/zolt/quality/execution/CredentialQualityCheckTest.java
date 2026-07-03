@@ -208,6 +208,37 @@ final class CredentialQualityCheckTest {
     }
 
     @Test
+    void repositoryCredentialCheckReportsSingleCredentialedRepositorySummary() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                company = { url = "https://repo.example.test/maven", credentials = "company-creds" }
+
+                [repositoryCredentials.company-creds]
+                usernameEnv = "COMPANY_USERNAME"
+                passwordEnv = "COMPANY_TOKEN"
+                """);
+        CredentialQualityCheck check = new CredentialQualityCheck(new PublishSettingsReader(), Map.of(
+                        "COMPANY_USERNAME", "ci-user",
+                        "COMPANY_TOKEN", "ci-token")
+                ::get);
+
+        QualityCheckResult result = check.checkRepositoryCredentials(
+                Optional.empty(),
+                config,
+                QualityCheckContext.CI).getFirst();
+
+        assertEquals("repository-credentials", result.subject());
+        assertEquals("CI credential preflight passed for 1 credentialed repository.", result.message());
+        assertEquals("", result.nextStep());
+    }
+
+    @Test
     void publishCredentialCheckRejectsEmbeddedUrlCredentialsWithoutLeakingThem() throws IOException {
         Path projectDir = tempDir.resolve("publish-embedded-credentials");
         Files.createDirectories(projectDir);
@@ -274,6 +305,59 @@ final class CredentialQualityCheckTest {
         assertEquals("Publish repository `company-releases` URL is not a valid URI.", result.message());
         assertEquals(
                 "Edit [publish.repositories.company-releases] to use a Maven-compatible HTTPS URL without embedded credentials.",
+                result.nextStep());
+    }
+
+    @Test
+    void publishCredentialCheckSkipsWhenPublishIsNotConfigured() throws IOException {
+        Path projectDir = tempDir.resolve("publish-not-configured");
+        Files.createDirectories(projectDir);
+        String toml = """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """;
+        Files.writeString(projectDir.resolve("zolt.toml"), toml);
+        ProjectConfig config = parser.parse(toml);
+        CredentialQualityCheck check = new CredentialQualityCheck(new PublishSettingsReader(), Map.<String, String>of()::get);
+
+        assertEquals(List.of(), check.checkPublishCredentials(
+                Optional.empty(),
+                projectDir,
+                config,
+                QualityCheckContext.CI));
+    }
+
+    @Test
+    void publishCredentialCheckReportsMissingEnvironmentVariablesByNameOnly() throws IOException {
+        Path projectDir = tempDir.resolve("publish-missing-env");
+        String toml = publishCredentialToml("""
+                credentials = "publish-creds"
+                """, """
+
+                [repositoryCredentials.publish-creds]
+                usernameEnv = "PUBLISH_USERNAME"
+                passwordEnv = "PUBLISH_ACCESS_TOKEN"
+                """);
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), toml);
+        ProjectConfig config = parser.parse(toml);
+        CredentialQualityCheck check = new CredentialQualityCheck(new PublishSettingsReader(), Map.<String, String>of()::get);
+
+        QualityCheckResult result = check.checkPublishCredentials(
+                Optional.empty(),
+                projectDir,
+                config,
+                QualityCheckContext.CI).getFirst();
+
+        assertEquals("[repositoryCredentials.publish-creds]", result.subject());
+        assertEquals(
+                "CI context requires environment variables PUBLISH_USERNAME, PUBLISH_ACCESS_TOKEN for publish repository `company-releases` credentials `publish-creds` before publish work starts.",
+                result.message());
+        assertEquals(
+                "Set the named CI secrets and rerun `zolt check --context ci`. Secret values are never printed.",
                 result.nextStep());
     }
 
@@ -426,5 +510,23 @@ final class CredentialQualityCheckTest {
         assertFalse(rendered.contains("repo-user"));
         assertFalse(rendered.contains("publish-user"));
         assertFalse(rendered.contains("super-secret"));
+    }
+
+    private static String publishCredentialToml(String repositoryBody, String credentialBody) {
+        return """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                %s
+                %s
+                """.formatted(repositoryBody, credentialBody);
     }
 }

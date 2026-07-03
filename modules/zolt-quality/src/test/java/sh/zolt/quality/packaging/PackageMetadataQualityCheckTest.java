@@ -9,6 +9,7 @@ import sh.zolt.quality.QualityCheckStatus;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -119,6 +120,98 @@ final class PackageMetadataQualityCheckTest extends PackageQualityCheckTestSuppo
     }
 
     @Test
+    void metadataReportsLaterMissingPublicationFieldsWithTargetedNextSteps() throws IOException {
+        List<MissingMetadataCase> cases = List.of(
+                new MissingMetadataCase("description", """
+                        name = "Example Library"
+                        """),
+                new MissingMetadataCase("url", """
+                        name = "Example Library"
+                        description = "Small Java helpers."
+                        """),
+                new MissingMetadataCase("license", """
+                        name = "Example Library"
+                        description = "Small Java helpers."
+                        url = "https://example.com/library"
+                        """),
+                new MissingMetadataCase("developers", """
+                        name = "Example Library"
+                        description = "Small Java helpers."
+                        url = "https://example.com/library"
+                        license = "Apache-2.0"
+                        """),
+                new MissingMetadataCase("scm", """
+                        name = "Example Library"
+                        description = "Small Java helpers."
+                        url = "https://example.com/library"
+                        license = "Apache-2.0"
+                        developers = ["Example Team"]
+                        """),
+                new MissingMetadataCase("issues", """
+                        name = "Example Library"
+                        description = "Small Java helpers."
+                        url = "https://example.com/library"
+                        license = "Apache-2.0"
+                        developers = ["Example Team"]
+                        scm = "https://example.com/library.git"
+                        """));
+
+        for (MissingMetadataCase testCase : cases) {
+            Path projectDir = tempDir.resolve("missing-" + testCase.field());
+            ProjectConfig config = parseProject(projectDir, """
+
+                    [package]
+                    sources = true
+                    javadoc = true
+                    tests = true
+
+                    [package.metadata]
+                    """
+                    + testCase.metadata());
+
+            QualityCheckResult result = check.checkMetadata(Optional.empty(), projectDir, config);
+
+            assertResult(
+                    result,
+                    QualityCheckService.PACKAGE_METADATA,
+                    QualityCheckStatus.FAILED,
+                    "[package.metadata]." + testCase.field(),
+                    "Library package metadata is enabled, but publication metadata field `" + testCase.field() + "` is missing.",
+                    "Fill [package.metadata]." + testCase.field() + " in zolt.toml.");
+        }
+    }
+
+    @Test
+    void publicationMetadataAloneRequestsLibraryPackageProfile() throws IOException {
+        List<String> metadataBodies = List.of(
+                "description = \"Small Java helpers.\"\n",
+                "url = \"https://example.com/library\"\n",
+                "license = \"Apache-2.0\"\n",
+                "developers = [\"Example Team\"]\n",
+                "scm = \"https://example.com/library.git\"\n",
+                "issues = \"https://example.com/library/issues\"\n");
+
+        for (int index = 0; index < metadataBodies.size(); index++) {
+            Path projectDir = tempDir.resolve("metadata-profile-" + index);
+            ProjectConfig config = parseProject(projectDir, """
+
+                    [package.metadata]
+                    """
+                    + metadataBodies.get(index));
+
+            QualityCheckResult result = check.checkMetadata(Optional.empty(), projectDir, config);
+
+            assertResult(
+                    result,
+                    QualityCheckService.PACKAGE_METADATA,
+                    QualityCheckStatus.FAILED,
+                    "[package].sources",
+                    "Library package metadata is enabled, but sources jar generation is disabled.",
+                    "Set [package].sources = true for library projects.");
+        }
+    }
+
+    @Test
     void metadataPassesWhenLibraryMetadataIsComplete() throws IOException {
         Path projectDir = tempDir.resolve("complete-metadata");
         ProjectConfig config = parseProject(projectDir, """
@@ -218,5 +311,8 @@ final class PackageMetadataQualityCheckTest extends PackageQualityCheckTestSuppo
                 "manifest-ok",
                 "Library manifest metadata is deterministic.",
                 "");
+    }
+
+    private record MissingMetadataCase(String field, String metadata) {
     }
 }

@@ -183,6 +183,37 @@ final class ExecutionEvidenceQualityCheckTest {
     }
 
     @Test
+    void testReportsPassWhenShardAndWorkerEvidenceHaveJUnitXmlReports() throws IOException {
+        Files.createDirectories(tempDir.resolve("target/test-reports/shards/slow-suite/shard-1-of-2"));
+        Files.createDirectories(tempDir.resolve("target/test-reports/workers/worker-a"));
+        Files.writeString(tempDir.resolve("target/test-reports/TEST-root.xml"), "<testsuite />\n");
+        Files.writeString(tempDir.resolve("target/test-reports/shards/slow-suite/shard-1-of-2/TEST-shard.xml"), "<testsuite />\n");
+        Files.writeString(tempDir.resolve("target/test-reports/workers/worker-a/TEST-worker.xml"), "<testsuite />\n");
+        Files.writeString(tempDir.resolve("target/test-reports/workers/zolt-workers.json"), """
+                {"workers": ["worker-a"]}
+                """);
+        Files.createDirectories(tempDir.resolve("target/test-shards/slow-suite"));
+        Files.writeString(tempDir.resolve("target/test-shards/slow-suite/shard-1-of-2.json"), """
+                {"suite": "slow suite", "empty": false}
+                """);
+
+        QualityCheckResult result = check.checkTestReports(
+                Optional.empty(),
+                tempDir,
+                Path.of("target/test-reports"),
+                Path.of("target/test-reports"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "test-reports",
+                "CI test report preflight found 3 JUnit XML reports.",
+                "");
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+    }
+
+    @Test
     void coverageRequiresCoverageDirectoryWithWorkspaceNextStep() {
         QualityCheckResult result = check.checkCoverageReports(
                 Optional.of("modules/api"),
@@ -331,6 +362,39 @@ final class ExecutionEvidenceQualityCheckTest {
     }
 
     @Test
+    void coveragePassesWithRootExecAndCompleteSplitEvidence() throws IOException {
+        Files.createDirectories(tempDir.resolve("target/test-shards/unit-suite"));
+        Files.writeString(tempDir.resolve("target/test-shards/unit-suite/shard-1-of-1.json"), """
+                {"suite": "unit", "empty": false}
+                """);
+        Files.createDirectories(tempDir.resolve("target/coverage/shards/unit-suite/shard-1-of-1"));
+        Files.createDirectories(tempDir.resolve("target/coverage/workers/worker-a"));
+        Files.writeString(tempDir.resolve("target/coverage/jacoco.exec"), "exec\n");
+        Files.writeString(tempDir.resolve("target/coverage/jacoco.xml"), "<report />\n");
+        Files.writeString(tempDir.resolve("target/coverage/shards/unit-suite/shard-1-of-1/jacoco.exec"), "exec\n");
+        Files.writeString(tempDir.resolve("target/coverage/shards/unit-suite/shard-1-of-1/jacoco.xml"), "<report />\n");
+        Files.writeString(tempDir.resolve("target/coverage/workers/zolt-workers.json"), """
+                {"workers": ["worker-a"]}
+                """);
+        Files.writeString(tempDir.resolve("target/coverage/workers/worker-a/jacoco.exec"), "exec\n");
+
+        QualityCheckResult result = check.checkCoverageReports(
+                Optional.empty(),
+                tempDir,
+                Path.of("target/coverage"),
+                Path.of("target/coverage"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "coverage-reports",
+                "CI coverage preflight found Jacoco execution data, 2 XML reports, and 0 HTML reports.",
+                "");
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+    }
+
+    @Test
     void coverageReportsMissingShardEvidenceWithRerunCommand() throws IOException {
         Files.createDirectories(tempDir.resolve("target/test-shards/unit-suite"));
         Files.writeString(tempDir.resolve("target/test-shards/unit-suite/shard-1-of-2.json"), """
@@ -351,6 +415,29 @@ final class ExecutionEvidenceQualityCheckTest {
                 "target/coverage/shards/unit-suite/shard-1-of-2/jacoco.exec",
                 "CI context expected Jacoco execution data for shard `unit suite/shard-1-of-2`, but jacoco.exec is missing.",
                 "Run `zolt coverage --suite \"unit suite\" --shard 1/2`, then rerun `zolt check --context ci --coverage-dir target/coverage`.");
+    }
+
+    @Test
+    void coverageReportsMissingWorkspaceShardEvidenceWithWorkspaceRerunCommand() throws IOException {
+        Files.createDirectories(tempDir.resolve("target/test-shards/unit-suite"));
+        Files.writeString(tempDir.resolve("target/test-shards/unit-suite/shard-2-of-3.json"), """
+                {"suite": "unit suite", "empty": false}
+                """);
+        Files.createDirectories(tempDir.resolve("target/coverage"));
+
+        QualityCheckResult result = check.checkCoverageReports(
+                Optional.of("modules/api"),
+                tempDir,
+                Path.of("target/coverage"),
+                Path.of("target/coverage"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "target/coverage/shards/unit-suite/shard-2-of-3/jacoco.exec",
+                "CI context expected Jacoco execution data for shard `unit suite/shard-2-of-3`, but jacoco.exec is missing.",
+                "Run `zolt coverage --workspace --suite \"unit suite\" --shard 2/3`, then rerun `zolt check --context ci --coverage-dir target/coverage`.");
     }
 
     @Test
