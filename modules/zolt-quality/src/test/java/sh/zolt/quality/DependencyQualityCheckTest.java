@@ -44,6 +44,25 @@ final class DependencyQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     @Test
+    void dependencyMetadataReportsMalformedLockfileWithProjectResolveAction() throws IOException {
+        Path projectDir = tempDir.resolve("malformed-project-lockfile");
+        ProjectConfig config = parseProject(projectDir, "");
+        writeLockfile(projectDir, """
+
+                [[package]]
+                id = 42
+                """);
+
+        QualityCheckResult result = check.checkProjectMetadata(Optional.empty(), projectDir, config, false).getFirst();
+
+        assertEquals(QualityCheckService.DEPENDENCY_METADATA, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Invalid value type in zolt.lock"));
+        assertEquals("Run `zolt resolve`.", result.nextStep());
+    }
+
+    @Test
     void dependencyMetadataPassesWhenNoDeclarationsNeedValidation() throws IOException {
         Path projectDir = tempDir.resolve("no-metadata");
         ProjectConfig config = parseProject(projectDir, "");
@@ -148,6 +167,76 @@ final class DependencyQualityCheckTest extends QualityCheckServiceTestSupport {
                 "com.example:core",
                 "Workspace dependency `com.example:core` declares optional metadata, which is not supported.",
                 "Remove optional = true or use an external dependency coordinate.");
+    }
+
+    @Test
+    void workspaceMetadataRequiresWorkspaceLockfileBeforeMemberChecks() throws IOException {
+        WorkspaceFixture fixture = workspaceFixture("");
+
+        QualityCheckResult result = check.checkWorkspaceMetadata(
+                workspace(fixture.members(), List.of()),
+                new WorkspaceSelection(List.of("apps/api"), List.of("apps/api")),
+                fixture.membersByPath()).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckService.DEPENDENCY_METADATA,
+                QualityCheckStatus.FAILED,
+                "zolt.lock",
+                "Workspace zolt.lock is missing.",
+                "Run `zolt resolve --workspace`.");
+        assertEquals(Optional.empty(), result.member());
+    }
+
+    @Test
+    void workspaceMetadataReportsMalformedLockfileWithWorkspaceResolveAction() throws IOException {
+        WorkspaceFixture fixture = workspaceFixture("");
+        writeLockfile(tempDir, """
+
+                [[package]]
+                id = 42
+                """);
+
+        QualityCheckResult result = check.checkWorkspaceMetadata(
+                workspace(fixture.members(), List.of()),
+                new WorkspaceSelection(List.of("apps/api"), List.of("apps/api")),
+                fixture.membersByPath()).getFirst();
+
+        assertEquals(QualityCheckService.DEPENDENCY_METADATA, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Invalid value type in zolt.lock"));
+        assertEquals("Run `zolt resolve --workspace`.", result.nextStep());
+        assertEquals(Optional.empty(), result.member());
+    }
+
+    @Test
+    void workspaceMetadataFiltersLockPackagesByMemberOwnership() throws IOException {
+        WorkspaceFixture fixture = workspaceFixture("""
+
+                [dependencies]
+                "com.example:helper" = { version = "1.0.0", optional = true }
+                """);
+        writeLockfile(tempDir, packageEntry(
+                "com.example:helper",
+                "1.0.0",
+                "compile",
+                true,
+                "members = [\"modules/core\"]"));
+
+        QualityCheckResult result = check.checkWorkspaceMetadata(
+                workspace(fixture.members(), List.of()),
+                new WorkspaceSelection(List.of("apps/api"), List.of("apps/api")),
+                fixture.membersByPath()).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckService.DEPENDENCY_METADATA,
+                QualityCheckStatus.FAILED,
+                "com.example:helper",
+                "Dependency metadata for `com.example:helper` is not represented in zolt.lock.",
+                "Run `zolt resolve --workspace`.");
+        assertEquals(Optional.of("apps/api"), result.member());
     }
 
     @Test

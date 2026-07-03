@@ -68,6 +68,55 @@ final class QualityCheckServiceRoutingTest {
     }
 
     @Test
+    void workspaceRoutesEveryImplementedCheckThroughSelectedMembers() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-all-checks");
+        Files.createDirectories(workspaceDir);
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
+                [workspace]
+                name = "all-checks"
+                members = ["apps/api", "modules/core"]
+                """);
+        writeProject(workspaceDir.resolve("apps/api"), "api");
+        writeProject(workspaceDir.resolve("modules/core"), "core");
+        Files.writeString(workspaceDir.resolve("zolt.lock"), "version = 1\n");
+
+        QualityCheckReport report = new QualityCheckService(Map.<String, String>of()::get).check(request(
+                workspaceDir,
+                true,
+                List.of(
+                        QualityCheckService.CACHE_INTEGRITY,
+                        QualityCheckService.EXECUTION_CONTEXT,
+                        QualityCheckService.LOCKFILE,
+                        QualityCheckService.PROJECT_MODEL,
+                        QualityCheckService.DEPENDENCY_METADATA,
+                        QualityCheckService.DEPENDENCY_POLICY,
+                        QualityCheckService.PACKAGE_METADATA,
+                        QualityCheckService.PACKAGE_CONTENTS,
+                        QualityCheckService.MANIFEST_METADATA,
+                        QualityCheckService.GENERATED_SOURCES,
+                        "ant build"),
+                new WorkspaceSelectionRequest(false, List.of("apps/api"))));
+
+        assertTrue(report.workspace());
+        assertEquals("error", report.status());
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.CACHE_INTEGRITY)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.EXECUTION_CONTEXT)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.LOCKFILE)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.PROJECT_MODEL)
+                && result.member().orElse("").equals("apps/api")));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.DEPENDENCY_METADATA)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.DEPENDENCY_POLICY)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.PACKAGE_METADATA)
+                && result.member().orElse("").equals("apps/api")));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.PACKAGE_CONTENTS)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.MANIFEST_METADATA)
+                && result.member().orElse("").equals("apps/api")));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals(QualityCheckService.GENERATED_SOURCES)));
+        assertTrue(report.checks().stream().anyMatch(result -> result.id().equals("unsupported-check")
+                && result.subject().equals("ant build")));
+    }
+
+    @Test
     void localContextPrependsExecutionContextOnceBeforeExplicitChecks() throws IOException {
         Path projectDir = tempDir.resolve("local-with-explicit-checks");
         writeProject(projectDir, "local-with-explicit-checks");
