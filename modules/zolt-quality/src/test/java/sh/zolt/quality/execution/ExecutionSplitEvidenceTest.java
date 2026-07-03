@@ -41,6 +41,32 @@ final class ExecutionSplitEvidenceTest {
     }
 
     @Test
+    void shardManifestSkipsMalformedShardSegments() throws IOException {
+        Path shards = tempDir.resolve("target/test-shards/unit-suite");
+        Files.createDirectories(shards);
+        Files.writeString(shards.resolve("not-shard-1-of-2.json"), "{}");
+        Files.writeString(shards.resolve("shard-1.json"), "{}");
+        Files.writeString(shards.resolve("shard-one-of-two.json"), "{}");
+
+        assertTrue(evidence.shardManifest(tempDir.resolve("target/test-shards"), shards.resolve("not-shard-1-of-2.json")).isEmpty());
+        assertTrue(evidence.shardManifest(tempDir.resolve("target/test-shards"), shards.resolve("shard-1.json")).isEmpty());
+        assertTrue(evidence.shardManifest(tempDir.resolve("target/test-shards"), shards.resolve("shard-one-of-two.json")).isEmpty());
+    }
+
+    @Test
+    void shardManifestParsesEscapedSuiteNames() throws IOException {
+        Path manifest = tempDir.resolve("target/test-shards/escaped-suite/shard-1-of-1.json");
+        Files.createDirectories(manifest.getParent());
+        Files.writeString(manifest, "{\"suite\": \"line\\nquote\\\"tab\\tbackslash\\\\\", \"empty\": false}\n");
+
+        ShardEvidenceManifest parsed = evidence.shardManifest(tempDir.resolve("target/test-shards"), manifest)
+                .orElseThrow();
+
+        assertEquals("line\nquote\"tab\tbackslash\\", parsed.suiteName());
+        assertEquals("line\nquote\"tab\tbackslash\\/shard-1-of-1", parsed.displayName());
+    }
+
+    @Test
     void filtersEmptyShardManifests() throws IOException {
         Path shards = tempDir.resolve("target/test-shards/unit-suite");
         Files.createDirectories(shards);
@@ -68,6 +94,27 @@ final class ExecutionSplitEvidenceTest {
 
         assertEquals(List.of("worker-a", "worker-b"), evidence.workerIds(manifest));
         assertEquals(List.of(), evidence.workerIds(tempDir.resolve("missing.json")));
+    }
+
+    @Test
+    void workerIdsSkipMalformedWorkerManifestShapes() throws IOException {
+        Path manifest = tempDir.resolve("workers/zolt-workers.json");
+        Files.createDirectories(manifest.getParent());
+
+        Files.writeString(manifest, """
+                {"notWorkers": ["worker-a"]}
+                """);
+        assertEquals(List.of(), evidence.workerIds(manifest));
+
+        Files.writeString(manifest, """
+                {"workers": "worker-a"}
+                """);
+        assertEquals(List.of(), evidence.workerIds(manifest));
+
+        Files.writeString(manifest, """
+                {"workers": ["worker-a"
+                """);
+        assertEquals(List.of(), evidence.workerIds(manifest));
     }
 
     @Test

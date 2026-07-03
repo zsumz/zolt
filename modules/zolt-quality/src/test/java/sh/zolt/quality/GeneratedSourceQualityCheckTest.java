@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.generated.GeneratedSourceEvidenceService;
+import sh.zolt.project.GeneratedSourceKind;
+import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -176,6 +178,50 @@ final class GeneratedSourceQualityCheckTest extends QualityCheckServiceTestSuppo
                 "[generated.main.openapi].output",
                 "Invalid generated source output path `../generated/openapi`.",
                 "Use a project-relative path under the project directory.");
+    }
+
+    @Test
+    void rejectsGeneratedInputPathsThatEscapeProjectRoot() throws IOException {
+        ProjectConfig config = parseProject(tempDir.resolve("bad-generated-input"), generatedSourceConfig(
+                "main",
+                "openapi",
+                "target/generated/sources/openapi",
+                "../api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), tempDir.resolve("bad-generated-input"), config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.openapi].inputs",
+                "Invalid generated source inputs path `../api.yaml`.",
+                "Use a project-relative path under the project directory.");
+    }
+
+    @Test
+    void rejectsUnsupportedGeneratedSourceLanguageWithMvpNextStep() throws IOException {
+        Path projectDir = tempDir.resolve("bad-generated-language");
+        ProjectConfig parsed = parseProject(projectDir, "");
+        ProjectConfig config = parsed.withBuildSettings(parsed.build().withGeneratedSources(
+                List.of(new GeneratedSourceStep(
+                        "kotlin-api",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "kotlin",
+                        "target/generated/sources/kotlin",
+                        List.of("src/main/openapi/api.yaml"),
+                        true,
+                        false)),
+                List.of()));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.kotlin-api]",
+                "Unsupported generated source language `kotlin`.",
+                "Use language = \"java\" for MVP generated-source steps.");
     }
 
     private static void assertResult(

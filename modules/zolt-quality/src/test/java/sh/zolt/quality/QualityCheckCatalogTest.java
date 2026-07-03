@@ -44,6 +44,13 @@ final class QualityCheckCatalogTest {
     }
 
     @Test
+    void ignoresWhitespaceOnlyRequestedChecks() {
+        assertEquals(
+                List.of(QualityCheckService.LOCKFILE),
+                QualityCheckCatalog.requestedChecks(request(List.of("   ", "\t", QualityCheckService.LOCKFILE), null)));
+    }
+
+    @Test
     void formatsUnsupportedCheckWithSupportedChecksAndHookBoundary() {
         QualityCheckResult result = QualityCheckCatalog.unsupportedOrSkipped("mvn verify");
 

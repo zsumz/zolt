@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.RepositorySettings;
 import sh.zolt.publish.PublishSettingsReader;
 import sh.zolt.quality.QualityCheckContext;
 import sh.zolt.quality.QualityCheckResult;
@@ -98,6 +99,38 @@ final class CredentialQualityCheckTest {
         assertEquals("Repository `company` URL is not a valid URI.", result.message());
         assertEquals(
                 "Edit [repositories.company] to use a Maven-compatible HTTPS URL without embedded credentials.",
+                result.nextStep());
+    }
+
+    @Test
+    void repositoryCredentialCheckReportsMissingCredentialMetadata() {
+        ProjectConfig parsed = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                company = "https://repo.example.test/maven"
+                """);
+        ProjectConfig config = withRepositorySettings(parsed, Map.of(
+                "company",
+                new RepositorySettings(
+                        "company",
+                        "https://repo.example.test/maven",
+                        Optional.of("company-artifactory"))));
+        CredentialQualityCheck check = new CredentialQualityCheck(new PublishSettingsReader(), Map.<String, String>of()::get);
+
+        QualityCheckResult result = check.checkRepositoryCredentials(
+                Optional.empty(),
+                config,
+                QualityCheckContext.CI).getFirst();
+
+        assertEquals("[repositoryCredentials.company-artifactory]", result.subject());
+        assertEquals("Repository `company` references missing credential metadata.", result.message());
+        assertEquals(
+                "Define [repositoryCredentials.company-artifactory] with environment variable names, not secret values.",
                 result.nextStep());
     }
 
@@ -346,6 +379,46 @@ final class CredentialQualityCheckTest {
         assertEquals(Optional.of("apps/api"), result.member());
         assertEquals("resource-token-inputs", result.subject());
         assertEquals("CI resource token preflight passed for 3 tokens: env=1, project=1, literal=1.", result.message());
+    }
+
+    private static ProjectConfig withRepositorySettings(
+            ProjectConfig config,
+            Map<String, RepositorySettings> repositorySettings) {
+        return new ProjectConfig(
+                config.project(),
+                config.repositories(),
+                repositorySettings,
+                config.repositoryCredentials(),
+                config.versionAliases(),
+                config.platforms(),
+                config.apiDependencies(),
+                config.managedApiDependencies(),
+                config.workspaceApiDependencies(),
+                config.dependencies(),
+                config.managedDependencies(),
+                config.workspaceDependencies(),
+                config.runtimeDependencies(),
+                config.managedRuntimeDependencies(),
+                config.providedDependencies(),
+                config.managedProvidedDependencies(),
+                config.devDependencies(),
+                config.managedDevDependencies(),
+                config.testDependencies(),
+                config.managedTestDependencies(),
+                config.workspaceTestDependencies(),
+                config.annotationProcessors(),
+                config.managedAnnotationProcessors(),
+                config.workspaceAnnotationProcessors(),
+                config.testAnnotationProcessors(),
+                config.managedTestAnnotationProcessors(),
+                config.workspaceTestAnnotationProcessors(),
+                config.dependencyPolicy(),
+                config.build(),
+                config.nativeSettings(),
+                config.compilerSettings(),
+                config.packageSettings(),
+                config.frameworkSettings(),
+                config.dependencyMetadata());
     }
 
     private static void assertDoesNotLeakSecret(QualityCheckResult result) {

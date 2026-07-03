@@ -57,6 +57,24 @@ final class ExecutionEvidenceQualityCheckTest {
     }
 
     @Test
+    void testReportsRequireReportDirectoryWithWorkspaceNextStep() {
+        QualityCheckResult result = check.checkTestReports(
+                Optional.of("modules/api"),
+                tempDir,
+                Path.of("target/test-reports"),
+                Path.of("target/test-reports"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "target/test-reports",
+                "CI context expected JUnit XML reports, but the report directory is missing.",
+                "Run `zolt test --workspace --reports-dir target/test-reports` before `zolt check --workspace --context ci --reports-dir target/test-reports`.");
+        assertEquals(Optional.of("modules/api"), result.member());
+    }
+
+    @Test
     void testReportsRejectEscapingReportsDirectory() {
         QualityCheckResult result = check.checkTestReports(
                 Optional.empty(),
@@ -110,6 +128,28 @@ final class ExecutionEvidenceQualityCheckTest {
                 result,
                 "test-reports",
                 "CI test report preflight found 1 JUnit XML report.",
+                "");
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+    }
+
+    @Test
+    void testReportsPluralizeMultipleJUnitXmlReports() throws IOException {
+        Files.createDirectories(tempDir.resolve("target/test-reports"));
+        Files.writeString(tempDir.resolve("target/test-reports/TEST-alpha.xml"), "<testsuite />\n");
+        Files.writeString(tempDir.resolve("target/test-reports/TEST-beta.xml"), "<testsuite />\n");
+
+        QualityCheckResult result = check.checkTestReports(
+                Optional.empty(),
+                tempDir,
+                Path.of("target/test-reports"),
+                Path.of("target/test-reports"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "test-reports",
+                "CI test report preflight found 2 JUnit XML reports.",
                 "");
         assertEquals(QualityCheckStatus.PASSED, result.status());
     }
@@ -233,6 +273,28 @@ final class ExecutionEvidenceQualityCheckTest {
                 result,
                 "coverage-reports",
                 "CI coverage preflight found Jacoco execution data, 1 XML report, and 1 HTML report.",
+                "");
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+    }
+
+    @Test
+    void coveragePassesWithOnlyXmlReportAndZeroHtmlReports() throws IOException {
+        Files.createDirectories(tempDir.resolve("target/coverage"));
+        Files.writeString(tempDir.resolve("target/coverage/jacoco.exec"), "exec\n");
+        Files.writeString(tempDir.resolve("target/coverage/jacoco.xml"), "<report />\n");
+
+        QualityCheckResult result = check.checkCoverageReports(
+                Optional.empty(),
+                tempDir,
+                Path.of("target/coverage"),
+                Path.of("target/coverage"),
+                Path.of("target"),
+                QualityCheckContext.CI).getFirst();
+
+        assertResult(
+                result,
+                "coverage-reports",
+                "CI coverage preflight found Jacoco execution data, 1 XML report, and 0 HTML reports.",
                 "");
         assertEquals(QualityCheckStatus.PASSED, result.status());
     }

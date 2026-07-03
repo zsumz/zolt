@@ -44,6 +44,33 @@ final class QualityCheckFormatterTest {
     }
 
     @Test
+    void jsonEscapesLowControlCharactersAndKeepsInputOrder() {
+        QualityCheckReport report = new QualityCheckReport(
+                Path.of("demo"),
+                false,
+                List.of(
+                        QualityCheckResult.failed(
+                                "first",
+                                Optional.empty(),
+                                "subject",
+                                "low \u0001 control",
+                                "fix first"),
+                        QualityCheckResult.failed(
+                                "second",
+                                Optional.empty(),
+                                "subject",
+                                "second",
+                                "fix second")));
+
+        String json = QualityCheckFormatter.json(report);
+
+        assertTrue(json.contains("\"message\":\"low \\u0001 control\""));
+        assertTrue(json.indexOf("\"id\":\"first\"") < json.indexOf("\"id\":\"second\""));
+        int blockersStart = json.indexOf("\"blockers\"");
+        assertTrue(json.indexOf("{\"id\":\"first\"", blockersStart) < json.indexOf("{\"id\":\"second\"", blockersStart));
+    }
+
+    @Test
     void textOmitsBlankNextStepAndKeepsMemberPrefixDeterministic() {
         QualityCheckReport report = new QualityCheckReport(
                 Path.of("demo"),
