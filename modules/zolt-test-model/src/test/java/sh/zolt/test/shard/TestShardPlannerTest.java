@@ -2,6 +2,7 @@ package sh.zolt.test.shard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.BuildSettings;
@@ -95,6 +96,33 @@ final class TestShardPlannerTest {
     }
 
     @Test
+    void shardBalancingDefaultsAndDefensivelyCopiesDiagnostics() {
+        java.util.ArrayList<String> missing = new java.util.ArrayList<>(List.of("com.example.MissingTest"));
+        java.util.ArrayList<String> unmatched = new java.util.ArrayList<>(List.of("com.example.UnmatchedTest"));
+        java.util.ArrayList<String> diagnostics = new java.util.ArrayList<>(List.of("using fallback"));
+
+        TestShardBalancing balancing = new TestShardBalancing(null, null, missing, unmatched, diagnostics);
+        missing.add("late");
+        unmatched.clear();
+        diagnostics.add("late");
+
+        assertEquals(TestShardBalancing.ROUND_ROBIN, balancing.mode());
+        assertFalse(balancing.profileDriven());
+        assertEquals(Optional.empty(), balancing.profileSource());
+        assertEquals(List.of("com.example.MissingTest"), balancing.missingHistoryEntries());
+        assertEquals(List.of("com.example.UnmatchedTest"), balancing.unmatchedHistoryEntries());
+        assertEquals(List.of("using fallback"), balancing.diagnostics());
+        assertThrows(UnsupportedOperationException.class, () -> balancing.diagnostics().add("late"));
+        assertTrue(new TestShardBalancing(
+                        TestShardBalancing.PROFILE_HISTORY,
+                        Optional.of(Path.of("profile.json")),
+                        List.of(),
+                        List.of(),
+                        List.of())
+                .profileDriven());
+    }
+
+    @Test
     void exposesEmptyShardWhenShardCountExceedsInventory() {
         TestSuitePlan suite = suitePlan(entry("com.example.AaaTest"));
         TestShardPlan empty = new TestShardPlanner().plan(projectDir, config(), suite, new TestShardSpec(3, 3));
@@ -133,6 +161,24 @@ final class TestShardPlannerTest {
         assertTrue(json.contains("\"empty\": false"));
         assertTrue(json.contains("\"com.example.AaaTest\""));
         assertFalse(json.contains("\"com.example.BbbTest\""));
+    }
+
+    @Test
+    void manifestWriterEscapesSuiteFingerprintAndEntryNames() throws IOException {
+        TestShardPlan shard = new TestShardPlan(
+                "fast \"suite\"\n",
+                new TestShardSpec(1, 1),
+                projectDir.resolve("target/test-shards/fast/shard-1-of-1.json"),
+                "sha256:\"quoted\"\n",
+                List.of(entry("com.example.QuotedTest")),
+                List.of(entry("com.example.Quoted\"Name\tTest")));
+
+        new TestShardManifestWriter().write(shard);
+
+        String json = Files.readString(projectDir.resolve("target/test-shards/fast/shard-1-of-1.json"));
+        assertTrue(json.contains("\"suite\": \"fast \\\"suite\\\"\\n\""), json);
+        assertTrue(json.contains("\"inventoryFingerprint\": \"sha256:\\\"quoted\\\"\\n\""), json);
+        assertTrue(json.contains("\"com.example.Quoted\\\"Name\\tTest\""), json);
     }
 
     private static TestSuitePlan suitePlan(TestInventoryEntry... entries) {

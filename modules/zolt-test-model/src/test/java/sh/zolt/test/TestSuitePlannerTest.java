@@ -10,6 +10,7 @@ import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.project.TestSuiteSettings;
 import sh.zolt.test.shard.TestShardException;
+import sh.zolt.test.shard.TestShardSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -135,6 +136,30 @@ final class TestSuitePlannerTest {
                 () -> planner.shardPlans(projectDir, configWithSuites(), "fast", TestSelection.empty(), 0));
 
         assertEquals("Invalid --shard-count `0`. Use a positive integer.", exception.getMessage());
+    }
+
+    @Test
+    void emptyShardExecutionWritesManifestAndReportsRelativePath() throws IOException {
+        writeClass("com/example/FastServiceTest.class");
+
+        TestPlanException exception = assertThrows(
+                TestPlanException.class,
+                () -> planner.executionPlan(
+                        projectDir,
+                        configWithSuites(),
+                        "fast",
+                        TestSelection.empty(),
+                        new TestShardSpec(2, 2)));
+
+        assertEquals(
+                "Test shard `2/2` for suite `fast` did not match any compiled test classes. "
+                        + "Wrote shard manifest to target/test-shards/fast/shard-2-of-2.json.",
+                exception.getMessage());
+        Path manifest = projectDir.resolve("target/test-shards/fast/shard-2-of-2.json");
+        assertTrue(Files.exists(manifest));
+        String json = Files.readString(manifest);
+        assertTrue(json.contains("\"selectedEntries\": 0"));
+        assertTrue(json.contains("\"empty\": true"));
     }
 
     private ProjectConfig configWithSuites() {
