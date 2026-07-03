@@ -73,6 +73,54 @@ final class ReleaseArchiveUnpackerFailureTest {
     }
 
     @Test
+    void rejectsOversizedAndTruncatedPaxHeaders(@TempDir Path dir) throws IOException {
+        Path oversized = gzip(dir.resolve("oversized-pax.tar.gz"), tar(
+                entry("PaxHeader", 'x', (1 << 20) + 1, 0644)));
+        Path truncated = gzip(dir.resolve("truncated-pax.tar.gz"), tar(
+                entry("PaxHeader", 'x', 12, 0644),
+                "abc".getBytes(UTF_8)));
+
+        RuntimeException oversizedFailure = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(oversized, dir.resolve("oversized-out"), "tar.gz", IllegalStateException::new));
+        RuntimeException truncatedFailure = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(truncated, dir.resolve("truncated-out"), "tar.gz", IllegalStateException::new));
+
+        assertTrue(oversizedFailure.getMessage().contains("oversized pax extended header"), oversizedFailure.getMessage());
+        assertTrue(truncatedFailure.getMessage().contains("ended inside a pax extended header"), truncatedFailure.getMessage());
+    }
+
+    @Test
+    void rejectsUnsupportedTarEntryTypes(@TempDir Path dir) throws IOException {
+        Path archive = gzip(dir.resolve("unsupported-type.tar.gz"), tar(
+                entry("zolt/socket", '7', 0, 0644),
+                new byte[1024]));
+
+        RuntimeException exception = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(archive, dir.resolve("out"), "tar.gz", IllegalStateException::new));
+
+        assertTrue(exception.getMessage().contains("unsupported tar entry type `7` for `zolt/socket`"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsBlankAndBackslashTarEntryPaths(@TempDir Path dir) throws IOException {
+        Path blank = gzip(dir.resolve("blank-entry.tar.gz"), tar(entry("", '0', 0, 0644), new byte[1024]));
+        Path backslash = gzip(dir.resolve("backslash-entry.tar.gz"), tar(entry("zolt\\bin\\zolt", '0', 0, 0644), new byte[1024]));
+
+        RuntimeException blankFailure = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(blank, dir.resolve("blank-out"), "tar.gz", IllegalStateException::new));
+        RuntimeException backslashFailure = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(backslash, dir.resolve("backslash-out"), "tar.gz", IllegalStateException::new));
+
+        assertTrue(blankFailure.getMessage().contains("unsafe entry path ``"), blankFailure.getMessage());
+        assertTrue(backslashFailure.getMessage().contains("unsafe entry path `zolt\\bin\\zolt`"), backslashFailure.getMessage());
+    }
+
+    @Test
     void rejectsTruncatedTarFileContent(@TempDir Path dir) throws IOException {
         Path archive = gzip(dir.resolve("truncated.tar.gz"), tar(
                 entry("zolt/bin/zolt", '0', 12, 0755),
@@ -83,6 +131,19 @@ final class ReleaseArchiveUnpackerFailureTest {
                 () -> ReleaseArchiveUnpacker.unpack(archive, dir.resolve("out"), "tar.gz", IllegalStateException::new));
 
         assertTrue(exception.getMessage().contains("ended before file content was complete"));
+    }
+
+    @Test
+    void rejectsTruncatedTarFilePadding(@TempDir Path dir) throws IOException {
+        Path archive = gzip(dir.resolve("truncated-padding.tar.gz"), tar(
+                entry("zolt/bin/zolt", '0', 1, 0755),
+                "x".getBytes(UTF_8)));
+
+        RuntimeException exception = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(archive, dir.resolve("out"), "tar.gz", IllegalStateException::new));
+
+        assertTrue(exception.getMessage().contains("ended before file padding was complete"), exception.getMessage());
     }
 
     private static byte[] entry(String name, char type, long size, int mode) {

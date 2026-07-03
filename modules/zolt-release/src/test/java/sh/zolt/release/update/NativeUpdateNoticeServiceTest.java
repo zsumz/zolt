@@ -1,6 +1,7 @@
 package sh.zolt.release.update;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -124,6 +125,100 @@ final class NativeUpdateNoticeServiceTest {
     }
 
     @Test
+    void nullCheckIntervalUsesDefaultIntervalAndCachedNotice() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        URI channel = tempDir.resolve("missing-channel.json").toUri();
+        Path state = tempDir.resolve("state");
+        writeCache(
+                state,
+                channel,
+                "linux-x64",
+                "stable",
+                "0.1.2",
+                now.minus(Duration.ofMinutes(5)).toString());
+
+        Optional<NativeUpdateNotice> notice = service.check(new NativeUpdateNoticeRequest(
+                installed.installRoot(),
+                installed.binLink(),
+                channel,
+                ReleaseTarget.LINUX_X64,
+                state,
+                now,
+                null,
+                false,
+                false,
+                false,
+                true));
+
+        assertTrue(notice.isPresent());
+        assertTrue(notice.orElseThrow().cached());
+        assertEquals("0.1.2", notice.orElseThrow().availableVersion());
+    }
+
+    @Test
+    void dueCachedCheckRefreshesFromReadableManifest() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("stable", "0.1.1");
+        Path state = tempDir.resolve("state");
+        writeCache(
+                state,
+                channel.toUri(),
+                "linux-x64",
+                "stable",
+                "0.1.0",
+                now.minus(Duration.ofHours(25)).toString());
+
+        Optional<NativeUpdateNotice> notice = service.check(request(
+                installed,
+                channel.toUri(),
+                now,
+                state,
+                Duration.ofHours(24)));
+
+        assertTrue(notice.isPresent());
+        assertFalse(notice.orElseThrow().cached());
+        assertEquals("0.1.1", notice.orElseThrow().availableVersion());
+    }
+
+    @Test
+    void staleCachedNoticeWithoutLatestVersionOrChannelIsSuppressed() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        URI channel = tempDir.resolve("missing-channel.json").toUri();
+        Path missingLatest = tempDir.resolve("missing-latest-state");
+        Path missingChannel = tempDir.resolve("missing-channel-state");
+        writeCache(
+                missingLatest,
+                channel,
+                "linux-x64",
+                "stable",
+                "",
+                now.minus(Duration.ofMinutes(5)).toString());
+        writeCache(
+                missingChannel,
+                channel,
+                "linux-x64",
+                "",
+                "0.1.2",
+                now.minus(Duration.ofMinutes(5)).toString());
+
+        Optional<NativeUpdateNotice> first = service.check(request(
+                installed,
+                channel,
+                now,
+                missingLatest,
+                Duration.ofHours(24)));
+        Optional<NativeUpdateNotice> second = service.check(request(
+                installed,
+                channel,
+                now,
+                missingChannel,
+                Duration.ofHours(24)));
+
+        assertTrue(first.isEmpty());
+        assertTrue(second.isEmpty());
+    }
+
+    @Test
     void networkFailureDoesNotFailOrPrintWithoutCache() throws IOException {
         InstalledFixture installed = install("0.1.0");
 
@@ -181,6 +276,30 @@ final class NativeUpdateNoticeServiceTest {
                 Duration.ofHours(24)));
 
         assertTrue(notice.isEmpty());
+    }
+
+    @Test
+    void comparesMissingVersionPartsAndTextQualifiers() throws IOException {
+        InstalledFixture shortVersion = install("0.1");
+        Path numericChannel = writeChannel("stable", "0.1.1");
+        Optional<NativeUpdateNotice> numericNotice = service.check(request(
+                shortVersion,
+                numericChannel.toUri(),
+                now,
+                tempDir.resolve("numeric-state")));
+
+        InstalledFixture qualifiedVersion = install("0.1.0-beta");
+        Path qualifiedChannel = writeChannel("stable", "0.1.0-rc");
+        Optional<NativeUpdateNotice> qualifiedNotice = service.check(request(
+                qualifiedVersion,
+                qualifiedChannel.toUri(),
+                now,
+                tempDir.resolve("qualified-state")));
+
+        assertTrue(numericNotice.isPresent());
+        assertEquals("0.1.1", numericNotice.orElseThrow().availableVersion());
+        assertTrue(qualifiedNotice.isPresent());
+        assertEquals("0.1.0-rc", qualifiedNotice.orElseThrow().availableVersion());
     }
 
     private NativeUpdateNoticeRequest request(InstalledFixture installed, URI channel, Instant time) {

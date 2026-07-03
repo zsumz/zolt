@@ -109,4 +109,54 @@ final class ReleaseVerificationServiceTest {
         assertTrue(commands.stream().anyMatch(command -> command.contains("build")));
     }
 
+    @Test
+    void defaultRunnerVerifiesExecutableArchiveEndToEnd() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = projectDir.resolve("target/native/zolt");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, """
+                #!/usr/bin/env bash
+                set -euo pipefail
+                if [[ "${1:-}" == "--version" ]]; then
+                  printf '0.1.0\\n'
+                  exit 0
+                fi
+                if [[ "${1:-}" == "init" ]]; then
+                  cwd=""
+                  while [[ "$#" -gt 0 ]]; do
+                    case "$1" in
+                      --cwd)
+                        cwd="$2"
+                        shift 2
+                        ;;
+                      *)
+                        shift
+                        ;;
+                    esac
+                  done
+                  mkdir -p "$cwd/smoke"
+                  printf '[project]\\n' > "$cwd/smoke/zolt.toml"
+                  exit 0
+                fi
+                if [[ "${1:-}" == "build" ]]; then
+                  exit 0
+                fi
+                exit 1
+                """);
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                Path.of("target/native/zolt"),
+                Path.of("dist"));
+
+        ReleaseVerificationResult result = new ReleaseVerificationService().verify(
+                List.of(archive.archivePath()),
+                projectDir.resolve("verify-default-runner"),
+                "0.1.0");
+
+        assertEquals(1, result.verifiedCount());
+        assertTrue(Files.isRegularFile(result.archives().getFirst().binaryPath()));
+    }
+
 }

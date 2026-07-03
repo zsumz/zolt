@@ -54,6 +54,21 @@ final class ReleaseArchiveUnpackerPaxTest {
     }
 
     @Test
+    void usesPaxSizeOverrideForFollowingFile(@TempDir Path dir) throws IOException {
+        byte[] content = "binary-bytes".getBytes(UTF_8);
+        byte[] tar = concat(
+                paxBlock("size=" + content.length),
+                fileBlockWithHeaderSize("zolt-0.1.1-linux-x64/bin/zolt", content, 0),
+                new byte[1024]);
+        Path archive = gzip(dir.resolve("pax-size.tar.gz"), tar);
+        Path dest = Files.createDirectories(dir.resolve("out"));
+
+        ReleaseArchiveUnpacker.unpack(archive, dest, "tar.gz", IllegalStateException::new);
+
+        assertArrayEquals(content, Files.readAllBytes(dest.resolve("zolt-0.1.1-linux-x64/bin/zolt")));
+    }
+
+    @Test
     void rejectsPaxPathHeaderAttemptingTraversal(@TempDir Path dir) throws IOException {
         byte[] tar = concat(
                 paxBlock("path=../escape"),
@@ -88,6 +103,10 @@ final class ReleaseArchiveUnpackerPaxTest {
 
     private static byte[] fileBlock(String name, byte[] content) {
         return concat(tarHeader(name, '0', content.length, 0755), pad512(content));
+    }
+
+    private static byte[] fileBlockWithHeaderSize(String name, byte[] content, long headerSize) {
+        return concat(tarHeader(name, '0', headerSize, 0755), pad512(content));
     }
 
     private static byte[] tarHeader(String name, char type, long size, int mode) {

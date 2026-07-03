@@ -41,6 +41,34 @@ final class ReleaseVerificationFailureTest {
     }
 
     @Test
+    void workDirectoryThatIsAFileFailsClearly() throws IOException {
+        Path workDirectory = projectDir.resolve("verify-file");
+        Files.writeString(workDirectory, "not a directory");
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> passingService().verify(
+                        List.of(projectDir.resolve("zolt-0.1.0-linux-x64.tar.gz")),
+                        workDirectory,
+                        "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("Could not create release verification work directory"));
+        assertTrue(exception.getMessage().contains("Check that it is writable."));
+    }
+
+    @Test
+    void missingArchiveFileFailsWithActionablePathDiagnostic() {
+        Path archive = projectDir.resolve("zolt-0.1.0-linux-x64.tar.gz");
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> passingService().verify(List.of(archive), projectDir.resolve("verify-missing"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("Release archive verification failed for " + archive));
+        assertTrue(exception.getMessage().contains("archive does not exist. Pass a valid release archive path."));
+    }
+
+    @Test
     void unsupportedArchiveSuffixFailsWithSupportedTargets() throws IOException {
         Path archive = projectDir.resolve("zolt-0.1.0-plan9-x64.tar.gz");
         Files.writeString(archive, "not inspected because target inference fails first");
@@ -93,6 +121,62 @@ final class ReleaseVerificationFailureTest {
         assertTrue(exception.getMessage().contains("SHA-256 mismatch"));
         assertTrue(exception.getMessage().contains("Expected " + "0".repeat(64)));
         assertTrue(exception.getMessage().contains("but found "));
+    }
+
+    @Test
+    void corruptArchiveFailsWithUnreadableArchiveDiagnostic() throws IOException {
+        Path archive = projectDir.resolve("zolt-0.1.0-linux-x64.tar.gz");
+        Files.writeString(archive, "not a gzip stream");
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
+                sha256(archive) + "  " + archive.getFileName() + "\n");
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> passingService().verify(List.of(archive), projectDir.resolve("verify-corrupt"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("could not unpack or read archive"));
+        assertTrue(exception.getMessage().contains("archive is readable and not corrupt"));
+    }
+
+    @Test
+    void missingBinaryAfterUnpackFailsBeforeSmokeCommands() throws IOException {
+        Path archive = projectDir.resolve("zolt-0.1.0-windows-x64.zip");
+        writeZip(archive, new ZipFile("zolt-0.1.0-windows-x64/VERSION", "0.1.0\n"));
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
+                sha256(archive) + "  " + archive.getFileName() + "\n");
+        List<List<String>> commands = new ArrayList<>();
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            commands.add(command);
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive), projectDir.resolve("verify-no-binary"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("expected binary at"));
+        assertTrue(exception.getMessage().contains("after unpacking"));
+        assertEquals(List.of(), commands);
+    }
+
+    @Test
+    void missingVersionMetadataFailsBeforeSmokeCommands() throws IOException {
+        Path archive = projectDir.resolve("zolt-0.1.0-windows-x64.zip");
+        writeZip(archive, new ZipFile("zolt-0.1.0-windows-x64/bin/zolt.exe", "native"));
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
+                sha256(archive) + "  " + archive.getFileName() + "\n");
+        List<List<String>> commands = new ArrayList<>();
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            commands.add(command);
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive), projectDir.resolve("verify-no-version"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("expected VERSION metadata"));
+        assertEquals(List.of(), commands);
     }
 
     @Test
@@ -258,5 +342,18 @@ final class ReleaseVerificationFailureTest {
                 () -> passingService().verify(List.of(archive), projectDir.resolve("verify"), "0.1.0"));
 
         assertTrue(exception.getMessage().contains("unsafe entry path"));
+    }
+
+    private static void writeZip(Path archive, ZipFile... entries) throws IOException {
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
+            for (ZipFile entry : entries) {
+                zip.putNextEntry(new ZipEntry(entry.name()));
+                zip.write(entry.content().getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+    }
+
+    private record ZipFile(String name, String content) {
     }
 }

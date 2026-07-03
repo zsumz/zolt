@@ -43,6 +43,24 @@ final class NativeUpdateServiceTest {
     }
 
     @Test
+    void createsTemporaryWorkDirectoryWhenRequestDoesNotProvideOne() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+
+        NativeUpdateResult result = service.update(new NativeUpdateRequest(
+                installed.installRoot(),
+                installed.binLink(),
+                channel.toUri(),
+                ReleaseTarget.LINUX_X64,
+                null));
+
+        assertTrue(result.updated());
+        assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
+    }
+
+    @Test
     void skipsDownloadAndWorkDirectoryWhenAlreadyCurrent() throws IOException {
         InstalledFixture installed = install("0.1.0");
         Path missingArchive = tempDir.resolve("missing/zolt-0.1.0-linux-x64.tar.gz");
@@ -82,6 +100,22 @@ final class NativeUpdateServiceTest {
 
         assertTrue(exception.getMessage().contains("Checksum mismatch for native Zolt archive"), exception.getMessage());
         assertFalse(Files.exists(installed.installRoot().resolve("versions/0.1.1")));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void smokeVersionMismatchFailsBeforeCurrentSymlinkActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.2.0");
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work-smoke-mismatch"))));
+
+        assertTrue(exception.getMessage().contains("Downloaded native Zolt failed smoke verification"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Expected version 0.1.1"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("`0.2.0`"), exception.getMessage());
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
@@ -171,6 +205,40 @@ final class NativeUpdateServiceTest {
 
         assertTrue(exception.getMessage().contains("archive"), exception.getMessage());
         assertFalse(Files.exists(escapedArchive));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void rejectsSymlinkedWorkDirectoryBeforeDownloadingArchive() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+        Path realWork = tempDir.resolve("real-update-work");
+        Path linkedWork = tempDir.resolve("linked-update-work");
+        Files.createDirectories(realWork);
+        Files.createSymbolicLink(linkedWork, realWork);
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, linkedWork)));
+
+        assertTrue(exception.getMessage().contains("native update work directory must not be a symbolic link"), exception.getMessage());
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void wrapsWorkDirectoryCreationFailureWithUpdateDiagnostic() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path channel = writeChannel("stable", "0.1.1", "linux-x64", archive, archive.getFileName().toString(), "sidecar");
+        Path workDirectory = tempDir.resolve("update-work-file");
+        Files.writeString(workDirectory, "not a directory");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, workDirectory)));
+
+        assertTrue(exception.getMessage().contains("Could not update native Zolt:"), exception.getMessage());
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
     }
 
