@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 record CommandErrorBlock(String summary, List<ContextRow> contextRows, Optional<String> next) {
     private static final Pattern COORDINATE =
-            Pattern.compile("([A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)?)");
+            Pattern.compile("([A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+)");
 
     static CommandErrorBlock from(String displayMessage) {
         String message = displayMessage == null || displayMessage.isBlank()
@@ -128,6 +128,12 @@ record CommandErrorBlock(String summary, List<ContextRow> contextRows, Optional<
     }
 
     private static Optional<String> coordinate(String text) {
+        // Only run the coordinate heuristic over a single-line message. Raw compiler output (e.g. javac
+        // diagnostics) reaches this factory as a multiline summary; scanning it would scrape unrelated
+        // colon-joined tokens (-Xlint:-options, file:line) into a false Coordinate row.
+        if (text.indexOf('\n') >= 0) {
+            return Optional.empty();
+        }
         Matcher matcher = COORDINATE.matcher(text);
         return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
     }
