@@ -43,6 +43,96 @@ final class NativeUpdateServiceTest {
     }
 
     @Test
+    void skipsDownloadAndWorkDirectoryWhenAlreadyCurrent() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path missingArchive = tempDir.resolve("missing/zolt-0.1.0-linux-x64.tar.gz");
+        Path workDirectory = tempDir.resolve("update-work-current");
+        Path channel = writeChannel(
+                "stable",
+                "0.1.0",
+                "linux-x64",
+                missingArchive,
+                missingArchive.getFileName().toString(),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+
+        NativeUpdateResult result = service.update(request(installed, channel, workDirectory));
+
+        assertFalse(result.updated());
+        assertEquals("0.1.0", result.previousVersion());
+        assertEquals("0.1.0", result.availableVersion());
+        assertFalse(Files.exists(workDirectory));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void checksumMismatchFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path channel = writeChannel(
+                "stable",
+                "0.1.1",
+                "linux-x64",
+                archive,
+                archive.getFileName().toString(),
+                "0000000000000000000000000000000000000000000000000000000000000000");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work-bad-checksum"))));
+
+        assertTrue(exception.getMessage().contains("Checksum mismatch for native Zolt archive"), exception.getMessage());
+        assertFalse(Files.exists(installed.installRoot().resolve("versions/0.1.1")));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void archiveWithMultipleTopLevelDirectoriesFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = tarArchive(
+                "zolt-0.1.1-linux-x64-multiple-roots.tar.gz",
+                TarEntry.file("first/bin/zolt", "one"),
+                TarEntry.file("second/bin/zolt", "two"));
+        Path channel = writeChannel(
+                "stable",
+                "0.1.1",
+                "linux-x64",
+                archive,
+                archive.getFileName().toString(),
+                sha256(archive));
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work-multiple-roots"))));
+
+        assertTrue(exception.getMessage().contains("exactly one top-level directory"), exception.getMessage());
+        assertFalse(Files.exists(installed.installRoot().resolve("versions/0.1.1")));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
+    void archiveWithoutExecutableBinaryFailsBeforeInstallActivation() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = tarArchive(
+                "zolt-0.1.1-linux-x64-no-binary.tar.gz",
+                TarEntry.file("zolt-0.1.1-linux-x64/README.txt", "not a binary"));
+        Path channel = writeChannel(
+                "stable",
+                "0.1.1",
+                "linux-x64",
+                archive,
+                archive.getFileName().toString(),
+                sha256(archive));
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(request(installed, channel, tempDir.resolve("update-work-no-binary"))));
+
+        assertTrue(exception.getMessage().contains("does not contain executable bin/zolt"), exception.getMessage());
+        assertFalse(Files.exists(installed.installRoot().resolve("versions/0.1.1")));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
     void rejectsUnsafeRemoteChannelUrisBeforeManifestDownload() throws IOException {
         InstalledFixture installed = install("0.1.0");
         String[] unsafeChannels = {
