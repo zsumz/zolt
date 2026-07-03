@@ -7,11 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.graph.ResolutionGraph;
+import sh.zolt.resolve.materialization.RepositoryOverlay;
+import sh.zolt.resolve.metrics.ResolveMetrics;
+import sh.zolt.resolve.progress.ArtifactProgressListener;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.request.RequestOrigin;
 import sh.zolt.resolve.version.VersionConflict;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -64,4 +69,70 @@ final class ResolverModelTest {
                 new PackageNode(new PackageId("com.example", "other"), "1.0.0")));
     }
 
+    @Test
+    void resolveOptionsNormalizeDefaultsAndCopyOverlayLists() {
+        List<RepositoryOverlay> overlays = new ArrayList<>();
+        overlays.add(RepositoryOverlay.mavenLocal(Path.of("repo")));
+        ArtifactProgressListener listener = new ArtifactProgressListener() {
+        };
+
+        ResolveOptions options = new ResolveOptions(
+                true,
+                overlays,
+                false,
+                false,
+                "  zolt resolve --workspace  ",
+                listener);
+        overlays.clear();
+
+        assertTrue(options.offline());
+        assertEquals("zolt resolve --workspace", options.retryCommand());
+        assertEquals(listener, options.artifactProgressListener());
+        assertEquals(1, options.repositoryOverlays().size());
+        assertEquals("local-overlay:maven-local", options.repositoryOverlays().getFirst().lockfileSource());
+        assertThrows(UnsupportedOperationException.class, () -> options.repositoryOverlays().clear());
+
+        ResolveOptions defaults = new ResolveOptions(false, null, false, false, " ", null);
+        assertEquals("zolt resolve", defaults.retryCommand());
+        assertEquals(List.of(), defaults.repositoryOverlays());
+        assertEquals(ArtifactProgressListener.NOOP, defaults.artifactProgressListener());
+        assertTrue(defaults.withCoverageTooling().includeCoverageTooling());
+        assertEquals("zolt resolve --locked", defaults.withRetryCommand("zolt resolve --locked").retryCommand());
+    }
+
+    @Test
+    void resolveOptionsRejectLocalOverlayAndRejectionCombination() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> new ResolveOptions(
+                        false,
+                        List.of(RepositoryOverlay.mavenLocal(Path.of("repo"))),
+                        true,
+                        false));
+
+        assertTrue(exception.getMessage().contains("Cannot combine local repository overlays"));
+        assertTrue(exception.getMessage().contains("Remove --repository-overlay or remove --no-local-overlays"));
+    }
+
+    @Test
+    void resolveResultAndOutputDefaultNullMetricsToEmptyMetrics() {
+        Path lockfile = Path.of("zolt.lock");
+        ResolveMetrics metrics = ResolveMetrics.empty().withLockfileWriteNanos(42L);
+        ZoltLockfile model = new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, List.of(), List.of());
+
+        ResolveResult defaultedResult = new ResolveResult(2, 1, 0, lockfile);
+        ResolveResult nullMetricsResult = new ResolveResult(2, 1, 0, lockfile, null);
+        ResolveResult explicitMetricsResult = new ResolveResult(2, 1, 0, lockfile, metrics);
+        ResolveOutput defaultedOutput = new ResolveOutput(model, 1);
+        ResolveOutput nullMetricsOutput = new ResolveOutput(model, 1, null);
+        ResolveOutput explicitMetricsOutput = new ResolveOutput(model, 1, metrics);
+
+        assertEquals(ResolveMetrics.empty(), defaultedResult.metrics());
+        assertEquals(ResolveMetrics.empty(), nullMetricsResult.metrics());
+        assertEquals(42L, explicitMetricsResult.metrics().lockfileWriteNanos());
+        assertEquals(ResolveMetrics.empty(), defaultedOutput.metrics());
+        assertEquals(ResolveMetrics.empty(), nullMetricsOutput.metrics());
+        assertEquals(42L, explicitMetricsOutput.metrics().lockfileWriteNanos());
+        assertEquals(model, explicitMetricsOutput.lockfile());
+    }
 }

@@ -1,6 +1,9 @@
 package sh.zolt.resolve.framework;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
@@ -15,6 +18,8 @@ import sh.zolt.resolve.traversal.DependencyTraversalDecision;
 import sh.zolt.resolve.version.VersionSelectionResult;
 import sh.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -77,6 +82,80 @@ final class FrameworkDependencyRequestPlanRequestAssemblerTest {
                         APP.artifactId(),
                         Optional.of("1.0.0"))));
         assertEquals(List.of(platformRequest), request.platformPropertiesRequests().get());
+    }
+
+    @Test
+    void frameworkCandidatesDefaultAndCopySelectedScopes() {
+        List<DependencyScope> scopes = new ArrayList<>();
+        scopes.add(DependencyScope.COMPILE);
+        FrameworkDependencyCandidate candidate =
+                new FrameworkDependencyCandidate(APP, "1.0.0", scopes);
+        scopes.add(DependencyScope.PROVIDED);
+
+        assertTrue(candidate.entersPackagedMainRuntimeClasspath());
+        assertEquals(List.of(DependencyScope.COMPILE), candidate.selectedScopes());
+        assertThrows(UnsupportedOperationException.class, () -> candidate.selectedScopes().add(DependencyScope.RUNTIME));
+
+        FrameworkDependencyCandidate provided =
+                new FrameworkDependencyCandidate(LIB, "2.0.0", List.of(DependencyScope.PROVIDED));
+        FrameworkDependencyCandidate empty =
+                new FrameworkDependencyCandidate(LIB, "2.0.0", null);
+
+        assertFalse(provided.entersPackagedMainRuntimeClasspath());
+        assertEquals(List.of(), empty.selectedScopes());
+    }
+
+    @Test
+    void planRequestDefaultsAndCopiesCollections() {
+        List<FrameworkDependencyCandidate> candidates = new ArrayList<>();
+        candidates.add(new FrameworkDependencyCandidate(APP, "1.0.0", List.of(DependencyScope.COMPILE)));
+        Map<PackageId, String> selectedVersions = new LinkedHashMap<>();
+        selectedVersions.put(APP, "1.0.0");
+        FrameworkDependencyRequestPlanRequest request = new FrameworkDependencyRequestPlanRequest(
+                config(),
+                candidates,
+                selectedVersions,
+                null,
+                coordinate -> Path.of("cache").resolve(coordinate.artifactId() + ".jar"),
+                null);
+        candidates.clear();
+        selectedVersions.put(LIB, "2.0.0");
+
+        assertEquals(List.of(APP), request.candidates().stream()
+                .map(FrameworkDependencyCandidate::packageId)
+                .toList());
+        assertEquals(Map.of(APP, "1.0.0"), request.selectedVersions());
+        assertEquals(Map.of(), request.managedVersions());
+        assertEquals(List.of(), request.platformPropertiesRequests().get());
+        assertThrows(UnsupportedOperationException.class, () -> request.candidates().clear());
+        assertThrows(UnsupportedOperationException.class, () -> request.selectedVersions().clear());
+    }
+
+    @Test
+    void planRequestRejectsMissingRequiredInputsWithActionableMessages() {
+        IllegalArgumentException missingConfig = assertThrows(
+                IllegalArgumentException.class,
+                () -> new FrameworkDependencyRequestPlanRequest(
+                        null,
+                        List.of(),
+                        Map.of(),
+                        Map.of(),
+                        coordinate -> Path.of("unused"),
+                        List::of));
+        IllegalArgumentException missingResolver = assertThrows(
+                IllegalArgumentException.class,
+                () -> new FrameworkDependencyRequestPlanRequest(
+                        config(),
+                        List.of(),
+                        Map.of(),
+                        Map.of(),
+                        null,
+                        List::of));
+
+        assertEquals("Framework dependency request planning requires project config.", missingConfig.getMessage());
+        assertEquals(
+                "Framework dependency request planning requires artifact path resolution.",
+                missingResolver.getMessage());
     }
 
     private static ProjectConfig config() {
