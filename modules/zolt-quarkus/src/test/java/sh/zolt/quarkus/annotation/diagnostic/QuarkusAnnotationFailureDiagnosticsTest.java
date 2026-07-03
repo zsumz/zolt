@@ -129,6 +129,33 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
     }
 
     @Test
+    void classLoaderDiagnosticReportsLoadableGeneratedInvokerClassLoader() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        QuarkusAnnotationFailureDiagnostics diagnostics = diagnostics(out);
+        RuntimeException generatedFailure = new RuntimeException("generated invoker");
+        generatedFailure.setStackTrace(new StackTraceElement[] {
+                new StackTraceElement(
+                        Generated$quarkusrestinvoker$Fixture.class.getName(),
+                        "invoke",
+                        null,
+                        -1)
+        });
+
+        diagnostics.writeClassLoaderDiagnostic(
+                List.of(DiagnosticFixture.class.getName()),
+                QuarkusAnnotationFailureDiagnosticsTest.class.getClassLoader(),
+                generatedFailure);
+
+        String output = output(out);
+        assertTrue(output.contains("generatedInvokerClass="
+                + Generated$quarkusrestinvoker$Fixture.class.getName()), output);
+        assertTrue(output.contains("generatedInvoker.runtimeClassLoader="), output);
+        assertTrue(output.contains("generatedInvoker.loadedClassActualClassLoader="), output);
+        assertTrue(output.contains("generatedInvoker.actualLoader.classLoader="), output);
+        assertTrue(output.contains("generatedInvoker.moduleConfiguration=<unavailable: StartupAction>"), output);
+    }
+
+    @Test
     void classLoaderDiagnosticReportsFirstApplicationClassInStableOrder(@TempDir Path tempDir) throws Exception {
         Path outputDirectory = tempDir.resolve("target/classes");
         Files.createDirectories(outputDirectory.resolve("com/example"));
@@ -199,6 +226,17 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
     }
 
     @Test
+    void reportsUnavailableModuleConfigurationWhenApplyMethodIsMissing() {
+        NoApplyQuarkusClassLoader runtimeClassLoader = new NoApplyQuarkusClassLoader(new NoApplyStartupAction());
+
+        String result = diagnostics.applyModuleConfigurationToClassloader(
+                runtimeClassLoader,
+                QuarkusAnnotationFailureDiagnosticsTest.class.getClassLoader());
+
+        assertEquals("<unavailable: NoSuchMethodException>", result);
+    }
+
+    @Test
     void skipsModuleConfigurationWhenClassLoadersAreMissing() {
         assertEquals("skipped", diagnostics.applyModuleConfigurationToClassloader(
                 null,
@@ -239,6 +277,9 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
     static final class DiagnosticFixture {
     }
 
+    static final class Generated$quarkusrestinvoker$Fixture {
+    }
+
     static final class FakeQuarkusClassLoader extends ClassLoader {
         private final FakeStartupAction startupAction;
 
@@ -258,6 +299,22 @@ final class QuarkusAnnotationFailureDiagnosticsTest {
         public void applyModuleConfigurationToClassloader(ClassLoader classLoader) {
             targetClassLoader = classLoader;
         }
+    }
+
+    static final class NoApplyQuarkusClassLoader extends ClassLoader {
+        private final NoApplyStartupAction startupAction;
+
+        private NoApplyQuarkusClassLoader(NoApplyStartupAction startupAction) {
+            super(QuarkusAnnotationFailureDiagnosticsTest.class.getClassLoader());
+            this.startupAction = startupAction;
+        }
+
+        public NoApplyStartupAction getStartupAction() {
+            return startupAction;
+        }
+    }
+
+    static final class NoApplyStartupAction {
     }
 
     static final class ThrowingQuarkusClassLoader extends ClassLoader {

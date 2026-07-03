@@ -161,6 +161,29 @@ final class ZoltQuarkusTestClassBeanCustomizerTest {
     }
 
     @Test
+    void diagnosticWriterAppendsLinesAndIgnoresWriteFailures() throws Exception {
+        Path diagnosticFile = tempDir.resolve("diagnostics/customizer-direct.txt");
+        String previousDiagnostic = System.getProperty(DIAGNOSTIC_FILE_PROPERTY);
+        try (URLClassLoader runtime = QuarkusProvidedRuntime.open()) {
+            Method writeDiagnostic = customizerClass(runtime).getMethod("writeDiagnostic", String[].class);
+            System.setProperty(DIAGNOSTIC_FILE_PROPERTY, diagnosticFile.toString());
+
+            writeDiagnostic.invoke(null, (Object) new String[] {"first=true"});
+            writeDiagnostic.invoke(null, (Object) new String[] {"second=true", "third=true"});
+
+            System.setProperty(DIAGNOSTIC_FILE_PROPERTY, tempDir.toString());
+            writeDiagnostic.invoke(null, (Object) new String[] {"ignored=true"});
+        } finally {
+            restore(DIAGNOSTIC_FILE_PROPERTY, previousDiagnostic);
+        }
+
+        String diagnostic = Files.readString(diagnosticFile);
+        assertTrue(diagnostic.contains("first=true"), diagnostic);
+        assertTrue(diagnostic.contains("second=true"), diagnostic);
+        assertTrue(diagnostic.contains("third=true"), diagnostic);
+    }
+
+    @Test
     void formatsBootstrapClassLoaderName() throws Exception {
         try (URLClassLoader runtime = QuarkusProvidedRuntime.open()) {
             Method classLoaderName = customizerClass(runtime).getMethod("classLoaderName", ClassLoader.class);

@@ -43,6 +43,23 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     }
 
     @Test
+    void returnsFailureStatusAndPrintsThrowableForFailingTests() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int exitCode = new QuarkusAnnotationProgrammaticRunner().run(
+                new String[] {FailingCase.class.getName()},
+                stream(out),
+                stream(err));
+
+        String stdout = output(out);
+        assertEquals(1, exitCode);
+        assertTrue(stdout.contains("java.lang.AssertionError: boom"), stdout);
+        assertTrue(stdout.contains("Tests failed"), stdout);
+        assertEquals("", output(err));
+    }
+
+    @Test
     void requiresTestClassArguments() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
@@ -52,6 +69,15 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
                 stream(err));
 
         assertEquals(2, exitCode);
+        assertTrue(output(err).contains("requires at least one test class"));
+
+        err.reset();
+        int nullExitCode = new QuarkusAnnotationProgrammaticRunner().run(
+                null,
+                stream(new ByteArrayOutputStream()),
+                stream(err));
+
+        assertEquals(2, nullExitCode);
         assertTrue(output(err).contains("requires at least one test class"));
     }
 
@@ -66,6 +92,13 @@ final class QuarkusAnnotationProgrammaticRunnerTest {
     static final class PassingTest {
         @Test
         void passes() {
+        }
+    }
+
+    static final class FailingCase {
+        @Test
+        void fails() {
+            throw new AssertionError("boom");
         }
     }
 }

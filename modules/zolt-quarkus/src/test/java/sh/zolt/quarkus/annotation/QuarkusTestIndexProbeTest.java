@@ -158,6 +158,54 @@ final class QuarkusTestIndexProbeTest {
         assertTrue(output.contains("    com.example.HttpQuarkusCase"));
     }
 
+    @Test
+    void probesRegisterExtensionCandidatesFromRealIndex(@TempDir Path tempDir) throws Exception {
+        Path testOutputDirectory = QuarkusJandexFixtureCompiler.compile(
+                tempDir.resolve("test-classes"),
+                Map.of("com.example.RegisteredExtensionCase", """
+                        package com.example;
+
+                        public class RegisteredExtensionCase {
+                            @org.junit.jupiter.api.extension.RegisterExtension
+                            static io.quarkus.test.junit.QuarkusTestExtension extension;
+
+                            @org.junit.jupiter.api.Test
+                            void runs() {
+                            }
+                        }
+                        """));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int exitCode;
+        try (FixtureRuntime runtime = QuarkusJandexFixtureCompiler.fixtureRuntime()) {
+            Object probe = runtime.newInstance(QuarkusTestIndexProbe.MAIN_CLASS);
+            Method run = probe.getClass().getDeclaredMethod(
+                    "run",
+                    String[].class,
+                    PrintStream.class,
+                    PrintStream.class);
+            run.setAccessible(true);
+            exitCode = (int) run.invoke(
+                    probe,
+                    new String[] {
+                            testOutputDirectory.toString(),
+                            "com.example.RegisteredExtensionCase"
+                    },
+                    stream(out),
+                    stream(err));
+        }
+
+        assertEquals(0, exitCode, output(err));
+        String output = output(out);
+        assertTrue(output.contains(
+                "com.example.RegisteredExtensionCase present=true @QuarkusTest=false @ExtendWith=false"));
+        assertTrue(output.contains("org.junit.jupiter.api.extension.RegisterExtension=1"));
+        assertTrue(output.contains("org.junit.jupiter.api.Test=1"));
+        assertTrue(output.contains("Build-chain test bean candidates:"));
+        assertTrue(output.contains("    com.example.RegisteredExtensionCase"));
+    }
+
     private static PrintStream stream(ByteArrayOutputStream output) {
         return new PrintStream(output, true, StandardCharsets.UTF_8);
     }

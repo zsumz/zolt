@@ -77,6 +77,27 @@ final class QuarkusAnnotationJvmRunnerTest {
     }
 
     @Test
+    void ignoresBlankAndNullWorkerClasspathEntries() {
+        QuarkusAnnotationJvmRunner blankWorkerClasspath = new QuarkusAnnotationJvmRunner(
+                ":",
+                Path.of("/jdk/bin/java"),
+                () -> "/worker/../worker/zolt.jar::",
+                command -> new QuarkusAnnotationJvmRunner.Result(0, ""));
+        QuarkusAnnotationJvmRunner nullWorkerClasspath = new QuarkusAnnotationJvmRunner(
+                ":",
+                Path.of("/jdk/bin/java"),
+                () -> null,
+                command -> new QuarkusAnnotationJvmRunner.Result(0, ""));
+
+        assertEquals(
+                "/worker/zolt.jar:/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
+                blankWorkerClasspath.command(request()).get(6));
+        assertEquals(
+                "/repo/target/test-classes:/repo/target/classes:/cache/junit-platform-console.jar",
+                nullWorkerClasspath.command(request()).get(6));
+    }
+
+    @Test
     void requiresLaunchRequest() {
         QuarkusAnnotationJvmRunner runner = new QuarkusAnnotationJvmRunner(
                 ":",
@@ -88,6 +109,57 @@ final class QuarkusAnnotationJvmRunnerTest {
                 () -> runner.run(null));
 
         assertTrue(exception.getMessage().contains("launch request is required"));
+    }
+
+    @Test
+    void requiresLaunchRequestWhenBuildingCommand() {
+        QuarkusAnnotationJvmRunner runner = new QuarkusAnnotationJvmRunner(
+                ":",
+                Path.of("/jdk/bin/java"),
+                command -> new QuarkusAnnotationJvmRunner.Result(0, ""));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> runner.command(null));
+
+        assertTrue(exception.getMessage().contains("launch request is required"));
+    }
+
+    @Test
+    void rejectsInvalidConstructorInputs() {
+        QuarkusAugmentationException separator = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> new QuarkusAnnotationJvmRunner(
+                        " ",
+                        Path.of("/jdk/bin/java"),
+                        command -> new QuarkusAnnotationJvmRunner.Result(0, "")));
+        assertTrue(separator.getMessage().contains("path separator is required"));
+
+        QuarkusAugmentationException javaExecutable = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> new QuarkusAnnotationJvmRunner(
+                        ":",
+                        null,
+                        command -> new QuarkusAnnotationJvmRunner.Result(0, "")));
+        assertTrue(javaExecutable.getMessage().contains("Java executable is required"));
+
+        QuarkusAugmentationException workerClasspath = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> new QuarkusAnnotationJvmRunner(
+                        ":",
+                        Path.of("/jdk/bin/java"),
+                        null,
+                        command -> new QuarkusAnnotationJvmRunner.Result(0, "")));
+        assertTrue(workerClasspath.getMessage().contains("worker classpath is required"));
+
+        QuarkusAugmentationException processRunner = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> new QuarkusAnnotationJvmRunner(
+                        ":",
+                        Path.of("/jdk/bin/java"),
+                        () -> "",
+                        null));
+        assertTrue(processRunner.getMessage().contains("process runner is required"));
     }
 
     private static QuarkusAnnotationLaunchRequest request() {

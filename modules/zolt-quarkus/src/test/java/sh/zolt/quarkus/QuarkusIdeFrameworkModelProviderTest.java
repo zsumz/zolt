@@ -1,6 +1,8 @@
 package sh.zolt.quarkus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.ide.IdeModel;
@@ -22,6 +24,52 @@ final class QuarkusIdeFrameworkModelProviderTest {
 
     @TempDir
     private Path tempDir;
+
+    @Test
+    void exportsDisabledQuarkusFrameworkStateWithoutDiagnostics() throws IOException {
+        Path projectDir = tempDir.resolve("plain-java");
+        ProjectConfig config = plainProject(projectDir);
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(
+                projectDir.toAbsolutePath().normalize(),
+                tempDir.resolve("cache"),
+                config,
+                diagnostics);
+
+        IdeModel.QuarkusInfo quarkus = frameworks.quarkus();
+        assertFalse(quarkus.enabled());
+        assertEquals("disabled", quarkus.augmentationStatus());
+        assertNull(quarkus.packageMode());
+        assertEquals(List.of(), quarkus.generatedOutputs());
+        assertEquals(List.of(), quarkus.deploymentClasspath());
+        assertEquals(List.of(), diagnostics);
+    }
+
+    @Test
+    void exportsUnknownQuarkusFrameworkStateWhenCacheRootIsUnavailable() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-no-cache");
+        ProjectConfig config = quarkusProject(projectDir);
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(
+                projectDir.toAbsolutePath().normalize(),
+                null,
+                config,
+                diagnostics);
+
+        Path root = projectDir.toAbsolutePath().normalize();
+        IdeModel.QuarkusInfo quarkus = frameworks.quarkus();
+        assertTrue(quarkus.enabled());
+        assertEquals("fast-jar", quarkus.packageMode());
+        assertEquals("unknown", quarkus.augmentationStatus());
+        assertNull(quarkus.inputFingerprint());
+        assertNull(quarkus.recordedInputFingerprint());
+        assertEquals(root.resolve("target/quarkus/zolt-augmentation.properties"), quarkus.augmentationMetadata());
+        assertEquals(root.resolve("target/quarkus-app/quarkus-run.jar"), quarkus.runnerJar());
+        assertEquals(List.of(), quarkus.deploymentClasspath());
+        assertEquals(List.of(), diagnostics);
+    }
 
     @Test
     void exportsQuarkusFrameworkStateWithMissingAugmentationDiagnostic() throws IOException {
@@ -104,6 +152,32 @@ final class QuarkusIdeFrameworkModelProviderTest {
     }
 
     @Test
+    void reportsUnavailableQuarkusModelWhenLockfileCannotBeRead() throws IOException {
+        Path projectDir = tempDir.resolve("quarkus-bad-lock");
+        ProjectConfig config = quarkusProject(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version =\n");
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.FrameworkInfo frameworks = builder.build(
+                projectDir.toAbsolutePath().normalize(),
+                tempDir.resolve("cache"),
+                config,
+                diagnostics);
+
+        IdeModel.QuarkusInfo quarkus = frameworks.quarkus();
+        assertTrue(quarkus.enabled());
+        assertEquals("unknown", quarkus.augmentationStatus());
+        assertNull(quarkus.inputFingerprint());
+        assertEquals(List.of(), quarkus.deploymentClasspath());
+        assertEquals(1, diagnostics.size());
+        assertEquals("warning", diagnostics.getFirst().severity());
+        assertEquals("QUARKUS_MODEL_UNAVAILABLE", diagnostics.getFirst().code());
+        assertTrue(diagnostics.getFirst().message().contains("zolt.lock"));
+        assertEquals(projectDir.toAbsolutePath().normalize().resolve("zolt.lock"), diagnostics.getFirst().path());
+        assertEquals("Run zolt resolve, then run zolt build.", diagnostics.getFirst().nextStep());
+    }
+
+    @Test
     void exportsQuarkusFrameworkStateFromConfiguredOutputRoot() throws IOException {
         Path projectDir = tempDir.resolve("quarkus-output-root");
         ProjectConfig config = quarkusProject(projectDir, ".zolt/build");
@@ -151,6 +225,19 @@ final class QuarkusIdeFrameworkModelProviderTest {
 
     private ProjectConfig quarkusProject(Path projectDir) throws IOException {
         return quarkusProject(projectDir, null);
+    }
+
+    private ProjectConfig plainProject(Path projectDir) throws IOException {
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "plain"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
     }
 
     private ProjectConfig quarkusProject(Path projectDir, String outputRoot) throws IOException {
