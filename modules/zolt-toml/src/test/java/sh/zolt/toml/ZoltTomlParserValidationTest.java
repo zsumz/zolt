@@ -1,6 +1,7 @@
 package sh.zolt.toml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -169,6 +170,42 @@ final class ZoltTomlParserValidationTest {
         assertEquals(
                 "Missing required field [project].version in zolt.toml. Add a non-empty string value.",
                 exception.getMessage());
+    }
+
+    @Test
+    void workspaceTomlRequiresWorkspaceMode() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [workspace]
+                        members = ["apps/*", "modules/*"]
+                        """));
+
+        assertEquals(
+                "This zolt.toml declares a [workspace], not a [project], so it cannot be built as a single project. "
+                        + "Re-run the command with --workspace to operate on the workspace and its members.",
+                exception.getMessage());
+        assertNotNull(exception.actionableError());
+        assertEquals(
+                "Re-run the command with --workspace to operate on the workspace and its members.",
+                exception.actionableError().remediation());
+    }
+
+    @Test
+    void rejectsInvalidProjectVersion() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "incomplete-version-app"
+                        version = "1.0."
+                        group = "com.example"
+                        java = "21"
+                        """));
+
+        assertTrue(exception.getMessage().contains("Invalid project version `1.0.`"));
+        assertTrue(exception.getMessage().contains("[project.version]"));
+        assertTrue(exception.getMessage().contains("complete fixed version"));
     }
 
     @Test

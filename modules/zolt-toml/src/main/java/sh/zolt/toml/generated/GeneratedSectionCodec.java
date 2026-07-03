@@ -60,8 +60,8 @@ public final class GeneratedSectionCodec {
         }
         List<GeneratedSourceStep> steps = new ArrayList<>();
         for (String id : table.keySet()) {
-            TomlTable stepTable = optionalTable(table, id);
-            if (stepTable == null) {
+            Object rawStep = table.get(List.of(id));
+            if (!(rawStep instanceof TomlTable stepTable)) {
                 throw new ZoltConfigException(
                         "Invalid value for [" + section + "]." + id + " in zolt.toml. Use a table with kind, language, output, and inputs.");
             }

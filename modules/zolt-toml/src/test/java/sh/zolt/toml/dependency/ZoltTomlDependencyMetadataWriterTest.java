@@ -55,6 +55,39 @@ final class ZoltTomlDependencyMetadataWriterTest {
     }
 
     @Test
+    void versionRefMutationPreservesExistingDependencyMetadata() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "hello"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                core = "1.0.0"
+
+                [dependencies]
+                "com.example:core" = { version = "1.0.0", optional = true, exclusions = [{ group = "com.example", artifact = "legacy-logging" }] }
+                """);
+
+        config = writer.addVersionRefDependency(
+                config,
+                DependencySection.MAIN,
+                "com.example:core",
+                "core",
+                "1.0.0");
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+        DependencyMetadata metadata = parsed.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "com.example:core"));
+
+        assertTrue(toml.contains("\"com.example:core\" = { versionRef = \"core\", optional = true, exclusions = [{ group = \"com.example\", artifact = \"legacy-logging\" }] }"));
+        assertEquals("core", metadata.versionRef());
+        assertTrue(metadata.optional());
+        assertEquals(List.of(new DependencyExclusionSpec("com.example", "legacy-logging")), metadata.exclusions());
+    }
+
+    @Test
     void removesNonPublishDependencyMetadataWhenRemovingDependency() {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
                 .withDependencyMetadata(Map.of(

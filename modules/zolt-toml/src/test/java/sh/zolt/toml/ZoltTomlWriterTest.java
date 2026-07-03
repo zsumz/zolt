@@ -50,6 +50,17 @@ final class ZoltTomlWriterTest {
     }
 
     @Test
+    void defaultConfigOmitsBlankMainClass() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "   ");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertFalse(toml.contains("main = "));
+        assertTrue(parsed.project().main().isEmpty());
+    }
+
+    @Test
     void writtenConfigParsesBackIntoModel() {
         ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
         ProjectConfig parsed = parser.parse(writer.write(original));

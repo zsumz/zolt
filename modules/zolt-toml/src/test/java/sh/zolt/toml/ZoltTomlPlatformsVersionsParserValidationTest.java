@@ -151,6 +151,29 @@ final class ZoltTomlPlatformsVersionsParserValidationTest {
     }
 
     @Test
+    void rejectsMalformedVersionRefValues() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "aliases"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [versions]
+                        guava = "33.4.8-jre"
+
+                        [dependencies]
+                        "com.google.guava:guava" = { versionRef = 42 }
+                        """));
+
+        assertEquals(
+                "Invalid value for [dependencies.com.google.guava:guava].versionRef in zolt.toml. Use a non-empty alias from [versions].",
+                exception.getMessage());
+    }
+
+    @Test
     void rejectsVersionRefInNonVersionField() {
         ZoltConfigException exception = assertThrows(
                 ZoltConfigException.class,

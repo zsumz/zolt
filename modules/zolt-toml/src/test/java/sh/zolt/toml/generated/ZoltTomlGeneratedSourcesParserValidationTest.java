@@ -64,6 +64,44 @@ final class ZoltTomlGeneratedSourcesParserValidationTest {
     }
 
     @Test
+    void rejectsScalarGeneratedSourceSteps() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main]
+                openapi = "src/main/openapi/api.yaml"
+                """));
+
+        assertEquals(
+                "Invalid value for [generated.main].openapi in zolt.toml. Use a table with kind, language, output, and inputs.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnsupportedGeneratedSourceKinds() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.antlr]
+                kind = "antlr"
+                language = "java"
+                output = "target/generated/sources/antlr"
+                inputs = ["src/main/antlr/Grammar.g4"]
+                """));
+
+        assertTrue(exception.getMessage().contains("Unsupported generated source kind `antlr`"));
+        assertTrue(exception.getMessage().contains("Supported generated source kinds"));
+    }
+
+    @Test
     void rejectsInvalidOpenApiOptionMapShapes() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]
