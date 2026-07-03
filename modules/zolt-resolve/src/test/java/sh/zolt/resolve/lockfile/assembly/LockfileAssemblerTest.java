@@ -73,6 +73,65 @@ final class LockfileAssemblerTest {
     }
 
     @Test
+    void deduplicatesChildEdgesForNodeReachedAtMultipleScopes() {
+        PackageId child = new PackageId("com.example", "child");
+        PackageNode childNode = new PackageNode(child, "3.0.0");
+        DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
+        DependencyRequest compileChildRequest = new DependencyRequest(
+                child, "3.0.0", DependencyScope.COMPILE, RequestOrigin.TRANSITIVE);
+        DependencyRequest testChildRequest = new DependencyRequest(
+                child, "3.0.0", DependencyScope.TEST, RequestOrigin.TRANSITIVE);
+        // LIB is reached at both compile and test scope, so the traverser re-expands it and
+        // appends its LIB -> child edge once per scope. The lockfile must list the edge once.
+        ResolutionGraph graph = new ResolutionGraph(
+                List.of(APP_NODE, LIB_NODE, childNode),
+                List.of(
+                        new ResolutionEdge(
+                                LIB_NODE, childNode, compileChildRequest, DependencyTraversalDecision.include("compile")),
+                        new ResolutionEdge(
+                                LIB_NODE, childNode, testChildRequest, DependencyTraversalDecision.include("test"))),
+                List.of());
+
+        ZoltLockfile lockfile = assembler.assemble(
+                new FakeAssemblyContext(baseConfig()),
+                graph,
+                new VersionSelectionResult(List.of(APP_NODE, LIB_NODE, childNode), List.of()),
+                List.of(appRequest));
+
+        LockPackage lib = lockfile.packages().stream()
+                .filter(pkg -> pkg.packageId().equals(LIB))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("com.example:child:3.0.0"), lib.dependencies());
+    }
+
+    @Test
+    void singleScopeChildEdgesRemainUnchanged() {
+        PackageId child = new PackageId("com.example", "child");
+        PackageNode childNode = new PackageNode(child, "3.0.0");
+        DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
+        DependencyRequest childRequest = new DependencyRequest(
+                child, "3.0.0", DependencyScope.COMPILE, RequestOrigin.TRANSITIVE);
+        ResolutionGraph graph = new ResolutionGraph(
+                List.of(APP_NODE, LIB_NODE, childNode),
+                List.of(new ResolutionEdge(
+                        LIB_NODE, childNode, childRequest, DependencyTraversalDecision.include("compile"))),
+                List.of());
+
+        ZoltLockfile lockfile = assembler.assemble(
+                new FakeAssemblyContext(baseConfig()),
+                graph,
+                new VersionSelectionResult(List.of(APP_NODE, LIB_NODE, childNode), List.of()),
+                List.of(appRequest));
+
+        LockPackage lib = lockfile.packages().stream()
+                .filter(pkg -> pkg.packageId().equals(LIB))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("com.example:child:3.0.0"), lib.dependencies());
+    }
+
+    @Test
     void preservesClassifierJarDescriptor() {
         ArtifactDescriptor descriptor = new ArtifactDescriptor(
                 new Coordinate("org.jacoco", "org.jacoco.agent", Optional.of("0.8.14")),

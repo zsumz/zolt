@@ -247,6 +247,7 @@ public final class LockfileAssembler {
         return graph.edges().stream()
                 .filter(edge -> edge.from().equals(node))
                 .map(edge -> edge.to().packageId() + ":" + edge.to().selectedVersion())
+                .distinct()
                 .sorted()
                 .toList();
     }
