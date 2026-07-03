@@ -18,6 +18,77 @@ final class QualityCheckServiceTest {
     private Path tempDir;
 
     @Test
+    void workspaceCheckWithoutWorkspaceConfigReturnsUnavailableResults() throws IOException {
+        Path projectDir = tempDir.resolve("not-a-workspace");
+        Files.createDirectories(projectDir);
+        QualityCheckService service = new QualityCheckService(Map.<String, String>of()::get);
+
+        QualityCheckReport report = service.check(new QualityCheckRequest(
+                projectDir,
+                tempDir.resolve("cache"),
+                false,
+                true,
+                List.of(QualityCheckService.COMMAND_SURFACE, "mvn verify"),
+                null,
+                null,
+                null,
+                false,
+                false,
+                false,
+                WorkspaceSelectionRequest.defaults()));
+
+        assertEquals("error", report.status());
+        assertTrue(report.workspace());
+        QualityCheckResult workspaceFailure = report.checks().getFirst();
+        assertEquals(QualityCheckService.COMMAND_SURFACE, workspaceFailure.id());
+        assertEquals("workspace config", workspaceFailure.subject());
+        assertEquals("No Zolt workspace was found for `zolt check --workspace`.", workspaceFailure.message());
+        assertEquals(
+                "Run from a workspace root or remove --workspace for a single-project check.",
+                workspaceFailure.nextStep());
+        QualityCheckResult unsupported = report.checks().get(1);
+        assertEquals("unsupported-check", unsupported.id());
+        assertEquals("mvn verify", unsupported.subject());
+        assertEquals("Unsupported quality check `mvn verify`.", unsupported.message());
+        assertTrue(unsupported.nextStep().contains("Use one of:"));
+        assertTrue(unsupported.nextStep().contains(
+                "Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks."));
+    }
+
+    @Test
+    void malformedProjectConfigReturnsUnavailableResultsForRequestedChecks() throws IOException {
+        Path projectDir = tempDir.resolve("malformed-project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = 42
+                """);
+        QualityCheckService service = new QualityCheckService(Map.<String, String>of()::get);
+
+        QualityCheckReport report = service.check(new QualityCheckRequest(
+                projectDir,
+                tempDir.resolve("cache"),
+                false,
+                false,
+                List.of(QualityCheckService.LOCKFILE, "mvn verify"),
+                null,
+                null,
+                null,
+                false,
+                false,
+                false,
+                WorkspaceSelectionRequest.defaults()));
+
+        assertEquals("error", report.status());
+        assertFalse(report.workspace());
+        assertEquals(QualityCheckService.LOCKFILE, report.checks().getFirst().id());
+        assertEquals("zolt.toml", report.checks().getFirst().subject());
+        assertFalse(report.checks().getFirst().message().isBlank());
+        assertEquals("Fix zolt.toml, then run `zolt check` again.", report.checks().getFirst().nextStep());
+        assertEquals("unsupported-check", report.checks().get(1).id());
+    }
+
+    @Test
     void ciContextRejectsPlaceholderCredentialValuesWithoutPrintingThem() throws IOException {
         Path projectDir = tempDir.resolve("placeholder-credentials");
         Files.createDirectories(projectDir);

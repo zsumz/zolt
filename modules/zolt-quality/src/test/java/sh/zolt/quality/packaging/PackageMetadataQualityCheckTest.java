@@ -119,6 +119,45 @@ final class PackageMetadataQualityCheckTest extends PackageQualityCheckTestSuppo
     }
 
     @Test
+    void metadataPassesWhenLibraryMetadataIsComplete() throws IOException {
+        Path projectDir = tempDir.resolve("complete-metadata");
+        ProjectConfig config = parseProject(projectDir, """
+
+                [package]
+                sources = true
+                javadoc = true
+                tests = true
+                """
+                + packageMetadata());
+
+        QualityCheckResult result = check.checkMetadata(Optional.of("modules/library"), projectDir, config);
+
+        assertEquals(Optional.of("modules/library"), result.member());
+        assertResult(
+                result,
+                QualityCheckService.PACKAGE_METADATA,
+                QualityCheckStatus.PASSED,
+                "complete-metadata",
+                "Library package metadata is complete.",
+                "");
+    }
+
+    @Test
+    void manifestMetadataPassesWhenNoLibraryProfileIsRequested() throws IOException {
+        ProjectConfig config = parseProject(tempDir.resolve("manifest-plain-app"), "");
+
+        QualityCheckResult result = check.checkManifestMetadata(Optional.empty(), config);
+
+        assertResult(
+                result,
+                QualityCheckService.MANIFEST_METADATA,
+                QualityCheckStatus.PASSED,
+                "manifest-plain-app",
+                "No library manifest metadata is requested.",
+                "");
+    }
+
+    @Test
     void manifestMetadataRejectsZoltOwnedAttributesCaseInsensitively() throws IOException {
         ProjectConfig config = parseProject(tempDir.resolve("owned-manifest"), """
 

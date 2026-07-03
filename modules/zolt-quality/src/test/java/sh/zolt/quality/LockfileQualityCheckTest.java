@@ -76,6 +76,22 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     @Test
+    void workspaceLockfileCheckReportsMissingWorkspaceLockfile() throws IOException {
+        Path workspaceDir = tempDir.resolve("workspace-lock-missing");
+        Files.createDirectories(workspaceDir);
+
+        QualityCheckResult result = check.checkWorkspaceLockfile(request(workspaceDir), workspace(workspaceDir));
+
+        assertResult(
+                result,
+                QualityCheckService.LOCKFILE,
+                QualityCheckStatus.FAILED,
+                "zolt.lock",
+                "Workspace zolt.lock is missing.",
+                "Run `zolt resolve --workspace`.");
+    }
+
+    @Test
     void cacheIntegrityReportsMalformedLockfileWithRefreshNextStep() throws IOException {
         Path projectDir = tempDir.resolve("malformed-lock");
         Files.createDirectories(projectDir);

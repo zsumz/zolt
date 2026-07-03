@@ -175,4 +175,32 @@ final class PackageContentQualityCheckTest extends PackageQualityCheckTestSuppor
                 "Package evidence manifest is stale for `target/stale-evidence-0.1.0.jar`.",
                 "Run `zolt package` to regenerate the artifact and evidence manifest.");
     }
+
+    @Test
+    void packageContentsReportsUnreadableEvidenceManifest() throws IOException {
+        Path projectDir = tempDir.resolve("bad-evidence");
+        ProjectConfig config = parseProject(projectDir, "");
+        writeLockfile(projectDir, "");
+        Path jar = projectDir.resolve("target/bad-evidence-0.1.0.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar bytes\n");
+        Files.writeString(projectDir.resolve("target/bad-evidence-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1"
+                }
+                """);
+
+        QualityCheckResult result = check.checkContents(
+                Optional.empty(),
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                false).getFirst();
+
+        assertEquals(QualityCheckService.PACKAGE_CONTENTS, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("target/bad-evidence-0.1.0.jar.zolt-package.json", result.subject());
+        assertTrue(result.message().contains("is missing string field `archive`"));
+        assertEquals("Run `zolt package` to regenerate package evidence.", result.nextStep());
+    }
 }
